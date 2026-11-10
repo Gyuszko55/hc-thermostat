@@ -1,0 +1,73 @@
+"""Constants of HC Thermostat (Heat Conductor Thermostat)."""
+
+DOMAIN = "hc_thermostat"
+PLATFORMS = ["binary_sensor", "button", "climate", "sensor"]
+CENTRAL_PLATFORMS = ["binary_sensor", "sensor"]
+
+CONF_HEAT_SOURCE = "heat_source"
+CONF_SYSTEM = "system"
+CONF_CONTROL = "control"
+CONF_MODE = "mode"
+CONF_INDOOR = "indoor_entity"
+CONF_OUTDOOR = "outdoor_entity"
+CONF_ACTUATOR = "actuator_entity"
+CONF_EXTERNAL = "external_climate"
+CONF_REFERENCE = "reference_entity"
+CONF_WINDOWS = "window_entities"
+CONF_PRESENCE = "presence_entities"
+CONF_CONFIRM = "confirm"
+CONF_HEAT_ENERGY = "heat_energy_entity"
+CONF_ENERGY_FACTOR = "energy_factor"
+CONF_EXTRA_HEAT = "extra_heat_entity"
+CONF_EXTRA_FACTOR = "extra_factor"
+CONF_ZONE_TEMP = "zone_temp_entity"
+CONF_BOILER_PRICE = "boiler_price_entity"
+CONF_OTHER_PRICE = "other_price_entity"
+CONF_BOILER_PRICE_MANUAL = "boiler_price"
+CONF_OTHER_PRICE_MANUAL = "other_price"
+CONF_BOILER_LIMIT = "boiler_allowance_entity"
+CONF_OTHER_LIMIT = "other_allowance_entity"
+CONF_COP_HIGH = "cop_high"
+CONF_COP_LOW = "cop_low"
+CONF_ZONE_DOORS = "zone_door_entities"
+CONF_ZONE_DIFF = "zone_max_diff"
+CONF_FLAME = "flame_entity"
+CONF_WINDOW_DROP = "window_drop_entities"
+CONF_BOILER_POWER = "boiler_power_entity"
+CONF_FLOW = "flow_setpoint_entity"  # heating curve (EXPERIMENTAL): where the flow setpoint is written
+CONF_HEAT_ENABLE = "heat_enable_entity"
+# Several zones (stage 3): the role of an instance; a central boiler reads its zone thermostats
+CONF_ROLE = "role"
+ROLES = ["standalone", "zone", "central", "buffer"]
+CONF_BUFFER_TOP = "buffer_top_entity"  # buffer tank: temperature at the top (required)
+CONF_BUFFER_BOTTOM = "buffer_bottom_entity"  # buffer tank: temperature at the bottom (optional)
+CONF_ZONES = "zone_entities"
+CONF_ASSIST = "assist_climate"  # air conditioner: the house HC whose cost advice and door it follows
+CONF_ROOMS = "room_sensors"  # single zone: thermometers of the other rooms (advice only)
+CONF_ROOM_TOL = "room_tolerance"
+CONF_ROOM_TRVS = "room_trvs"  # single zone: TRV heads (climate) of the other rooms; they get the house target
+CONF_TRV_OFFSETS = "trv_offsets"  # TRV room -> offset to the house target (°C), set per room in the options
+CONF_ROOM_TRV_DEMAND = "room_trv_demand"  # a TRV room far below its target may ask for short burns
+EVENT_ROOM_ADVICE = "hc_thermostat_room_advice"
+CONF_PUMP = "pump_entity"  # central boiler: optional circulation pump relay (runs on after the boiler)
+CONF_VALVE_FEEDBACK = "valve_feedback_entity"  # zone: end switch or valve position, read by the central boiler
+CONF_BOILER = "boiler_entity"  # heating curve: optional central-heating enable switch
+CONF_FLOOR = "floor_entity"  # floor heating: floor temperature sensor (limit; required for an electric floor)
+CONF_HP_DEFROST = "hp_defrost_entity"  # heat pump: on while it defrosts (optional)
+CONF_HUMIDITY = "humidity_entity"  # floor cooling: room relative humidity (dew point; required for cooling)
+CONF_COOL_MODE = "cool_mode_entity"  # floor cooling: switch that puts the heat pump into cooling (optional)
+CONF_COOL_FLOW = "cool_flow_entity"  # floor cooling, curve: cooling flow setpoint (optional; else the flow entity)
+CONF_POWER_AVAILABLE = "power_available_entity"  # electric heat: controlled (off-peak) power is on (optional)
+CONF_DISCHARGE = "discharge_entity"  # storage heater: discharge fan / damper relay (optional)
+CONF_FAN = "fan_entity"  # fan coil: the fan (fan domain, by percentage) (optional)
+CONF_COIL = "coil_temp_entity"  # fan coil: coil / supply water temperature (optional)
+CONF_RETURN = "return_temp_entity"  # district heating: return water temperature (optional)
+CONF_HP_DHW = "hp_dhw_entity"  # heat pump: on while it makes hot water (optional; a 3-way valve or a mode)
+CONF_TARGET_SOURCE = "target_source_entity"  # a wall thermostat / number whose setpoint this instance takes over
+
+MODE_SHADOW = "shadow"
+MODE_ACTIVE = "active"
+# Home Assistant's standard preset names where one fits (icons and translations come with them).
+PRESETS = ["auto", "comfort", "home", "sleep", "eco", "away", "vacation", "boost"]
+TIMED_PRESETS = ["comfort", "home", "sleep", "eco", "away", "vacation"]  # presets with a target and an end
+EXPIRY = ["revoke", "next_change", "home", "hours"]

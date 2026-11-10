@@ -1,0 +1,536 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up HC Thermostat",
+        "description": "Choose the heat source and hydraulics; the matrix gives advice from them.",
+        "data": {
+          "name": "Name",
+          "heat_source": "Heat source",
+          "system": "Emitters and hydraulics",
+          "role": "Role"
+        }
+      },
+      "control": {
+        "title": "Recommended control",
+        "description": "Rating: **{status}**\n\n{advice}\n\nThis is an engineering default, not a replacement for an installer's design.",
+        "data": {
+          "control": "Regulator",
+          "confirm": "I know this system is not recommended and accept it"
+        }
+      },
+      "entities": {
+        "title": "Entities",
+        "description": "A new instance always starts in shadow mode: it calculates but switches nothing.",
+        "data": {
+          "indoor_entity": "Indoor temperature",
+          "outdoor_entity": "Outdoor temperature",
+          "actuator_entity": "Boiler relay",
+          "external_climate": "External thermostat",
+          "reference_entity": "Actual heating indicator",
+          "window_entities": "Windows and doors",
+          "presence_entities": "Presence",
+          "heat_energy_entity": "Heat energy of the boiler (cumulative)",
+          "energy_factor": "Boiler heat per unit (e.g. kWh per m³ of gas × efficiency)",
+          "extra_heat_entity": "Other heat source energy (cumulative, e.g. air conditioner)",
+          "extra_factor": "Heat per unit of the other source (e.g. COP)",
+          "boiler_power_kw": "Boiler output (0 = heat need is not used in regulation)",
+          "zone_temp_entity": "Adjoining room thermometer (e.g. terrace)",
+          "zone_door_entities": "Doors to the adjoining room",
+          "zone_max_diff": "Counts as part of the house if at most this much colder",
+          "flow_setpoint_entity": "Flow setpoint entity (number / input_number, e.g. OpenTherm or ebusd)",
+          "heat_enable_entity": "Heating enable (switch, if any)",
+          "valve_feedback_entity": "Valve feedback (end switch or valve position, if there is one)",
+          "floor_entity": "Floor thermometer (floor sensor)",
+          "floor_max": "Floor temperature limit (0 = none)",
+          "floor_hysteresis": "Back on this far below the limit",
+          "target_source_entity": "Target source (wall thermostat or number)",
+          "hp_defrost_entity": "Heat pump: defrost signal",
+          "hp_dhw_entity": "Heat pump: hot water signal",
+          "hp_min_on_s": "Heat pump shortest run",
+          "hp_min_off_s": "Heat pump shortest pause",
+          "onoff_hysteresis": "Switch on this far below the target",
+          "power_available_entity": "Controlled power signal (optional: on = power available)",
+          "discharge_entity": "Discharge fan / damper (optional)",
+          "fan_entity": "Fan coil fan (fan entity, optional)",
+          "coil_temp_entity": "Coil / supply temperature (optional)",
+          "return_temp_entity": "Return water temperature (optional)"
+        },
+        "data_description": {
+          "reference_entity": "Used by fault detection and the shadow comparison. If empty, the relay or thermostat.",
+          "heat_energy_entity": "The heat need is learned from these and the temperatures. It needs at least 3 whole days, statistics count too.",
+          "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
+          "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
+          "floor_max": "No heat above it, whatever the regulator says. 27 °C under wood or laminate, at most 29 °C under tiles.",
+          "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
+          "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
+          "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault."
+        }
+      },
+      "central": {
+        "title": "Central boiler",
+        "description": "Switches the boiler by the demand of the chosen zone thermostats; waits for actuator valves to open. Starts in shadow mode. With a modulating boiler, the zone asking the most sets the flow by its own curve.",
+        "data": {
+          "zone_entities": "Zone thermostats (HC)",
+          "boiler_entity": "Boiler relay",
+          "central_valve_open_s": "Valve actuator opening time",
+          "central_min_zones": "Zones needed to start",
+          "central_min_demand": "…or this summed demand (0 = not used)",
+          "central_min_on_s": "Boiler minimum run",
+          "central_min_off_s": "Boiler minimum pause",
+          "mode": "Mode",
+          "confirm": "I understand: active mode switches a real device",
+          "central_stuck_s": "Report a stuck valve after",
+          "central_keep_alive_s": "Resend the boiler's on state every (s, 0 = off)",
+          "pump_entity": "Circulation pump relay (optional)",
+          "central_pump_overrun_s": "Pump overrun after the boiler stops (0 = off)",
+          "central_pump_bypass": "Bypass / always-open circuit (the overrun needs no open valve)",
+          "flow_setpoint_entity": "Flow setpoint (modulating boiler, optional: number / input_number)",
+          "central_flow_min": "Lowest flow",
+          "central_flow_max": "Highest flow",
+          "central_flow_default": "Flow when no zone asks for a value"
+        }
+      },
+      "buffer": {
+        "title": "Buffer tank",
+        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode.",
+        "data": {
+          "buffer_top_entity": "Tank top thermometer",
+          "buffer_bottom_entity": "Tank bottom thermometer (optional)",
+          "boiler_entity": "Heat source relay",
+          "zone_entities": "Zones heating from the tank (HC)",
+          "buffer_demand_led": "Start a new charge only on zone demand",
+          "buffer_on": "Charge starts when the top is this cold or colder",
+          "buffer_off": "Charge stops when the bottom (or the top) reaches",
+          "buffer_min_off_s": "At least between two charges",
+          "buffer_frost": "Frost: charge when the top falls below"
+        }
+      }
+    },
+    "error": {
+      "confirm_required": "Confirm your choice for a system that is not recommended.",
+      "buffer_order": "The stop temperature must be above the start temperature."
+    },
+    "abort": {
+      "already_configured": "An instance with this name already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "description": "Switch to active only if nothing else controls the same output.",
+        "data": {
+          "target_home": "Home temperature",
+          "target_night": "Sleep (night) temperature",
+          "target_away": "Away temperature",
+          "target_vacation": "Vacation temperature",
+          "frost_temp": "Frost limit",
+          "night_start": "Night start",
+          "night_end": "Night end",
+          "cycle_s": "Cycle time",
+          "min_on_s": "Minimum run time",
+          "min_off_s": "Minimum pause",
+          "keep_alive_s": "Resend the on state every (s, 0 = off) – for a relay with its own auto-off timer",
+          "season_enabled": "Summer rest by outdoor daily average",
+          "boost_enabled": "Boost on a large deficit (accounts for after-heat)",
+          "mode": "Mode",
+          "confirm": "I understand: active mode switches a real device",
+          "heat_energy_entity": "Heat energy of the boiler (cumulative)",
+          "energy_factor": "Boiler heat per unit (e.g. kWh per m³ of gas × efficiency)",
+          "extra_factor": "Heat per unit of the other source (e.g. COP)",
+          "boiler_power_kw": "Boiler output (0 = heat need is not used in regulation)",
+          "room_sensors": "Thermometers of the other rooms (advice only: turn the radiator valve down/up; the main thermometer decides)",
+          "room_tolerance": "Room deviation tolerance",
+          "room_trvs": "TRV heads of the other rooms: they get the house target",
+          "room_trv_demand": "A TRV room may ask for heat when 1 °C below target for a while (never above the main target)",
+          "zone_temp_entity": "Adjoining room thermometer (e.g. terrace)",
+          "zone_door_entities": "Doors to the adjoining room",
+          "zone_max_diff": "Counts as part of the house if at most this much colder",
+          "window_entities": "Windows and doors",
+          "boiler_price_entity": "Boiler energy price sensor (e.g. per m³)",
+          "other_price_entity": "Other source energy price sensor (per kWh)",
+          "boiler_price": "Boiler energy price, manual",
+          "other_price": "Other source price, manual",
+          "boiler_allowance_entity": "Boiler discounted allowance left",
+          "other_allowance_entity": "Other source discounted allowance left",
+          "cop_high": "COP of the other source at +7 °C",
+          "cop_low": "COP of the other source at -7 °C",
+          "flame_entity": "Flame sensor (real burner state, e.g. from the boiler's power draw)",
+          "learning_enabled": "Learning (after-heat, boost time, TPI strength and holding offset)",
+          "window_drop_entities": "Open window from a fast temperature drop – thermometers to watch (near the windows)",
+          "window_drop_rate": "Drop threshold (°C/h)",
+          "boiler_power_entity": "Boiler power sensor (W) – for the boiler health",
+          "power_idle_w": "Below this power the boiler stands by",
+          "power_burn_w": "From this power the burner burns (below it only the pump runs)",
+          "control": "Regulator",
+          "shadow_regulator": "Shadow regulator: the other algorithm (PID next to TPI) calculates too, switches nothing",
+          "pid_kp": "PID proportional gain (demand per °C, 0.5 = 50 %)",
+          "pid_ki_per_hour": "PID integral gain (demand per °C per hour)",
+          "pid_kd": "PID derivative gain",
+          "curve_slope": "Curve slope (radiators 1.2-1.6, floor 0.4-0.7)",
+          "curve_shift": "Curve shift",
+          "flow_min": "Lowest flow",
+          "flow_max": "Highest flow",
+          "room_kp": "Room correction (°C flow per °C error)",
+          "room_ki_per_hour": "Room correction slow part (°C per °C per hour)",
+          "valve_feedback_entity": "Valve feedback (end switch or valve position, if there is one)",
+          "valve_exercise": "Summer valve exercise (when closed for a week)",
+          "exercise_weekday": "Valve exercise day",
+          "exercise_time": "Valve exercise start",
+          "exercise_s": "Valve exercise length",
+          "target_cool": "Cooling target",
+          "ac_ki_per_hour": "AC: slow setpoint correction (°C per °C per hour)",
+          "ac_min_change_s": "AC: minimum time between setpoint changes",
+          "yield_margin": "While the other (cheaper) source heats the coupled zone, the boiler regulates this much below the target (0 = off)",
+          "assist_climate": "House thermostat the AC helps when cheaper and the door is open (HC)",
+          "floor_entity": "Floor thermometer (floor sensor)",
+          "floor_max": "Floor temperature limit (0 = none)",
+          "floor_hysteresis": "Back on this far below the limit",
+          "target_source_entity": "Target source (wall thermostat or number)",
+          "hp_defrost_entity": "Heat pump: defrost signal",
+          "hp_dhw_entity": "Heat pump: hot water signal",
+          "hp_min_on_s": "Heat pump shortest run",
+          "hp_min_off_s": "Heat pump shortest pause",
+          "onoff_hysteresis": "Switch on this far below the target",
+          "load_limit_kw": "Shared power limit of the electric zones (kW, 0 = none; the same on every zone)",
+          "floor_cooling": "Floor cooling in summer (reversible heat pump)",
+          "humidity_entity": "Room humidity sensor (required for cooling)",
+          "cool_mode_entity": "Heat pump cooling switch (optional)",
+          "cool_flow_entity": "Cooling flow setpoint (optional; else the heating one)",
+          "dew_margin": "Safety margin above the dew point",
+          "floor_min_cool": "Lowest floor temperature while cooling",
+          "cool_flow": "Cooling flow",
+          "cool_flow_max": "Stop when the safe flow is warmer than this (too humid)",
+          "power_available_entity": "Controlled power signal (optional: on = power available)",
+          "discharge_entity": "Discharge fan / damper (optional)",
+          "storage_window_start": "Charge window start",
+          "storage_window_end": "Charge window end",
+          "storage_charge_h": "Full charge takes",
+          "storage_bias": "Charge correction (−0.5…+0.5; + = charges more)",
+          "storage_discharge_hyst": "Discharge starts this far below the target",
+          "fan_entity": "Fan coil fan (fan entity, optional)",
+          "coil_temp_entity": "Coil / supply temperature (optional)",
+          "return_temp_entity": "Return water temperature (optional)",
+          "fan_min_pct": "Lowest fan speed",
+          "fan_overrun_s": "Fan overrun after the valve closes",
+          "fan_min_coil": "The fan starts only above this coil temperature",
+          "return_max": "Return limit (0 = none): the valve stays closed above it",
+          "return_hysteresis": "Return limit releases this far below"
+        },
+        "data_description": {
+          "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
+          "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start.",
+          "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
+          "floor_max": "No heat above it, whatever the regulator says. 27 °C under wood or laminate, at most 29 °C under tiles.",
+          "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
+          "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
+          "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
+          "load_limit_kw": "Give the zone's own power in the boiler power field (for electric heat: the heater's). If switching on would exceed the limit, the zone waits and its cycle starts later – the zones heat staggered. Counts in live mode only.",
+          "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor."
+        }
+      },
+      "presets": {
+        "title": "Presets",
+        "description": "Which presets can be chosen, their targets, and how long a preset chosen by hand lasts. Auto is always offered: it follows the time of day and presence.",
+        "data": {
+          "presets_enabled": "Presets offered",
+          "target_comfort": "Comfort temperature",
+          "target_eco": "Eco temperature",
+          "expiry_comfort": "Comfort: lasts",
+          "expiry_home": "Home: lasts",
+          "expiry_sleep": "Sleep: lasts",
+          "expiry_eco": "Eco: lasts",
+          "expiry_away": "Away: lasts",
+          "expiry_vacation": "Vacation: lasts",
+          "hours_comfort": "Comfort: hours (when \"for hours\")",
+          "hours_home": "Home: hours (when \"for hours\")",
+          "hours_sleep": "Sleep: hours (when \"for hours\")",
+          "hours_eco": "Eco: hours (when \"for hours\")",
+          "hours_away": "Away: hours (when \"for hours\")",
+          "hours_vacation": "Vacation: hours (when \"for hours\")"
+        }
+      },
+      "central": {
+        "title": "Central boiler",
+        "description": "Switches the boiler by the demand of the chosen zone thermostats; waits for actuator valves to open. Starts in shadow mode. With a modulating boiler, the zone asking the most sets the flow by its own curve.",
+        "data": {
+          "zone_entities": "Zone thermostats (HC)",
+          "boiler_entity": "Boiler relay",
+          "central_valve_open_s": "Valve actuator opening time",
+          "central_min_zones": "Zones needed to start",
+          "central_min_demand": "…or this summed demand (0 = not used)",
+          "central_min_on_s": "Boiler minimum run",
+          "central_min_off_s": "Boiler minimum pause",
+          "mode": "Mode",
+          "confirm": "I understand: active mode switches a real device",
+          "central_stuck_s": "Report a stuck valve after",
+          "central_keep_alive_s": "Resend the boiler's on state every (s, 0 = off)",
+          "pump_entity": "Circulation pump relay (optional)",
+          "central_pump_overrun_s": "Pump overrun after the boiler stops (0 = off)",
+          "central_pump_bypass": "Bypass / always-open circuit (the overrun needs no open valve)",
+          "flow_setpoint_entity": "Flow setpoint (modulating boiler, optional: number / input_number)",
+          "central_flow_min": "Lowest flow",
+          "central_flow_max": "Highest flow",
+          "central_flow_default": "Flow when no zone asks for a value"
+        }
+      },
+      "trv_rooms": {
+        "title": "TRV rooms",
+        "description": "Per room: how much warmer (+) or cooler (−) than the house target – it still follows the schedule (night, away). Rooms: {rooms}.\n\nCalibration: where the room has its own thermometer, the difference of the head's own (next to the radiator) reading is followed slowly and added to the target written to the head (at most ±5 °C, at most one write per half hour).",
+        "data": {
+          "trv_calibration": "Calibrate the heads by the room thermometers"
+        }
+      },
+      "buffer": {
+        "title": "Buffer tank",
+        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode.",
+        "data": {
+          "buffer_top_entity": "Tank top thermometer",
+          "buffer_bottom_entity": "Tank bottom thermometer (optional)",
+          "boiler_entity": "Heat source relay",
+          "zone_entities": "Zones heating from the tank (HC)",
+          "buffer_demand_led": "Start a new charge only on zone demand",
+          "buffer_on": "Charge starts when the top is this cold or colder",
+          "buffer_off": "Charge stops when the bottom (or the top) reaches",
+          "buffer_min_off_s": "At least between two charges",
+          "buffer_frost": "Frost: charge when the top falls below",
+          "mode": "Mode",
+          "confirm": "I understand: in live mode it switches a real device"
+        }
+      }
+    },
+    "error": {
+      "confirm_active": "Confirm your choice for active mode.",
+      "humidity_required": "Floor cooling needs a humidity sensor (no cooling without a dew point).",
+      "buffer_order": "The stop temperature must be above the start temperature."
+    }
+  },
+  "selector": {
+    "heat_source": {
+      "options": {
+        "onoff_boiler": "On/off boiler (relay)",
+        "modulating_boiler": "Modulating boiler (OpenTherm, eBUS)",
+        "heat_pump": "Hydronic heat pump",
+        "air_conditioner": "Air conditioner (air-to-air heat pump)",
+        "electric_boiler": "Electric boiler (water system)",
+        "electric_heater": "Electric heater (convector, oil radiator, infrared panel)",
+        "storage_heater": "Storage heater (off-peak power)",
+        "district_heating": "District heating (zone valve or TRV heads)",
+        "pellet_boiler": "Pellet boiler (long runs)"
+      }
+    },
+    "system": {
+      "options": {
+        "radiator_single": "Radiators, one loop, one thermostat",
+        "radiator_trv": "Radiators with TRVs",
+        "radiator_zones": "Radiators, zone valve loops",
+        "floor_single": "Floor only, mixing manifold, one zone",
+        "floor_zones": "Floor manifold with valve actuators",
+        "mixed_no_circuit": "Mixed, no separate circuit, shared flow",
+        "mixed_rtl": "Mixed, floor with return limiter (RTL)",
+        "mixed_mixing": "Mixed, mixing circuit with own pump",
+        "room_unit": "Room with its own unit (AC, electric heater)",
+        "fan_coil": "Fan coil (water fed fan unit)"
+      }
+    },
+    "control": {
+      "options": {
+        "tpi": "TPI + PWM",
+        "pid": "PID + PWM",
+        "external": "External thermostat",
+        "curve": "Heating curve + room correction (EXPERIMENTAL)",
+        "ac": "AC: setpoint shift by the room thermometer (virtual i-Feel)",
+        "onoff": "On/off, long runs (heat pump)",
+        "storage": "Storage: night charge + discharge"
+      }
+    },
+    "mode": {
+      "options": {
+        "shadow": "Shadow: calculates, switches nothing",
+        "active": "Active: switches a real device"
+      }
+    },
+    "preset": {
+      "options": {
+        "comfort": "Comfort",
+        "home": "Home",
+        "sleep": "Sleep",
+        "eco": "Eco",
+        "away": "Away",
+        "vacation": "Vacation",
+        "boost": "Boost"
+      }
+    },
+    "expiry": {
+      "options": {
+        "revoke": "Until changed",
+        "next_change": "Until the next night start or end",
+        "home": "Until someone arrives home",
+        "hours": "For a number of hours"
+      }
+    },
+    "role": {
+      "options": {
+        "standalone": "Standalone (one thermostat, own boiler or relay)",
+        "zone": "Zone (switches only its own valve or TRV)",
+        "central": "Central boiler (by the zones' demand)",
+        "buffer": "Buffer tank (charges from the heat source)"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "Monday",
+        "1": "Tuesday",
+        "2": "Wednesday",
+        "3": "Thursday",
+        "4": "Friday",
+        "5": "Saturday",
+        "6": "Sunday"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Decision",
+        "state": {
+          "regulating": "Regulating",
+          "at_target": "At target",
+          "boost": "Boost",
+          "afterheat": "After-heat",
+          "frost": "Frost protection",
+          "disabled": "Switched off",
+          "sensor_lost": "Sensor lost",
+          "window": "Window open",
+          "season_off": "Summer rest",
+          "restart_hold": "Waiting after restart",
+          "restart_burn": "Stopping restart burn",
+          "external": "External thermostat",
+          "valve_exercise": "Valve exercise",
+          "ac_heat": "AC heating",
+          "ac_cool": "AC cooling",
+          "ac_pause": "AC paused",
+          "floor_limit": "Floor limit",
+          "floor_cool": "Floor cooling",
+          "dew_point": "Dew point protection",
+          "storage_charge": "Storage charging",
+          "storage_wait": "Storage waiting"
+        }
+      },
+      "demand": {
+        "name": "Heat demand"
+      },
+      "agreement": {
+        "name": "Agreement with actual heating"
+      },
+      "heat_need": {
+        "name": "Heat need"
+      },
+      "heat_loss": {
+        "name": "Heat loss factor"
+      },
+      "source_advice": {
+        "name": "Cheaper heat source",
+        "state": {
+          "boiler": "Boiler",
+          "other": "Other source",
+          "other_zone_only": "Other source, own room only",
+          "equal": "About equal",
+          "unknown": "Unknown"
+        }
+      },
+      "learned": {
+        "name": "Learned values"
+      },
+      "boiler_health": {
+        "name": "Boiler health",
+        "state": {
+          "ok": "OK",
+          "no_data": "No data",
+          "uncommanded_burn": "Burning without command",
+          "overheating": "Overheating",
+          "no_response": "Not responding",
+          "no_flame": "No flame",
+          "heating_fault": "Heating fault",
+          "short_cycling": "Short cycling"
+        }
+      },
+      "shadow_regulator": {
+        "name": "Shadow regulator"
+      },
+      "flow_setpoint": {
+        "name": "Flow setpoint"
+      },
+      "central_decision": {
+        "name": "Central decision",
+        "state": {
+          "no_demand": "No demand",
+          "waiting_valves": "Waiting for valves",
+          "heating": "Heating",
+          "min_on": "Minimum run",
+          "min_off": "Minimum pause",
+          "valves_closed": "Valves closed"
+        }
+      },
+      "rooms": {
+        "name": "Rooms"
+      },
+      "buffer_decision": {
+        "name": "Buffer decision",
+        "state": {
+          "charging": "Charging",
+          "full": "Full",
+          "ready": "Warm enough",
+          "waiting_demand": "Waiting for demand",
+          "min_off": "Pause",
+          "frost": "Frost protection",
+          "no_sensor": "No thermometer"
+        }
+      }
+    },
+    "binary_sensor": {
+      "heat_decision": {
+        "name": "Requests heat"
+      },
+      "fault": {
+        "name": "Heating fault"
+      },
+      "boiler_problem": {
+        "name": "Boiler problem"
+      },
+      "central_boiler": {
+        "name": "Boiler request"
+      },
+      "central_pump": {
+        "name": "Pump"
+      },
+      "buffer_source": {
+        "name": "Heat source request"
+      }
+    },
+    "climate": {
+      "thermostat": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Auto",
+              "comfort": "Comfort",
+              "home": "Home",
+              "sleep": "Sleep",
+              "eco": "Eco",
+              "away": "Away",
+              "vacation": "Vacation",
+              "boost": "Boost"
+            }
+          }
+        }
+      }
+    },
+    "button": {
+      "reset_learning": {
+        "name": "Reset learned values"
+      }
+    }
+  }
+}

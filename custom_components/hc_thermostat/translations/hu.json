@@ -1,0 +1,536 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HC Thermostat beállítása",
+        "description": "Add meg a hőtermelőt és a hidraulikát, ebből ad javaslatot a mátrix.",
+        "data": {
+          "name": "Név",
+          "heat_source": "Hőtermelő",
+          "system": "Hőleadó és hidraulika",
+          "role": "Szerep"
+        }
+      },
+      "control": {
+        "title": "Javasolt vezérlés",
+        "description": "Értékelés: **{status}**\n\n{advice}\n\nEz szakmai alapbeállítás, nem helyettesíti a gépész méretezését.",
+        "data": {
+          "control": "Szabályozó",
+          "confirm": "Tudom, hogy ez a rendszer nem ajánlott, és vállalom"
+        }
+      },
+      "entities": {
+        "title": "Entitások",
+        "description": "Az új példány mindig árnyék módban indul: számol, de nem kapcsol semmit.",
+        "data": {
+          "indoor_entity": "Benti hőmérő",
+          "outdoor_entity": "Kinti hőmérő",
+          "actuator_entity": "Kazánt kapcsoló relé",
+          "external_climate": "Külső termosztát",
+          "reference_entity": "Tényleges fűtés jelzője",
+          "window_entities": "Ablakok és ajtók",
+          "presence_entities": "Jelenlét",
+          "heat_energy_entity": "Kazán hőenergiája (összegző érték)",
+          "energy_factor": "Egységnyi hő a kazánból (pl. kWh/m³ gáz × hatásfok)",
+          "extra_heat_entity": "Másik hőforrás energiája (összegző, pl. klíma)",
+          "extra_factor": "Egységnyi hő a másik forrásból (pl. COP)",
+          "boiler_power_kw": "Kazán teljesítménye (0 = a hőigényt nem használja a szabályozásban)",
+          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. terasz)",
+          "zone_door_entities": "Ajtók a csatlakozó térbe",
+          "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
+          "flow_setpoint_entity": "Előremenő-cél entitás (number / input_number, pl. OpenTherm vagy ebusd)",
+          "heat_enable_entity": "Fűtés engedélyezése (kapcsoló, ha van)",
+          "valve_feedback_entity": "Szelep visszajelzése (végálláskapcsoló vagy szelephelyzet, ha van)",
+          "floor_entity": "Padlóhőmérő (padlószenzor)",
+          "floor_max": "Padlóhőfok-limit (0 = nincs)",
+          "floor_hysteresis": "Visszakapcsolás a limit alatt ennyivel",
+          "target_source_entity": "Célhő forrása (fali termosztát vagy number)",
+          "hp_defrost_entity": "Hőszivattyú: leolvasztás jelzője",
+          "hp_dhw_entity": "Hőszivattyú: melegvíz-készítés jelzője",
+          "hp_min_on_s": "Hőszivattyú legrövidebb futása",
+          "hp_min_off_s": "Hőszivattyú legrövidebb szünete",
+          "onoff_hysteresis": "Bekapcsolás ennyivel a cél alatt",
+          "power_available_entity": "Vezérelt áram jelzése (nem kötelező: be = van áram)",
+          "discharge_entity": "Kisütő ventilátor / csappantyú (nem kötelező)",
+          "fan_entity": "Fan-coil ventilátora (fan entitás, nem kötelező)",
+          "coil_temp_entity": "Hőcserélő / előremenő hőmérséklete (nem kötelező)",
+          "return_temp_entity": "Visszatérő víz hőmérséklete (nem kötelező)"
+        },
+        "data_description": {
+          "reference_entity": "Ezt figyeli a hibafigyelés és az árnyék-összehasonlítás. Ha üres, a relét vagy a termosztátot.",
+          "heat_energy_entity": "A hőigényt ezekből és a hőfokokból tanulja. Legalább 3 teljes nap kell, a statisztikák is számítanak.",
+          "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
+          "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
+          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. Fa vagy laminált burkolatnál 27 °C, járólapnál legfeljebb 29 °C.",
+          "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
+          "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
+          "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba."
+        }
+      },
+      "central": {
+        "title": "Központi kazán",
+        "description": "A kiválasztott zóna-termosztátok igénye szerint kapcsolja a kazánt; szelepmotoros zónánál megvárja a nyitást. Árnyék módban indul. Moduláló kazánnál az előremenőt a legtöbbet kérő zóna görbéje adja.",
+        "data": {
+          "zone_entities": "Zóna-termosztátok (HC)",
+          "boiler_entity": "Kazán relé",
+          "central_valve_open_s": "Szelepmotor nyitási ideje",
+          "central_min_zones": "Ennyi zóna igénye indítja",
+          "central_min_demand": "…vagy ennyi összes igény (0 = nem számít)",
+          "central_min_on_s": "Kazán minimális futása",
+          "central_min_off_s": "Kazán minimális szünete",
+          "mode": "Üzemmód",
+          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
+          "central_stuck_s": "Beragadt szelep jelzése ennyi idő után",
+          "central_keep_alive_s": "Kazán bekapcsolt állapotának újraküldése (s, 0 = ki)",
+          "pump_entity": "Keringető szivattyú reléje (nem kötelező)",
+          "central_pump_overrun_s": "Szivattyú utófutása a kazán leállása után (0 = ki)",
+          "central_pump_bypass": "Van bypass / mindig nyitott kör (az utófutás nem vár nyitott szelepre)",
+          "flow_setpoint_entity": "Előremenő-alapjel (moduláló kazán, nem kötelező: number / input_number)",
+          "central_flow_min": "Legkisebb előremenő",
+          "central_flow_max": "Legnagyobb előremenő",
+          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket"
+        }
+      },
+      "buffer": {
+        "title": "Puffertartály",
+        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul.",
+        "data": {
+          "buffer_top_entity": "Tartály felső hőmérője",
+          "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
+          "boiler_entity": "Hőforrás reléje",
+          "zone_entities": "Zónák, amelyek a tartályból fűtenek (HC)",
+          "buffer_demand_led": "Csak zónaigénynél kezdjen új töltést",
+          "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
+          "buffer_off": "Töltés leáll, ha az alja (vagy a teteje) eléri",
+          "buffer_min_off_s": "Két töltés között legalább",
+          "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl"
+        }
+      }
+    },
+    "error": {
+      "confirm_required": "Nem ajánlott rendszerhez erősítsd meg a választást.",
+      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie."
+    },
+    "abort": {
+      "already_configured": "Ilyen nevű példány már van."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Beállítások",
+        "description": "Éles módba csak akkor kapcsold, ha ugyanazt a kimenetet más már nem vezérli.",
+        "data": {
+          "target_home": "Otthoni hőfok",
+          "target_night": "Alvás (éjszakai) hőfok",
+          "target_away": "Távolléti hőfok",
+          "target_vacation": "Szabadság hőfok",
+          "frost_temp": "Fagyvédelmi határ",
+          "night_start": "Éjszaka kezdete",
+          "night_end": "Éjszaka vége",
+          "cycle_s": "Ciklusidő",
+          "min_on_s": "Minimális futási idő",
+          "min_off_s": "Minimális szünet",
+          "keep_alive_s": "Bekapcsolt állapot újraküldése (s, 0 = ki) – ha a relének saját lekapcsolási időzítője van",
+          "season_enabled": "Nyári pihenő a kinti napi átlag szerint",
+          "boost_enabled": "Felfűtés nagy hiánynál (utómelegedéssel számolva)",
+          "mode": "Üzemmód",
+          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
+          "heat_energy_entity": "Kazán hőenergiája (összegző érték)",
+          "energy_factor": "Egységnyi hő a kazánból (pl. kWh/m³ gáz × hatásfok)",
+          "extra_factor": "Egységnyi hő a másik forrásból (pl. COP)",
+          "boiler_power_kw": "Kazán teljesítménye (0 = a hőigényt nem használja a szabályozásban)",
+          "room_sensors": "Más helyiségek hőmérői (csak javaslat: radiátorszelep lejjebb/feljebb; a fő hőmérő dönt)",
+          "room_tolerance": "Helyiség eltérésének tűrése",
+          "room_trvs": "Más helyiségek termosztátfejei (TRV): a ház célját kapják",
+          "room_trv_demand": "TRV-s helyiség hőt kérhet, ha tartósan 1 °C-kal a cél alatt van (a fő hőmérő célja fölött soha)",
+          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. terasz)",
+          "zone_door_entities": "Ajtók a csatlakozó térbe",
+          "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
+          "window_entities": "Ablakok és ajtók",
+          "boiler_price_entity": "Kazán energiaár-szenzora (pl. m³-re)",
+          "other_price_entity": "Másik hőforrás energiaár-szenzora (kWh-ra)",
+          "boiler_price": "Kazán energiaára, kézzel",
+          "other_price": "Másik hőforrás ára, kézzel",
+          "boiler_allowance_entity": "Kazán hátralévő kedvezményes kerete",
+          "other_allowance_entity": "Másik hőforrás hátralévő kedvezményes kerete",
+          "cop_high": "A másik hőforrás COP-ja +7 °C-nál",
+          "cop_low": "A másik hőforrás COP-ja -7 °C-nál",
+          "flame_entity": "Láng-érzékelő (valódi égés, pl. a kazán áramfelvételéből)",
+          "learning_enabled": "Tanulás (utómelegedés, felfűtési idő, TPI erősség és tartási eltolás)",
+          "window_drop_entities": "Ablak felismerése gyors hőesésből – figyelt hőmérők (az ablak közelében)",
+          "window_drop_rate": "Hőesés küszöbe (°C/óra)",
+          "boiler_power_entity": "Kazán fogyasztásmérője (W) – a kazán állapotához",
+          "power_idle_w": "E fogyasztás alatt a kazán készenlétben áll",
+          "power_burn_w": "E fogyasztástól a kazán ég (alatta csak a szivattyú megy)",
+          "control": "Szabályozó",
+          "shadow_regulator": "Árnyék-szabályozó: a másik algoritmus (TPI mellett PID) is számol, de nem kapcsol",
+          "pid_kp": "PID arányos tag (igény °C-onként, 0,5 = 50 %)",
+          "pid_ki_per_hour": "PID integráló tag (igény °C-onként óránként)",
+          "pid_kd": "PID deriváló tag",
+          "curve_slope": "Görbe meredeksége (radiátor 1,2–1,6, padló 0,4–0,7)",
+          "curve_shift": "Görbe eltolása",
+          "flow_min": "Legkisebb előremenő",
+          "flow_max": "Legnagyobb előremenő",
+          "room_kp": "Szobakorrekció (°C előremenő / °C eltérés)",
+          "room_ki_per_hour": "Szobakorrekció lassú tagja (°C / °C / óra)",
+          "valve_feedback_entity": "Szelep visszajelzése (végálláskapcsoló vagy szelephelyzet, ha van)",
+          "valve_exercise": "Nyári szelepmozgatás (ha egy hétig nem nyitott)",
+          "exercise_weekday": "Szelepmozgatás napja",
+          "exercise_time": "Szelepmozgatás kezdete",
+          "exercise_s": "Szelepmozgatás hossza",
+          "target_cool": "Hűtési cél",
+          "ac_ki_per_hour": "Klíma: lassú célkorrekció (°C / °C / óra)",
+          "ac_min_change_s": "Klíma: legritkább célváltás",
+          "yield_margin": "Ha a másik (olcsóbb) hőforrás fűti az összenyitott zónát, a kazán ennyivel a cél alatt szabályoz (0 = ki)",
+          "assist_climate": "Ház termosztátja, amelyet a klíma segít, ha olcsóbb és nyitva az ajtó (HC)",
+          "floor_entity": "Padlóhőmérő (padlószenzor)",
+          "floor_max": "Padlóhőfok-limit (0 = nincs)",
+          "floor_hysteresis": "Visszakapcsolás a limit alatt ennyivel",
+          "target_source_entity": "Célhő forrása (fali termosztát vagy number)",
+          "hp_defrost_entity": "Hőszivattyú: leolvasztás jelzője",
+          "hp_dhw_entity": "Hőszivattyú: melegvíz-készítés jelzője",
+          "hp_min_on_s": "Hőszivattyú legrövidebb futása",
+          "hp_min_off_s": "Hőszivattyú legrövidebb szünete",
+          "onoff_hysteresis": "Bekapcsolás ennyivel a cél alatt",
+          "load_limit_kw": "Közös teljesítménykorlát az elektromos zónákra (kW, 0 = nincs; minden zónán ugyanaz)",
+          "floor_cooling": "Padlóhűtés nyáron (megfordítható hőszivattyú)",
+          "humidity_entity": "Páratartalom-szenzor a helyiségben (hűtéshez kötelező)",
+          "cool_mode_entity": "Hőszivattyú hűtés-kapcsolója (nem kötelező)",
+          "cool_flow_entity": "Hűtési előremenő-alapjel (nem kötelező; különben a fűtési)",
+          "dew_margin": "Biztonsági ráhagyás a harmatpont fölött",
+          "floor_min_cool": "Legalacsonyabb padlóhőfok hűtéskor",
+          "cool_flow": "Hűtési előremenő",
+          "cool_flow_max": "Ennél melegebb biztonságos előremenőnél leáll (túl párás)",
+          "power_available_entity": "Vezérelt áram jelzése (nem kötelező: be = van áram)",
+          "discharge_entity": "Kisütő ventilátor / csappantyú (nem kötelező)",
+          "storage_window_start": "Töltési ablak kezdete",
+          "storage_window_end": "Töltési ablak vége",
+          "storage_charge_h": "Teljes feltöltés ideje",
+          "storage_bias": "Töltés korrekciója (−0,5…+0,5; + = többet tölt)",
+          "storage_discharge_hyst": "Kisütés indul ennyivel a cél alatt",
+          "fan_entity": "Fan-coil ventilátora (fan entitás, nem kötelező)",
+          "coil_temp_entity": "Hőcserélő / előremenő hőmérséklete (nem kötelező)",
+          "return_temp_entity": "Visszatérő víz hőmérséklete (nem kötelező)",
+          "fan_min_pct": "Ventilátor legkisebb fordulata",
+          "fan_overrun_s": "Ventilátor utánfutása a szelep zárása után",
+          "fan_min_coil": "A ventilátor csak ennél melegebb hőcserélőnél indul",
+          "return_max": "Visszatérő-korlát (0 = nincs): efölött zárva marad a szelep",
+          "return_hysteresis": "Visszatérő-korlát visszakapcsolása ennyivel alatta"
+        },
+        "data_description": {
+          "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
+          "valve_exercise": "Hetente egyszer néhány percre kinyitja a régóta zárt szelepet, hogy ne ragadjon be. Közben a zóna nem kér hőt, a központi kazán nem indul.",
+          "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
+          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. Fa vagy laminált burkolatnál 27 °C, járólapnál legfeljebb 29 °C.",
+          "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
+          "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
+          "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
+          "load_limit_kw": "A zóna saját teljesítményét a „Kazán teljesítménye” mezőben add meg (elektromos fűtésnél a fűtőtesté). Ha a bekapcsolás túllépné a korlátot, a zóna vár, és a ciklusa később indul – így a zónák elcsúsztatva fűtenek. Csak éles módban számít.",
+          "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell."
+        }
+      },
+      "presets": {
+        "title": "Presetek",
+        "description": "Melyik preset választható, mi a célja, és meddig tart, ha kézzel választják. Az Auto mindig választható: napszak és jelenlét szerint vált.",
+        "data": {
+          "presets_enabled": "Választható presetek",
+          "target_comfort": "Komfort hőfok",
+          "target_eco": "Eco hőfok",
+          "expiry_comfort": "Komfort: meddig tart",
+          "expiry_home": "Otthon: meddig tart",
+          "expiry_sleep": "Alvás: meddig tart",
+          "expiry_eco": "Eco: meddig tart",
+          "expiry_away": "Távol: meddig tart",
+          "expiry_vacation": "Szabadság: meddig tart",
+          "hours_comfort": "Komfort: órák (ha „órákig”)",
+          "hours_home": "Otthon: órák (ha „órákig”)",
+          "hours_sleep": "Alvás: órák (ha „órákig”)",
+          "hours_eco": "Eco: órák (ha „órákig”)",
+          "hours_away": "Távol: órák (ha „órákig”)",
+          "hours_vacation": "Szabadság: órák (ha „órákig”)"
+        }
+      },
+      "central": {
+        "title": "Központi kazán",
+        "description": "A kiválasztott zóna-termosztátok igénye szerint kapcsolja a kazánt; szelepmotoros zónánál megvárja a nyitást. Árnyék módban indul. Moduláló kazánnál az előremenőt a legtöbbet kérő zóna görbéje adja.",
+        "data": {
+          "zone_entities": "Zóna-termosztátok (HC)",
+          "boiler_entity": "Kazán relé",
+          "central_valve_open_s": "Szelepmotor nyitási ideje",
+          "central_min_zones": "Ennyi zóna igénye indítja",
+          "central_min_demand": "…vagy ennyi összes igény (0 = nem számít)",
+          "central_min_on_s": "Kazán minimális futása",
+          "central_min_off_s": "Kazán minimális szünete",
+          "mode": "Üzemmód",
+          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
+          "central_stuck_s": "Beragadt szelep jelzése ennyi idő után",
+          "central_keep_alive_s": "Kazán bekapcsolt állapotának újraküldése (s, 0 = ki)",
+          "pump_entity": "Keringető szivattyú reléje (nem kötelező)",
+          "central_pump_overrun_s": "Szivattyú utófutása a kazán leállása után (0 = ki)",
+          "central_pump_bypass": "Van bypass / mindig nyitott kör (az utófutás nem vár nyitott szelepre)",
+          "flow_setpoint_entity": "Előremenő-alapjel (moduláló kazán, nem kötelező: number / input_number)",
+          "central_flow_min": "Legkisebb előremenő",
+          "central_flow_max": "Legnagyobb előremenő",
+          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket"
+        }
+      },
+      "trv_rooms": {
+        "title": "Szelepfejes (TRV) szobák",
+        "description": "Szobánként: mennyivel legyen melegebb (+) vagy hűvösebb (−) a ház céljánál – így követi az ütemezést (éjszaka, távollét). Szobák: {rooms}.\n\nKalibrálás: ahol a szobában saját hőmérő is van, a fej saját (radiátor melletti) mérésének eltérését lassan követi, és a fejre írt célt ennyivel korrigálja (legfeljebb ±5 °C, félóránként legfeljebb egy írás).",
+        "data": {
+          "trv_calibration": "Fejek kalibrálása a szobahőmérők szerint"
+        }
+      },
+      "buffer": {
+        "title": "Puffertartály",
+        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul.",
+        "data": {
+          "buffer_top_entity": "Tartály felső hőmérője",
+          "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
+          "boiler_entity": "Hőforrás reléje",
+          "zone_entities": "Zónák, amelyek a tartályból fűtenek (HC)",
+          "buffer_demand_led": "Csak zónaigénynél kezdjen új töltést",
+          "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
+          "buffer_off": "Töltés leáll, ha az alja (vagy a teteje) eléri",
+          "buffer_min_off_s": "Két töltés között legalább",
+          "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl",
+          "mode": "Üzemmód",
+          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol"
+        }
+      }
+    },
+    "error": {
+      "confirm_active": "Az éles módhoz erősítsd meg a választást.",
+      "humidity_required": "Padlóhűtéshez páratartalom-szenzor kell (harmatpont nélkül nem hűt).",
+      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie."
+    }
+  },
+  "selector": {
+    "heat_source": {
+      "options": {
+        "onoff_boiler": "Be-ki fali kazán (relé)",
+        "modulating_boiler": "Moduláló kazán (OpenTherm, eBUS)",
+        "heat_pump": "Vízoldali hőszivattyú",
+        "air_conditioner": "Klíma (levegő-levegő hőszivattyú)",
+        "electric_boiler": "Elektromos kazán (vizes rendszer)",
+        "electric_heater": "Elektromos fűtő (konvektor, olajradiátor, infrapanel)",
+        "storage_heater": "Hőtárolós kályha (vezérelt áram)",
+        "district_heating": "Távfűtés (zónaszelep vagy szelepfejek)",
+        "pellet_boiler": "Pellet kazán (hosszú futások)"
+      }
+    },
+    "system": {
+      "options": {
+        "radiator_single": "Radiátor, egy kör, egy termosztát",
+        "radiator_trv": "Radiátor TRV-kkel",
+        "radiator_zones": "Radiátor, zónaszelepes körök",
+        "floor_single": "Csak padló, keverős osztó, egy zóna",
+        "floor_zones": "Padlóosztó szelepmotorokkal",
+        "mixed_no_circuit": "Vegyes, osztókör nélkül, közös előremenő",
+        "mixed_rtl": "Vegyes, padló visszatérő-korlátozóval (RTL)",
+        "mixed_mixing": "Vegyes, keverős osztókör saját szivattyúval",
+        "room_unit": "Helyiség saját egységgel (klíma, elektromos fűtő)",
+        "fan_coil": "Fan-coil (vizes ventilátoros hőleadó)"
+      }
+    },
+    "control": {
+      "options": {
+        "tpi": "TPI + PWM",
+        "pid": "PID + PWM",
+        "external": "Külső termosztát",
+        "curve": "Fűtési görbe + szobakorrekció (KÍSÉRLETI)",
+        "ac": "Klíma: céleltolás helyiség-hőmérő szerint (virtuális i-Feel)",
+        "onoff": "Kétállású, hosszú futással (hőszivattyú)",
+        "storage": "Hőtároló: éjszakai töltés + kisütés"
+      }
+    },
+    "mode": {
+      "options": {
+        "shadow": "Árnyék: számol, nem kapcsol",
+        "active": "Éles: valódi eszközt kapcsol"
+      }
+    },
+    "preset": {
+      "options": {
+        "comfort": "Komfort",
+        "home": "Otthon",
+        "sleep": "Alvás",
+        "eco": "Eco",
+        "away": "Távol",
+        "vacation": "Szabadság",
+        "boost": "Gyors felfűtés"
+      }
+    },
+    "expiry": {
+      "options": {
+        "revoke": "Visszavonásig",
+        "next_change": "A következő napszakváltásig",
+        "home": "Amíg valaki haza nem ér",
+        "hours": "Megadott óráig"
+      }
+    },
+    "role": {
+      "options": {
+        "standalone": "Önálló (egy termosztát, saját kazán vagy relé)",
+        "zone": "Zóna (csak a saját szelepét vagy TRV-jét kapcsolja)",
+        "central": "Központi kazán (a zónák igénye szerint)",
+        "buffer": "Puffertartály (a hőforrást tölti)"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "Hétfő",
+        "1": "Kedd",
+        "2": "Szerda",
+        "3": "Csütörtök",
+        "4": "Péntek",
+        "5": "Szombat",
+        "6": "Vasárnap"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Döntés",
+        "state": {
+          "regulating": "Szabályoz",
+          "at_target": "Elérte a célt",
+          "boost": "Felfűtés",
+          "afterheat": "Utómelegedés",
+          "frost": "Fagyvédelem",
+          "disabled": "Kikapcsolva",
+          "sensor_lost": "Nincs érzékelő",
+          "window": "Nyitott ablak",
+          "season_off": "Nyári pihenő",
+          "restart_hold": "Újraindítás után vár",
+          "restart_burn": "Újraindítási égés megállítása",
+          "external": "Külső termosztát",
+          "valve_exercise": "Szelepmozgatás",
+          "ac_heat": "Klíma fűt",
+          "ac_cool": "Klíma hűt",
+          "ac_pause": "Klíma szünetel",
+          "floor_limit": "Padlóhőfok-limit",
+          "floor_cool": "Padlóhűtés",
+          "dew_point": "Harmatpont-védelem",
+          "storage_charge": "Hőtároló töltés",
+          "storage_wait": "Hőtároló vár"
+        }
+      },
+      "demand": {
+        "name": "Hőigény"
+      },
+      "agreement": {
+        "name": "Egyezés a tényleges fűtéssel"
+      },
+      "heat_need": {
+        "name": "Ház hőigénye"
+      },
+      "heat_loss": {
+        "name": "Hőveszteség-tényező"
+      },
+      "source_advice": {
+        "name": "Olcsóbb hőforrás",
+        "state": {
+          "boiler": "Kazán",
+          "other": "Másik hőforrás",
+          "other_zone_only": "Másik hőforrás, csak a saját terében",
+          "equal": "Kb. egyforma",
+          "unknown": "Nincs adat"
+        }
+      },
+      "learned": {
+        "name": "Tanult értékek"
+      },
+      "boiler_health": {
+        "name": "Kazán állapota",
+        "state": {
+          "ok": "Rendben",
+          "no_data": "Nincs adat",
+          "uncommanded_burn": "Parancs nélkül ég",
+          "overheating": "Túlfűt",
+          "no_response": "Nem reagál",
+          "no_flame": "Nem gyújt be",
+          "heating_fault": "Fűtési hiba",
+          "short_cycling": "Taktol"
+        }
+      },
+      "shadow_regulator": {
+        "name": "Árnyék-szabályozó"
+      },
+      "flow_setpoint": {
+        "name": "Előremenő cél"
+      },
+      "central_decision": {
+        "name": "Központi döntés",
+        "state": {
+          "no_demand": "Nincs igény",
+          "waiting_valves": "Szelepnyitásra vár",
+          "heating": "Fűt",
+          "min_on": "Minimális futás",
+          "min_off": "Minimális szünet",
+          "valves_closed": "Szelepek zárva"
+        }
+      },
+      "rooms": {
+        "name": "Helyiségek"
+      },
+      "buffer_decision": {
+        "name": "Puffer döntés",
+        "state": {
+          "charging": "Tölt",
+          "full": "Tele",
+          "ready": "Elég meleg",
+          "waiting_demand": "Igényre vár",
+          "min_off": "Szünet",
+          "frost": "Fagyvédelem",
+          "no_sensor": "Nincs hőmérő"
+        }
+      }
+    },
+    "binary_sensor": {
+      "heat_decision": {
+        "name": "Fűtést kér"
+      },
+      "fault": {
+        "name": "Fűtési hiba"
+      },
+      "boiler_problem": {
+        "name": "Kazán probléma"
+      },
+      "central_boiler": {
+        "name": "Kazán kérés"
+      },
+      "central_pump": {
+        "name": "Szivattyú"
+      },
+      "buffer_source": {
+        "name": "Hőforrás kérés"
+      }
+    },
+    "climate": {
+      "thermostat": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Automatikus",
+              "comfort": "Komfort",
+              "home": "Otthon",
+              "sleep": "Alvás",
+              "eco": "Eco",
+              "away": "Távol",
+              "vacation": "Szabadság",
+              "boost": "Gyors felfűtés"
+            }
+          }
+        }
+      }
+    },
+    "button": {
+      "reset_learning": {
+        "name": "Tanult értékek visszaállítása"
+      }
+    }
+  }
+}
