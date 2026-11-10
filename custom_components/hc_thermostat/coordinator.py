@@ -441,7 +441,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     async def _async_update_data(self) -> Decision:
         now = dt_util.now()
-        decision = self.supervisor.step(self.build_inputs(now))
+        inputs = self.build_inputs(now)
+        self.last_inputs = inputs  # shown by the info panel
+        decision = self.supervisor.step(inputs)
         self._record(decision)
         self.cost = self._compare_cost(decision)
         self._update_health(decision, now)

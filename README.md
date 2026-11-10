@@ -118,6 +118,18 @@ exists (add the first one under Settings → Devices & services).
   asks for heat; frost (top ≤ 8 °C) charges anyway; no top reading – no charge. The circuits heat from the tank as
   ordinary HC zones. Decision sensor and a "heat source request" binary sensor.
 
+## HC info panel (0.34.0)
+
+A sidebar panel, **HC info** (admins only, read only), shows everything one instance knows: its heating system
+drawn by its type (boiler, heat pump, district heating substation, pellet, electric, storage heater, air
+conditioner; radiators, TRV heads, floor, fan coil; central boiler with its zones, buffer tank), with the data of
+each part next to it, and beside the drawing the decision, presets and targets, input and output devices with their
+live state, the inputs it decided on (with their age), every inner value, boiler health, rooms and TRVs, every
+setting and the log. Which data shows at which part is set in one **data matrix** (`hc-info-panel.js`, `INFO`: part,
+label, value, and the tags of the installations it applies to); the panel lists the matrix too. Open it from the
+sidebar, or as `/hc-info?entity=climate.x` – the [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card) (1.14+)
+opens it with its "i" icon.
+
 ## Safety
 
 This software does not replace the safety devices of your boiler. Keep an independent backup, for example a conventional room thermostat set low, wired in parallel. Use at your own risk (MIT, no warranty).

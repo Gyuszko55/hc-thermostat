@@ -1,0 +1,785 @@
+// HC info – everything one HC Thermostat instance knows, drawn as its heating system (0.34.0). Read only.
+// Left: the system as a line drawing (heat source by type, the HC controller, flow / return pipes, emitters, sensors),
+// every part with its own data. Right: decision, presets and targets, inputs, outputs, inner values, health, every
+// setting, the log. Data: websocket hc_thermostat/info_list and hc_thermostat/info (refreshed every 5 s).
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+const T = {
+  hu: {
+    title: "HC info", pick: "Példány", live: "élő", shadow: "árnyék", refresh: "5 mp-enként frissül", none: "–",
+    yes: "igen", no: "nem", on: "be", off: "ki", age: "kora", sec: "mp", min: "p",
+    decision: "Döntés", presets: "Presetek és célok", inputs: "Bemenetek (amire döntött)", devices_in: "Bemeneti eszközök",
+    devices_out: "Kimeneti eszközök", inner: "Belső értékek", health: "Kazán / hőforrás állapota", settings: "Beállítások",
+    log: "Napló", rooms: "Helyiségek és szelepfejek", cost: "Költség-összevetés", zone: "Zóna", load: "Terheléskorlát",
+    demand: "Igény", output: "Kimenet", limited: "Korlátozta", target: "Cél", indoor: "Bent", outdoor: "Kint",
+    flow: "Előremenő", ret: "Visszatérő", source: "Hőforrás", emitter: "Hőleadó", controller: "HC vezérlő",
+    current: "Most", manual: "Kézi cél", until: "Lejár", night: "Éjszaka", modes: "Választható",
+    season: "Fűtési szezon", fault: "Hiba", reason: "Ok", text: "Magyarázat", actual: "Valós fűtés",
+    zones: "Zónák", tank: "Puffertartály", top: "Teteje", bottom: "Alja", asking: "Igénylő", open: "Nyitott",
+    pump: "Szivattyú", boiler: "Kazán", window: "Ablak", floor: "Padló", humidity: "Páratartalom", dew: "Harmatpont",
+    fan: "Ventilátor", coil: "Hőcserélő", relay: "Relé", setpoint: "Alapjel", power: "Teljesítmény",
+    charge: "Töltés", discharge: "Kisütés", trv: "Szelepfej", unit: "Beltéri egység", outdoor_unit: "Kültéri egység",
+    noinst: "Még nincs HC példány.", group_other: "Egyéb",
+  },
+  en: {
+    title: "HC info", pick: "Instance", live: "live", shadow: "shadow", refresh: "refreshes every 5 s", none: "–",
+    yes: "yes", no: "no", on: "on", off: "off", age: "age", sec: "s", min: "min",
+    decision: "Decision", presets: "Presets and targets", inputs: "Inputs (decided on)", devices_in: "Input devices",
+    devices_out: "Output devices", inner: "Inner values", health: "Boiler / source health", settings: "Settings",
+    log: "Log", rooms: "Rooms and TRV heads", cost: "Cost comparison", zone: "Zone", load: "Load limit",
+    demand: "Demand", output: "Output", limited: "Limited by", target: "Target", indoor: "Indoor", outdoor: "Outdoor",
+    flow: "Flow", ret: "Return", source: "Heat source", emitter: "Emitter", controller: "HC controller",
+    current: "Now", manual: "Manual target", until: "Until", night: "Night", modes: "Offered",
+    season: "Heating season", fault: "Fault", reason: "Reason", text: "Explanation", actual: "Actual heating",
+    zones: "Zones", tank: "Buffer tank", top: "Top", bottom: "Bottom", asking: "Asking", open: "Open",
+    pump: "Pump", boiler: "Boiler", window: "Window", floor: "Floor", humidity: "Humidity", dew: "Dew point",
+    fan: "Fan", coil: "Coil", relay: "Relay", setpoint: "Setpoint", power: "Power",
+    charge: "Charge", discharge: "Discharge", trv: "TRV head", unit: "Indoor unit", outdoor_unit: "Outdoor unit",
+    noinst: "No HC instance yet.", group_other: "Other",
+  },
+};
+
+const REASON = {
+  hu: { regulating: "Szabályoz", at_target: "Célon", boost: "Felfűtés", afterheat: "Utómelegedés", frost: "Fagyvédelem",
+    disabled: "Kikapcsolva", sensor_lost: "Nincs hőmérő", window: "Ablak nyitva", season_off: "Nyári pihenő",
+    restart_hold: "Újraindítás után vár", restart_burn: "Újraindítás utáni égés", external: "Külső termosztát",
+    valve_exercise: "Szelepmozgatás", ac_heat: "Klíma fűt", ac_cool: "Klíma hűt", ac_pause: "Klíma szünetel",
+    floor_limit: "Padlóhőfok-limit", floor_cool: "Padlóhűtés", dew_point: "Harmatpont-védelem",
+    storage_charge: "Hőtároló tölt", storage_wait: "Hőtároló vár",
+    no_demand: "Nincs igény", waiting_valves: "Szelepekre vár", heating: "Fűt", min_on: "Minimális futás",
+    min_off: "Minimális szünet", valves_closed: "Szelepek zárva", charging: "Tölt", full: "Tele", ready: "Elég meleg",
+    waiting_demand: "Igényre vár", no_sensor: "Nincs hőmérő" },
+  en: {},
+};
+
+const SOURCE = {
+  hu: { onoff_boiler: "Kétállású gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú",
+    electric_boiler: "Elektromos kazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő",
+    storage_heater: "Hőtárolós kályha", district_heating: "Távfűtés", pellet_boiler: "Pellet kazán" },
+  en: { onoff_boiler: "On/off gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump",
+    electric_boiler: "Electric boiler", air_conditioner: "Air conditioner", electric_heater: "Electric heater",
+    storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler" },
+};
+const SYSTEM = {
+  hu: { radiator_single: "Radiátoros, egy zóna", radiator_trv: "Radiátoros, szelepfejekkel", radiator_zones: "Radiátoros, zónák",
+    floor_single: "Padlófűtés, egy zóna", floor_zones: "Padlófűtés, zónák", mixed_no_circuit: "Vegyes, keverőkör nélkül",
+    mixed_rtl: "Vegyes, RTL-szeleppel", mixed_mixing: "Vegyes, keverőkörrel", room_unit: "Helyiség saját egységgel", fan_coil: "Fan-coil" },
+  en: { radiator_single: "Radiators, one zone", radiator_trv: "Radiators with TRV heads", radiator_zones: "Radiators, zones",
+    floor_single: "Floor heating, one zone", floor_zones: "Floor heating, zones", mixed_no_circuit: "Mixed, no circuit",
+    mixed_rtl: "Mixed, RTL valve", mixed_mixing: "Mixed, mixing loop", room_unit: "Room unit", fan_coil: "Fan coil" },
+};
+const CONTROL = { tpi: "TPI + PWM", pid: "PID + PWM", external: "Külső termosztát / external", curve: "Fűtési görbe / curve",
+  onoff: "Kétállású / on-off", ac: "Klíma (i-Feel)", storage: "Hőtároló / storage" };
+
+// Entity keys: which ones are read (inputs) and which are switched / written (outputs)
+const OUT_KEYS = ["actuator_entity", "external_climate", "external_entity", "flow_setpoint_entity", "heat_enable_entity",
+  "cool_mode_entity", "cool_flow_entity", "discharge_entity", "fan_entity", "boiler_entity", "pump_entity", "room_trvs"];
+
+const KEY_HU = {
+  indoor_entity: "Benti hőmérő", outdoor_entity: "Kinti hőmérő", reference_entity: "Referencia", floor_entity: "Padlóhőmérő",
+  humidity_entity: "Páratartalom", window_entities: "Ablakok / ajtók", window_drop_entities: "Hőesés-figyelt hőmérők",
+  presence_entities: "Jelenlét", coil_temp_entity: "Hőcserélő hőmérő", return_temp_entity: "Visszatérő hőmérő",
+  power_available_entity: "Vezérelt áram", flame_entity: "Láng / égés", boiler_power_entity: "Kazán áramfelvétel",
+  heat_energy_entity: "Hőmennyiség / gáz", extra_heat_entity: "Más hőforrás", zone_temp_entity: "Zóna hőmérő",
+  zone_door_entities: "Zóna ajtók", target_source_entity: "Célhő forrás", hp_defrost_entity: "Leolvasztás",
+  hp_dhw_entity: "Melegvíz-készítés", valve_feedback_entity: "Szelep visszajelzés", room_sensors: "Szobahőmérők",
+  actuator_entity: "Kapcsolt relé", external_climate: "Külső termosztát", external_entity: "Külső termosztát",
+  flow_setpoint_entity: "Előremenő-alapjel", heat_enable_entity: "Fűtés engedélyezés", cool_mode_entity: "Hűtés üzemmód",
+  cool_flow_entity: "Hűtési előremenő", discharge_entity: "Kisütő ventilátor", fan_entity: "Fan-coil ventilátor",
+  boiler_entity: "Kazán / hőforrás relé", pump_entity: "Szivattyú", room_trvs: "Szelepfejek", zone_entities: "Zónák",
+  buffer_top_entity: "Tartály teteje", buffer_bottom_entity: "Tartály alja", assist_entity: "Segítő klíma",
+  boiler_price_entity: "Kazán ár", other_price_entity: "Másik forrás ár", boiler_allowance_entity: "Kazán keret",
+  other_allowance_entity: "Másik keret",
+};
+
+const GROUPS = [
+  ["Célok és ütemezés / targets", /^(target_|night_|presets_|expiry_|hours_|frost_temp)/],
+  ["Ciklus és szabályozó / cycle", /^(control|cycle_s|min_on_s|min_off_s|keep_alive|pid_|tpi_|yield_|shadow_regulator|onoff_|overshoot)/],
+  ["Fűtési görbe / curve", /^(curve_|flow_|room_k)/],
+  ["Hőszivattyú / heat pump", /^(hp_|heat_pump)/],
+  ["Padló és hűtés / floor, cooling", /^(floor_|dew_|cool_|humidity_)/],
+  ["Biztonság / safety", /^(sensor_|plaus_|restart_|failure_|frost|health_)/],
+  ["Ablak / window", /^window_/],
+  ["Szezon / season", /^season_/],
+  ["Felfűtés / boost", /^(boost_|afterheat)/],
+  ["Tanulás / learning", /^learning_/],
+  ["Energia és költség / energy", /^(power_|boiler_|energy|extra_|cop_|price)/],
+  ["Hőtároló, fan-coil, puffer, terhelés", /^(storage_|fan_|return_|load_|buffer_|trv_|central_|valve_|exercise_|zone_)/],
+  ["Klíma / AC", /^ac_/],
+];
+
+
+// ------------------------------------------------------------------------------------------------------------------
+// DATA MATRIX – what the drawing shows, where, and for which installation. One row per data point:
+//   [id, part, label hu, label en, value(d), format, when]
+// part: the element of the drawing the row belongs to (hc, outdoor, indoor, source, emitter, floor, fan, unit, storage)
+// when: a list of tags; the row shows if EVERY tag holds for the instance (empty list = always). Tags: see WHEN.
+// A row whose value is empty is left out. The "Adat-mátrix" section of the panel lists every row with its tags.
+const g = (o, path) => path.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
+const CA = (d, k) => d.climate?.attributes?.[k];
+const ENT = (d, k) => d.entities?.[k]?.[0];
+const ENTS = (d, k) => d.entities?.[k];
+const WATER = (c) => !["air_conditioner", "electric_heater", "storage_heater"].includes(c.src) || (c.src === "electric_heater" && c.sys.startsWith("floor"));
+const WHEN = {
+  relay: (c) => ["tpi", "pid", "onoff", "storage"].includes(c.ctl),
+  pid: (c) => c.ctl === "pid", tpi: (c) => c.ctl === "tpi", onoff: (c) => c.ctl === "onoff", curve: (c) => c.ctl === "curve",
+  external: (c) => ["external", "ac"].includes(c.ctl), ac: (c) => c.src === "air_conditioner",
+  burner: (c) => ["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(c.src),
+  heat_pump: (c) => c.src === "heat_pump", electric: (c) => ["electric_heater", "electric_boiler", "storage_heater"].includes(c.src),
+  storage: (c) => c.src === "storage_heater", district: (c) => c.src === "district_heating", pellet: (c) => c.src === "pellet_boiler",
+  water: WATER, floor: (c) => c.sys.startsWith("floor") || c.sys.startsWith("mixed"), radiator: (c) => c.sys.startsWith("radiator") || c.sys.startsWith("mixed"),
+  fan_coil: (c) => c.sys === "fan_coil", zone: (c) => c.role === "zone", standalone: (c) => c.role === "standalone",
+  trv: (c) => !!ENTS(c.d, "room_trvs") || c.sys === "radiator_trv", cooling: (c) => !!c.d.config?.floor_cooling,
+  load: (c) => !!c.d.config?.load_limit_kw, power_signal: (c) => !!ENT(c.d, "power_available_entity"),
+  rooms: (c) => !!ENTS(c.d, "room_sensors") || !!ENTS(c.d, "room_trvs"),
+};
+const INFO = [
+  // HC controller
+  ["reason", "hc", "Döntés", "Decision", (d) => d.decision?.reason, "reason", []],
+  ["demand", "hc", "Igény", "Demand", (d) => d.decision?.demand, "pct", []],
+  ["output", "hc", "Kimenet", "Output", (d) => d.decision?.output, "onoff", []],
+  ["limited", "hc", "Korlátozta", "Limited by", (d) => d.decision?.limited_by, "text", []],
+  ["target", "hc", "Cél", "Target", (d) => d.decision?.target, "deg", []],
+  ["preset", "hc", "Preset", "Preset", (d) => d.presets?.current, "text", []],
+  ["manual", "hc", "Kézi cél eddig", "Manual until", (d) => (d.decision?.manual ? d.decision?.manual_until : null), "time", []],
+  ["mode", "hc", "Üzemmód", "Mode", (d) => d.mode, "mode", []],
+  ["season", "hc", "Fűtési szezon", "Heating season", (d) => d.live?.season_on, "onoff", []],
+  ["fault", "hc", "Hiba", "Fault", (d) => (d.decision?.fault ? true : null), "bool", []],
+  ["actual", "hc", "Valós fűtés", "Actual heating", (d) => d.actual, "onoff", ["relay"]],
+  ["pid_k", "hc", "PID kp / ki / kd", "PID kp / ki / kd", (d) => (CA(d, "kp") != null ? `${CA(d, "kp")} / ${CA(d, "ki")} / ${CA(d, "kd")}` : null), "text", ["pid"]],
+  ["pid_i", "hc", "PID integrál", "PID integral", (d) => CA(d, "pid_i"), "num", ["pid"]],
+  ["tpi", "hc", "TPI belső / külső", "TPI int / ext", (d) => (CA(d, "tpi_coef_int") != null ? `${CA(d, "tpi_coef_int")} / ${CA(d, "tpi_coef_ext")}` : null), "text", ["tpi"]],
+  ["tpi_off", "hc", "TPI eltolás", "TPI offset", (d) => CA(d, "tpi_offset"), "num", ["tpi"]],
+  ["cycle", "hc", "Ciklus kezdete", "Cycle start", (d) => g(d, "state.pwm.cycle_start"), "time", ["relay"]],
+  ["hyst", "hc", "Hiszterézis", "Hysteresis", (d) => CA(d, "onoff_hysteresis"), "deg", ["onoff"]],
+  ["curve_i", "hc", "Görbe integrál", "Curve integral", (d) => g(d, "state.curve.integral"), "num", ["curve"]],
+  ["learn", "hc", "Tanult utómelegedés", "Learned after-heat", (d) => g(d, "live.learned.afterheat"), "deg", ["relay"]],
+  ["load", "hc", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
+  // outside
+  ["out", "outdoor", "Kint", "Outdoor", (d) => d.inputs?.outdoor?.value, "deg", []],
+  ["out_age", "outdoor", "Mérés kora", "Reading age", (d) => (d.inputs?.outdoor?.value != null ? d.inputs.outdoor.age_s : null), "age", []],
+  ["out_avg", "outdoor", "24 órás átlag", "24 h average", (d) => d.inputs?.outdoor_avg, "deg", []],
+  ["need", "outdoor", "Hőigény", "Heat need", (d) => d.decision?.heat_need_kw, "kw", []],
+  ["loss", "outdoor", "Hőveszteség", "Heat loss", (d) => d.live?.loss_kw_per_k, "kwk", []],
+  // inside
+  ["in", "indoor", "Bent", "Indoor", (d) => d.inputs?.indoor?.value ?? d.decision?.indoor, "deg", []],
+  ["in_age", "indoor", "Mérés kora", "Reading age", (d) => (d.inputs?.indoor?.value != null ? d.inputs.indoor.age_s : null), "age", []],
+  ["in_target", "indoor", "Cél", "Target", (d) => d.decision?.target, "deg", []],
+  ["presence", "indoor", "Jelenlét", "Presence", (d) => d.inputs?.presence, "text", []],
+  ["window", "indoor", "Ablak", "Window", (d) => d.inputs?.window_open, "open", []],
+  ["hum", "indoor", "Páratartalom", "Humidity", (d) => d.inputs?.humidity?.value, "pctv", []],
+  ["dew", "indoor", "Harmatpont", "Dew point", (d) => d.decision?.details?.dew_point, "deg", ["cooling"]],
+  ["zone_door", "indoor", "Zóna ajtó", "Zone door", (d) => CA(d, "zone_door_open"), "open", []],
+  ["tsource", "indoor", "Célhő forrás", "Target source", (d) => ENT(d, "target_source_entity")?.temperature ?? ENT(d, "target_source_entity")?.state, "text", []],
+  // heat source
+  ["relay", "source", "Relé", "Relay", (d) => ENT(d, "actuator_entity")?.state, "state", ["relay"]],
+  ["flow_set", "source", "Előremenő cél", "Flow setpoint", (d) => d.decision?.flow_setpoint, "deg", ["curve"]],
+  ["flow_ent", "source", "Alapjel entitás", "Setpoint entity", (d) => ENT(d, "flow_setpoint_entity")?.state, "state", ["curve"]],
+  ["enable", "source", "Fűtés engedély", "Heat enable", (d) => ENT(d, "heat_enable_entity")?.state, "state", ["curve"]],
+  ["ext", "source", "Külső termosztát", "External thermostat", (d) => { const e = ENT(d, "external_climate"); return e ? `${e.state} → ${e.temperature ?? "?"} °C` : null; }, "text", ["external"]],
+  ["flame", "source", "Láng", "Flame", (d) => ENT(d, "flame_entity")?.state, "state", []],
+  ["power", "source", "Áramfelvétel", "Power draw", (d) => { const e = ENT(d, "boiler_power_entity"); return e ? `${e.state} ${e.unit || ""}` : null; }, "text", []],
+  ["health", "source", "Állapot", "Health", (d) => d.health?.state, "text", ["relay"]],
+  ["starts", "source", "Indítás / óra", "Starts / hour", (d) => d.health?.starts_last_hour, "num", ["relay"]],
+  ["ign", "source", "Gyújtás ideje", "Ignition", (d) => d.health?.last_ignition_s, "sec", ["burner"]],
+  ["burn", "source", "Átlagos futás", "Average run", (d) => d.health?.average_burn_min, "min", ["relay"]],
+  ["uncmd", "source", "Futás parancs nélkül", "Run without command", (d) => d.health?.burn_without_relay_min || null, "min", ["relay"]],
+  ["hp_mode", "source", "Leolvaszt / melegvíz", "Defrost / hot water", (d) => d.decision?.details?.hp_mode, "text", ["heat_pump"]],
+  ["defrost", "source", "Leolvasztás jel", "Defrost signal", (d) => ENT(d, "hp_defrost_entity")?.state, "state", ["heat_pump"]],
+  ["dhw", "source", "Melegvíz jel", "Hot water signal", (d) => ENT(d, "hp_dhw_entity")?.state, "state", ["heat_pump"]],
+  ["ret", "source", "Visszatérő", "Return", (d) => d.inputs?.return_temp?.value, "deg", ["district"]],
+  ["ret_max", "source", "Visszatérő-korlát", "Return limit", (d) => d.config?.return_max || null, "deg", ["district"]],
+  ["pwr_av", "source", "Vezérelt áram", "Controlled power", (d) => d.inputs?.power_available, "onoff", ["power_signal"]],
+  ["cool_mode", "source", "Hűtés üzemmód", "Cooling mode", (d) => ENT(d, "cool_mode_entity")?.state, "state", ["cooling"]],
+  // storage heater (unit itself)
+  ["ch_frac", "storage", "Töltés", "Charge", (d) => d.decision?.details?.charge_fraction, "pct", ["storage"]],
+  ["ch_win", "storage", "Töltési ablak", "Charge window", (d) => (d.decision?.details?.charge_start ? `${d.decision.details.charge_start}–${d.decision.details.charge_end}` : null), "text", ["storage"]],
+  ["ch_why", "storage", "Töltés állapota", "Charge state", (d) => d.decision?.details?.charge_why, "text", ["storage"]],
+  ["disch", "storage", "Kisütés", "Discharge", (d) => d.decision?.details?.discharge, "onoff", ["storage"]],
+  ["st_pwr", "storage", "Vezérelt áram", "Controlled power", (d) => d.inputs?.power_available, "onoff", ["storage", "power_signal"]],
+  // AC / room unit
+  ["ac_hvac", "unit", "Üzemmód", "HVAC", (d) => d.decision?.external?.hvac, "text", ["ac"]],
+  ["ac_set", "unit", "Beállított cél", "Unit setpoint", (d) => d.decision?.external?.target, "deg", ["ac"]],
+  ["ac_aim", "unit", "Valódi cél", "Aim", (d) => d.decision?.details?.aim, "deg", ["ac"]],
+  ["ac_unit", "unit", "Beltéri mérés", "Unit reading", (d) => d.inputs?.unit_temp, "deg", ["ac"]],
+  ["ac_off", "unit", "Eltolás", "Offset", (d) => d.decision?.details?.offset, "num", ["ac"]],
+  ["ac_int", "unit", "Integrál", "Integral", (d) => d.decision?.details?.integral, "num", ["ac"]],
+  ["ac_assist", "unit", "Segít a háznak", "Assists the house", (d) => d.decision?.details?.assist, "bool", ["ac"]],
+  ["heater", "unit", "Relé", "Relay", (d) => ENT(d, "actuator_entity")?.state, "state", ["electric", "relay"]],
+  ["heater_pw", "unit", "Áramfelvétel", "Power draw", (d) => { const e = ENT(d, "boiler_power_entity"); return e ? `${e.state} ${e.unit || ""}` : null; }, "text", ["electric"]],
+  ["heater_load", "unit", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
+  // emitters
+  ["flow_req", "emitter", "Kért előremenő", "Flow request", (d) => CA(d, "flow_request"), "deg", ["zone"]],
+  ["valve_fb", "emitter", "Szelep visszajelzés", "Valve feedback", (d) => ENT(d, "valve_feedback_entity")?.state, "state", ["zone"]],
+  ["exercise", "emitter", "Következő szelepmozgatás", "Next valve exercise", (d) => CA(d, "valve_exercise_next"), "time", ["zone"]],
+  ["trv_heads", "emitter", "Szelepfej", "TRV head", (d) => (ENTS(d, "room_trvs") || []).map((e) => `${e.name}: ${e.current_temperature ?? "?"} → ${e.temperature ?? "?"} °C`).join("; ") || null, "text", ["trv"]],
+  ["trv_rooms", "emitter", "Szobák célja", "Room targets", (d) => Object.entries(d.rooms?.trv || {}).map(([r, v]) => `${r} ${v.target} (${v.offset >= 0 ? "+" : ""}${v.offset})`).join("; ") || null, "text", ["trv"]],
+  ["trv_cal", "emitter", "Kalibrálás", "Calibration", (d) => Object.values(d.rooms?.trv || {}).flatMap((r) => Object.entries(r.heads || {}).map(([h, v]) => `${h.split(".")[1]} ${v.calibration >= 0 ? "+" : ""}${v.calibration}`)).join("; ") || null, "text", ["trv"]],
+  ["advice", "emitter", "Szobák eltérése", "Room deviation", (d) => (d.rooms?.advice || []).map((a) => `${a.room} ${a.deviation >= 0 ? "+" : ""}${a.deviation} (${a.advice})`).join("; ") || null, "text", ["rooms"]],
+  ["asking", "emitter", "Igénylő szobák", "Rooms asking", (d) => (d.rooms?.asking || []).join(", ") || null, "text", ["trv"]],
+  // floor
+  ["floor_t", "floor", "Padló", "Floor", (d) => d.inputs?.floor?.value ?? d.decision?.details?.floor, "deg", ["floor"]],
+  ["floor_age", "floor", "Mérés kora", "Reading age", (d) => (d.inputs?.floor?.value != null ? d.inputs.floor.age_s : null), "age", ["floor"]],
+  ["floor_max", "floor", "Padlóhőfok-limit", "Floor limit", (d) => d.config?.floor_max || null, "deg", ["floor"]],
+  ["floor_why", "floor", "Limit oka", "Limit reason", (d) => d.decision?.details?.floor_why, "text", ["floor"]],
+  ["safe", "floor", "Biztonságos víz", "Safe water", (d) => d.decision?.details?.safe_flow, "deg", ["floor", "cooling"]],
+  ["cool_why", "floor", "Hűtés leállás oka", "Cooling stop", (d) => d.decision?.details?.why, "text", ["floor", "cooling"]],
+  // fan coil
+  ["fan_pct", "fan", "Ventilátor", "Fan", (d) => d.decision?.details?.fan_pct, "pctv", ["fan_coil"]],
+  ["fan_why", "fan", "Ventilátor állapota", "Fan state", (d) => d.decision?.details?.fan_why, "text", ["fan_coil"]],
+  ["coil", "fan", "Hőcserélő", "Coil", (d) => d.inputs?.coil?.value, "deg", ["fan_coil"]],
+  ["fan_ent", "fan", "Ventilátor entitás", "Fan entity", (d) => { const e = ENT(d, "fan_entity"); return e ? `${e.state}${e.percentage != null ? " " + e.percentage + " %" : ""}` : null; }, "text", ["fan_coil"]],
+];
+
+// ------------------------------------------------------------------------------------------------------------------
+class HcInfoPanel extends HTMLElement {
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (first) this._start();
+  }
+  set narrow(v) { this._narrow = v; }
+  // opened as /hc-info?entity=climate.x (the dial card's "i" button): show that thermostat's instance
+  set route(r) { this._route = r; if (this._list) this._fromUrl(); }
+  async _fromUrl() {
+    const entity = new URLSearchParams(location.search).get("entity");
+    if (!entity || entity === this._urlEntity || !this._hass) return false;
+    this._urlEntity = entity;
+    try {
+      const d = await this._hass.callWS({ type: "hc_thermostat/info", entity_id: entity });
+      this._sel = d.entry_id; this._d = d; this._render();
+      return true;
+    } catch (e) { return false; }
+  }
+  set panel(v) { this._panel = v; }
+
+  get _t() { return (this._hass?.language || "hu").startsWith("hu") ? T.hu : T.en; }
+  get _hu() { return this._t === T.hu; }
+
+  // own font: Home Assistant's bundled Roboto under a name of its own (a phone-wide font cannot swap it); @font-face
+  // does not work inside a shadow root, hence the document head
+  static _fonts() {
+    if (document.getElementById("hc-info-fonts")) return;
+    const st = document.createElement("style");
+    st.id = "hc-info-fonts";
+    st.textContent = [[300, "Light"], [400, "Regular"], [500, "Medium"], [700, "Bold"]].map(([w, n]) =>
+      `@font-face{font-family:"HC Info Roboto";font-style:normal;font-weight:${w};font-display:swap;src:url("/static/fonts/roboto/Roboto-${n}.woff2") format("woff2");}`).join("");
+    document.head.appendChild(st);
+  }
+
+  connectedCallback() {
+    HcInfoPanel._fonts();
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    this._timer = setInterval(() => this._load(), 5000);
+    if (this._hass) this._start();
+  }
+  disconnectedCallback() { clearInterval(this._timer); }
+
+  async _start() {
+    if (this._started) return;  // set hass and connectedCallback may both start it
+    this._started = true;
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    try {
+      this._list = await this._hass.callWS({ type: "hc_thermostat/info_list" });
+    } catch (e) { this._err = String(e?.message || e); this._list = []; }
+    let saved = null;
+    try { saved = localStorage.getItem("hc-info:entry"); } catch (e) { /* private mode */ }
+    this._sel = (this._list.find((x) => x.entry_id === saved) || this._list[0])?.entry_id;
+    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true };
+    if (await this._fromUrl()) return;
+    await this._load();
+  }
+
+  async _load() {
+    if (!this._hass || !this._sel) { this._render(); return; }
+    try {
+      this._d = await this._hass.callWS({ type: "hc_thermostat/info", entry_id: this._sel });
+      this._err = null;
+    } catch (e) { this._err = String(e?.message || e); }
+    this._render();
+  }
+
+  // ---------------------------------------------------------------- formatting
+  _num(v, dig = 1) {
+    if (v == null || v === "" || Number.isNaN(Number(v))) return this._t.none;
+    return Number(v).toLocaleString(this._hu ? "hu-HU" : "en-GB", { maximumFractionDigits: dig });
+  }
+  _deg(v) { return v == null ? this._t.none : `${this._num(v)} °C`; }
+  _val(v) {
+    const t = this._t;
+    if (v === true) return t.yes;
+    if (v === false) return t.no;
+    if (v == null) return t.none;
+    if (typeof v === "number") return this._num(v, 3);
+    if (typeof v === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v)) {
+      const d = new Date(v);
+      const today = new Date().toDateString() === d.toDateString();
+      return today ? d.toLocaleTimeString(this._hu ? "hu-HU" : "en-GB") : d.toLocaleString(this._hu ? "hu-HU" : "en-GB");
+    }
+    if (Array.isArray(v)) return v.length ? v.map((x) => (typeof x === "object" ? JSON.stringify(x) : this._val(x))).join(", ") : t.none;
+    if (typeof v === "object") return JSON.stringify(v);
+    return String(v);
+  }
+  _age(s) {
+    if (s == null) return "";
+    return s < 90 ? `${Math.round(s)} ${this._t.sec}` : `${Math.round(s / 60)} ${this._t.min}`;
+  }
+  _reason(r) {
+    if (!r) return this._t.none;
+    return (this._hu ? REASON.hu[r] : null) || (r.charAt(0).toUpperCase() + r.slice(1).replace(/_/g, " "));
+  }
+  _ent(key) { return this._d?.entities?.[key] || []; }
+  _st(key) {
+    const e = this._ent(key)[0];
+    if (!e) return null;
+    const n = parseFloat(e.state);
+    return { ...e, num: Number.isFinite(n) ? n : null };
+  }
+
+  // ---------------------------------------------------------------- generic tables
+  _rows(obj, skip = []) {
+    if (!obj || typeof obj !== "object") return `<div class="muted">${this._t.none}</div>`;
+    const keys = Object.keys(obj).filter((k) => !skip.includes(k));
+    if (!keys.length) return `<div class="muted">${this._t.none}</div>`;
+    return `<table>${keys.map((k) => {
+      const v = obj[k];
+      if (v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length && Object.keys(v).length <= 40)
+        return `<tr><th colspan="2" class="sub">${esc(k)}</th></tr><tr><td colspan="2" class="nest">${this._rows(v)}</td></tr>`;
+      return `<tr><td class="k">${esc(KEY_HU[k] && this._hu ? KEY_HU[k] : k)}</td><td class="v">${esc(this._val(v))}</td></tr>`;
+    }).join("")}</table>`;
+  }
+
+  _section(id, title, body, icon) {
+    const open = this._open[id];
+    return `<details class="sec" data-sec="${id}" ${open ? "open" : ""}><summary><ha-icon icon="${icon}"></ha-icon>${esc(title)}</summary><div class="body">${body}</div></details>`;
+  }
+
+  _devices(out) {
+    const ents = this._d?.entities || {};
+    const keys = Object.keys(ents).filter((k) => OUT_KEYS.includes(k) === out);
+    if (!keys.length) return `<div class="muted">${this._t.none}</div>`;
+    return `<table>${keys.map((k) => ents[k].map((e, i) => `<tr><td class="k">${i ? "" : esc(this._hu ? (KEY_HU[k] || k) : k)}</td>
+      <td class="v"><b>${esc(e.state ?? "?")}${e.unit ? " " + esc(e.unit) : ""}</b>
+      ${e.current_temperature != null ? ` · ${esc(this._deg(e.current_temperature))}` : ""}${e.temperature != null ? ` → ${esc(this._deg(e.temperature))}` : ""}
+      ${e.hvac_action ? ` · ${esc(e.hvac_action)}` : ""}${e.percentage != null ? ` · ${esc(e.percentage)} %` : ""}
+      <div class="eid">${esc(e.name)} · ${esc(e.entity_id)}</div></td></tr>`).join("")).join("")}</table>`;
+  }
+
+  _inputs() {
+    const i = this._d?.inputs;
+    if (!i) return `<div class="muted">${this._t.none}</div>`;
+    const rows = Object.entries(i).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length)).map(([k, v]) => {
+      if (v && typeof v === "object" && "value" in v && "age_s" in v)
+        return `<tr><td class="k">${esc(k)}</td><td class="v"><b>${esc(this._val(v.value))}</b> <span class="muted">${v.value != null ? `(${this._t.age} ${this._age(v.age_s)})` : ""}</span></td></tr>`;
+      return `<tr><td class="k">${esc(k)}</td><td class="v">${esc(this._val(v))}</td></tr>`;
+    });
+    return `<table>${rows.join("")}</table>`;
+  }
+
+  _settings() {
+    const cfg = this._d?.config;
+    if (!cfg) return "";
+    const used = new Set();
+    const parts = GROUPS.map(([title, re]) => {
+      const keys = Object.keys(cfg).filter((k) => !used.has(k) && re.test(k));
+      keys.forEach((k) => used.add(k));
+      if (!keys.length) return "";
+      return `<div class="grp">${esc(title)}</div><table>${keys.map((k) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(this._val(cfg[k]))}</td></tr>`).join("")}</table>`;
+    });
+    const rest = Object.keys(cfg).filter((k) => !used.has(k));
+    if (rest.length) parts.push(`<div class="grp">${esc(this._t.group_other)}</div><table>${rest.map((k) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(this._val(cfg[k]))}</td></tr>`).join("")}</table>`);
+    return parts.join("");
+  }
+
+  _presets() {
+    const p = this._d?.presets;
+    if (!p) return "";
+    const t = this._t;
+    const targets = Object.entries(p.targets || {}).map(([k, v]) => `<div class="chip ${(p.current === k.replace("target_", "") || (p.current === "auto" && k === "target_home")) ? "sel" : ""}"><span>${esc(k.replace("target_", ""))}</span><b>${esc(this._deg(v))}</b></div>`).join("");
+    return `<div class="kv"><span>${t.current}</span><b>${esc(p.current)}${p.boosting ? " · boost" : ""}</b></div>
+      <div class="kv"><span>${t.modes}</span><b>${esc((p.modes || []).join(", "))}</b></div>
+      <div class="kv"><span>${t.manual}</span><b>${esc(p.manual_target != null ? this._deg(p.manual_target) : t.none)}</b></div>
+      <div class="kv"><span>${t.until}</span><b>${esc(this._val(p.preset_until))}</b></div>
+      <div class="kv"><span>${t.night}</span><b>${esc((p.night || []).join("–"))}</b></div>
+      <div class="chips">${targets}</div>`;
+  }
+
+  _log() {
+    const log = (this._d?.log || []).slice().reverse();
+    if (!log.length) return `<div class="muted">${this._t.none}</div>`;
+    return `<table class="log">${log.map((e) => `<tr><td class="k">${esc(this._val(e.time))}</td><td class="v"><b>${esc(this._reason(e.reason))}</b>
+      · ${esc(e.demand)} % · ${e.output ? "▲" : "▽"}<div class="eid">${esc(this._hu ? e.text_hu : e.text_en)}</div></td></tr>`).join("")}</table>`;
+  }
+
+  // ---------------------------------------------------------------- the data matrix
+  _ctx() {
+    const d = this._d || {};
+    return { d, src: d.heat_source || "", sys: d.system || "", ctl: d.control || "", role: d.role || "standalone" };
+  }
+  _applies(row, c) { return row[6].every((tag) => WHEN[tag]?.(c)); }
+  _fmt(v, f) {
+    const t = this._t;
+    if (v == null || v === "") return null;
+    switch (f) {
+      case "deg": return this._deg(v);
+      case "pct": return `${this._num(v * 100, 0)} %`;
+      case "pctv": return `${this._num(v, 0)} %`;
+      case "onoff": return v ? t.on : t.off;
+      case "open": return v ? t.open : (this._hu ? "zárva" : "closed");
+      case "bool": return v ? t.yes : t.no;
+      case "reason": return this._reason(v);
+      case "mode": return v === "active" ? t.live : t.shadow;
+      case "time": return this._val(v);
+      case "age": return this._age(v);
+      case "sec": return `${this._num(v, 0)} ${t.sec}`;
+      case "min": return `${this._num(v, 1)} ${t.min}`;
+      case "kw": return `${this._num(v, 2)} kW`;
+      case "kwk": return `${this._num(v, 3)} kW/K`;
+      case "num": return this._num(v, 3);
+      default: return String(v);
+    }
+  }
+  _partRows(part) {
+    const c = this._ctx();
+    return INFO.filter((r) => r[1] === part && this._applies(r, c)).map((r) => {
+      let v = null;
+      try { v = this._fmt(r[4](c.d), r[5]); } catch (e) { v = null; }
+      const hot = ["reason", "output", "relay", "in", "out", "floor_t", "ch_frac", "fan_pct", "ac_set", "heater"].includes(r[0]);
+      return [this._hu ? r[2] : r[3], v, hot && v != null];
+    }).filter((r) => r[1] != null);
+  }
+  _part(x, y, title, part) { return this._card(x, y, title, this._partRows(part)); }
+
+  _matrix() {
+    const c = this._ctx(), t = this._t;
+    const parts = { hc: t.controller, outdoor: t.outdoor, indoor: t.indoor, source: t.source, storage: t.charge, unit: t.unit,
+      emitter: t.emitter, floor: t.floor, fan: t.fan };
+    return `<div class="muted" style="margin-bottom:6px">${this._hu ? "Minden adatpont: melyik rajzelemhez tartozik, mikor jelenik meg (címkék), és most mennyi. Halvány = ennél a példánynál nem érvényes." : "Every data point: its part of the drawing, when it shows (tags) and its value now. Faded = not for this instance."}</div>
+      <table class="mx"><tr><th>${this._hu ? "Elem" : "Part"}</th><th>${this._hu ? "Adat" : "Data"}</th><th>${this._hu ? "Feltétel" : "When"}</th><th>${this._hu ? "Érték" : "Value"}</th></tr>
+      ${INFO.map((r) => {
+        const ok = this._applies(r, c);
+        let v = null;
+        try { v = ok ? this._fmt(r[4](c.d), r[5]) : null; } catch (e) { v = null; }
+        return `<tr class="${ok ? "" : "off"}"><td>${esc(parts[r[1]] || r[1])}</td><td>${esc(this._hu ? r[2] : r[3])}<div class="eid">${esc(r[0])}</div></td>
+          <td>${r[6].length ? r[6].map((x) => `<span class="tag">${esc(x)}</span>`).join("") : `<span class="tag all">${this._hu ? "mindig" : "always"}</span>`}</td><td>${esc(v ?? t.none)}</td></tr>`;
+      }).join("")}</table>`;
+  }
+
+  // ---------------------------------------------------------------- the drawing
+  _card(x, y, title, rows, cls = "") {
+    const body = rows.filter((r) => r && r[1] != null && r[1] !== "").map(([k, v, hot]) =>
+      `<div class="r"><span>${esc(k)}</span><b class="${hot ? "hot" : ""}">${esc(v)}</b></div>`).join("");
+    if (!body) return "";
+    return `<div class="card ${cls}" style="left:${x / 10}%;top:${y / 7}%"><div class="ct">${esc(title)}</div>${body}</div>`;
+  }
+
+  _drawing() {
+    // drawing units: viewBox 0 0 1000 700; the cards are placed in the same units (see _card)
+    const d = this._d;
+    if (!d) return { svg: "", cards: "" };
+    if (d.role === "central") return this._drawCentral();
+    if (d.role === "buffer") return this._drawBuffer();
+    const t = this._t, dec = d.decision || {}, det = dec.details || {}, inp = d.inputs || {};
+    const src = d.heat_source, sys = d.system || "", ctl = d.control;
+    const on = !!dec.output;
+    const efloor = src === "electric_heater" && sys.startsWith("floor");
+    const roomUnit = !efloor && (sys === "room_unit" || ["air_conditioner", "electric_heater", "storage_heater"].includes(src));
+    const floor = sys.startsWith("floor") || sys.startsWith("mixed");
+    const rad = sys.startsWith("radiator") || sys.startsWith("mixed");
+    const fan = sys === "fan_coil";
+    const cool = det.mode === "cool";
+    const svg = [], cards = [];
+    const flowC = cool ? "#1e88e5" : "#e53935", retC = cool ? "#90caf9" : "#1e88e5";
+    const L = this._hu ? "hu" : "en";
+
+    // sensors and the controller along the top
+    svg.push(`<g class="sens"><circle cx="60" cy="60" r="26"/><path d="M60,44 v22" /><circle cx="60" cy="70" r="6" class="bulb"/></g>
+      <text x="60" y="112" class="lab mid">${esc(t.outdoor)}</text>`);
+    cards.push(this._part(100, 12, t.outdoor, "outdoor"));
+    svg.push(`<g class="hc"><rect x="380" y="24" width="200" height="74" rx="14"/><text x="480" y="58" class="big">HC</text>
+      <text x="480" y="82" class="sm">${esc(CONTROL[ctl] || ctl || "")}</text></g>`);
+    cards.push(this._part(590, 8, t.controller, "hc"));
+    svg.push(`<g class="sens"><circle cx="940" cy="60" r="26"/><path d="M940,44 v22"/><circle cx="940" cy="70" r="6" class="bulb"/></g>
+      <text x="940" y="112" class="lab mid">${esc(t.indoor)}</text>`);
+    cards.push(this._part(785, 125, t.indoor, "indoor"));
+
+    // control signal: dashed line from the controller to what it drives
+    const sig = (x, y) => svg.push(`<path class="jel ${on ? "akt" : ""}" d="M480,98 L480,140 L${x},140 L${x},${y}"/>`);
+
+    if (roomUnit) {
+      this._drawRoomUnit(svg, src, on, det);
+      sig(src === "air_conditioner" ? 720 : 580, src === "air_conditioner" ? 300 : 290);
+      if (src === "storage_heater") cards.push(this._part(40, 300, t.charge, "storage"));
+      if (src === "air_conditioner") cards.push(this._part(40, 160, t.outdoor_unit, "source"));
+      cards.push(this._part(src === "air_conditioner" ? 560 : 770, src === "air_conditioner" ? 440 : 330, src === "air_conditioner" ? t.unit : (SOURCE[L][src] || src), "unit"));
+      cards.push(this._part(20, 560, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter"));
+    } else {
+      this._drawSource(svg, src, on);
+      sig(155, src === "pellet_boiler" ? 300 : 330);
+      cards.push(this._part(185, 150, `${t.source}: ${SOURCE[L][src] || src || ""}`, "source"));
+      if (efloor) {
+        svg.push(`<path class="cso kabel" stroke="#ff8100" d="M230,480 L230,600 L540,600"/>`);
+      } else {
+        const toX = fan ? 700 : 680;
+        const P1 = `M250,300 L${toX},300 L${toX},340`, P2 = "M610,560 L610,660 L170,660 L170,530";
+        svg.push(`<path class="cso" stroke="${flowC}" d="${P1}"/><path class="cso" stroke="${retC}" d="${P2}"/>`);
+        if (on) svg.push(`<path class="cso viz" stroke="${flowC}" d="${P1}"/><path class="cso viz" stroke="${retC}" d="${P2}"/>`);
+        const fl = dec.flow_setpoint ?? det.flow;
+        svg.push(`<text x="300" y="288" class="lab" fill="${flowC}">${esc(t.flow)}${fl != null ? " " + esc(this._deg(fl)) : ""}</text>
+          <text x="290" y="690" class="lab" fill="${retC}">${esc(t.ret)}${inp.return_temp?.value != null ? " " + esc(this._deg(inp.return_temp.value)) : ""}</text>`);
+      }
+      if (fan) { this._drawFanCoil(svg, det); cards.push(this._part(770, 555, t.fan, "fan")); }
+      else {
+        if (rad) this._drawRadiator(svg, d, floor);
+        if (floor || efloor) { this._drawFloor(svg, det, efloor, on); cards.push(this._part(300, 480, `${t.floor}${efloor ? (this._hu ? " (elektromos)" : " (electric)") : ""}`, "floor")); }
+      }
+      cards.push(this._part(300, 330, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter"));
+    }
+    return { svg: svg.join(""), cards: cards.join("") };
+  }
+
+  _drawSource(svg, src, on) {
+    const flame = `<path class="lang ${on ? "eg" : ""}" d="M150,470 c-6,-18 18,-26 10,-46 c18,10 24,28 16,46 z"/>`;
+    svg.push(`<g transform="translate(0,40)">`);
+    if (src === "heat_pump") {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="60" y="300" width="190" height="170" rx="12"/><circle cx="125" cy="385" r="52" class="vek"/>
+        <path d="M125,340 v90 M80,385 h90 M93,353 l64,64 M157,353 l-64,64" class="vek ${on ? "forog" : ""}"/><path d="M200,320 v130" class="vek"/></g>`);
+    } else if (src === "district_heating") {
+      svg.push(`<path class="cso" stroke="#e53935" d="M0,330 H60"/><path class="cso" stroke="#1e88e5" d="M0,440 H60"/>
+        <g class="dev ${on ? "on" : ""}"><rect x="60" y="290" width="190" height="190" rx="10"/>
+        <path d="M100,320 l25,20 l-25,20 l25,20 l-25,20 l25,20 l-25,20 M170,320 l25,20 l-25,20 l25,20 l-25,20 l25,20 l-25,20" class="vek"/></g>
+        <text x="8" y="318" class="lab">${this._hu ? "hálózat" : "network"}</text>`);
+    } else if (src === "pellet_boiler") {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><path d="M70,260 h80 l-10,40 h-60 z" class="tolcser"/><rect x="60" y="300" width="190" height="180" rx="10"/>${flame}</g>`);
+    } else if (src === "electric_boiler" || src === "electric_heater") {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="80" y="270" width="150" height="220" rx="16"/><path d="M162,330 l-26,44 h24 l-14,40 l34,-52 h-24 z" class="bolt"/></g>`);
+    } else {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="70" y="290" width="180" height="190" rx="10"/><rect x="95" y="315" width="130" height="40" rx="6" class="vek"/>${flame}</g>
+        <path d="M110,290 v-40 h24 v40" class="vek"/>`);
+    }
+    svg.push(`</g>`);
+  }
+
+  _drawRadiator(svg, d, both) {
+    const x = 600, y = 340, n = 9, hgt = both ? 120 : 220;
+    const fins = Array.from({ length: n }, (_, i) => `M${x + 14 + i * 16},${y + 12} v${hgt - 24}`).join(" ");
+    svg.push(`<g class="dev"><rect x="${x}" y="${y}" width="${n * 16 + 14}" height="${hgt}" rx="10"/><path d="${fins}" class="vek"/></g>`);
+    if (this._ent("room_trvs").length || d.system === "radiator_trv")
+      svg.push(`<g class="dev"><rect x="${x + n * 16 + 14}" y="${y - 6}" width="34" height="46" rx="8"/><path d="M${x + n * 16 + 22},${y + 6} h18 M${x + n * 16 + 22},${y + 16} h18 M${x + n * 16 + 22},${y + 26} h18" class="vek"/></g>`);
+  }
+
+  _drawFloor(svg, det, electric, on) {
+    const y = 580;
+    svg.push(`<rect x="540" y="${y - 14}" width="400" height="80" rx="6" class="padlo"/>
+      <path d="M560,${y} ${Array.from({ length: 8 }, (_, i) => `h40 v${i % 2 ? -50 : 50}`).join(" ")}" class="cso ${electric ? "kabel" : ""} ${on && !electric ? "viz" : ""}" stroke="${electric ? "#ff8100" : (det.mode === "cool" ? "#1e88e5" : "#e53935")}"/>`);
+  }
+
+  _drawFanCoil(svg, det) {
+    svg.push(`<g class="dev"><rect x="600" y="340" width="300" height="200" rx="14"/><circle cx="680" cy="440" r="60" class="vek"/>
+      <path d="M680,380 v120 M620,440 h120" class="vek ${det.fan_pct ? "forog" : ""}"/><path d="M780,380 h90 M780,410 h90 M780,440 h90 M780,470 h90 M780,500 h90" class="vek"/></g>`);
+  }
+
+  _drawRoomUnit(svg, src, on, det) {
+    if (src === "air_conditioner") {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="560" y="300" width="320" height="110" rx="20"/><path d="M590,380 h260 M600,395 h240" class="vek"/></g>
+        <g class="dev"><rect x="80" y="400" width="220" height="170" rx="10"/><circle cx="170" cy="485" r="55" class="vek ${on ? "forog" : ""}"/><path d="M250,430 v110" class="vek"/></g>
+        <path class="cso" stroke="#90a4ae" d="M300,460 L560,370"/><path class="cso" stroke="#90a4ae" d="M300,490 L560,390"/>`);
+    } else if (src === "storage_heater") {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="420" y="290" width="320" height="230" rx="12"/>
+        ${Array.from({ length: 5 }, (_, i) => `<path d="M440,${315 + i * 40} h280" class="vek"/>`).join("")}</g>
+        <circle cx="580" cy="545" r="22" class="ventil"/><path d="M560,545 h40 M580,525 v40" class="vek ${det.discharge ? "forog" : ""}"/>`);
+    } else {
+      svg.push(`<g class="dev ${on ? "on" : ""}"><rect x="440" y="290" width="300" height="220" rx="16"/>
+        ${Array.from({ length: 8 }, (_, i) => `<path d="M${470 + i * 34},310 v180" class="vek"/>`).join("")}
+        <path d="M598,360 l-26,44 h24 l-14,40 l34,-52 h-24 z" class="bolt"/></g>`);
+    }
+  }
+
+  _drawCentral() {
+    const d = this._d, t = this._t, dec = d.decision || {}, zones = d.zones || [];
+    const svg = [], cards = [];
+    svg.push(`<g class="dev ${dec.output ? "on" : ""}"><rect x="60" y="250" width="180" height="200" rx="10"/><path class="lang ${dec.output ? "eg" : ""}" d="M140,400 c-6,-18 18,-26 10,-46 c18,10 24,28 16,46 z"/></g>`);
+    cards.push(this._card(20, 20, t.boiler, [[t.reason, this._reason(dec.reason), true], [t.output, dec.output ? t.on : t.off, dec.output],
+      [t.pump, dec.pump ? t.on : t.off], [t.flow, dec.flow_setpoint != null ? this._deg(dec.flow_setpoint) : null],
+      ["flow by", dec.details?.flow_by], [t.demand, this._num(dec.demand, 2)], ["stuck", (dec.details?.stuck || []).join(", ") || null, true]]));
+    const n = Math.max(zones.length, 1);
+    zones.forEach((z, i) => {
+      const y = 120 + (i * 420) / n;
+      svg.push(`<path class="cso" stroke="#e53935" d="M240,300 L420,300 L420,${y + 30} L640,${y + 30}"/><g class="dev ${z.wants_heat ? "on" : ""}"><rect x="640" y="${y}" width="140" height="60" rx="8"/></g>
+        <circle cx="600" cy="${y + 30}" r="12" class="${z.valve_open ? "nyit" : "zar"}"/>`);
+      cards.push(this._card(800, Math.min(600, 20 + (i * 620) / n), z.name, [["asking", z.wants_heat ? t.yes : t.no, z.wants_heat],
+        [t.demand, `${this._num((z.demand || 0) * 100, 0)} %`], ["valve", z.valve_open == null ? (z.valve_on_since ? "opening" : t.none) : (z.valve_open ? t.open : "zárva")],
+        [t.flow, z.flow_request != null ? this._deg(z.flow_request) : null], ["fault", z.fault ? t.yes : null, true], ["TRV", z.trv ? t.yes : null]]));
+    });
+    return { svg: svg.join(""), cards: cards.join("") };
+  }
+
+  _drawBuffer() {
+    const d = this._d, t = this._t, dec = d.decision || {}, cfg = d.config || {};
+    const svg = [], cards = [];
+    const top = dec.top, bot = dec.bottom, hi = cfg.buffer_off || 65, lo = cfg.buffer_on || 45;
+    const fill = Math.max(0, Math.min(1, ((bot ?? top ?? 0) - 20) / (hi - 20)));
+    svg.push(`<g class="dev ${dec.output ? "on" : ""}"><rect x="60" y="280" width="180" height="200" rx="10"/><path class="lang ${dec.output ? "eg" : ""}" d="M140,430 c-6,-18 18,-26 10,-46 c18,10 24,28 16,46 z"/></g>
+      <path class="cso" stroke="#e53935" d="M240,320 H420"/><path class="cso" stroke="#1e88e5" d="M420,460 H240"/>
+      <defs><linearGradient id="tank" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#1e88e5"/><stop offset="1" stop-color="#e53935"/></linearGradient></defs>
+      <clipPath id="tankclip"><rect x="420" y="120" width="160" height="400" rx="70"/></clipPath>
+      <rect x="420" y="${120 + 400 * (1 - fill)}" width="160" height="${400 * fill}" fill="url(#tank)" opacity=".35" clip-path="url(#tankclip)"/>
+      <g class="dev"><rect x="420" y="120" width="160" height="400" rx="70"/></g>
+      <path class="cso" stroke="#e53935" d="M580,170 H760"/><path class="cso" stroke="#1e88e5" d="M760,470 H580"/>
+      <g class="dev"><rect x="760" y="150" width="160" height="340" rx="12"/></g>`);
+    cards.push(this._card(20, 20, t.source, [[t.reason, this._reason(dec.reason), true], [t.output, dec.output ? t.on : t.off, dec.output],
+      ["entity", this._st("boiler_entity")?.entity_id], ["state", this._st("boiler_entity")?.state]]));
+    cards.push(this._card(400, 545, t.tank, [[t.top, this._deg(top), true], [t.bottom, this._deg(bot)], ["start ≤", this._deg(lo)], ["stop ≥", this._deg(hi)],
+      ["frost", this._deg(cfg.buffer_frost)], ["demand-led", cfg.buffer_demand_led ? t.yes : t.no]]));
+    cards.push(this._card(780, 20, t.zones, (this._ent("zone_entities")).map((z) => [z.name, `${z.hvac_action || z.state}${z.current_temperature != null ? " · " + this._deg(z.current_temperature) : ""}`, z.hvac_action === "heating"])));
+    return { svg: svg.join(""), cards: cards.join("") };
+  }
+
+  // ---------------------------------------------------------------- page
+  _render() {
+    if (!this.shadowRoot) return;
+    const t = this._t, d = this._d;
+    const list = this._list || [];
+    const pick = list.map((e) => `<button class="pick ${e.entry_id === this._sel ? "sel" : ""}" data-entry="${esc(e.entry_id)}">
+      <b>${esc(e.title)}</b><small>${esc((SOURCE[this._hu ? "hu" : "en"][e.heat_source] || e.role || "") + (e.mode === "active" ? " · " + t.live : " · " + t.shadow))}</small></button>`).join("");
+    let main = "";
+    if (!list.length) main = `<div class="empty">${esc(this._err || t.noinst)}</div>`;
+    else if (d) {
+      const dr = this._drawing();
+      const dec = d.decision || {};
+      const head = `<div class="head"><h2>${esc(d.title)}</h2><span>${esc(SOURCE[this._hu ? "hu" : "en"][d.heat_source] || d.role)} · ${esc(SYSTEM[this._hu ? "hu" : "en"][d.system] || d.system || "")} · ${esc(CONTROL[d.control] || d.control || d.role)}</span>
+        <span class="badge ${d.mode === "active" ? "live" : ""}">${d.mode === "active" ? t.live : t.shadow}</span></div>`;
+      const decision = d.role === "standalone" || d.role === "zone"
+        ? `<div class="reason">${esc(this._reason(dec.reason))}</div><div class="txt">${esc(this._hu ? d.text_hu : d.text_en)}</div>
+          <div class="bar"><i style="width:${Math.round((dec.demand || 0) * 100)}%"></i></div>
+          ${this._rows({ output: dec.output, actual: d.actual, limited_by: dec.limited_by, fault: dec.fault, manual: dec.manual, manual_until: dec.manual_until, target: dec.target, indoor: dec.indoor, outdoor: dec.outdoor, flow_setpoint: dec.flow_setpoint, external: dec.external, loss_kw_per_k: dec.loss_kw_per_k, heat_need_kw: dec.heat_need_kw, other_heat_kw: dec.other_heat_kw })}
+          ${dec.details && Object.keys(dec.details).length ? `<div class="grp">details</div>${this._rows(dec.details)}` : ""}
+          ${dec.shadow ? `<div class="grp">shadow</div>${this._rows(dec.shadow)}` : ""}`
+        : this._rows(dec);
+      const side = [
+        this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
+        d.presets ? this._section("presets", t.presets, this._presets(), "mdi:calendar-clock") : "",
+        this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
+        this._section("devices_out", t.devices_out, this._devices(true), "mdi:electric-switch"),
+        d.inputs ? this._section("inputs", t.inputs, this._inputs(), "mdi:import") : "",
+        this._section("inner", t.inner, d.state ? this._rows({ ...(d.live || {}), ...d.state }) : this._rows({ state: d.state, zones: d.zones }), "mdi:memory"),
+        d.health ? this._section("health", t.health, this._rows(d.health), "mdi:heart-pulse") : "",
+        d.rooms && (d.rooms.advice?.length || Object.keys(d.rooms.trv || {}).length) ? this._section("rooms", t.rooms, this._rows(d.rooms), "mdi:floor-plan") : "",
+        d.zone && Object.keys(d.zone).length ? this._section("zone", t.zone, this._rows(d.zone), "mdi:texture-box") : "",
+        d.cost ? this._section("cost", t.cost, this._rows(d.cost), "mdi:cash") : "",
+        d.role === "standalone" || d.role === "zone" ? this._section("matrix", this._hu ? "Adat-mátrix" : "Data matrix", this._matrix(), "mdi:table") : "",
+        this._section("settings", t.settings, d.role === "standalone" || d.role === "zone" ? this._settings() : this._rows(d.config), "mdi:tune"),
+        d.log ? this._section("log", t.log, this._log(), "mdi:history") : "",
+      ].join("");
+      main = `${head}<div class="grid"><div class="draw"><div class="stage"><svg viewBox="0 0 1000 700">${dr.svg}</svg>${dr.cards}</div></div>
+        <div class="side">${side}</div></div>`;
+    } else main = `<div class="empty">${esc(this._err || "…")}</div>`;
+
+    const scroll = this.shadowRoot.querySelector(".side")?.scrollTop || 0;
+    this.shadowRoot.innerHTML = `<style>${CSS}</style>
+      <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1><div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
+      <div class="main">${main}</div>`;
+    const side = this.shadowRoot.querySelector(".side");
+    if (side) side.scrollTop = scroll;
+    this.shadowRoot.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => {
+      this._sel = b.dataset.entry; this._d = null;
+      try { localStorage.setItem("hc-info:entry", this._sel); } catch (e) { /* private mode */ }
+      this._load();
+    }));
+    this.shadowRoot.querySelectorAll("details[data-sec]").forEach((el) => el.addEventListener("toggle", () => { this._open[el.dataset.sec] = el.open; }));
+  }
+}
+
+const CSS = `
+:host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color); font-family:"HC Info Roboto", Roboto, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+svg text { font-family:"HC Info Roboto", Roboto, Arial, sans-serif; }
+table.mx td { font-size:12px; } table.mx th { text-align:left; font-weight:500; padding:3px 4px; border-bottom:2px solid var(--divider-color); }
+table.mx tr.off td { opacity:.38; }
+.tag { display:inline-block; border-radius:6px; padding:0 5px; margin:1px 2px 1px 0; font-size:11px; background:color-mix(in srgb, var(--primary-color) 15%, transparent); }
+.tag.all { background:var(--secondary-background-color); }
+.top { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--app-header-background-color, var(--primary-color)); color:var(--app-header-text-color, #fff); flex-wrap:wrap; }
+.top h1 { font-size:20px; margin:0 8px 0 0; font-weight:500; }
+.top .muted { color:inherit; opacity:.7; margin-left:auto; font-size:12px; }
+.picks { display:flex; gap:6px; flex-wrap:wrap; }
+.pick { border:1px solid rgba(255,255,255,.4); background:transparent; color:inherit; border-radius:10px; padding:4px 10px; cursor:pointer; text-align:left; }
+.pick small { display:block; opacity:.75; font-size:11px; }
+.pick.sel { background:rgba(255,255,255,.22); border-color:#fff; }
+.main { height:calc(100vh - 64px); box-sizing:border-box; padding:10px 14px; display:flex; flex-direction:column; }
+.head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+.head h2 { margin:0; font-size:22px; font-weight:500; }
+.head span { color:var(--secondary-text-color); }
+.badge { border-radius:8px; padding:1px 8px; font-size:12px; background:var(--secondary-background-color); }
+.badge.live { background:#2e7d32; color:#fff; }
+.grid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,2.3fr) minmax(360px,1fr); gap:14px; }
+.draw { position:relative; min-height:0; background:var(--card-background-color); border-radius:16px; overflow:hidden; container-type:size; display:flex; align-items:center; justify-content:center; }
+.stage { position:relative; aspect-ratio:1000/700; width:min(100cqw, 100cqh * 1000 / 700); }
+.stage svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+svg .jel { fill:none; stroke:var(--primary-color); stroke-width:2.5; stroke-dasharray:6 7; opacity:.6; }
+svg .jel.akt { opacity:1; animation:folyik 1s linear infinite; }
+svg .mid { text-anchor:middle; font-size:14px; fill:var(--secondary-text-color); font-weight:400; }
+svg .ventil { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:2.2; }
+svg .tolcser { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:3; }
+.side { overflow:auto; min-height:0; padding-right:4px; }
+svg .dev rect, svg .dev path:not(.vek):not(.bolt), svg .hc rect { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:3; opacity:.9; }
+svg .dev.on rect { fill:color-mix(in srgb, #ff8100 12%, var(--card-background-color)); }
+svg .vek { fill:none; stroke:var(--primary-text-color); stroke-width:2.2; opacity:.7; stroke-linecap:round; }
+svg .hc rect { stroke:var(--primary-color); stroke-width:3.5; }
+svg .hc text { fill:var(--primary-text-color); text-anchor:middle; }
+svg .big { font-size:28px; font-weight:700; } svg .sm { font-size:14px; opacity:.75; }
+svg .lab { font-size:16px; font-weight:600; }
+svg .sens circle { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:2.5; }
+svg .sens path { stroke:var(--primary-text-color); stroke-width:5; stroke-linecap:round; }
+svg .sens .bulb { fill:#e53935; stroke:none; }
+svg .cso { fill:none; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; opacity:.45; }
+svg .cso.viz { stroke-dasharray:8 14; opacity:1; animation:folyik 1s linear infinite; }
+svg .cso.kabel { stroke-dasharray:none; stroke-width:4; opacity:.8; }
+@keyframes folyik { to { stroke-dashoffset:-22; } }
+svg .lang { fill:#ff8100; opacity:.15; }
+svg .lang.eg { opacity:1; transform-box:fill-box; transform-origin:50% 100%; animation:lobog 1.1s ease-in-out infinite alternate; }
+@keyframes lobog { from { transform:scaleY(.85); } to { transform:scaleY(1.12); } }
+svg .bolt { fill:#f2a20c; stroke:none; }
+svg .padlo { fill:color-mix(in srgb, var(--primary-text-color) 6%, transparent); stroke:var(--primary-text-color); stroke-width:2; opacity:.7; }
+svg .forog { transform-box:fill-box; transform-origin:50% 50%; animation:forog 1.2s linear infinite; }
+@keyframes forog { to { transform:rotate(360deg); } }
+svg .nyit { fill:#43a047; } svg .zar { fill:#9e9e9e; }
+.card { position:absolute; box-sizing:border-box; width:19%; min-width:0; background:color-mix(in srgb, var(--card-background-color) 92%, transparent); border:1px solid var(--divider-color); border-radius:10px; padding:5px 7px; font-size:clamp(10px, 1.2cqw, 14px); box-shadow:0 1px 4px rgba(0,0,0,.15); }
+.card .ct { font-weight:600; font-size:1.08em; margin-bottom:3px; color:var(--primary-color); }
+.card .r { display:flex; justify-content:space-between; gap:8px; line-height:1.45; }
+.card .r span { color:var(--secondary-text-color); }
+.card .r b { font-weight:500; text-align:right; word-break:break-word; }
+.hot { color:#ff8100; }
+details.sec { background:var(--card-background-color); border-radius:12px; margin-bottom:8px; }
+details.sec summary { cursor:pointer; padding:10px 12px; font-weight:500; display:flex; gap:8px; align-items:center; }
+details.sec .body { padding:0 12px 10px; font-size:13px; }
+table { width:100%; border-collapse:collapse; }
+td { padding:3px 4px; vertical-align:top; border-bottom:1px solid var(--divider-color); }
+td.k { color:var(--secondary-text-color); width:42%; word-break:break-word; }
+td.v { word-break:break-word; }
+td.nest { padding-left:12px; }
+th.sub { text-align:left; padding-top:6px; font-weight:500; color:var(--primary-color); }
+.eid { color:var(--secondary-text-color); font-size:11px; }
+.grp { margin:10px 0 4px; font-weight:600; color:var(--primary-color); }
+.reason { font-size:20px; font-weight:600; }
+.txt { margin:4px 0 8px; }
+.bar { height:8px; border-radius:4px; background:var(--divider-color); overflow:hidden; margin-bottom:8px; }
+.bar i { display:block; height:100%; background:#ff8100; }
+.kv { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--divider-color); }
+.kv span { color:var(--secondary-text-color); }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.chip { border:1px solid var(--divider-color); border-radius:10px; padding:4px 8px; display:flex; flex-direction:column; min-width:70px; }
+.chip span { font-size:11px; color:var(--secondary-text-color); }
+.chip.sel { border-color:var(--primary-color); background:color-mix(in srgb, var(--primary-color) 12%, transparent); }
+.muted { color:var(--secondary-text-color); }
+.empty { padding:40px; text-align:center; color:var(--secondary-text-color); }
+table.log td.k { width:28%; }
+@media (max-width: 1000px) {
+  .main { height:auto; }
+  .grid { grid-template-columns:1fr; }
+  .draw { aspect-ratio:1000/620; min-height:auto; }
+  .card { max-width:30%; min-width:110px; font-size:10px; }
+  .side { overflow:visible; }
+}
+`;
+
+customElements.define("hc-info-panel", HcInfoPanel);

@@ -31,6 +31,7 @@ from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
 )
 from .core.model import HcConfig
+from .info import ws_info, ws_info_list
 from .rooms_ha import area_id_of, area_name, suggest_room_sensors
 
 STATIC_URL = "/hc_thermostat_static"
@@ -61,9 +62,19 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
         hass, frontend_url_path=PANEL_URL, webcomponent_name="hc-wizard-panel",
         sidebar_title="HC beállítás", sidebar_icon="mdi:auto-fix", module_url=f"{STATIC_URL}/hc-wizard-panel.js?v={version}",
         require_admin=True, config={})
+    # info panel (0.34.0): everything an instance knows, read only
+    await panel_custom.async_register_panel(
+        hass, frontend_url_path=INFO_URL, webcomponent_name="hc-info-panel",
+        sidebar_title="HC info", sidebar_icon="mdi:information-outline", module_url=f"{STATIC_URL}/hc-info-panel.js?v={version}",
+        require_admin=True, config={})
+    websocket_api.async_register_command(hass, ws_info_list)
+    websocket_api.async_register_command(hass, ws_info)
     websocket_api.async_register_command(hass, ws_start)
     websocket_api.async_register_command(hass, ws_derive)
     websocket_api.async_register_command(hass, ws_apply)
+
+
+INFO_URL = "hc-info"
 
 
 def _version() -> str:

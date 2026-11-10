@@ -118,6 +118,18 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
   zónaigénynél indul; fagyveszélynél (teteje ≤ 8 °C) mindenképp tölt; felső hőmérő nélkül nem tölt. A körök a
   tartályból rendes HC-zónaként fűtenek. Döntés-szenzor és „hőforrás kérés” bináris szenzor.
 
+## HC info panel (0.34.0)
+
+Oldalsávi panel, **HC info** (csak adminoknak, csak olvas): egy példány minden adata. A fűtési rendszere a típusa
+szerint lerajzolva (kazán, hőszivattyú, távfűtési hőközpont, pellet, elektromos, hőtároló, klíma; radiátor,
+szelepfej, padló, fan-coil; központi kazán a zónáival, puffertartály), minden elem mellett a saját adataival; a rajz
+mellett a döntés, presetek és célok, a bemeneti és kimeneti eszközök élő állapottal, a bemenetek, amikre döntött (a
+mérés korával), minden belső érték, a kazán állapota, szobák és szelepfejek, minden beállítás és a napló. Hogy melyik
+adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-info-panel.js`, `INFO`: elem, felirat,
+érték, és a címkék, hogy milyen rendszernél érvényes); a panel a mátrixot is kilistázza. Az oldalsávból vagy
+`/hc-info?entity=climate.x` címmel nyílik – a [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card) (1.14+)
+„i” ikonja így nyitja meg.
+
 ## Biztonság
 
 A program nem helyettesíti a kazán saját védelmeit. Tarts független tartalékot is, például alacsonyra állított, párhuzamosan kötött hagyományos szobatermosztátot. Használat saját felelősségre (MIT, garancia nélkül).
