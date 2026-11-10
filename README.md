@@ -1,4 +1,4 @@
-# HC Thermostat (Heat Conductor Thermostat)
+# <img src="images/icon.png" alt="HC Thermostat icon" width="44" align="absmiddle"> HC Thermostat (Heat Conductor Thermostat)
 
 [Magyar leírás](README.hu.md)
 

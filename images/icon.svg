@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#29b6f6"/>
+      <stop offset="1" stop-color="#1a4fc4"/>
+    </linearGradient>
+    <linearGradient id="hhaz" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e3edff"/>
+    </linearGradient>
+    <linearGradient id="hlang" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff6a2b"/>
+      <stop offset=".6" stop-color="#ff9a3d"/>
+      <stop offset="1" stop-color="#ffc145"/>
+    </linearGradient>
+    <filter id="harnyek" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="13" flood-color="#0b2a6b" flood-opacity=".38"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#hbg)"/>
+  <!-- ház -->
+  <g filter="url(#harnyek)">
+    <path d="M 256 78 Q 268 78 278 86 L 410 196 Q 420 205 420 218 L 420 392 Q 420 420 392 420 L 120 420 Q 92 420 92 392 L 92 218 Q 92 205 102 196 L 234 86 Q 244 78 256 78 Z" fill="url(#hhaz)"/>
+  </g>
+  <!-- láng -->
+  <path d="M 238 162 C 250 200 300 218 300 284 C 300 334 268 362 232 362 C 194 362 166 334 166 294 C 166 262 182 242 198 228 C 198 252 208 266 222 270 C 214 236 222 196 238 162 Z" fill="url(#hlang)"/>
+  <path d="M 234 262 C 240 284 262 292 262 320 C 262 340 248 352 232 352 C 216 352 204 340 204 324 C 204 306 218 296 224 286 C 226 298 232 302 236 302 C 232 290 230 276 234 262 Z" fill="#fff3d6" opacity=".9"/>
+  <!-- felügyelő: kék jelvény szabályozási görbével -->
+  <g filter="url(#harnyek)">
+    <circle cx="336" cy="330" r="62" fill="#1a4fc4"/>
+  </g>
+  <circle cx="336" cy="330" r="50" fill="none" stroke="#9cc4ff" stroke-width="4" opacity=".6"/>
+  <path d="M 300 352 C 316 352 318 306 336 306 C 350 306 352 330 372 330" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="372" cy="330" r="9" fill="#ffc145"/>
+</svg>
