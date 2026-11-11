@@ -169,7 +169,7 @@ class HcConfig:
     floor_temper_offset: float = 0.0  # °C above the room target; 0 = by the floor covering (tiles 2, others 3, none 2)
     floor_temper_night: float = 0.0  # absolute floor target at night / in the sleep preset; 0 = the day rule
     floor_temper_hysteresis: float = 0.3  # back on this far below the floor target
-    floor_temper_room_margin: float = 1.0  # no tempering once the room is at target + this (no overheated room)
+    floor_temper_room_margin: float = 0.5  # no tempering once the room is at target + this (0.39.2: 1.0 → 0.5, less swing)
     # Lost room thermometer (0.36.0): hold the floor at the tempering target by the floor sensor instead of the blind
     # demand (or, electric, of no heat). Floor heating with a floor sensor and a relay control only.
     floor_fallback: bool = True

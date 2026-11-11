@@ -136,7 +136,7 @@ const WHEN = {
   load: (c) => !!c.d.config?.load_limit_kw, power_signal: (c) => !!ENT(c.d, "power_available_entity"),
   rooms: (c) => !!ENTS(c.d, "room_sensors") || !!ENTS(c.d, "room_trvs"),
 };
-const LIMIT_FROM = { manual: "kézi / manual", covering: "burkolat és szenzor / covering and probe", electric: "elektromos alapérték 27 °C / electric default", water: "vizes padló alapértéke 29 °C / water floor default" };
+const LIMIT_FROM = { manual: "kézi / manual", covering: "burkolat és szenzor (mélyebb szenzornál becslés) / covering and probe (estimate for a deeper probe)", electric: "elektromos alapérték 27 °C / electric default", water: "vizes padló alapértéke 29 °C / water floor default" };
 const INFO = [
   // HC controller
   ["reason", "hc", "Döntés", "Decision", (d) => d.decision?.reason, "reason", []],
@@ -175,6 +175,7 @@ const INFO = [
   ["dew", "indoor", "Harmatpont", "Dew point", (d) => d.decision?.details?.dew_point, "deg", ["cooling"]],
   ["zone_door", "indoor", "Zóna ajtó", "Zone door", (d) => CA(d, "zone_door_open"), "open", []],
   ["call", "indoor", "Fali termosztát kér", "Wall thermostat asks", (d) => (ENT(d, "demand_entity") ? ({ true: "be / on", false: "ki / off" }[d.inputs?.call] ?? "ismeretlen / unknown") : null), "text", ["relay"]],
+  ["contact_lost", "indoor", "Érintkező elveszett: szobahőmérő szerint", "Contact lost: by the room thermometer", (d) => d.decision?.details?.contact_lost || null, "bool", ["relay"]],
   ["tsource", "indoor", "Célhő forrás", "Target source", (d) => ENT(d, "target_source_entity")?.temperature ?? ENT(d, "target_source_entity")?.state, "text", []],
   // heat source
   ["relay", "source", "Relé", "Relay", (d) => ENT(d, "actuator_entity")?.state, "state", ["relay"]],

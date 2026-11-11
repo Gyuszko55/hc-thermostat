@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.39.3 – 2026-11-11
+Fixes from the second outside review (0.33.0) and of 0.35.0–0.39.1:
+- On/off control (heat pump, pellet boiler) with a lost room sensor: the fallback demand (35 %) meant "on" without end, as there is no PWM here. Now it is a share of the time: one minimum run, then a pause that keeps the share (never under the minimum pause); details `fallback_run_s`, `fallback_pause_s`.
+- Central modulating boiler: a floor zone without its own mixing loop publishes `flow_limit` (its `flow_max`, 45 °C by default); while its circuit can get water (asking, open or still closing) the flow setpoint never goes above it, even below `central_flow_min` (`flow_capped_by` on the central decision). New zone option `zone_own_mixer` for floor zones that are protected by their own mixer.
+- Storage heater with a power signal: the hours really charged are counted (`charged_h`, saved over restarts) and every block of power inside the window is used until the hours are full (`charge_why: done`); a block lost inside a charge timed to the end of the window was never made up. Without a signal nothing changes.
+- Buffer tank: a tank reading older than `buffer_sensor_max_age_s` (1 hour) does not count (a dead sensor keeps its last value); a charge longer than `buffer_max_charge_s` (6 hours, 0 = no limit; in the options) stops as `max_charge` and waits the pause before it may try again.
+- Wall thermostat contact lost (unknown / unavailable) while the room thermometer works: the instance regulates by the room thermometer and its own target until the contact is back (details `contact_lost`, text, HC info row) – before, the room reading was dropped and the blind 35 % demand ran even in a warm room. Without a room reading nothing changes.
+- Floor tempering with a wall thermostat and no room thermometer: only the absolute night value (`floor_temper_night`) tempers, in its hours. "Room target + offset" had no room margin check there and heated against the wall thermostat's own setpoint.
+- The on/off share above stays behind the floor fallback (0.36.0): with a fresh floor reading the floor is followed, as before.
+- Fan coil: a fan with speed steps (`percentage_step`, for example three speeds) is set to the nearest step and not commanded again at every update because 45 % never equals the reported 33 %.
+- A buffer tank without a bottom thermometer (it is optional) no longer fails at every update: a missing sensor is no reading, not an error (found when bringing these fixes in).
+
+## 0.39.2 – 2026-11-11
+- Floor tempering: the room margin (`floor_temper_room_margin`) defaults to 0.5 °C instead of 1.0 °C – the room swings less above its target and uses less energy. The description says so. Instances that already stored a value keep it.
+- Floor limit table: the deeper sensor positions (screed, above a pipe) are marked as estimates in the forms, the wizard and the HC info panel; they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering is recommended.
+
 ## 0.39.1 – 2026-11-11
 - Pump exercise never runs against closed valves: it needs an open circuit – a bypass, a valve that is open, or a zone in its own weekly valve exercise (the zones now tell the central boiler, attribute `valve_exercising`; counted open after `central_valve_open_s`). From the set time it waits for such a circuit until the end of that day, then runs once; if the circuit closes during the run it stops and does not count.
 - Floor limit: 0 with no covering now means 29 °C for a water floor (27 °C electric), never "no limit". An old instance that never stored a limit had 29 °C; saving its options stores 0, and that must not drop the limit.

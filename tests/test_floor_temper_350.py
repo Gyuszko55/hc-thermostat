@@ -17,6 +17,7 @@ def at(minutes):
 
 
 def cfg(system="floor_single", source="onoff_boiler", **kw):
+    kw.setdefault("floor_temper_room_margin", 1.0)  # these tests sit at target + 0.5; the default has its own test
     return HcConfig.from_mapping({**source_defaults(system, source), **default_timing(system, source), **DAY,
                                   "floor_system": floor_system(system), "floor_temper": True, **kw})
 
@@ -47,7 +48,7 @@ def test_tempering_starts_and_stops_with_hysteresis():
 
 
 def test_room_margin_stops_tempering():
-    sup = Supervisor(cfg(control="tpi"))
+    sup = Supervisor(cfg(control="tpi", floor_temper_room_margin=1.0))
     assert step(sup, 0, indoor=21.9, floor=22.0).reason == Reason.FLOOR_TEMPER
     d = step(sup, 20, indoor=22.0, floor=22.0)  # target 21 + margin 1.0: the room is warm, no more floor heat
     assert d.reason == Reason.AT_TARGET and not d.output
@@ -167,3 +168,11 @@ def test_texts():
     d = step(sup, 0, indoor=21.5, floor=22.4)
     assert explain(d, "hu") == "Padlótemperálás: a padló 22,4 °C, a cél 23 °C (a szoba már elég meleg)."
     assert explain(d, "en") == "Floor tempering: floor 22.4 °C, target 23 °C (the room is warm enough)."
+
+
+def test_room_margin_default_is_half_a_degree():
+    assert HcConfig().floor_temper_room_margin == 0.5  # 0.39.2: less room swing than 1.0
+    sup = Supervisor(cfg(control="tpi", floor_temper_room_margin=0.5))
+    assert step(sup, 0, indoor=21.4, floor=22.0).reason == Reason.FLOOR_TEMPER
+    d = step(sup, 20, indoor=21.5, floor=22.0)  # target 21 + 0.5: warm enough, no more floor heat
+    assert d.reason == Reason.AT_TARGET and not d.output

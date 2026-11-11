@@ -23,7 +23,8 @@ boiler decides when the boiler and its pump may run:
   the boiler runs, the flow setpoint is the highest request of the open asking zones (of all asking zones
   while the valves are still opening), or `central_flow_default` when no zone sends one, clamped to
   [`central_flow_min`, `central_flow_max`]. So the coldest / steepest zone sets the water temperature and
-  the other zones throttle with their valves.
+  the other zones throttle with their valves. A floor zone without its own mixing loop publishes `flow_limit`
+  (its `flow_max`): while its circuit can get water, the setpoint never goes above it (0.39.3).
 - weekly pump exercise (0.39.0, core/exercise.py PumpExercise): with a pump entity, a pump that has not run for
   `central_pump_exercise_idle_days` runs alone for `central_pump_exercise_s` seconds on the given day from the given
   time, as soon as a circuit is open (bypass, or a valve open – e.g. by the zones' valve exercise) –
@@ -52,6 +53,7 @@ class ZoneState:
     trv: bool = False  # the zone drives a TRV (external thermostat), not a relay valve
     flow_request: float | None = None  # °C: the flow the zone's own curve asks for (modulating boiler)
     exercise_since: datetime | None = None  # the zone's weekly valve exercise opened its valve at this time
+    flow_limit: float | None = None  # °C: the warmest water this zone may get (a floor zone without its own mixing loop)
 
 
 @dataclass(frozen=True)
@@ -170,6 +172,18 @@ class CentralBoiler:
             flow, by = cfg.central_flow_default, None
         return round(max(cfg.central_flow_min, min(cfg.central_flow_max, flow)), 1), by
 
+    def _flow_cap(self, zones: list[ZoneState], now: datetime) -> tuple[float | None, str | None]:
+        """0.39.3: the lowest limit of the zones the water can reach now – asking, open or still closing. A floor
+        zone without its own mixing loop must never get a radiator zone's flow; the limit wins over the minimum."""
+        closing_s = self.cfg.central_valve_open_s
+        reached = [z for z in zones if z.flow_limit is not None and not z.fault and (
+            z.wants_heat or z.valve_on_since is not None or self._valve_open(z, now)
+            or (z.valve_off_since is not None and (now - z.valve_off_since).total_seconds() < closing_s))]
+        if not reached:
+            return None, None
+        low = min(reached, key=lambda z: z.flow_limit)
+        return low.flow_limit, low.name
+
     def step(self, now: datetime, zones: list[ZoneState], uptime_s: float = 1e9,
              pump_on: bool = False) -> CentralDecision:
         """uptime_s: seconds since the start (no pump exercise right after a restart); pump_on: the pump entity is on
@@ -215,6 +229,9 @@ class CentralBoiler:
         flow = None
         if self.output:
             flow, details["flow_by"] = self._flow(asking, open_zones)
+            cap, cap_by = self._flow_cap(zones, now)
+            if cap is not None and flow > cap:
+                flow, details["flow_capped_by"] = round(cap, 1), cap_by
             details["flow_requests"] = {z.name: z.flow_request for z in asking if z.flow_request is not None}
         return CentralDecision(now, self.output, reason, tuple(z.name for z in asking),
                                tuple(z.name for z in open_zones), demand, details, pump, flow)

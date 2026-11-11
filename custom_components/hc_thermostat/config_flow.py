@@ -100,6 +100,7 @@ def _buffer_fields(current: dict) -> dict:
         vol.Required("buffer_on", default=cfg.buffer_on): _number(20, 80, 1, "°C"),
         vol.Required("buffer_off", default=cfg.buffer_off): _number(25, 90, 1, "°C"),
         vol.Required("buffer_min_off_s", default=cfg.buffer_min_off_s): _number(0, 7200, 60, "s"),
+        vol.Required("buffer_max_charge_s", default=cfg.buffer_max_charge_s): _number(0, 86400, 600, "s"),
         vol.Required("buffer_frost", default=cfg.buffer_frost): _number(3, 15, 1, "°C"),
     }
 
@@ -479,6 +480,8 @@ class HcOptionsFlow(OptionsFlow):
                 _ent(CONF_DEMAND, "binary_sensor", "input_boolean", "switch")
         if current.get(CONF_ROLE) == "zone":
             fields[vol.Optional(CONF_VALVE_FEEDBACK, description={"suggested_value": current.get(CONF_VALVE_FEEDBACK)})] = _entity(*_FEEDBACK_DOMAINS)
+            if str(current.get(CONF_SYSTEM) or "").startswith("floor"):
+                fields[vol.Required("zone_own_mixer", default=bool(current.get("zone_own_mixer", False)))] = BooleanSelector()
             if cfg.control in ("tpi", "pid"):
                 fields.update(_exercise_fields(cfg))
         if cfg.control == "curve":

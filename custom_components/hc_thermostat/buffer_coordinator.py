@@ -15,18 +15,23 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_BOILER, CONF_BUFFER_BOTTOM, CONF_BUFFER_TOP, CONF_MODE, CONF_ZONES, DOMAIN, MODE_ACTIVE, MODE_SHADOW
-from .core.buffer import BufferCharger, BufferConfig, BufferDecision
+from .core.buffer import BufferCharger, BufferConfig, BufferDecision, fresh
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
 
 
-def _temp(hass, entity_id: str | None) -> float | None:
+def _temp(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float | None:
+    """A tank temperature; None when missing, not a number, or older than max_age_s (a dead sensor keeps its value)."""
     state = hass.states.get(entity_id) if entity_id else None
+    if state is None:
+        return None  # no sensor (the bottom one is optional) or not loaded yet
     try:
-        return float(state.state) if state is not None else None
+        value = float(state.state)
     except (TypeError, ValueError):
         return None
+    reported = getattr(state, "last_reported", None) or state.last_updated
+    return fresh(value, (now - reported).total_seconds(), max_age_s)
 
 
 def asking_zones(hass, zone_ids: list[str]) -> tuple:
@@ -63,8 +68,9 @@ class BufferCoordinator(DataUpdateCoordinator[BufferDecision]):
         now: datetime = dt_util.now()
         zones = list(self.conf.get(CONF_ZONES) or [])
         was = self.buffer.output
-        decision = self.buffer.step(now, _temp(self.hass, self.conf.get(CONF_BUFFER_TOP)),
-                                    _temp(self.hass, self.conf.get(CONF_BUFFER_BOTTOM)),
+        max_age = self.buffer.cfg.buffer_sensor_max_age_s
+        decision = self.buffer.step(now, _temp(self.hass, self.conf.get(CONF_BUFFER_TOP), now, max_age),
+                                    _temp(self.hass, self.conf.get(CONF_BUFFER_BOTTOM), now, max_age),
                                     asking_zones(self.hass, zones), zones_given=bool(zones))
         if decision.output != was:
             await self.async_save()

@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MODE_ACTIVE
+from .core.fancoil import fan_at_level, fan_level
 from .core.model import Decision
 from .core.target_source import WriteLog
 
@@ -119,7 +120,9 @@ class Executor:
             if state.state != "off":
                 await self._hass.services.async_call("fan", "turn_off", {"entity_id": self._fan}, blocking=True)
             return
-        if state.state != "on" or state.attributes.get("percentage") != pct:
+        step = state.attributes.get("percentage_step")
+        level, pct = fan_level(pct, step if isinstance(step, (int, float)) else None)
+        if state.state != "on" or not fan_at_level(state.attributes.get("percentage"), level, step if isinstance(step, (int, float)) else None):
             await self._hass.services.async_call("fan", "set_percentage", {"entity_id": self._fan, "percentage": pct}, blocking=True)
 
     async def _apply_discharge(self, decision: Decision) -> None:

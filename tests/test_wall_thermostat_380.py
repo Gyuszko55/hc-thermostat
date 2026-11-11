@@ -58,8 +58,9 @@ def test_unavailable_contact_falls_back():
     d = step(sup, 0, call=None, floor=22.0)
     assert d.reason == Reason.SENSOR_LOST and d.details.get("floor_fallback") and d.output
     sup = Supervisor(cfg(system="radiator_single", source="onoff_boiler", control="tpi"))
-    d = step(sup, 0, call=None, indoor=25.0, floor=None)  # the blind demand, even with a room reading
+    d = step(sup, 0, call=None, indoor=None, floor=None)  # no room reading either: the blind demand
     assert d.reason == Reason.SENSOR_LOST and d.demand == 0.35
+    # 0.39.3: with a room reading the room thermometer is the backup (tests/test_fixes_392.py)
 
 
 def test_precedence():
@@ -91,9 +92,10 @@ def test_floor_limit_wins():
 
 
 def test_tempering_while_idle():
+    # 0.39.3: without a room thermometer only the absolute night value tempers (tests/test_fixes_392.py)
     sup = Supervisor(cfg(control="tpi", floor_temper=True))
-    d = step(sup, 0, call=False, floor=21.0)  # no room thermometer: no margin check
-    assert d.reason == Reason.FLOOR_TEMPER and d.output and d.details["floor_target"] == 23.0
+    d = step(sup, 0, call=False, floor=21.0)
+    assert d.reason == Reason.THERMOSTAT_IDLE and not d.output
     sup = Supervisor(cfg(control="tpi", floor_temper=True))
     d = step(sup, 0, call=False, indoor=22.5, floor=21.0)  # a room thermometer above the margin stops it
     assert d.reason == Reason.THERMOSTAT_IDLE and not d.output

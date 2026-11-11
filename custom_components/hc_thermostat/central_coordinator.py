@@ -67,6 +67,7 @@ def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: da
             feedback = feedback_open(fb.state, fb.attributes) if fb is not None else None
         demand = attrs.get("demand")
         request = attrs.get("flow_request")
+        limit = attrs.get("flow_limit")
         zones.append(ZoneState(
             name=entity_id,
             wants_heat=wants,
@@ -78,6 +79,7 @@ def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: da
             trv=trv,
             flow_request=float(request) if isinstance(request, (int, float)) else None,
             exercise_since=exercise_since,
+            flow_limit=float(limit) if isinstance(limit, (int, float)) else None,
         ))
     return zones
 

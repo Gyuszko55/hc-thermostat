@@ -11,7 +11,11 @@ Charging:
   only; frost charges full;
 - when: the charge takes fraction × `storage_charge_h` hours and ends at the end of the window (the heat is fresh
   in the morning, less is lost overnight). The fraction is fixed once the charge has started, so the relay does not
-  flap when the outdoor average moves.
+  flap when the outdoor average moves;
+- with a power signal (0.39.3): controlled power often comes in blocks, and a block that ends inside a charge timed
+  to the end of the window would be lost. So the hours really charged are counted (relay on while the power is on),
+  and the charge is on whenever the power is on inside the window until the hours are full – no waiting for the
+  end of the window, the next block may not come.
 
 Discharge (only with a discharge entity): on when the room is `storage_discharge_hyst` below the target, off at the
 target; off with an open window, out of season and while switched off; frost always on.
@@ -20,6 +24,9 @@ target; off with an open window, out of season and while switched off; frost alw
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+
+
+_MAX_STEP_S = 600.0
 
 
 def _at(day: datetime, hhmm: str) -> datetime:
@@ -52,32 +59,58 @@ class StorageCharger:
         self.cfg = cfg
         self.locked: float | None = None  # fraction fixed for the running charge
         self.locked_for: str | None = None  # window start of that charge
+        self.charged_s = 0.0  # with a power signal: seconds really charged in this window
+        self.charged_for: str | None = None
+        self._last: datetime | None = None
+        self._was_charging = False
+
+    def _count(self, now: datetime, key: str, power: bool | None) -> None:
+        """Add the time since the last step when the relay was on and the power is still there."""
+        if self.charged_for != key:
+            self.charged_s, self.charged_for = 0.0, key
+        elif self._was_charging and power is True and self._last is not None:
+            dt = (now - self._last).total_seconds()
+            if 0 < dt <= _MAX_STEP_S:  # a long gap is a restart or an outage: not counted, rather charge more
+                self.charged_s += dt
+        self._last = now
 
     def step(self, now: datetime, fraction: float, power: bool | None) -> dict:
         """{"charge": bool, "fraction", "start", "end", "why"}; why: charging | waiting | done | no_power | none."""
         cfg = self.cfg
         s, e = window(now, cfg.storage_window_start, cfg.storage_window_end)
         key = s.isoformat()
+        self._count(now, key, power)
+        self._was_charging = False
         if self.locked_for == key and self.locked is not None:
             fraction = self.locked
         hours = fraction * cfg.storage_charge_h
-        start = max(s, e - timedelta(hours=hours))
+        signal = power is not None
+        # With a power signal the charge takes every block of power from the start of the window.
+        start = s if signal else max(s, e - timedelta(hours=hours))
         out = {"fraction": fraction, "start": start, "end": e}
+        if signal:
+            out["charged_h"] = round(self.charged_s / 3600, 2)
         if fraction <= 0:
             return {**out, "charge": False, "why": "none"}
         if not s <= now < e or now < start:
             return {**out, "charge": False, "why": "waiting"}
+        if signal and self.charged_s >= hours * 3600:
+            return {**out, "charge": False, "why": "done"}
         if power is False:
             return {**out, "charge": False, "why": "no_power"}
         self.locked, self.locked_for = fraction, key
+        self._was_charging = True
         return {**out, "charge": True, "why": "charging"}
 
     def state(self) -> dict:
-        return {"locked": self.locked, "locked_for": self.locked_for}
+        return {"locked": self.locked, "locked_for": self.locked_for, "charged_s": round(self.charged_s),
+                "charged_for": self.charged_for}
 
     def restore(self, data: dict) -> None:
         self.locked = data.get("locked")
         self.locked_for = data.get("locked_for")
+        self.charged_s = float(data.get("charged_s") or 0.0)
+        self.charged_for = data.get("charged_for")
 
 
 class Discharge:

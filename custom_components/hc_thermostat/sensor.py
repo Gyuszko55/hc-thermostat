@@ -276,7 +276,7 @@ class HcBufferDecision(HcEntity, SensorEntity):
     """Buffer tank (0.33.0): whether the heat source charges the tank, and why."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["charging", "full", "ready", "waiting_demand", "min_off", "frost", "no_sensor"]
+    _attr_options = ["charging", "full", "ready", "waiting_demand", "min_off", "frost", "no_sensor", "max_charge"]
     _attr_icon = "mdi:storage-tank"
 
     def __init__(self, coordinator) -> None:
@@ -315,6 +315,7 @@ class HcCentralDecision(HcEntity, SensorEntity):
                 "stuck": list(d.details.get("stuck", [])),
                 "pump": d.pump, "pump_until": d.details.get("pump_until"),
                 "flow_setpoint": d.flow_setpoint, "flow_by": d.details.get("flow_by"),
+                "flow_capped_by": d.details.get("flow_capped_by"),
                 "flow_requests": d.details.get("flow_requests", {}),
                 **self._exercise()}
 

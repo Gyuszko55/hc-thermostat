@@ -12,6 +12,28 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 
+def fan_level(pct: int, step: float | None) -> tuple[int, int]:
+    """0.39.3: (speed level, percentage to send) for a fan with speed steps – `percentage_step` is 33.3 for three
+    speeds. A wanted 45 % is level 1 of 3; the fan reports 33 %, which must count as "already there", or the same
+    command is sent again at every update. No (or a fine) step: the percentage as it is."""
+    if pct <= 0:
+        return 0, 0
+    if not step or step <= 5:
+        return pct, pct
+    levels = max(1, round(100.0 / step))
+    level = max(1, min(levels, round(pct / step)))
+    return level, min(100, int(level * 100.0 / levels + 1e-6))  # 33, 66, 100: the floor, as Home Assistant maps it
+
+
+def fan_at_level(current, level: int, step: float | None) -> bool:
+    """Does the fan's reported percentage already mean this level?"""
+    if not isinstance(current, (int, float)):
+        return False
+    if not step or step <= 5:
+        return int(current) == level
+    return round(current / step) == level
+
+
 class FanCoil:
     def __init__(self, cfg) -> None:
         self.cfg = cfg

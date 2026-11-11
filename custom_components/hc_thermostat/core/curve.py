@@ -65,6 +65,14 @@ def flow_request(cfg, target: float | None, indoor: float | None, outdoor: float
     return round(max(cfg.flow_min, min(cfg.flow_max, flow)), 1)
 
 
+def zone_flow_limit(conf, cfg) -> float | None:
+    """0.39.3: the warmest water a floor zone may get from a central boiler – its `flow_max` – unless the zone has
+    its own mixing loop (`zone_own_mixer`), which keeps the floor safe whatever the boiler sends."""
+    if conf.get("role") != "zone" or not str(conf.get("system") or "").startswith("floor") or conf.get("zone_own_mixer"):
+        return None
+    return float(cfg.flow_max)
+
+
 class RunGate:
     """Minimum run and pause times for a heat source switched by demand (no PWM)."""
 

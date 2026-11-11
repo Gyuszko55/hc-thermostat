@@ -223,10 +223,10 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
                                         "the floor covering: gives the limit and the tempering offset"),
             options=[["none", "Nincs megadva", "Not set"], ["tiles", "Csempe", "Tiles"], ["laminate", "Laminált", "Laminate"],
                      ["wood", "Fa/parketta", "Wood / parquet"], ["vinyl", "Vinyl", "Vinyl"], ["carpet", "Szőnyeg", "Carpet"]])
-        add("floor_probe", "surface", T("hol van a padlószenzor: mélyebben melegebbet mér, ott magasabb a limit (elektromos padlónál mindig a burkolat alatti érték)",
-                                        "where the floor sensor sits: deeper it reads warmer, so the limit is higher (an electric floor always uses the under-covering value)"),
-            options=[["surface", "A burkolat alatt", "Under the covering"], ["screed", "Az esztrichben, a csövek között", "In the screed, between the pipes"],
-                     ["above_pipe", "Cső fölött", "Above a supply pipe"]])
+        add("floor_probe", "surface", T("hol van a padlószenzor: mélyebben melegebbet mér, ott magasabb a limit (elektromos padlónál mindig a burkolat alatti érték); a mélyebb helyek határa becslés – fa, parketta, laminált alatt burkolat alatti szenzor ajánlott",
+                                        "where the floor sensor sits: deeper it reads warmer, so the limit is higher (an electric floor always uses the under-covering value); the deeper limits are estimates – under wood, parquet, laminate a sensor right under the covering is recommended"),
+            options=[["surface", "A burkolat alatt", "Under the covering"], ["screed", "Az esztrichben, a csövek között (becslés)", "In the screed, between the pipes (estimate)"],
+                     ["above_pipe", "Cső fölött (becslés)", "Above a supply pipe (estimate)"]])
     if system.startswith("floor") and control in ("tpi", "pid", "onoff"):
         # floor tempering (0.35.0): comfort, off by default
         add("floor_temper", False, T("padlótemperálás: a padló meleg marad akkor is, ha a szoba már elég meleg (padlószenzor kell)",

@@ -98,6 +98,9 @@ exists (add the first one under Settings → Devices & services).
   open window, out of season and when switched off.
 - **Controlled power signal** (any electric heat, optional): while it is off nothing is switched, the regulator
   does not wind up, and the decision text says why.
+- **With a power signal (0.39.2)** the storage heater counts the hours really charged and takes every block of
+  power inside the window until the worked-out hours are full (controlled power comes in blocks; a charge timed to
+  the end of the window would lose a block that drops out). Without a signal it is still timed to the end.
 
 ## District heating and fan coil (0.32.0)
 
@@ -135,8 +138,9 @@ opens it with its "i" icon.
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is
   warm enough the floor is held at the room target + 2 °C (`floor_temper_offset`), so it stays warm underfoot.
 - An optional night value (`floor_temper_night`) is the floor target at night and in the sleep preset.
-- On below the floor target − 0.3 °C, off at it; the minimum run and pause hold. It stops when the room is 1 °C
-  above its target (`floor_temper_room_margin`), and never runs with an open window, switched off or in summer. The
+- On below the floor target − 0.3 °C, off at it; the minimum run and pause hold. It stops when the room is 0.5 °C
+  above its target (`floor_temper_room_margin`; a larger value gives a warmer floor but a larger room swing and more
+  energy), and never runs with an open window, switched off or in summer. The
   floor limit always wins, and the learning does not learn from these runs.
 
 ## Lost room thermometer: the floor stays warm (0.36.0)
@@ -152,8 +156,10 @@ opens it with its "i" icon.
 - Give the floor covering (tiles, laminate, wood / parquet, vinyl, carpet) and where the floor sensor sits (under
   the covering, in the screed between the pipes, above a supply pipe), and leave the floor limit at 0: the limit
   comes from a table – under the covering 29 °C for tiles and 27 °C for the others, in the screed 29 / 33 / 31 (vinyl)
-  °C, above a pipe 36 °C (a deeper sensor reads warmer). An electric floor always uses the under-covering value, and
-  27 °C without a covering. These are starting points; a limit typed in always wins.
+  °C, above a pipe 36 °C (a deeper sensor reads warmer). An electric floor always uses the under-covering value; without a covering 27 °C for an
+  electric floor, 29 °C for a water floor. These are starting points, and the deeper positions (screed, above a pipe)
+  are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate we recommend a sensor
+  right under the covering. A limit typed in always wins.
 - The covering also sets the tempering offset: 2 °C for tiles, 3 °C for the others.
 - New forms start with 0 (by covering); a limit already saved stays as it is. The HC info panel shows the limit in
   effect and where it comes from.
@@ -165,8 +171,11 @@ opens it with its "i" icon.
   then optional.
 - Frost (by the room thermometer, or without one by the floor sensor), restart wait, switched off, open window and
   summer rest still come first; the floor limit and floor tempering apply on top (an idle wall thermostat counts as
-  "at target"). No boost, no after-heat, the regulator waits. An unavailable contact means the lost-sensor fallback
-  (the floor fallback with a floor sensor).
+  "at target"). No boost, no after-heat, the regulator waits. An unavailable contact: with a room thermometer the
+  instance regulates by it and its own target until the contact is back (0.39.2); without one the lost-sensor
+  fallback (the floor fallback with a floor sensor).
+- Without a room thermometer the floor tempering only works with the absolute night value, in its hours (0.39.2):
+  "room target + offset" would heat against the wall thermostat, which has its own setpoint.
 
 ## Weekly pump exercise (0.39.0)
 

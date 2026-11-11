@@ -77,8 +77,9 @@
           "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
           "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
           "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
-          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher.",
-          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat; then the room thermometer is optional. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
+          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
+          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat; then the room thermometer is optional. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
+          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy."
         }
       },
       "central": {
@@ -124,6 +125,7 @@
           "buffer_on": "Charge starts when the top is this cold or colder",
           "buffer_off": "Charge stops when the bottom (or the top) reaches",
           "buffer_min_off_s": "At least between two charges",
+          "buffer_max_charge_s": "Longest charge (0 = no limit)",
           "buffer_frost": "Frost: charge when the top falls below"
         }
       }
@@ -197,6 +199,7 @@
           "room_kp": "Room correction (°C flow per °C error)",
           "room_ki_per_hour": "Room correction slow part (°C per °C per hour)",
           "valve_feedback_entity": "Valve feedback (end switch or valve position, if there is one)",
+          "zone_own_mixer": "Has its own mixing loop (the floor is protected whatever the boiler sends)",
           "valve_exercise": "Summer valve exercise (when closed for a week)",
           "exercise_weekday": "Valve exercise day",
           "exercise_time": "Valve exercise start",
@@ -251,6 +254,7 @@
         },
         "data_description": {
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
+          "zone_own_mixer": "Off: the flow of a central modulating boiler never goes above the highest flow of this zone (flow_max, 45 °C for a floor by default) while its circuit can get water – radiator zones heat more weakly then. Switch it on only when the floor circuit really has a mixing valve or a temperature limiter.",
           "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start.",
           "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
           "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.",
@@ -262,8 +266,9 @@
           "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
           "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
           "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
-          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher.",
-          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
+          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
+          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
+          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy."
         }
       },
       "presets": {
@@ -337,6 +342,7 @@
           "buffer_on": "Charge starts when the top is this cold or colder",
           "buffer_off": "Charge stops when the bottom (or the top) reaches",
           "buffer_min_off_s": "At least between two charges",
+          "buffer_max_charge_s": "Longest charge (0 = no limit)",
           "buffer_frost": "Frost: charge when the top falls below",
           "mode": "Mode",
           "confirm": "I understand: in live mode it switches a real device"
@@ -446,8 +452,8 @@
     "floor_probe": {
       "options": {
         "surface": "Under the covering (in the adhesive)",
-        "screed": "In the screed, between the pipes",
-        "above_pipe": "Above a supply pipe"
+        "screed": "In the screed, between the pipes (estimate)",
+        "above_pipe": "Above a supply pipe (estimate)"
       }
     }
   },
@@ -549,7 +555,8 @@
           "waiting_demand": "Waiting for demand",
           "min_off": "Pause",
           "frost": "Frost protection",
-          "no_sensor": "No thermometer"
+          "no_sensor": "No thermometer",
+          "max_charge": "Charge took too long"
         }
       }
     },

@@ -77,8 +77,9 @@
           "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
           "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
           "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
-          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit.",
-          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a szobahőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme."
+          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
+          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a szobahőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
+          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt."
         }
       },
       "central": {
@@ -124,6 +125,7 @@
           "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
           "buffer_off": "Töltés leáll, ha az alja (vagy a teteje) eléri",
           "buffer_min_off_s": "Két töltés között legalább",
+          "buffer_max_charge_s": "Egy töltés legfeljebb (0 = nincs korlát)",
           "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl"
         }
       }
@@ -197,6 +199,7 @@
           "room_kp": "Szobakorrekció (°C előremenő / °C eltérés)",
           "room_ki_per_hour": "Szobakorrekció lassú tagja (°C / °C / óra)",
           "valve_feedback_entity": "Szelep visszajelzése (végálláskapcsoló vagy szelephelyzet, ha van)",
+          "zone_own_mixer": "Saját keverőköre van (a padló a kazán előremenőjétől függetlenül védett)",
           "valve_exercise": "Nyári szelepmozgatás (ha egy hétig nem nyitott)",
           "exercise_weekday": "Szelepmozgatás napja",
           "exercise_time": "Szelepmozgatás kezdete",
@@ -251,6 +254,7 @@
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
+          "zone_own_mixer": "Kikapcsolva a központi moduláló kazán előremenője nem megy e zóna legmagasabb előremenője (flow_max, padlónál alapból 45 °C) fölé, amíg a köre vizet kaphat – a radiátoros zónák ilyenkor gyengébben fűtenek. Csak akkor kapcsold be, ha a padlókörnek tényleg van keverőszelepe vagy hőfokkorlátozója.",
           "valve_exercise": "Hetente egyszer néhány percre kinyitja a régóta zárt szelepet, hogy ne ragadjon be. Közben a zóna nem kér hőt, a központi kazán nem indul.",
           "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
           "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.",
@@ -262,8 +266,9 @@
           "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
           "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
           "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
-          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit.",
-          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme."
+          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
+          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
+          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt."
         }
       },
       "presets": {
@@ -337,6 +342,7 @@
           "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
           "buffer_off": "Töltés leáll, ha az alja (vagy a teteje) eléri",
           "buffer_min_off_s": "Két töltés között legalább",
+          "buffer_max_charge_s": "Egy töltés legfeljebb (0 = nincs korlát)",
           "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl",
           "mode": "Üzemmód",
           "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol"
@@ -446,8 +452,8 @@
     "floor_probe": {
       "options": {
         "surface": "A burkolat alatt (a ragasztóban)",
-        "screed": "Az esztrichben, a csövek között",
-        "above_pipe": "Cső fölött"
+        "screed": "Az esztrichben, a csövek között (becslés)",
+        "above_pipe": "Cső fölött (becslés)"
       }
     }
   },
@@ -549,7 +555,8 @@
           "waiting_demand": "Igényre vár",
           "min_off": "Szünet",
           "frost": "Fagyvédelem",
-          "no_sensor": "Nincs hőmérő"
+          "no_sensor": "Nincs hőmérő",
+          "max_charge": "Túl hosszú töltés"
         }
       }
     },

@@ -7,7 +7,7 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_ROLE, CONF_VALVE_FEEDBACK, PRESETS
-from .core.curve import flow_request
+from .core.curve import flow_request, zone_flow_limit
 from .core.model import Reason
 from .core.regulators import controller_attributes
 from .entity import HcEntity
@@ -81,6 +81,7 @@ class HcClimate(HcEntity, ClimateEntity):
             "valve_exercise_next": (n.isoformat() if (n := sup.exercise.next_run(dt_util.now())) else None),
             "control_type": self.coordinator.cfg.control,
             "flow_request": self._flow_request(),  # read by a central modulating boiler
+            "flow_limit": zone_flow_limit(self.coordinator.conf, self.coordinator.cfg),  # ... its cap for this zone
             "heat_type": heat_type(self.coordinator.conf),  # icon hint for cards: boiler, floor, heat pump, AC
             "source_advice": self.coordinator.cost.advice,  # read by an air conditioner instance that may help
             "zone_door_open": self.coordinator.zone.get("door_open"),

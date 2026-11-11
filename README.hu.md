@@ -98,6 +98,9 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
   nyitott ablaknál, szezonon kívül és kikapcsolt állapotban ki.
 - **Vezérelt áram jelzése** (bármely elektromos fűtésnél, nem kötelező): amíg nincs áram, semmit nem kapcsol, a
   szabályozó nem gyűjt fölösleges igényt, és a döntés szövege megmondja, miért.
+- **Áramjel mellett (0.39.2)** a hőtárolós kályha a ténylegesen töltött órákat számolja, és az ablakon belül minden
+  áramos blokkot kihasznál, amíg a kiszámolt óraszám össze nem jön (a vezérelt áram több blokkban jön; az ablak
+  végére időzített töltés egy kieső blokkal elveszne). Áramjel nélkül marad az ablak végére időzítés.
 
 ## Távfűtés és fan-coil (0.32.0)
 
@@ -135,8 +138,9 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / kétállású, padlószenzorral): amíg a
   szoba elég meleg, a padlót a szoba célja + 2 °C-on tartja (`floor_temper_offset`), így a padló meleg marad.
 - Megadható éjszakai érték (`floor_temper_night`): éjjel és alvás presetben ez a padló célja.
-- A padló célja − 0,3 °C alatt indul, a célnál áll le; a minimális futás és szünet érvényes. Leáll, ha a szoba 1 °C-kal
-  a célja fölé ér (`floor_temper_room_margin`), és nyitott ablaknál, kikapcsolva, nyáron nem fűt. A padlóhőfok-limit
+- A padló célja − 0,3 °C alatt indul, a célnál áll le; a minimális futás és szünet érvényes. Leáll, ha a szoba 0,5 °C-kal
+  a célja fölé ér (`floor_temper_room_margin`; nagyobb érték melegebb padlót, de nagyobb szobai ingadozást és
+  többletfogyasztást ad), és nyitott ablaknál, kikapcsolva, nyáron nem fűt. A padlóhőfok-limit
   mindig előbbre való, és a tanulás ezekből a futásokból nem tanul.
 
 ## Kiesett szobahőmérő: a padló meleg marad (0.36.0)
@@ -152,8 +156,10 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 - Add meg a burkolatot (csempe, laminált, fa/parketta, vinyl, szőnyeg) és hogy hol ül a padlószenzor (a burkolat
   alatt, az esztrichben a csövek között, cső fölött), a limitet hagyd 0-n: a limit táblázatból jön – a burkolat alatt
   csempénél 29 °C, a többinél 27 °C, az esztrichben 29 / 33 / 31 (vinyl) °C, cső fölött 36 °C (a mélyebben ülő szenzor
-  melegebbet mér). Elektromos padlónál mindig a burkolat alatti érték, burkolat nélkül 27 °C. Ezek kiinduló értékek; a
-  beírt limit mindig előbbre való.
+  melegebbet mér). Elektromos padlónál mindig a burkolat alatti érték; burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.
+  Ezek kiinduló értékek, a mélyebb helyek (esztrich, cső fölött) határai becslések: nem garantálják, hogy a felszín
+  27 °C alatt marad. Fa, parketta és laminált burkolatnál burkolat alatti (felszíni) szenzort ajánlunk. A beírt
+  limit mindig előbbre való.
 - A burkolatból jön a temperálás eltérése is: csempénél 2 °C, a többinél 3 °C.
 - Az új űrlapok 0-val (burkolat szerint) indulnak; a már elmentett limit marad. A HC info panel mutatja az érvényes
   limitet és hogy honnan jön.
@@ -165,8 +171,11 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
   ekkor elhagyható.
 - A fagyvédelem (a szobahőmérő, ennek hiányában a padlószenzor szerint), az újraindítás utáni várakozás, a kikapcsolás,
   a nyitott ablak és a nyári pihenő előbbre való; a padlóhőfok-limit és a padlótemperálás erre is érvényes (a nem kérő
-  fali termosztát „célon” számít). Nincs felfűtés és utómelegedés, a szabályozó áll. Ha az érintkező nem elérhető: a
+  fali termosztát „célon” számít). Nincs felfűtés és utómelegedés, a szabályozó áll. Ha az érintkező nem elérhető: szobahőmérővel
+  a példány arról és a saját céljáról szabályoz, amíg az érintkező vissza nem jön (0.39.2); szobahőmérő nélkül a
   kiesett hőmérő tartalék üzeme (padlószenzorral a padló szerint).
+- Szobahőmérő nélkül a padlótemperálás csak az éjszakai abszolút értékkel megy, annak idejében (0.39.2): a „szobacél
+  + eltérés” a fali termosztát ellen fűtene, annak saját beállítása van.
 
 ## Heti szivattyú-átmozgatás (0.39.0)
 

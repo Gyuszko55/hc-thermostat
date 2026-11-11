@@ -67,7 +67,7 @@ def test_tempering_target_by_covering():
     cfg = HcConfig.from_mapping({**DAY, "floor_covering": "wood", "control": "tpi", "floor_system": True,
                                  "floor_temper": True})
     sup = Supervisor(cfg)
-    d = sup.step(Inputs(now=T0, indoor=Reading(21.5), outdoor=Reading(5.0), floor=Reading(22.0)))
+    d = sup.step(Inputs(now=T0, indoor=Reading(21.2), outdoor=Reading(5.0), floor=Reading(22.0)))
     assert d.reason == Reason.FLOOR_TEMPER and d.details["floor_target"] == 24.0  # 21 + 3 under wood
 
 

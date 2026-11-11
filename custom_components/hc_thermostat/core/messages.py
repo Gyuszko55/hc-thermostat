@@ -59,8 +59,12 @@ def _storage_text(d: dict, lang: str) -> str:
     elif why == "no_power":
         text = (f" {pct} %-ra töltene ({start}–{end}), de nincs vezérelt áram." if hu
                 else f" Would charge to {pct} % ({start}–{end}), but the controlled power is off.")
+    elif why == "done":
+        text = f" A mai töltés kész ({pct} %)." if hu else f" Today's charge is done ({pct} %)."
     else:
         text = f" Következő feltöltés: {pct} %, {start}–{end}." if hu else f" Next charge: {pct} %, {start}–{end}."
+    if d.get("charged_h") is not None and why in ("charging", "no_power"):
+        text += f" Eddig {d['charged_h']:g} óra." if hu else f" {d['charged_h']:g} h so far."
     if d.get("discharge"):
         text += " Kisütés: be." if hu else " Discharge: on."
     return text
@@ -113,6 +117,9 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
         aim, now = _num(details.get("floor_target"), lang), _num(details.get("floor"), lang)
         text = (f"A szobahőmérő nem jelez: a padlót tartom {aim} °C-on (most {now} °C)." if lang == "hu"
                 else f"The room thermometer is silent: holding the floor at {aim} °C (now {now} °C).")
+    if details.get("contact_lost"):
+        text += (" A fali termosztát jele elveszett: addig a szobahőmérő és a saját cél szerint szabályozok." if lang == "hu"
+                 else " The wall thermostat's contact is lost: regulating by the room thermometer and my own target until it is back.")
     if decision.limited_by == "load_limit" and "load_limit_kw" in details:
         used, limit = _num(details.get("load_used_kw"), lang), _num(details.get("load_limit_kw"), lang)
         text += (f" Terheléskorlát: most {used} kW fűt a {limit} kW-ból, ez a zóna vár a sorára." if lang == "hu"
