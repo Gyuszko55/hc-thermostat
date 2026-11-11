@@ -250,7 +250,11 @@
           "floor_fallback": "Kiesett szobahőmérő: a padlót a padlószenzor szerint tartja melegen",
           "floor_covering": "Padlóburkolat",
           "floor_probe": "Szenzor helye",
-          "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)"
+          "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)",
+          "pid_d_filter_s": "PID deriváló tag szűrése (időállandó)",
+          "frozen_after_h": "Beragadt szobahőmérő: ennyi óra változatlan érték",
+          "frozen_burn_min": "Beragadt szobahőmérő: ennyi perc fűtés közben",
+          "keep_alive_script": "Relé-őr szkript (minden életjelnél)"
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
@@ -268,7 +272,11 @@
           "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
           "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
           "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
-          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt."
+          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt.",
+          "pid_d_filter_s": "A szoba-hőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
+          "frozen_after_h": "Ha a szobahőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan.",
+          "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi szoba ennyi fűtéstől legalább egy lépést melegszik.",
+          "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol."
         }
       },
       "presets": {

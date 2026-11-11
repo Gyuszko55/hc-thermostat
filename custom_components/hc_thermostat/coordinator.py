@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    CONF_ACTUATOR, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
+    CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_BOILER_POWER, CONF_ENERGY_FACTOR, CONF_FLOW, CONF_HEAT_ENABLE, CONF_FLAME, CONF_WINDOW_DROP, CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_INDOOR, CONF_MODE, CONF_OUTDOOR, CONF_PRESENCE,
     CONF_REFERENCE, CONF_WINDOWS, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, DOMAIN, MODE_SHADOW,
     CONF_ASSIST, CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, EVENT_ROOM_ADVICE, MODE_ACTIVE,
@@ -80,7 +80,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                   data.get(CONF_FLOW), data.get(CONF_HEAT_ENABLE), self.cfg.keep_alive_s,
                                   exact_mode=self.cfg.control == "ac",
                                   cool_mode=data.get(CONF_COOL_MODE), cool_flow=data.get(CONF_COOL_FLOW),
-                                  discharge=data.get(CONF_DISCHARGE), fan=data.get(CONF_FAN))
+                                  discharge=data.get(CONF_DISCHARGE), fan=data.get(CONF_FAN),
+                                  keep_script=data.get(CONF_KEEP_ALIVE_SCRIPT))
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._started = dt_util.utcnow()
         self._last_save = self._started

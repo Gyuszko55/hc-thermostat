@@ -11,6 +11,7 @@ CONF_MODE = "mode"
 CONF_INDOOR = "indoor_entity"
 CONF_OUTDOOR = "outdoor_entity"
 CONF_ACTUATOR = "actuator_entity"
+CONF_KEEP_ALIVE_SCRIPT = "keep_alive_script"  # 0.41.0: a script run at every keep-alive of an on relay (device watchdog)
 CONF_EXTERNAL = "external_climate"
 CONF_REFERENCE = "reference_entity"
 CONF_WINDOWS = "window_entities"

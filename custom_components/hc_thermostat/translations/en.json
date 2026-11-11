@@ -250,7 +250,11 @@
           "floor_fallback": "Lost room thermometer: keep the floor warm by the floor sensor",
           "floor_covering": "Floor covering",
           "floor_probe": "Where the floor sensor sits",
-          "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)"
+          "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)",
+          "pid_d_filter_s": "PID derivative filter (time constant)",
+          "frozen_after_h": "Frozen room thermometer: hours with an unchanged value",
+          "frozen_burn_min": "Frozen room thermometer: minutes of heat meanwhile",
+          "keep_alive_script": "Relay watchdog script (at every keep-alive)"
         },
         "data_description": {
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
@@ -268,7 +272,11 @@
           "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
           "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
           "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
-          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy."
+          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy.",
+          "pid_d_filter_s": "Room sensors report in 0.1 °C steps, only on a change: an unfiltered derivative is spiky. 0 = no filter; only matters when the derivative gain is not 0.",
+          "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating.",
+          "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
+          "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most."
         }
       },
       "presets": {

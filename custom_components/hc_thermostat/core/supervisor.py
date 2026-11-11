@@ -14,6 +14,7 @@ from .fancoil import FanCoil
 from .storage import Discharge, StorageCharger, charge_fraction
 from .curve import CurveRegulator, RunGate
 from .exercise import ValveExercise
+from .flatline import FrozenSensor
 from .heat_need import HeatNeedEstimator
 from .learning import Learner
 from .window_drop import DropDetector
@@ -48,6 +49,7 @@ class Supervisor:
         self.load = None  # LoadClient: shared load limit of electric zones (0.28.0), set by the coordinator
         self.learner = Learner(cfg)
         self.exercise = ValveExercise(cfg)
+        self.frozen = FrozenSensor(cfg)  # 0.41.0: a room thermometer that repeats one value while heated
         self.curve = CurveRegulator(cfg)
         self._gate = RunGate()
         self._drops: dict[str, DropDetector] = {}
@@ -717,6 +719,11 @@ class Supervisor:
         dt = 0.0 if self._last_now is None else max((now - self._last_now).total_seconds(), 0.0)
         self._last_now = now
         indoor = inputs.indoor.fresh(cfg.sensor_max_age_s)
+        frozen = None
+        if cfg.control in ("tpi", "pid", "onoff"):
+            heating = inputs.actual_heating if inputs.actual_heating is not None else (self.pwm.output or self._gate.output)
+            if self.frozen.step(now, indoor, bool(heating)):
+                frozen, indoor = self.frozen.details(now), None  # looks fresh, measures nothing: the lost-sensor path
         outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
         self._update_season(inputs.outdoor_avg)
         self._expire_preset(inputs)
@@ -741,6 +748,14 @@ class Supervisor:
             self._frost = True  # the floor at the frost limit (wall thermostat without a room thermometer)
         self._update_fault(inputs, indoor, target, dt)
         reason, demand = self._choose(inputs, target, indoor, outdoor, window)
+        blind = None
+        if (reason == Reason.SENSOR_LOST and demand > 0 and cfg.sensor_lost_model and need is not None
+                and cfg.boiler_power_kw > 0 and cfg.sensor_lost_demand > 0):
+            # 0.40.0: the learned heat loss tells how much the house needs now – a fixed 35 % overheats it in mild
+            # weather and may be short in a cold spell. Never below one minimum run per cycle.
+            share = max(need - inputs.other_heat_kw, 0.0) / cfg.boiler_power_kw
+            demand = round(min(1.0, max(share, cfg.min_on_s / cfg.cycle_s)), 3)
+            blind = {"blind_from": "heat_need", "heat_need_kw": round(need, 2)}
         self._boost_forced = False  # A boost asked for by hand that could not start now is dropped.
         floor_block = self._floor_block(inputs)
         if floor_block is not None and reason not in (Reason.DISABLED, Reason.WINDOW, Reason.SEASON_OFF):
@@ -773,6 +788,10 @@ class Supervisor:
             floor_details = {**floor_details, **fallback}
         elif reason == Reason.SENSOR_LOST and cfg.sensor_lost_demand <= 0:
             floor_details = {**floor_details, "no_blind": True}  # electric heat: no fallback demand
+        elif blind is not None and reason == Reason.SENSOR_LOST:
+            floor_details = {**floor_details, **blind}
+        if frozen is not None:
+            floor_details = {**floor_details, **frozen}
 
         if cfg.control == "storage":
             return self._storage_decision(inputs, reason, target, indoor, outdoor, loss, need)

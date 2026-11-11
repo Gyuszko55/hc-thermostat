@@ -105,3 +105,48 @@ def test_keep_alive_tolerates_steps_a_little_early():
     ka.sent(T0)
     assert ka.due(T0 + timedelta(seconds=59, microseconds=990000))  # step drift: still this step, not the next
     assert not ka.due(T0 + timedelta(seconds=30))
+
+
+class Gen1Relay(AutoOffRelay):
+    """A Shelly gen1 as measured on 2026-11-08/09: an "on" to a relay that is already on does NOT restart its
+    auto-off timer – only a "turn on with timer" (the watchdog script, here domain "script") does."""
+
+    async def _call(self, domain, service, data, blocking=False):
+        self.calls.append((self.now, domain, service))
+        if domain == "script":
+            self.on, self.last_on = True, self.now  # /relay/0?turn=on&timer=900: on, timer restarted
+        elif service == "turn_on":
+            if not self.on:
+                self.on, self.last_on = True, self.now
+        else:
+            self.on = False
+
+
+def test_gen1_relay_cuts_a_long_burn_even_with_keep_alive():
+    relay = Gen1Relay()
+    ex = executor_mod.Executor(relay, "active", "switch.boiler", None, keep_alive_s=60)
+    assert _run(ex, relay, 40) > 0  # the 15-minute cut seen live (11-08 16:58, 11-09 05:45 and 06:00)
+
+
+def test_watchdog_script_keeps_a_long_burn_and_rearms_the_timer():
+    relay = Gen1Relay()
+    ex = executor_mod.Executor(relay, "active", "switch.boiler", None, keep_alive_s=60, keep_script="script.rearm")
+    assert _run(ex, relay, 40) == 0  # 40 minutes on, never cut
+    scripts = [c for c in relay.calls if c[1] == "script"]
+    assert len(scripts) >= 39  # about once a minute
+    assert sum(1 for c in relay.calls if c[2] == "turn_on" and c[1] != "script") == 1  # the relay itself: once
+
+
+def test_dead_home_assistant_still_switches_off_by_the_device():
+    relay = Gen1Relay()
+    ex = executor_mod.Executor(relay, "active", "switch.boiler", None, keep_alive_s=60, keep_script="script.rearm")
+    _run(ex, relay, 10)
+    relay.now = relay.now + timedelta(minutes=16)  # Home Assistant stopped: nobody re-arms
+    assert relay._get("switch.boiler").state == "off"
+
+
+def test_off_does_not_run_the_script():
+    relay = Gen1Relay()
+    ex = executor_mod.Executor(relay, "active", "switch.boiler", None, keep_alive_s=60, keep_script="script.rearm")
+    _run(ex, relay, 5, output=False)
+    assert not [c for c in relay.calls if c[1] == "script"]

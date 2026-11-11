@@ -14,7 +14,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
-    CONF_ACTUATOR, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
+    CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
@@ -420,6 +420,10 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("min_on_s", default=cfg.min_on_s): _number(0, 3600, 30, "s"),
             vol.Required("min_off_s", default=cfg.min_off_s): _number(0, 3600, 30, "s"),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
+            vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),
+            **({vol.Required("frozen_after_h", default=cfg.frozen_after_h): _number(0, 24, 0.5, "h"),
+                vol.Required("frozen_burn_min", default=cfg.frozen_burn_min): _number(0, 240, 5, "min")}
+               if cfg.control in ("tpi", "pid", "onoff") else {}),
             vol.Required("season_enabled", default=cfg.season_enabled): BooleanSelector(),
             vol.Required("boost_enabled", default=cfg.boost_enabled): BooleanSelector(),
             vol.Required("learning_enabled", default=cfg.learning_enabled): BooleanSelector(),
@@ -436,6 +440,7 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("pid_kp", default=cfg.pid_kp): _number(0, 5, 0.05),
             vol.Required("pid_ki_per_hour", default=cfg.pid_ki_per_hour if cfg.pid_ki_per_hour is not None else round(cfg.pid_ki * 3600, 3)): _number(0, 5, 0.01),
             vol.Required("pid_kd", default=cfg.pid_kd): _number(0, 100000, 1),
+            vol.Required("pid_d_filter_s", default=cfg.pid_d_filter_s): _number(0, 3600, 30, "s"),
             vol.Optional(CONF_FLAME, description={"suggested_value": current.get(CONF_FLAME)}): _ent(CONF_FLAME, "binary_sensor"),
             vol.Optional(CONF_BOILER_POWER, description={"suggested_value": current.get(CONF_BOILER_POWER)}): _ent(CONF_BOILER_POWER, "sensor"),
             vol.Required("power_idle_w", default=cfg.power_idle_w): _number(0, 500, 1, "W"),

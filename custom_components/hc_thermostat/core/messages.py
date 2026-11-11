@@ -117,6 +117,14 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
         aim, now = _num(details.get("floor_target"), lang), _num(details.get("floor"), lang)
         text = (f"A szobahőmérő nem jelez: a padlót tartom {aim} °C-on (most {now} °C)." if lang == "hu"
                 else f"The room thermometer is silent: holding the floor at {aim} °C (now {now} °C).")
+    if details.get("indoor_frozen"):
+        val, hrs, mins = _num(details.get("frozen_value"), lang), _num(details.get("frozen_h"), lang), details.get("frozen_burn_min")
+        text += (f" A szobahőmérő {hrs} órája ugyanazt mutatja ({val} °C), pedig közben {mins} percet fűtött: beragadt mérésnek veszem." if lang == "hu"
+                 else f" The room thermometer has shown the same value ({val} °C) for {hrs} h while heating ran {mins} min: treated as frozen.")
+    if decision.reason == Reason.SENSOR_LOST and details.get("blind_from") == "heat_need":
+        need = _num(details.get("heat_need_kw"), lang)
+        text += (f" Az igényt a ház tanult hőveszteségéből számolom (most {need} kW kell)." if lang == "hu"
+                 else f" The demand comes from the house's learned heat loss ({need} kW needed now).")
     if details.get("contact_lost"):
         text += (" A fali termosztát jele elveszett: addig a szobahőmérő és a saját cél szerint szabályozok." if lang == "hu"
                  else " The wall thermostat's contact is lost: regulating by the room thermometer and my own target until it is back.")

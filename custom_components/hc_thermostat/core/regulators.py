@@ -44,15 +44,24 @@ class PidRegulator:
         self.integral = 0.0
         self._last: datetime | None = None
         self._last_indoor: float | None = None
+        self.d_filtered = 0.0  # 0.40.0: the derivative after the low-pass filter
 
     def update(self, target: float, indoor: float, outdoor: float | None, now: datetime,
                feedforward: float | None = None) -> float:
         cfg = self._cfg
         dt = 0.0 if self._last is None else max((now - self._last).total_seconds(), 0.0)
         error = target - indoor
-        derivative = 0.0
+        raw = 0.0
         if dt > 0 and self._last_indoor is not None:
-            derivative = -(indoor - self._last_indoor) / dt
+            raw = -(indoor - self._last_indoor) / dt
+        # 0.40.0: most room sensors report in 0.1 °C steps, only on a change – the raw slope is a spike on a report
+        # and 0 between reports. A first-order low-pass (time constant pid_d_filter_s) smooths it into a slope.
+        tau = float(getattr(cfg, "pid_d_filter_s", 0.0) or 0.0)
+        if tau > 0 and dt > 0:
+            self.d_filtered += (raw - self.d_filtered) * dt / (tau + dt)
+        elif dt > 0:
+            self.d_filtered = raw
+        derivative = self.d_filtered
         ext = feedforward if feedforward is not None else (
             0.0 if outdoor is None else cfg.pid_ke * (target - outdoor))
         base = cfg.pid_kp * error + cfg.pid_kd * derivative + ext
@@ -70,6 +79,7 @@ class PidRegulator:
 
     def hold(self, now: datetime) -> None:
         self._last, self._last_indoor = now, None
+        self.d_filtered = 0.0
 
     def state(self) -> dict:
         return {"integral": self.integral}

@@ -127,6 +127,7 @@ class HcConfig:
     pid_kp: float = 0.4
     pid_ki: float = 0.00005
     pid_kd: float = 0.0
+    pid_d_filter_s: float = 300.0  # 0.40.0: low-pass time constant of the derivative (stepwise sensors); 0 = off
     pid_ke: float = 0.01
     pid_ki_per_hour: float | None = None  # when set, wins over pid_ki (demand per °C per hour; easier to read)
     # Heating curve (control "curve", EXPERIMENTAL – core/curve.py)
@@ -153,6 +154,12 @@ class HcConfig:
     # Safety
     sensor_max_age_s: float = 7200.0
     sensor_lost_demand: float = 0.35  # an electric heater gets 0 (matrix.source_defaults): no heat on a lost sensor
+    # 0.40.0: with a learned heat loss and the source power known, the blind demand is the house's heat need now
+    # (loss × (target − outdoor) − other sources) / boiler_power_kw instead of the fixed sensor_lost_demand
+    sensor_lost_model: bool = True
+    # 0.41.0: a room reading unchanged for this many hours while the source ran frozen_burn_min minutes is frozen
+    frozen_after_h: float = 3.0  # 0 = off
+    frozen_burn_min: float = 45.0
     # Floor temperature limit (floor heating): above floor_max no heat, whatever the regulator says; back below
     # floor_max - floor_hysteresis. floor_required: no fresh floor reading = no heat (electric floor heating).
     floor_max: float = 0.0  # 0 = by the covering and the probe position (core/floor.py; electric 27 °C, else none)

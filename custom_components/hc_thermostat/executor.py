@@ -45,7 +45,7 @@ class Executor:
     def __init__(self, hass: Any, mode: str, actuator: str | None, external: str | None,
                  flow: str | None = None, enable: str | None = None, keep_alive_s: float = 0.0,
                  exact_mode: bool = False, cool_mode: str | None = None, cool_flow: str | None = None,
-                 discharge: str | None = None, fan: str | None = None) -> None:
+                 discharge: str | None = None, fan: str | None = None, keep_script: str | None = None) -> None:
         self._hass = hass
         self.mode = mode
         self._actuator = actuator
@@ -58,6 +58,7 @@ class Executor:
         self._cool_mode = cool_mode  # floor cooling: the heat pump's cooling switch
         self._cool_flow = cool_flow  # floor cooling: its own flow setpoint (else the heating flow entity)
         self._discharge = discharge  # storage heater: discharge fan / damper
+        self._keep_script = keep_script  # 0.41.0: re-arms a device-side off timer while the relay should stay on
         self._fan = fan  # fan coil: its fan, by percentage  # air conditioner: heat and cool are both real modes, set exactly
 
     async def apply(self, decision: Decision) -> None:
@@ -84,10 +85,16 @@ class Executor:
             return
         want = "on" if decision.output else "off"
         if state.state != want or (want == "on" and self.keep_alive.due(decision.now)):
-            await self._hass.services.async_call(
-                "homeassistant", f"turn_{want}", {"entity_id": self._actuator}, blocking=True
-            )
+            if state.state != want or not self._keep_script:
+                await self._hass.services.async_call(
+                    "homeassistant", f"turn_{want}", {"entity_id": self._actuator}, blocking=True
+                )
             if want == "on":
+                if self._keep_script:
+                    # 0.41.0: e.g. a Shelly "turn on with a 15-minute timer" – re-armed at every keep-alive, so a
+                    # long burn is never cut, while a dead Home Assistant leaves the relay on for 15 minutes at most.
+                    await self._hass.services.async_call("script", "turn_on", {"entity_id": self._keep_script},
+                                                         blocking=False)
                 self.keep_alive.sent(decision.now)
 
     async def _apply_external(self, decision: Decision) -> None:
