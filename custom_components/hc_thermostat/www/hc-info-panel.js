@@ -449,7 +449,7 @@ class HcInfoPanel extends HTMLElement {
       return [this._hu ? r[2] : r[3], v, hot && v != null];
     }).filter((r) => r[1] != null);
   }
-  _part(x, y, title, part) { return this._card(x, y, title, this._partRows(part)); }
+  _part(x, y, title, part, mark) { return this._card(x, y, title, this._partRows(part), "", mark); }
 
   _matrix() {
     const c = this._ctx(), t = this._t;
@@ -467,14 +467,23 @@ class HcInfoPanel extends HTMLElement {
   }
 
   // ---------------------------------------------------------------- the drawing
-  _card(x, y, title, rows, cls = "") {
+  // a data card: on a wide screen laid over the drawing at (x, y) in drawing units; on a phone listed under it.
+  // Each card gets a number, also drawn at `mark` (the part it belongs to) so the two can be matched.
+  _card(x, y, title, rows, cls = "", mark = null) {
     const body = rows.filter((r) => r && r[1] != null && r[1] !== "").map(([k, v, hot]) =>
       `<div class="r"><span>${esc(k)}</span><b class="${hot ? "hot" : ""}">${esc(v)}</b></div>`).join("");
     if (!body) return "";
-    return `<div class="card ${cls}" style="left:${x / 10}%;top:${y / 7}%"><div class="ct">${esc(title)}</div>${body}</div>`;
+    const n = ++this._n;
+    this._marks.push([n, mark || this._nextMark || [x + 12, y + 12]]);
+    this._nextMark = null;
+    return `<div class="card ${cls}"><div class="ct"><i class="no">${n}</i>${esc(title)}</div>${body}</div>`;
+  }
+  _markSvg() {
+    return this._marks.map(([n, [x, y]]) => `<g class="num"><circle cx="${x}" cy="${y}" r="17"/><text x="${x}" y="${y + 6}">${n}</text></g>`).join("");
   }
 
   _drawing() {
+    this._n = 0; this._marks = [];
     // drawing units: viewBox 0 0 1000 700; the cards are placed in the same units (see _card)
     const d = this._d;
     if (!d) return { svg: "", cards: "" };
@@ -496,13 +505,13 @@ class HcInfoPanel extends HTMLElement {
     // sensors and the controller along the top
     svg.push(`<g class="sens"><circle cx="60" cy="60" r="26"/><path d="M60,44 v22" /><circle cx="60" cy="70" r="6" class="bulb"/></g>
       <text x="60" y="112" class="lab mid">${esc(t.outdoor)}</text>`);
-    cards.push(this._part(100, 12, t.outdoor, "outdoor"));
+    cards.push(this._part(100, 12, t.outdoor, "outdoor", [96, 34]));
     svg.push(`<g class="hc"><rect x="380" y="24" width="200" height="74" rx="14"/><text x="480" y="58" class="big">HC</text>
       <text x="480" y="82" class="sm">${esc(CONTROL[ctl] || ctl || "")}</text></g>`);
-    cards.push(this._part(590, 8, t.controller, "hc"));
+    cards.push(this._part(590, 8, t.controller, "hc", [580, 26]));
     svg.push(`<g class="sens"><circle cx="940" cy="60" r="26"/><path d="M940,44 v22"/><circle cx="940" cy="70" r="6" class="bulb"/></g>
       <text x="940" y="112" class="lab mid">${esc(t.indoor)}</text>`);
-    cards.push(this._part(785, 125, t.indoor, "indoor"));
+    cards.push(this._part(785, 125, t.indoor, "indoor", [976, 34]));
 
     // control signal: dashed line from the controller to what it drives
     const sig = (x, y) => svg.push(`<path class="jel ${on ? "akt" : ""}" d="M480,98 L480,140 L${x},140 L${x},${y}"/>`);
@@ -510,14 +519,14 @@ class HcInfoPanel extends HTMLElement {
     if (roomUnit) {
       this._drawRoomUnit(svg, src, on, det);
       sig(src === "air_conditioner" ? 720 : 580, src === "air_conditioner" ? 300 : 290);
-      if (src === "storage_heater") cards.push(this._part(40, 300, t.charge, "storage"));
-      if (src === "air_conditioner") cards.push(this._part(40, 160, t.outdoor_unit, "source"));
-      cards.push(this._part(src === "air_conditioner" ? 560 : 770, src === "air_conditioner" ? 440 : 330, src === "air_conditioner" ? t.unit : (SOURCE[L][src] || src), "unit"));
-      cards.push(this._part(20, 560, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter"));
+      if (src === "storage_heater") cards.push(this._part(40, 300, t.charge, "storage", [420, 290]));
+      if (src === "air_conditioner") cards.push(this._part(40, 160, t.outdoor_unit, "source", [80, 400]));
+      cards.push(this._part(src === "air_conditioner" ? 560 : 770, src === "air_conditioner" ? 440 : 330, src === "air_conditioner" ? t.unit : (SOURCE[L][src] || src), "unit", src === "air_conditioner" ? [880, 300] : [740, 290]));
+      cards.push(this._part(20, 560, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter", [src === "air_conditioner" ? 560 : 440, 290]));
     } else {
       this._drawSource(svg, src, on);
       sig(155, src === "pellet_boiler" ? 300 : 330);
-      cards.push(this._part(185, 150, `${t.source}: ${SOURCE[L][src] || src || ""}`, "source"));
+      cards.push(this._part(185, 150, `${t.source}: ${SOURCE[L][src] || src || ""}`, "source", [252, 334]));
       if (efloor) {
         svg.push(`<path class="cso kabel" stroke="#ff8100" d="M230,480 L230,600 L540,600"/>`);
       } else {
@@ -529,12 +538,12 @@ class HcInfoPanel extends HTMLElement {
         svg.push(`<text x="300" y="288" class="lab" fill="${flowC}">${esc(t.flow)}${fl != null ? " " + esc(this._deg(fl)) : ""}</text>
           <text x="290" y="690" class="lab" fill="${retC}">${esc(t.ret)}${inp.return_temp?.value != null ? " " + esc(this._deg(inp.return_temp.value)) : ""}</text>`);
       }
-      if (fan) { this._drawFanCoil(svg, det); cards.push(this._part(770, 555, t.fan, "fan")); }
+      if (fan) { this._drawFanCoil(svg, det); cards.push(this._part(770, 555, t.fan, "fan", [900, 340])); }
       else {
         if (rad) this._drawRadiator(svg, d, floor);
-        if (floor || efloor) { this._drawFloor(svg, det, efloor, on); cards.push(this._part(300, 480, `${t.floor}${efloor ? (this._hu ? " (elektromos)" : " (electric)") : ""}`, "floor")); }
+        if (floor || efloor) { this._drawFloor(svg, det, efloor, on); cards.push(this._part(300, 480, `${t.floor}${efloor ? (this._hu ? " (elektromos)" : " (electric)") : ""}`, "floor", [540, 566])); }
       }
-      cards.push(this._part(300, 330, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter"));
+      cards.push(this._part(300, 330, `${t.emitter}: ${SYSTEM[L][sys] || sys}`, "emitter", rad || fan ? [600, 340] : [938, 568]));
     }
     return { svg: svg.join(""), cards: cards.join("") };
   }
@@ -597,9 +606,11 @@ class HcInfoPanel extends HTMLElement {
   }
 
   _drawCentral() {
+    this._n = 0; this._marks = [];
     const d = this._d, t = this._t, dec = d.decision || {}, zones = d.zones || [];
     const svg = [], cards = [];
     svg.push(`<g class="dev ${dec.output ? "on" : ""}"><rect x="60" y="250" width="180" height="200" rx="10"/><path class="lang ${dec.output ? "eg" : ""}" d="M140,400 c-6,-18 18,-26 10,-46 c18,10 24,28 16,46 z"/></g>`);
+    this._nextMark = [62, 252];
     cards.push(this._card(20, 20, t.boiler, [[t.reason, this._reason(dec.reason), true], [t.output, dec.output ? t.on : t.off, dec.output],
       [t.pump, dec.pump ? t.on : t.off], [t.flow, dec.flow_setpoint != null ? this._deg(dec.flow_setpoint) : null],
       ["flow by", dec.details?.flow_by], [t.demand, this._num(dec.demand, 2)], ["stuck", (dec.details?.stuck || []).join(", ") || null, true]]));
@@ -608,6 +619,7 @@ class HcInfoPanel extends HTMLElement {
       const y = 120 + (i * 420) / n;
       svg.push(`<path class="cso" stroke="#e53935" d="M240,300 L420,300 L420,${y + 30} L640,${y + 30}"/><g class="dev ${z.wants_heat ? "on" : ""}"><rect x="640" y="${y}" width="140" height="60" rx="8"/></g>
         <circle cx="600" cy="${y + 30}" r="12" class="${z.valve_open ? "nyit" : "zar"}"/>`);
+      this._nextMark = [782, y + 2];
       cards.push(this._card(800, Math.min(600, 20 + (i * 620) / n), z.name, [["asking", z.wants_heat ? t.yes : t.no, z.wants_heat],
         [t.demand, `${this._num((z.demand || 0) * 100, 0)} %`], ["valve", z.valve_open == null ? (z.valve_on_since ? "opening" : t.none) : (z.valve_open ? t.open : "zárva")],
         [t.flow, z.flow_request != null ? this._deg(z.flow_request) : null], ["fault", z.fault ? t.yes : null, true], ["TRV", z.trv ? t.yes : null]]));
@@ -616,6 +628,7 @@ class HcInfoPanel extends HTMLElement {
   }
 
   _drawBuffer() {
+    this._n = 0; this._marks = [];
     const d = this._d, t = this._t, dec = d.decision || {}, cfg = d.config || {};
     const svg = [], cards = [];
     const top = dec.top, bot = dec.bottom, hi = cfg.buffer_off || 65, lo = cfg.buffer_on || 45;
@@ -628,10 +641,13 @@ class HcInfoPanel extends HTMLElement {
       <g class="dev"><rect x="420" y="120" width="160" height="400" rx="70"/></g>
       <path class="cso" stroke="#e53935" d="M580,170 H760"/><path class="cso" stroke="#1e88e5" d="M760,470 H580"/>
       <g class="dev"><rect x="760" y="150" width="160" height="340" rx="12"/></g>`);
+    this._nextMark = [62, 282];
     cards.push(this._card(20, 20, t.source, [[t.reason, this._reason(dec.reason), true], [t.output, dec.output ? t.on : t.off, dec.output],
       ["entity", this._st("boiler_entity")?.entity_id], ["state", this._st("boiler_entity")?.state]]));
+    this._nextMark = [578, 128];
     cards.push(this._card(400, 545, t.tank, [[t.top, this._deg(top), true], [t.bottom, this._deg(bot)], ["start ≤", this._deg(lo)], ["stop ≥", this._deg(hi)],
       ["frost", this._deg(cfg.buffer_frost)], ["demand-led", cfg.buffer_demand_led ? t.yes : t.no]]));
+    this._nextMark = [918, 152];
     cards.push(this._card(780, 20, t.zones, (this._ent("zone_entities")).map((z) => [z.name, `${z.hvac_action || z.state}${z.current_temperature != null ? " · " + this._deg(z.current_temperature) : ""}`, z.hvac_action === "heating"])));
     return { svg: svg.join(""), cards: cards.join("") };
   }
@@ -672,7 +688,7 @@ class HcInfoPanel extends HTMLElement {
         this._section("settings", t.settings, d.role === "standalone" || d.role === "zone" ? this._settings() : this._rows(d.config), "mdi:tune"),
         d.log ? this._section("log", t.log, this._log(), "mdi:history") : "",
       ].join("");
-      main = `${head}<div class="grid"><div class="draw"><div class="stage"><svg viewBox="0 0 1000 700">${dr.svg}</svg>${dr.cards}</div></div>
+      main = `${head}<div class="grid"><div class="draw"><div class="stage"><svg viewBox="0 0 1000 700">${dr.svg}${this._markSvg()}</svg><div class="cards">${dr.cards}</div></div></div>
         <div class="side">${side}</div></div>`;
     } else main = `<div class="empty">${esc(this._err || "…")}</div>`;
 
@@ -698,10 +714,12 @@ table.mx td { font-size:12px; } table.mx th { text-align:left; font-weight:500; 
 table.mx tr.off td { opacity:.38; }
 .tag { display:inline-block; border-radius:6px; padding:0 5px; margin:1px 2px 1px 0; font-size:11px; background:color-mix(in srgb, var(--primary-color) 15%, transparent); }
 .tag.all { background:var(--secondary-background-color); }
-.top { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--app-header-background-color, var(--primary-color)); color:var(--app-header-text-color, #fff); flex-wrap:wrap; }
+.top { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--app-header-background-color, var(--primary-color)); color:var(--app-header-text-color, #fff); flex-wrap:nowrap; }
 .top h1 { font-size:20px; margin:0 8px 0 0; font-weight:500; }
 .top .muted { color:inherit; opacity:.7; margin-left:auto; font-size:12px; }
-.picks { display:flex; gap:6px; flex-wrap:wrap; }
+.picks { display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; min-width:0; flex:1; scrollbar-width:thin; }
+.pick { flex:none; }
+.top h1 { flex:none; } .top .muted { flex:none; }
 .pick { border:1px solid rgba(255,255,255,.4); background:transparent; color:inherit; border-radius:10px; padding:4px 10px; cursor:pointer; text-align:left; }
 .pick small { display:block; opacity:.75; font-size:11px; }
 .pick.sel { background:rgba(255,255,255,.22); border-color:#fff; }
@@ -712,9 +730,10 @@ table.mx tr.off td { opacity:.38; }
 .badge { border-radius:8px; padding:1px 8px; font-size:12px; background:var(--secondary-background-color); }
 .badge.live { background:#2e7d32; color:#fff; }
 .grid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,2.3fr) minmax(360px,1fr); gap:14px; }
-.draw { position:relative; min-height:0; background:var(--card-background-color); border-radius:16px; overflow:hidden; container-type:size; display:flex; align-items:center; justify-content:center; }
-.stage { position:relative; aspect-ratio:1000/700; width:min(100cqw, 100cqh * 1000 / 700); }
-.stage svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+/* the drawing alone on top (numbered parts), the numbered data cards listed under it – nothing overlaps */
+.draw { position:relative; min-height:0; background:var(--card-background-color); border-radius:16px; overflow:auto; padding:10px 12px; box-sizing:border-box; }
+.stage { position:relative; }
+.stage svg { display:block; width:100%; max-height:52vh; height:auto; margin:0 auto; overflow:visible; }
 svg .jel { fill:none; stroke:var(--primary-color); stroke-width:2.5; stroke-dasharray:6 7; opacity:.6; }
 svg .jel.akt { opacity:1; animation:folyik 1s linear infinite; }
 svg .mid { text-anchor:middle; font-size:14px; fill:var(--secondary-text-color); font-weight:400; }
@@ -743,7 +762,7 @@ svg .padlo { fill:color-mix(in srgb, var(--primary-text-color) 6%, transparent);
 svg .forog { transform-box:fill-box; transform-origin:50% 50%; animation:forog 1.2s linear infinite; }
 @keyframes forog { to { transform:rotate(360deg); } }
 svg .nyit { fill:#43a047; } svg .zar { fill:#9e9e9e; }
-.card { position:absolute; box-sizing:border-box; width:19%; min-width:0; background:color-mix(in srgb, var(--card-background-color) 92%, transparent); border:1px solid var(--divider-color); border-radius:10px; padding:5px 7px; font-size:clamp(10px, 1.2cqw, 14px); box-shadow:0 1px 4px rgba(0,0,0,.15); }
+.card { position:static !important; box-sizing:border-box; display:block; width:100%; break-inside:avoid; margin:0; background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:10px; padding:7px 10px; font-size:13px; }
 .card .ct { font-weight:600; font-size:1.08em; margin-bottom:3px; color:var(--primary-color); }
 .card .r { display:flex; justify-content:space-between; gap:8px; line-height:1.45; }
 .card .r span { color:var(--secondary-text-color); }
@@ -773,12 +792,26 @@ th.sub { text-align:left; padding-top:6px; font-weight:500; color:var(--primary-
 .muted { color:var(--secondary-text-color); }
 .empty { padding:40px; text-align:center; color:var(--secondary-text-color); }
 table.log td.k { width:28%; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); gap:10px; align-items:start; margin-top:12px; }
+.card .no { display:inline-flex; align-items:center; justify-content:center; width:1.5em; height:1.5em; border-radius:50%;
+  background:var(--primary-color); color:var(--text-primary-color, #fff); font-style:normal; font-size:.8em; margin-right:5px; vertical-align:1px; }
+svg .num circle { fill:var(--primary-color); }
+svg .num text { fill:var(--text-primary-color, #fff); font-size:19px; font-weight:700; text-anchor:middle; }
+/* phone / narrow: the drawing alone at full width, the cards listed under it (no overlap) */
 @media (max-width: 1000px) {
-  .main { height:auto; }
-  .grid { grid-template-columns:1fr; }
-  .draw { aspect-ratio:1000/620; min-height:auto; }
-  .card { max-width:30%; min-width:110px; font-size:10px; }
+  .main { height:auto; padding:8px; }
+  .grid { grid-template-columns:1fr; gap:10px; }
+  .draw { padding:6px; overflow:visible; }
+  .stage svg { max-height:none; }
+  .cards { display:block; columns:2 165px; column-gap:8px; margin-top:8px; }
+  .card { display:inline-block; margin:0 0 8px; }
+  svg .lab { font-size:30px; } svg .mid { font-size:28px; } svg .sm { font-size:24px; } svg .big { font-size:40px; }
+  svg .num circle { r:27px; } svg .num text { font-size:30px; }
   .side { overflow:visible; }
+  .top { padding:8px 10px; }
+  .picks { width:100%; overflow-x:auto; flex-wrap:nowrap; }
+  .pick { flex:none; }
+  .top .muted { display:none; }
 }
 `;
 

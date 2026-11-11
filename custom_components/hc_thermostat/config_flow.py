@@ -38,6 +38,32 @@ def _entity(*domains: str, multiple: bool = False) -> EntitySelector:
     return EntitySelector(EntitySelectorConfig(domain=list(domains), multiple=multiple))
 
 
+# Entity pickers narrowed to what fits the field: (domain, device classes) pairs; None = any device class.
+_T = ("sensor", ["temperature"])
+_ENTITY_FILTERS: dict[str, list] = {
+    CONF_INDOOR: [_T], CONF_ZONE_TEMP: [_T], CONF_FLOOR: [_T], CONF_COIL: [_T], CONF_RETURN: [_T],
+    CONF_BUFFER_TOP: [_T], CONF_BUFFER_BOTTOM: [_T], CONF_WINDOW_DROP: [_T],
+    CONF_OUTDOOR: [_T, ("weather", None)],
+    CONF_HUMIDITY: [("sensor", ["humidity"])],
+    CONF_BOILER_POWER: [("sensor", ["power"])],
+    CONF_HEAT_ENERGY: [("sensor", ["gas", "energy", "volume"])],
+    CONF_EXTRA_HEAT: [("sensor", ["energy", "power"])],
+    CONF_FLAME: [("binary_sensor", ["heat", "running", "power"])],
+    CONF_WINDOWS: [("binary_sensor", ["window", "door", "opening", "garage_door"])],
+    CONF_ZONE_DOORS: [("binary_sensor", ["door", "opening", "window", "garage_door"])],
+    CONF_PRESENCE: [("person", None), ("binary_sensor", ["presence", "occupancy"]), ("sensor", None), ("input_select", None)],
+}
+
+
+def _ent(key: str, *domains: str, multiple: bool = False) -> EntitySelector:
+    """The picker of a field: narrowed by _ENTITY_FILTERS when listed there, else by the given domains."""
+    filters = _ENTITY_FILTERS.get(key)
+    if not filters:
+        return _entity(*domains, multiple=multiple)
+    return EntitySelector(EntitySelectorConfig(
+        filter=[{"domain": d, **({"device_class": dc} if dc else {})} for d, dc in filters], multiple=multiple))
+
+
 def _number(minimum: float, maximum: float, step: float, unit: str = "") -> NumberSelector:
     return NumberSelector(NumberSelectorConfig(
         min=minimum, max=maximum, step=step, unit_of_measurement=unit, mode=NumberSelectorMode.BOX))
@@ -63,8 +89,8 @@ def _buffer_fields(current: dict) -> dict:
     zones = EntitySelector(EntitySelectorConfig(domain="climate", integration=DOMAIN, multiple=True))
     cfg = BufferConfig(**{k: v for k, v in current.items() if k in BufferConfig.__dataclass_fields__})
     return {
-        vol.Required(CONF_BUFFER_TOP, default=current.get(CONF_BUFFER_TOP)) if current.get(CONF_BUFFER_TOP) else vol.Required(CONF_BUFFER_TOP): _entity("sensor"),
-        vol.Optional(CONF_BUFFER_BOTTOM, description={"suggested_value": current.get(CONF_BUFFER_BOTTOM)}): _entity("sensor"),
+        vol.Required(CONF_BUFFER_TOP, default=current.get(CONF_BUFFER_TOP)) if current.get(CONF_BUFFER_TOP) else vol.Required(CONF_BUFFER_TOP): _ent(CONF_BUFFER_TOP, "sensor"),
+        vol.Optional(CONF_BUFFER_BOTTOM, description={"suggested_value": current.get(CONF_BUFFER_BOTTOM)}): _ent(CONF_BUFFER_BOTTOM, "sensor"),
         vol.Required(CONF_BOILER, default=current.get(CONF_BOILER)) if current.get(CONF_BOILER) else vol.Required(CONF_BOILER): _entity("switch", "input_boolean"),
         vol.Optional(CONF_ZONES, description={"suggested_value": current.get(CONF_ZONES)}): zones,
         vol.Required("buffer_demand_led", default=cfg.buffer_demand_led): BooleanSelector(),
@@ -124,7 +150,7 @@ def _floor_fields(system: str | None, source: str | None, control: str | None, c
     floor_key = vol.Required(CONF_FLOOR) if electric and not current.get(CONF_FLOOR) else \
         vol.Optional(CONF_FLOOR, description={"suggested_value": current.get(CONF_FLOOR)})
     return {
-        floor_key: _entity("sensor"),
+        floor_key: _ent(CONF_FLOOR, "sensor"),
         vol.Required("floor_max", default=cfg.floor_max or (27.0 if electric else 0.0)): _number(0 if not electric else 20, 35, 0.5, "°C"),
         vol.Required("floor_hysteresis", default=cfg.floor_hysteresis): _number(0.2, 5, 0.1, "°C"),
     }
@@ -136,7 +162,7 @@ def _power_fields(source: str | None, current: dict, settings: bool) -> dict:
         return {}
 
     def opt(key, *domains):
-        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _entity(*domains)}
+        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _ent(key, *domains)}
 
     out = opt(CONF_POWER_AVAILABLE, "binary_sensor", "switch", "input_boolean")
     if source == "storage_heater":
@@ -158,7 +184,7 @@ def _water_fields(system: str | None, source: str | None, current: dict, setting
     out: dict = {}
 
     def opt(key, *domains):
-        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _entity(*domains)}
+        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _ent(key, *domains)}
 
     cfg = HcConfig.from_mapping({**source_defaults(system, source), **current})
     if system == "fan_coil":
@@ -186,7 +212,7 @@ def _cool_fields(system: str | None, source: str | None, control: str | None, cu
     cfg = HcConfig.from_mapping(current)
 
     def opt(key, *domains):
-        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _entity(*domains)}
+        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _ent(key, *domains)}
 
     out = {
         vol.Required("floor_cooling", default=cfg.floor_cooling): BooleanSelector(),
@@ -286,7 +312,7 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             if data.get(CONF_ROLE) == "zone" and data[CONF_CONTROL] in ("tpi", "pid"):
                 data["valve_exercise"] = True  # summer valve exercise of the zone's own actuator
             return self.async_create_entry(title=self._data[CONF_NAME], data=data)
-        fields: dict = {vol.Required(CONF_INDOOR): _entity("sensor")}
+        fields: dict = {vol.Required(CONF_INDOOR): _ent(CONF_INDOOR, "sensor")}
         if external:
             fields[vol.Required(CONF_EXTERNAL)] = _entity("climate")
         elif curve:
@@ -295,19 +321,19 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         else:
             fields[vol.Required(CONF_ACTUATOR)] = _entity("switch", "input_boolean")
         if curve:
-            fields[vol.Required(CONF_OUTDOOR)] = _entity("sensor", "weather")  # the curve needs it
+            fields[vol.Required(CONF_OUTDOOR)] = _ent(CONF_OUTDOOR, "sensor", "weather")  # the curve needs it
         else:
-            fields[vol.Optional(CONF_OUTDOOR)] = _entity("sensor", "weather")
+            fields[vol.Optional(CONF_OUTDOOR)] = _ent(CONF_OUTDOOR, "sensor", "weather")
         fields[vol.Optional(CONF_REFERENCE)] = _entity("binary_sensor", "switch", "climate", "input_boolean")
-        fields[vol.Optional(CONF_HEAT_ENERGY)] = _entity("sensor")
+        fields[vol.Optional(CONF_HEAT_ENERGY)] = _ent(CONF_HEAT_ENERGY, "sensor")
         fields[vol.Optional(CONF_ENERGY_FACTOR, default=8.55)] = _number(0.01, 100, 0.01, "kWh")
-        fields[vol.Optional(CONF_EXTRA_HEAT)] = _entity("sensor")
+        fields[vol.Optional(CONF_EXTRA_HEAT)] = _ent(CONF_EXTRA_HEAT, "sensor")
         fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "kWh")
         fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
-        fields[vol.Optional(CONF_WINDOWS)] = _entity("binary_sensor", multiple=True)
-        fields[vol.Optional(CONF_PRESENCE)] = _entity("person", "sensor", "binary_sensor", "input_select", multiple=True)
-        fields[vol.Optional(CONF_ZONE_TEMP)] = _entity("sensor")
-        fields[vol.Optional(CONF_ZONE_DOORS)] = _entity("binary_sensor", multiple=True)
+        fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
+        fields[vol.Optional(CONF_PRESENCE)] = _ent(CONF_PRESENCE, "person", "sensor", "binary_sensor", "input_select", multiple=True)
+        fields[vol.Optional(CONF_ZONE_TEMP)] = _ent(CONF_ZONE_TEMP, "sensor")
+        fields[vol.Optional(CONF_ZONE_DOORS)] = _ent(CONF_ZONE_DOORS, "binary_sensor", multiple=True)
         fields[vol.Optional(CONF_ZONE_DIFF, default=2.0)] = _number(0, 10, 0.5, "°C")
         if self._data.get(CONF_ROLE) == "zone":
             fields[vol.Optional(CONF_VALVE_FEEDBACK)] = _entity(*_FEEDBACK_DOMAINS)
@@ -372,19 +398,19 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("pid_kp", default=cfg.pid_kp): _number(0, 5, 0.05),
             vol.Required("pid_ki_per_hour", default=cfg.pid_ki_per_hour if cfg.pid_ki_per_hour is not None else round(cfg.pid_ki * 3600, 3)): _number(0, 5, 0.01),
             vol.Required("pid_kd", default=cfg.pid_kd): _number(0, 100000, 1),
-            vol.Optional(CONF_FLAME, description={"suggested_value": current.get(CONF_FLAME)}): _entity("binary_sensor"),
-            vol.Optional(CONF_BOILER_POWER, description={"suggested_value": current.get(CONF_BOILER_POWER)}): _entity("sensor"),
+            vol.Optional(CONF_FLAME, description={"suggested_value": current.get(CONF_FLAME)}): _ent(CONF_FLAME, "binary_sensor"),
+            vol.Optional(CONF_BOILER_POWER, description={"suggested_value": current.get(CONF_BOILER_POWER)}): _ent(CONF_BOILER_POWER, "sensor"),
             vol.Required("power_idle_w", default=cfg.power_idle_w): _number(0, 500, 1, "W"),
             vol.Required("power_burn_w", default=cfg.power_burn_w): _number(0, 5000, 1, "W"),
             vol.Required("boiler_power_kw", default=cfg.boiler_power_kw): _number(0, 100, 0.1, "kW"),
             # electric zones sharing a power budget (0.28.0): the same limit on every zone, its own power above
             **({vol.Required("load_limit_kw", default=cfg.load_limit_kw): _number(0, 100, 0.1, "kW")}
                if current.get(CONF_HEAT_SOURCE) in ELECTRIC_SOURCES and cfg.control in ("tpi", "pid") else {}),
-            vol.Optional(CONF_HEAT_ENERGY, description={"suggested_value": current.get(CONF_HEAT_ENERGY)}): _entity("sensor"),
+            vol.Optional(CONF_HEAT_ENERGY, description={"suggested_value": current.get(CONF_HEAT_ENERGY)}): _ent(CONF_HEAT_ENERGY, "sensor"),
             vol.Required(CONF_ENERGY_FACTOR, default=current.get(CONF_ENERGY_FACTOR, 8.55)): _number(0.01, 100, 0.01, "kWh"),
             vol.Required(CONF_EXTRA_FACTOR, default=current.get(CONF_EXTRA_FACTOR, 3.0)): _number(0.1, 10, 0.1, "kWh"),
-            vol.Optional(CONF_WINDOWS, description={"suggested_value": current.get(CONF_WINDOWS)}): _entity("binary_sensor", multiple=True),
-            vol.Optional(CONF_WINDOW_DROP, description={"suggested_value": current.get(CONF_WINDOW_DROP)}): _entity("sensor", multiple=True),
+            vol.Optional(CONF_WINDOWS, description={"suggested_value": current.get(CONF_WINDOWS)}): _ent(CONF_WINDOWS, "binary_sensor", multiple=True),
+            vol.Optional(CONF_WINDOW_DROP, description={"suggested_value": current.get(CONF_WINDOW_DROP)}): _ent(CONF_WINDOW_DROP, "sensor", multiple=True),
             vol.Required("window_drop_rate", default=cfg.window_drop_rate): _number(0.5, 10, 0.1, "°C/h"),
             **({vol.Optional(CONF_ROOMS, description={"suggested_value": current[CONF_ROOMS] if CONF_ROOMS in current else suggest_room_sensors(self.hass, current)}):
                     EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature", multiple=True)),
@@ -392,8 +418,8 @@ class HcOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_ROOM_TRVS, description={"suggested_value": current.get(CONF_ROOM_TRVS)}): _entity("climate", multiple=True),
                 vol.Required(CONF_ROOM_TRV_DEMAND, default=current.get(CONF_ROOM_TRV_DEMAND, False)): BooleanSelector()}
                if current.get(CONF_ROLE, "standalone") == "standalone" and cfg.control in ("tpi", "pid") else {}),
-            vol.Optional(CONF_ZONE_TEMP, description={"suggested_value": current.get(CONF_ZONE_TEMP)}): _entity("sensor"),
-            vol.Optional(CONF_ZONE_DOORS, description={"suggested_value": current.get(CONF_ZONE_DOORS)}): _entity("binary_sensor", multiple=True),
+            vol.Optional(CONF_ZONE_TEMP, description={"suggested_value": current.get(CONF_ZONE_TEMP)}): _ent(CONF_ZONE_TEMP, "sensor"),
+            vol.Optional(CONF_ZONE_DOORS, description={"suggested_value": current.get(CONF_ZONE_DOORS)}): _ent(CONF_ZONE_DOORS, "binary_sensor", multiple=True),
             vol.Required(CONF_ZONE_DIFF, default=current.get(CONF_ZONE_DIFF, 2.0)): _number(0, 10, 0.5, "°C"),
             vol.Optional(CONF_BOILER_PRICE, description={"suggested_value": current.get(CONF_BOILER_PRICE)}): _entity("sensor", "input_number"),
             vol.Optional(CONF_OTHER_PRICE, description={"suggested_value": current.get(CONF_OTHER_PRICE)}): _entity("sensor", "input_number"),

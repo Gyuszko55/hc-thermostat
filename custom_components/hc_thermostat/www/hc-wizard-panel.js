@@ -44,6 +44,9 @@ const T = {
       window_entities: "Ablak- és ajtóérzékelők", presence_entities: "Jelenlét (személyek)", assist_climate: "Ház termosztátja, amit a klíma segít",
       floor_entity: "Padlóhőmérő (padlószenzor)", target_source_entity: "Célhő forrása (fali termosztát tekerője, ha van)",
       hp_defrost_entity: "Leolvasztás jelzője (ha van)", hp_dhw_entity: "Melegvíz-készítés jelzője (ha van)",
+      power_available_entity: "Vezérelt áram jelzése (ha van)", discharge_entity: "Kisütő ventilátor / csappantyú (ha van)",
+      fan_entity: "Fan-coil ventilátora (ha van)", coil_temp_entity: "Hőcserélő hőmérője (ha van)",
+      return_temp_entity: "Visszatérő víz hőmérője (ha van)",
     },
     derived_hint: "Ezeket a választott hőforrásból, rendszerből és eszközökből számoltam. Mindegyik mellett ott az indok; bármelyik átírható.",
     rooms: "Helyiség-hőmérők (csak javaslatot adnak, a fő hőmérő dönt)",
@@ -58,7 +61,9 @@ const T = {
     summary_new: "Új példány jön létre árnyék módban. Ha a döntései rendben vannak, a beállításokban állítható élesre.",
     summary_edit: "A meglévő példány beállításai frissülnek; az üzemmódja (éles/árnyék) nem változik. A példány újratöltődik.",
     done_new: "Elkészült az új példány.", done_edit: "A példány beállításai frissültek.", open_integration: "Megnyitás a beállításokban",
-    load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:",
+    load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:", pick_need: "Válaszd ki, mit állítunk be.", source_need: "Válassz hőforrást.",
+    system_need: "Válassz rendszert és vezérlést.", name_need: "Adj nevet a példánynak.",
+    field_bug: "Belső hiba: ennél a kombinációnál ({combo}) nincs beviteli mező ehhez: {field}. Kérlek jelezd – addig a Beállítások → Eszközök és szolgáltatások → HC Thermostat → Integráció hozzáadása úton vehető fel.",
   },
   en: {
     title: "HC setup", steps: ["What to set up", "Heat source", "System and control", "Devices", "Worked-out settings", "Summary"],
@@ -100,6 +105,9 @@ const T = {
       window_entities: "Window and door sensors", presence_entities: "Presence (people)", assist_climate: "House thermostat the AC helps",
       floor_entity: "Floor thermometer (floor sensor)", target_source_entity: "Target source (a wall thermostat's knob, if any)",
       hp_defrost_entity: "Defrost signal (if any)", hp_dhw_entity: "Hot water signal (if any)",
+      power_available_entity: "Controlled power signal (if any)", discharge_entity: "Discharge fan / damper (if any)",
+      fan_entity: "Fan coil fan (if any)", coil_temp_entity: "Coil thermometer (if any)",
+      return_temp_entity: "Return water thermometer (if any)",
     },
     derived_hint: "Worked out from the chosen heat source, system and devices. Each shows its reason; any can be changed.",
     rooms: "Room thermometers (advice only, the main thermometer decides)",
@@ -114,7 +122,9 @@ const T = {
     summary_new: "A new instance is created in shadow mode. When its decisions look right, make it live in the options.",
     summary_edit: "The instance's settings are updated; its mode (live/shadow) stays. The instance reloads.",
     done_new: "The new instance is ready.", done_edit: "The instance's settings are updated.", open_integration: "Open in settings",
-    load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:",
+    load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:", pick_need: "Choose what to set up.", source_need: "Choose a heat source.",
+    system_need: "Choose a system and a control.", name_need: "Give the instance a name.",
+    field_bug: "Internal error: this combination ({combo}) has no input field for {field}. Please report it – until then add it under Settings → Devices & services → HC Thermostat → Add integration.",
   },
 };
 const SOURCE_ICON = { onoff_boiler: "mdi:fire", modulating_boiler: "mdi:fire-circle", heat_pump: "mdi:heat-pump", electric_boiler: "mdi:water-boiler",
@@ -190,14 +200,43 @@ class HcWizardPanel extends HTMLElement {
   }
 
   // ---------- navigation ----------
+  // Why "next" is not allowed now (null: it is). Step 3: every required field of the form must be filled – the same
+  // schema that draws the form decides, so a required device can never be missing from the form unnoticed; and the
+  // device the chosen control drives must be in the form at all (otherwise an internal error is shown).
+  _whyNot() {
+    const s = this._s, t = this._t;
+    switch (this._step) {
+      case 0: return this._picked === undefined ? t.pick_need : null;
+      case 1: return s.heat_source ? null : t.source_need;
+      case 2: return s.system && s.control ? null : t.system_need;
+      case 3: {
+        const sc = this._schema();
+        const need = CONTROL_DEVICE[s.control];
+        if (!need || !sc.some((f) => f.name === need && f.required))
+          return t.field_bug.replace("{combo}", `${s.heat_source} / ${s.system} / ${s.control}`).replace("{field}", need || s.control);
+        const miss = sc.filter((f) => f.required && f.name !== "name" && !(Array.isArray(s.entities[f.name]) ? s.entities[f.name].length : s.entities[f.name]))
+          .map((f) => this._label(f.name));
+        if (!s.entry_id && !String(s.name || "").trim()) miss.unshift(t.fields.name);
+        return miss.length ? `${t.missing} ${miss.join(", ")}` : null;
+      }
+      default: return null;
+    }
+  }
+  _updNext() {
+    const r = this.shadowRoot, why = this._whyNot();
+    const next = r?.getElementById("next");
+    if (next) next.disabled = !!why;
+    const need = r?.getElementById("need");
+    if (need) need.textContent = why || "";
+  }
+  _label(name) { return this._over?.[name] || this._t.fields[name] || name; }
   _canNext() {
     const s = this._s;
     switch (this._step) {
       case 0: return this._picked !== undefined;
       case 1: return !!s.heat_source;
       case 2: return !!s.system && !!s.control;
-      case 3: return !!s.entities.indoor_entity && !!s.entities[CONTROL_DEVICE[s.control]] && (s.entry_id || s.name.trim())
-        && (!this._floorNeeded() || !!s.entities.floor_entity);
+      case 3: return !this._whyNot();
       default: return true;
     }
   }
@@ -299,6 +338,7 @@ class HcWizardPanel extends HTMLElement {
       .btn[disabled] { opacity:.45; cursor:default; }
       .btn:focus-visible { outline:2px solid var(--primary-color); outline-offset:2px; }
       .err { color: var(--error-color, #db4437); }
+      .need { color: var(--error-color, #db4437); margin:8px 0 0; text-align:right; min-height:1.2em; font-size:14px; }
       .sum div { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--divider-color); flex-wrap:wrap; }
       .sum > div > span:first-child { min-width:200px; color: var(--secondary-text-color); }
       @media (max-width: 520px) { td.k { width:auto; } .sum > div > span:first-child { min-width:0; width:100%; } }
@@ -321,7 +361,8 @@ class HcWizardPanel extends HTMLElement {
     const t = this._t;
     return `<div class="nav"><button class="btn ghost" id="back" ${this._step === 0 ? "disabled" : ""}>${t.back}</button>
       ${last ? `<button class="btn" id="save" ${this._saving ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>`
-        : `<button class="btn" id="next" ${this._canNext() ? "" : "disabled"}>${t.next}</button>`}</div>`;
+        : `<button class="btn" id="next" ${this._canNext() ? "" : "disabled"}>${t.next}</button>`}</div>
+      ${last ? "" : `<p class="need" id="need">${this._whyNot() || ""}</p>`}`;
   }
   _renderStep() {
     const t = this._t, s = this._s, st = this._start;
@@ -409,28 +450,42 @@ class HcWizardPanel extends HTMLElement {
   }
   _schema() {
     const s = this._s, c = s.control;
-    const ent = (name, domain, extra = {}) => ({ name, selector: { entity: { domain, ...extra } } });
+    // entity pickers narrowed to what fits: a list of {domain, device_class} filters per field
+    const f = (domain, device_class) => (device_class ? { domain, device_class } : { domain });
+    const ent = (name, filters, multiple = false) => ({ name, selector: { entity: { filter: [].concat(filters), ...(multiple ? { multiple: true } : {}) } } });
+    const TEMP = f("sensor", "temperature");
     const sc = [];
     if (!s.entry_id) sc.push({ name: "name", required: true, selector: { text: {} } });
-    sc.push({ ...ent("indoor_entity", "sensor", { device_class: "temperature" }), required: true });
-    sc.push(ent("outdoor_entity", ["sensor", "weather"]));
-    if (c === "tpi" || c === "pid" || c === "onoff") {
-      sc.push({ ...ent("actuator_entity", ["switch", "input_boolean"]), required: true });
-      if (["onoff_boiler", "modulating_boiler"].includes(s.heat_source)) sc.push(ent("flame_entity", "binary_sensor")); // only a burner has a flame
-      sc.push(ent("boiler_power_entity", "sensor", { device_class: "power" }), ent("heat_energy_entity", "sensor"));
+    sc.push({ ...ent("indoor_entity", TEMP), required: true });
+    sc.push(ent("outdoor_entity", [TEMP, f("weather")]));
+    if (c === "tpi" || c === "pid" || c === "onoff" || c === "storage") {
+      sc.push({ ...ent("actuator_entity", [f("switch"), f("input_boolean")]), required: true });
+      if (["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(s.heat_source))  // only a burner has a flame
+        sc.push(ent("flame_entity", [f("binary_sensor", "heat"), f("binary_sensor", "running"), f("binary_sensor", "power"), f("binary_sensor")]));
+      sc.push(ent("boiler_power_entity", f("sensor", "power")),
+        ent("heat_energy_entity", [f("sensor", "gas"), f("sensor", "energy"), f("sensor", "volume")]));
       if (String(s.system || "").startsWith("floor"))
-        sc.push({ ...ent("floor_entity", "sensor", { device_class: "temperature" }), required: this._floorNeeded() });
+        sc.push({ ...ent("floor_entity", TEMP), required: this._floorNeeded() });
     } else if (c === "external" || c === "ac") {
-      sc.push({ ...ent("external_climate", "climate"), required: true });
-      if (c === "ac") sc.push(ent("assist_climate", "climate"));
+      sc.push({ ...ent("external_climate", f("climate")), required: true });
+      if (c === "ac") sc.push(ent("assist_climate", f("climate")));
     } else if (c === "curve") {
-      sc.push({ ...ent("flow_setpoint_entity", ["number", "input_number"]), required: true }, ent("heat_enable_entity", ["switch", "input_boolean"]), ent("heat_energy_entity", "sensor"));
-      if (String(s.system || "").startsWith("floor")) sc.push(ent("floor_entity", "sensor", { device_class: "temperature" }));
+      sc.push({ ...ent("flow_setpoint_entity", [f("number"), f("input_number")]), required: true },
+        ent("heat_enable_entity", [f("switch"), f("input_boolean")]), ent("heat_energy_entity", [f("sensor", "gas"), f("sensor", "energy"), f("sensor", "volume")]));
+      if (String(s.system || "").startsWith("floor")) sc.push(ent("floor_entity", TEMP));
     }
+    // 0.31–0.32: the storage heater's discharge fan, controlled power, fan coil, district heating return
+    if (c === "storage") sc.push(ent("discharge_entity", [f("switch"), f("input_boolean"), f("fan")]));
+    if (["electric_heater", "electric_boiler", "storage_heater"].includes(s.heat_source) && c !== "external")
+      sc.push(ent("power_available_entity", [f("binary_sensor"), f("switch"), f("input_boolean")]));
+    if (s.system === "fan_coil" && c !== "external") sc.push(ent("fan_entity", f("fan")), ent("coil_temp_entity", TEMP));
+    if (s.heat_source === "district_heating" && c !== "external") sc.push(ent("return_temp_entity", TEMP));
     if (s.heat_source === "heat_pump" && (c === "onoff" || c === "curve"))
-      sc.push(ent("hp_defrost_entity", ["binary_sensor", "sensor", "switch", "input_boolean"]), ent("hp_dhw_entity", ["binary_sensor", "sensor", "switch", "input_boolean"]));
-    if (c !== "ac") sc.push(ent("target_source_entity", ["climate", "number", "input_number"]));
-    sc.push(ent("window_entities", "binary_sensor", { multiple: true }), ent("presence_entities", ["person", "binary_sensor"], { multiple: true }));
+      sc.push(ent("hp_defrost_entity", [f("binary_sensor"), f("sensor"), f("switch"), f("input_boolean")]),
+        ent("hp_dhw_entity", [f("binary_sensor"), f("sensor"), f("switch"), f("input_boolean")]));
+    if (c !== "ac") sc.push(ent("target_source_entity", [f("climate"), f("number"), f("input_number")]));
+    sc.push(ent("window_entities", ["window", "door", "opening", "garage_door"].map((dc) => f("binary_sensor", dc)), true),
+      ent("presence_entities", [f("person"), f("binary_sensor", "presence"), f("binary_sensor", "occupancy"), f("sensor"), f("input_select")], true));
     return sc;
   }
   _bind() {
@@ -475,6 +530,7 @@ class HcWizardPanel extends HTMLElement {
         boiler_power_entity: hu ? "A fűtő áramfelvétele (W, ha van)" : "Heater power draw (W, if any)",
         heat_energy_entity: hu ? "A fűtő fogyasztásmérője (kWh, ha van)" : "Heater energy meter (kWh, if any)", flame_entity: hu ? "Fűtés jelzője (ha van)" : "Heating signal (if any)" }
       : eb ? { actuator_entity: hu ? "A kazán mágneskapcsolója / reléje" : "Boiler contactor / relay", heat_energy_entity: hu ? "Fogyasztásmérő (kWh, ha van)" : "Energy meter (kWh, if any)" } : {};
+    this._over = over;
     f.computeLabel = (sch) => over[sch.name] || this._t.fields[sch.name] || sch.name;
       f.addEventListener("value-changed", (e) => {
         const v = e.detail.value || {};
@@ -482,16 +538,14 @@ class HcWizardPanel extends HTMLElement {
         const { name, ...rest } = v;
         s.entities = rest;
         f.data = v;
-        const next = r.getElementById("next");
-        if (next) next.disabled = !this._canNext();
+        this._updNext();
       });
       host.appendChild(f);
       this._form = f;
     } else {
       this._form = null;
     }
-    const next = r.getElementById("next");
-    if (next) next.disabled = !this._canNext();
+    this._updNext();
   }
 }
 customElements.define("hc-wizard-panel", HcWizardPanel);

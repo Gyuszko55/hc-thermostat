@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.34.3 – 2026-11-11
+- Setup wizard and options: the entity pickers only list what fits the field – temperature sensors for thermometers, humidity / power / energy sensors, window and door contacts, presence (person, presence / occupancy sensor). The heat source relay and the other device fields stay as before.
+- Setup wizard: under **Next** it says in red what is still missing (for example "Missing: Room thermometer, Boiler relay"); the required fields come from the same form that is drawn, so a field and the check can no longer drift apart. If the device of the chosen control is not in the form at all, an "Internal error" message names the field and the way round it.
+- Tested end to end on a test Home Assistant: every options combination (410) and every wizard combination (165).
+
+## 0.34.2 – 2026-11-11
+- Setup wizard: a **storage heater** could not get past the devices step – the charge relay was required but its field was not shown (storage control was missing from the relay branch). Fixed; the step also offers the discharge fan, the controlled power signal (electric sources), the fan coil's fan and coil thermometer, and the district heating return thermometer, and the wizard saves them.
+
+## 0.34.1 – 2026-11-10
+HC info panel on a phone:
+- Below 1000 px the drawing stands alone at full width and the data cards are listed under it in two columns – no card covers the drawing or another card. Larger labels in the drawing.
+- Every card has a number, the same number sits on its part of the drawing (also on a wide screen), so data and part can be matched.
+- On a wide screen too: the drawing alone on top (at most about half the screen height), the cards in a grid under it (four per row on a full-HD screen) – no card over the drawing any more; the instance picker stays in one row and scrolls.
+
 ## 0.34.0 – 2026-11-10
 HC info panel:
 - New sidebar panel **HC info** (`www/hc-info-panel.js`, admins, read only, refreshes every 5 s, own font – Home Assistant's Roboto under its own name). The instance's system is drawn by its source / system / control (no house outline): heat source, the HC controller with its signal line, flow / return pipes with moving water, radiators, TRV heads, floor (water or electric cable), fan coil, room units (electric heater, storage heater, AC indoor + outdoor unit), central boiler with its zones and valves, buffer tank with its fill.

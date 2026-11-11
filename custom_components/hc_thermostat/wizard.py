@@ -25,7 +25,8 @@ from .const import (
     CONF_ACTUATOR, CONF_BOILER_POWER, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR,
     CONF_FLAME, CONF_FLOW, CONF_HEAT_ENABLE, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_ROLE, CONF_ROOMS, CONF_SYSTEM, CONF_WINDOWS, DOMAIN, MODE_SHADOW,
-    CONF_FLOOR, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
+    CONF_FLOOR, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN,
+    CONF_COIL, CONF_RETURN,
 )
 from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
@@ -43,7 +44,8 @@ BOILER_EFFICIENCY = 0.9
 # What the wizard may write: entity and setting keys (anything else in a request is ignored)
 ENTITY_KEYS = (CONF_INDOOR, CONF_OUTDOOR, CONF_ACTUATOR, CONF_EXTERNAL, CONF_FLAME, CONF_BOILER_POWER, CONF_HEAT_ENERGY,
                CONF_FLOW, CONF_HEAT_ENABLE, CONF_WINDOWS, CONF_PRESENCE, CONF_ROOMS, "assist_climate", CONF_FLOOR,
-               CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW)
+               CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL,
+               CONF_RETURN)
 SETTING_KEYS = ("cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_w", "power_burn_w", "boiler_power_kw",
                 CONF_ENERGY_FACTOR, "target_home", "target_night", "target_away", "target_cool", "night_start",
                 "night_end", "curve_slope", "flow_max", "flow_min", "room_tolerance", "ac_min_change_s", "floor_max",
