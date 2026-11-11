@@ -110,6 +110,11 @@ _EFLOOR = Cell(Status.RECOMMENDED,
                "a floor temperature limit are required (27 °C by default), no heat when the floor sensor is lost")
 
 
+def floor_system(system: str | None) -> bool:
+    """Floor heating, water or electric (floor tempering, floor fallback)."""
+    return system in _FLOOR
+
+
 def electric_floor(system: str | None, source: str | None) -> bool:
     """An electric heating mat or cable under the floor: relay control, floor limit required."""
     return source == "electric_heater" and system in _FLOOR

@@ -130,6 +130,52 @@ label, value, and the tags of the installations it applies to); the panel lists 
 sidebar, or as `/hc-info?entity=climate.x` – the [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card) (1.14+)
 opens it with its "i" icon.
 
+## Floor tempering (0.35.0)
+
+- Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is
+  warm enough the floor is held at the room target + 2 °C (`floor_temper_offset`), so it stays warm underfoot.
+- An optional night value (`floor_temper_night`) is the floor target at night and in the sleep preset.
+- On below the floor target − 0.3 °C, off at it; the minimum run and pause hold. It stops when the room is 1 °C
+  above its target (`floor_temper_room_margin`), and never runs with an open window, switched off or in summer. The
+  floor limit always wins, and the learning does not learn from these runs.
+
+## Lost room thermometer: the floor stays warm (0.36.0)
+
+- Floor heating with a floor sensor (TPI / PID / on-off): when the room thermometer is lost, the floor is held at
+  the room target + the tempering offset (or the night value) by the floor sensor – instead of the blind 35 % of a
+  boiler, or no heat at all on an electric floor. On by default (`floor_fallback`).
+- Frost protection comes first, the floor limit always wins, an open window pauses it; without a floor reading
+  everything works as before.
+
+## Floor limit by covering and sensor position (0.37.0)
+
+- Give the floor covering (tiles, laminate, wood / parquet, vinyl, carpet) and where the floor sensor sits (under
+  the covering, in the screed between the pipes, above a supply pipe), and leave the floor limit at 0: the limit
+  comes from a table – under the covering 29 °C for tiles and 27 °C for the others, in the screed 29 / 33 / 31 (vinyl)
+  °C, above a pipe 36 °C (a deeper sensor reads warmer). An electric floor always uses the under-covering value, and
+  27 °C without a covering. These are starting points; a limit typed in always wins.
+- The covering also sets the tempering offset: 2 °C for tiles, 3 °C for the others.
+- New forms start with 0 (by covering); a limit already saved stays as it is. The HC info panel shows the limit in
+  effect and where it comes from.
+
+## Wired wall thermostat as the demand (0.38.0)
+
+- A relay instance (TPI / PID / on-off) can take its demand from a dry-contact wall thermostat, read through a binary
+  sensor, an input boolean or a switch (`demand_entity`): contact on – heat, off – no heat. The room thermometer is
+  then optional.
+- Frost (by the room thermometer, or without one by the floor sensor), restart wait, switched off, open window and
+  summer rest still come first; the floor limit and floor tempering apply on top (an idle wall thermostat counts as
+  "at target"). No boost, no after-heat, the regulator waits. An unavailable contact means the lost-sensor fallback
+  (the floor fallback with a floor sensor).
+
+## Weekly pump exercise (0.39.0)
+
+- A central boiler with a circulation pump entity runs the pump alone once a week (Monday 10:00, 60 s by default)
+  when it has stood still for 7 days, so it does not seize over the summer. Only while the boiler is off and no zone
+  asks; the boiler never starts for it, and not in the first minutes after a restart. When the pump last ran is kept
+  over restarts. `central_pump_exercise_s` (0 = off), `_weekday`, `_time`, `_idle_days`; the central decision shows
+  `pump_exercise` and its end, the next run and the last run. (The buffer tank role drives no pump.)
+
 ## Safety
 
 This software does not replace the safety devices of your boiler. Keep an independent backup, for example a conventional room thermostat set low, wired in parallel. Use at your own risk (MIT, no warranty).

@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await central.async_load()
         else:
             central = CentralCoordinator(hass, entry)
+            await central.async_load()  # when the pump last ran (pump exercise, 0.39.0)
         await central.async_config_entry_first_refresh()
         entry.runtime_data = central
         await hass.config_entries.async_forward_entry_setups(entry, CENTRAL_PLATFORMS)
@@ -67,6 +68,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if _central(entry):
+        if entry.data.get(CONF_ROLE) == "central":
+            await entry.runtime_data.async_save()
         return await hass.config_entries.async_unload_platforms(entry, CENTRAL_PLATFORMS)
     await entry.runtime_data.async_save()
     if (load := entry.runtime_data.supervisor.load) is not None:

@@ -19,10 +19,11 @@ from .const import (
     CONF_ASSIST, CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, EVENT_ROOM_ADVICE, MODE_ACTIVE,
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
+    CONF_CONTROL, CONF_DEMAND,
 )
 from .core.boiler_health import BoilerHealth, health_kind
 from .core.plausibility import Plausibility
-from .core.matrix import ROOM_SOURCES, default_curve, source_defaults
+from .core.matrix import ROOM_SOURCES, default_curve, floor_system, source_defaults
 from .core.target_source import TargetFollower, source_value
 from .core.model import Reason
 from .core.rooms import RoomMonitor, room_text
@@ -63,7 +64,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         # a zone of a central modulating boiler asks for a flow by its own system's curve (floor: flat and low)
         curve = ({k: v for k, v in default_curve(system or "", source or "").items() if k != "heat_pump"}
                  if data.get(CONF_ROLE) == "zone" else {})
-        self.cfg = HcConfig.from_mapping({**source_defaults(system, source), **curve, **data})
+        contact = bool(data.get(CONF_DEMAND)) and data.get(CONF_CONTROL, "tpi") in ("tpi", "pid", "onoff")
+        self.cfg = HcConfig.from_mapping({**source_defaults(system, source), **curve, **data,
+                                          "floor_system": floor_system(system), "demand_contact": contact})
         self.mode = data.get(CONF_MODE, MODE_SHADOW)
         self.supervisor = Supervisor(self.cfg)
         if self.mode == MODE_ACTIVE and self.cfg.load_limit_kw > 0 and self.cfg.boiler_power_kw > 0:
@@ -294,6 +297,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             assist_target=self._assist_target(),
             floor=floor,
             hp_mode=self._hp_mode(),
+            call=self._call(),
             humidity=self._humidity(now),
             power_available=self._power_available(),
             coil=self._reading(conf.get(CONF_COIL), now) if conf.get(CONF_COIL) else Reading(),
@@ -309,6 +313,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             checks.append((conf.get(CONF_FLAME), None))
         if conf.get(CONF_FLOOR):
             checks.append((conf.get(CONF_FLOOR), self._plaus_floor))
+        if self.cfg.demand_contact:
+            checks.append((conf.get(CONF_DEMAND), None))
         current: dict[str, str] = {}
         for entity, plaus in checks:
             if not entity:
@@ -327,6 +333,15 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self._sensor_bad_since.setdefault(entity, now)
         self.sensor_problems = {e: why for e, why in current.items()
                                 if (now - self._sensor_bad_since[e]).total_seconds() >= cfg.sensor_problem_after_s}
+
+    def _call(self) -> bool | None:
+        """Wired wall thermostat (0.38.0): its contact on / off; None when unknown, unavailable or not configured."""
+        if not self.cfg.demand_contact:
+            return None
+        state = self.hass.states.get(self.conf.get(CONF_DEMAND))
+        if state is None or state.state not in ("on", "off"):
+            return None
+        return state.state == "on"
 
     def _power_available(self) -> bool | None:
         """Controlled (off-peak) power on? None without a signal or when it cannot be read (then it is assumed on)."""
@@ -549,7 +564,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         """Single zone: the other rooms against the main thermometer; advice only, never the boiler."""
         if not self.conf.get(CONF_ROOMS) and not self.conf.get(CONF_ROOM_TRVS):
             return
-        quiet = decision.reason in (Reason.REGULATING, Reason.AT_TARGET)
+        quiet = decision.reason in (Reason.REGULATING, Reason.AT_TARGET, Reason.THERMOSTAT_IDLE)
         readings = self._room_readings(now)
         self.rooms.update(now, decision.indoor, readings, quiet)
         trv_rooms = set(self._trv_groups or {})
@@ -589,7 +604,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         relay_on = None if relay_state is None or relay_state.state not in ("on", "off") else relay_state.state == "on"
         power = self._reading(conf.get(CONF_BOILER_POWER), now).fresh(self.cfg.sensor_max_age_s) if conf.get(CONF_BOILER_POWER) else None
         flame = self.actual if conf.get(CONF_FLAME) else None
-        self.health.update(now, relay_on, power, flame, decision.fault, decision.indoor, decision.target,
+        # a wall thermostat's own setpoint rules the room (0.38.0): the overheating check has no target to compare to
+        target = None if self.cfg.demand_contact else decision.target
+        self.health.update(now, relay_on, power, flame, decision.fault, decision.indoor, target,
                            busy=bool(decision.details.get("hp_mode")))
 
     @property

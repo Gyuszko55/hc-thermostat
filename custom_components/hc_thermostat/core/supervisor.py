@@ -68,6 +68,8 @@ class Supervisor:
         self._base_target: float | None = None
         self._frost = False
         self._floor_hot = False  # the floor reached floor_max; cleared below floor_max - floor_hysteresis
+        self._temper_on = False  # floor tempering latch (0.35.0): on below floor target - hysteresis, off at it
+        self._temper_run = False  # on/off control: the running gate was started by the tempering
         self._window_since: datetime | None = None
         self._boost_until: datetime | None = None  # safety limit of the running boost
         self._boost_armed = True
@@ -519,7 +521,8 @@ class Supervisor:
             output, limited = self._gate.force_off(now), None
         else:
             if reason == Reason.REGULATING and indoor is not None:
-                want = self._gate.output or indoor <= target - cfg.onoff_hysteresis
+                # a run the floor tempering started does not keep going as a regulating run
+                want = (self._gate.output and not self._temper_run) or indoor <= target - cfg.onoff_hysteresis
             else:
                 want = demand > 0  # boost, frost, lost-sensor fallback; at target, window, summer, off: no
             min_on, min_off = (cfg.hp_min_on_s, cfg.hp_min_off_s) if cfg.heat_pump else (cfg.min_on_s, cfg.min_off_s)
@@ -534,6 +537,10 @@ class Supervisor:
         cfg = self.cfg
         if self._frost:
             return Reason.FROST, 1.0
+        if cfg.demand_contact:
+            if inputs.call is not None:
+                return self._contact(inputs, window)
+            indoor = None  # the wall thermostat's contact is lost: the lost-sensor path, whatever the room says
         if indoor is None and inputs.uptime_s < cfg.restart_grace_s:
             # Right after a restart the sensors are often not loaded yet: that is no reason to start.
             return Reason.RESTART_HOLD, 0.0
@@ -566,11 +573,25 @@ class Supervisor:
             return Reason.AFTERHEAT, 0.0
         return Reason.REGULATING, -1.0
 
+    def _contact(self, inputs: Inputs, window: bool) -> tuple[Reason, float]:
+        """A wired wall thermostat gives the demand (0.38.0): its contact on = heat, off = no heat. No boost, no
+        after-heat, the regulator is held; restart, off, window and summer still come first."""
+        if inputs.uptime_s < self.cfg.restart_grace_s:
+            return Reason.RESTART_HOLD, 0.0
+        if not inputs.enabled:
+            return Reason.DISABLED, 0.0
+        if window:
+            return Reason.WINDOW, 0.0
+        if not self.season_on:
+            return Reason.SEASON_OFF, 0.0
+        return (Reason.THERMOSTAT_CALL, 1.0) if inputs.call else (Reason.THERMOSTAT_IDLE, 0.0)
+
     def _floor_block(self, inputs: Inputs) -> dict | None:
         """Floor temperature limit: details when heating must stop (the floor is too warm, or – where the floor
         sensor is required – it has no fresh reading); None when the floor allows heat."""
         cfg = self.cfg
-        if cfg.floor_max <= 0 and not cfg.floor_required:
+        limit = cfg.floor_limit  # floor_max, or by the covering and the probe position (0.37.0)
+        if limit <= 0 and not cfg.floor_required:
             return None
         # Many sensors report only on a change: a cold, still floor may stay silent for an hour. While heating the
         # floor warms and reports, so a silent sensor is suspicious sooner.
@@ -578,13 +599,46 @@ class Supervisor:
         floor = inputs.floor.fresh(cfg.floor_max_age_on_s if heating else cfg.floor_max_age_s)
         if floor is None:
             self._floor_hot = False
-            return {"floor": None, "floor_max": cfg.floor_max or None, "floor_why": "lost"} if cfg.floor_required else None
-        if cfg.floor_max > 0:
-            if floor >= cfg.floor_max:
+            return {"floor": None, "floor_max": limit or None, "floor_why": "lost"} if cfg.floor_required else None
+        if limit > 0:
+            if floor >= limit:
                 self._floor_hot = True
-            elif floor <= cfg.floor_max - cfg.floor_hysteresis:
+            elif floor <= limit - cfg.floor_hysteresis:
                 self._floor_hot = False
-        return {"floor": floor, "floor_max": cfg.floor_max, "floor_why": "hot"} if self._floor_hot else None
+        return {"floor": floor, "floor_max": limit, "floor_why": "hot"} if self._floor_hot else None
+
+    @property
+    def temper_on(self) -> bool:
+        """The floor tempering latch (for the info panel)."""
+        return self._temper_on
+
+    def _floor_target(self, now: datetime, shown: float) -> float:
+        """The floor target of the tempering: the user's room target + the offset; at night / in the sleep preset
+        the night value when it is set."""
+        cfg = self.cfg
+        if cfg.floor_temper_night > 0 and (self._is_night(now) or self.active_preset(now) == "sleep"):
+            return cfg.floor_temper_night
+        return round(shown + cfg.temper_offset, 2)
+
+    def _floor_latch(self, inputs: Inputs, shown: float, use: bool) -> dict | None:
+        """Floor tempering (0.35.0) and the floor fallback of a lost room thermometer (0.36.0): the latch on the floor
+        reading, with hysteresis. None when it does not apply (not used now, not a floor system, not a relay control,
+        no fresh floor reading)."""
+        cfg = self.cfg
+        if not (use and cfg.floor_system and cfg.control in ("tpi", "pid", "onoff")):
+            self._temper_on = False
+            return None
+        heating = self.pwm.output or self._gate.output  # the same freshness as the floor limit
+        floor = inputs.floor.fresh(cfg.floor_max_age_on_s if heating else cfg.floor_max_age_s)
+        if floor is None:
+            self._temper_on = False
+            return None
+        aim = self._floor_target(inputs.now, shown)
+        if floor >= aim:
+            self._temper_on = False
+        elif floor <= aim - cfg.floor_temper_hysteresis:
+            self._temper_on = True
+        return {"on": self._temper_on, "floor": floor, "floor_target": aim}
 
     def _external(self, inputs: Inputs, reason: Reason, target: float, indoor: float | None) -> tuple[Reason, ExternalCommand]:
         cfg = self.cfg
@@ -663,15 +717,40 @@ class Supervisor:
         need = None
         if loss is not None and outdoor is not None:
             need = max(loss * (shown - outdoor), 0.0)
-        self._update_frost(indoor)
+        frost_temp = indoor
+        if frost_temp is None and cfg.demand_contact:
+            frost_temp = inputs.floor.fresh(cfg.floor_max_age_s)  # no room thermometer: the floor guards against frost
+        self._update_frost(frost_temp)
+        if indoor is None and frost_temp is not None and frost_temp <= cfg.frost_temp:
+            self._frost = True  # the floor at the frost limit (wall thermostat without a room thermometer)
         self._update_fault(inputs, indoor, target, dt)
         reason, demand = self._choose(inputs, target, indoor, outdoor, window)
         self._boost_forced = False  # A boost asked for by hand that could not start now is dropped.
         floor_block = self._floor_block(inputs)
         if floor_block is not None and reason not in (Reason.DISABLED, Reason.WINDOW, Reason.SEASON_OFF):
             reason, demand = Reason.FLOOR_LIMIT, 0.0
+        # Floor tempering (0.35.0): the room is warm enough, the floor slab is kept warm; never above the room margin.
+        # Lost room thermometer (0.36.0): the floor sensor keeps the floor at the same target instead of a blind demand.
+        lost = reason == Reason.SENSOR_LOST and cfg.floor_fallback
+        latch = self._floor_latch(inputs, shown, cfg.floor_temper or lost)
+        fallback = None
+        warm = outdoor is not None and outdoor >= cfg.season_off_above
+        if lost and latch is not None and inputs.enabled and not warm:
+            demand = 1.0 if latch["on"] and not window else 0.0  # with the floor known, an open window pauses it
+            fallback = {"floor_fallback": True, "floor": latch["floor"], "floor_target": latch["floor_target"]}
+        tempering = None
+        # a wall thermostat that asks for nothing counts as at target; without a room thermometer no margin check
+        if (cfg.floor_temper and latch is not None and latch["on"]
+                and reason in (Reason.AT_TARGET, Reason.AFTERHEAT, Reason.REGULATING, Reason.THERMOSTAT_IDLE)
+                and (indoor is not None and indoor < shown + cfg.floor_temper_room_margin
+                     or indoor is None and reason == Reason.THERMOSTAT_IDLE)):
+            tempering = {"floor": latch["floor"], "floor_target": latch["floor_target"]}
+            if reason != Reason.REGULATING:
+                reason, demand = Reason.FLOOR_TEMPER, 1.0
         floor_details = floor_block or ({"floor": inputs.floor.value} if inputs.floor.value is not None else {})
-        if reason == Reason.SENSOR_LOST and cfg.sensor_lost_demand <= 0:
+        if fallback is not None:
+            floor_details = {**floor_details, **fallback}
+        elif reason == Reason.SENSOR_LOST and cfg.sensor_lost_demand <= 0:
             floor_details = {**floor_details, "no_blind": True}  # electric heat: no fallback demand
 
         if cfg.control == "storage":
@@ -694,13 +773,22 @@ class Supervisor:
             self._last_target, self._target_since = target, now
         settled = self._target_since is not None and (now - self._target_since).total_seconds() >= cfg.learning_settle_s
         if (reason in (Reason.REGULATING, Reason.AT_TARGET) and inputs.presence == Presence.HOME and settled
-                and indoor is not None and self.learner.boost is None and not yielding):
+                and indoor is not None and self.learner.boost is None and not yielding and tempering is None):
             self.learner.regulating(now, dt, target, indoor)
         if cfg.control == "curve":
             return self._curve_decision(inputs, reason, target, indoor, outdoor, loss, need)
         if cfg.control == "onoff":
             self.regulator.hold(now)
+            if reason == Reason.REGULATING and tempering is not None:
+                regulating = indoor <= target - cfg.onoff_hysteresis or (self._gate.output and not self._temper_run)
+                if regulating:
+                    self._temper_run = False  # the room asks by itself: an ordinary run
+                else:
+                    reason, demand = Reason.FLOOR_TEMPER, 1.0
             decision = self._onoff_decision(inputs, reason, demand, target, indoor, outdoor, loss, need)
+            self._temper_run = decision.output and (decision.reason == Reason.FLOOR_TEMPER or self._temper_run)
+            if decision.reason == Reason.FLOOR_TEMPER:
+                floor_details = {**floor_details, **tempering}
             return replace(decision, details=dict(floor_details)) if floor_details else decision
         no_power = inputs.power_available is False  # controlled power off: no heat now, no integral wind-up
         if reason == Reason.REGULATING and not no_power:
@@ -715,6 +803,8 @@ class Supervisor:
             if inputs.room_demand and indoor is not None and indoor <= target:
                 # A TRV room far below its target: short burns, but the main thermometer stays in charge.
                 demand = max(demand, min(1.0, (cfg.min_on_s + 60) / cfg.cycle_s))
+            if tempering is not None and demand < 1.0:
+                reason, demand = Reason.FLOOR_TEMPER, 1.0  # the floor asks for more than the room
         else:
             self.regulator.hold(now)
         if reason == Reason.FLOOR_LIMIT:
@@ -744,6 +834,8 @@ class Supervisor:
             details = {**details, "yield": inputs.yield_margin}
         if floor_details:
             details = {**details, **floor_details}
+        if reason == Reason.FLOOR_TEMPER:
+            details = {**details, **tempering}
         if self.load is not None and limited == "load_limit":
             details = {**details, **self.load.details(now)}
         if limited == "return_limit":

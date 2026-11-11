@@ -80,7 +80,9 @@ def _instance(hass, entry) -> dict:
             extra["zones"] = jsonable(c.zones)
             extra["config"] = jsonable(c.central.cfg)
             extra["state"] = {"output": c.central.output, "last_change": jsonable(c.central.last_change),
-                              "pump_until": jsonable(c.central.pump_until)}
+                              "pump_until": jsonable(c.central.pump_until),
+                              "pump_last_run": jsonable(c.central.exercise.last_run),
+                              "pump_exercise_next": jsonable(c.central.exercise.next_run(d.now)) if d and c.central.has_pump else None}
         else:
             extra["config"] = jsonable(c.buffer.cfg)
             extra["state"] = c.buffer.state()
@@ -103,6 +105,9 @@ def _instance(hass, entry) -> dict:
                     "night": [c.cfg.night_start, c.cfg.night_end]},
         "state": jsonable(sup.state()),
         "live": {"season_on": sup.season_on, "fault": sup.fault, "boost_forecast": None,
+                 "floor_temper_on": sup.temper_on if c.cfg.floor_temper else None,
+                 "floor_limit": {"value": c.cfg.floor_limit, "from": c.cfg.floor_limit_from,
+                                 "temper_offset": c.cfg.temper_offset} if c.cfg.floor_system else None,
                  "learned": {"afterheat": jsonable(sup.learner.afterheat(d.outdoor)) if d else None,
                              "minutes_per_degree": jsonable(sup.learner.minutes_per_degree(d.outdoor)) if d else None,
                              "tpi_coef_int": jsonable(sup.learner.tpi_coef_int), "tpi_offset": jsonable(sup.learner.tpi_offset)},

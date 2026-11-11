@@ -7,6 +7,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Mapping
 
+from .floor import floor_limit, temper_offset
+
 
 class Presence(StrEnum):
     HOME = "home"
@@ -38,6 +40,9 @@ class Reason(StrEnum):
     DEW_POINT = "dew_point"
     STORAGE_CHARGE = "storage_charge"
     STORAGE_WAIT = "storage_wait"
+    FLOOR_TEMPER = "floor_temper"
+    THERMOSTAT_CALL = "thermostat_call"
+    THERMOSTAT_IDLE = "thermostat_idle"
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,7 @@ class Inputs:
     return_temp: Reading = Reading()  # district heating: return water temperature
     power_available: bool | None = None  # controlled power (off-peak circuit) on; None: no signal configured  # room relative humidity in % (floor cooling: dew point)
     hp_mode: str | None = None  # heat pump busy with something else: "defrost" | "dhw" (hot water); None: heating
+    call: bool | None = None  # wired wall thermostat (0.38.0): its contact asks for heat; None: unknown / unavailable
 
 
 @dataclass(frozen=True)
@@ -149,12 +155,26 @@ class HcConfig:
     sensor_lost_demand: float = 0.35  # an electric heater gets 0 (matrix.source_defaults): no heat on a lost sensor
     # Floor temperature limit (floor heating): above floor_max no heat, whatever the regulator says; back below
     # floor_max - floor_hysteresis. floor_required: no fresh floor reading = no heat (electric floor heating).
-    floor_max: float = 0.0  # 0 = no limit
+    floor_max: float = 0.0  # 0 = by the covering and the probe position (core/floor.py; electric 27 °C, else none)
+    floor_covering: str = ""  # "" (not given) | tiles | laminate | wood | vinyl | carpet (0.37.0)
+    floor_probe: str = "surface"  # surface (under the covering) | screed (between the pipes) | above_pipe (0.37.0)
     floor_hysteresis: float = 1.0
     floor_required: bool = False
     floor_max_age_s: float = 7200.0  # relay off: a still floor sensor may report rarely
     floor_max_age_on_s: float = 1800.0  # while heating the floor changes and reports
     overshoot_stop: float = 0.3
+    # Floor tempering (0.35.0, core/floor.py): keep the floor slab warm even when the room is warm enough (comfort);
+    # floor heating with a floor sensor and a relay control (TPI, PID, on/off) only. Off by default.
+    floor_temper: bool = False
+    floor_temper_offset: float = 0.0  # °C above the room target; 0 = by the floor covering (tiles 2, others 3, none 2)
+    floor_temper_night: float = 0.0  # absolute floor target at night / in the sleep preset; 0 = the day rule
+    floor_temper_hysteresis: float = 0.3  # back on this far below the floor target
+    floor_temper_room_margin: float = 1.0  # no tempering once the room is at target + this (no overheated room)
+    # Lost room thermometer (0.36.0): hold the floor at the tempering target by the floor sensor instead of the blind
+    # demand (or, electric, of no heat). Floor heating with a floor sensor and a relay control only.
+    floor_fallback: bool = True
+    floor_system: bool = False  # floor heating (water or electric): set from the system, not an option
+    demand_contact: bool = False  # a wired wall thermostat gives the demand (0.38.0): set from demand_entity, not an option
     # Restart behaviour
     restart_grace_s: float = 120.0
     restart_margin: float = 1.0
@@ -251,6 +271,22 @@ class HcConfig:
     # District heating return limit (0.32.0): 0 = off; the valve closes while the return is this warm
     return_max: float = 0.0
     return_hysteresis: float = 3.0  # many humidity sensors report only on a change
+
+    @property
+    def temper_offset(self) -> float:
+        """The floor tempering offset in effect (°C above the room target)."""
+        return temper_offset(self.floor_temper_offset, self.floor_covering)
+
+    @property
+    def floor_limit(self) -> float:
+        """The floor limit in effect: floor_max, else by the covering and the probe (0.37.0), else 27 °C electric /
+        29 °C water."""
+        return floor_limit(self.floor_max, self.floor_covering, self.floor_probe, self.floor_required)[0]
+
+    @property
+    def floor_limit_from(self) -> str:
+        """Where the floor limit comes from: manual | covering | electric | water."""
+        return floor_limit(self.floor_max, self.floor_covering, self.floor_probe, self.floor_required)[1]
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "HcConfig":

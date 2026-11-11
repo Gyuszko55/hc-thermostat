@@ -30,6 +30,10 @@ REASONS: dict[Reason, dict[str, str]] = {
     Reason.STORAGE_WAIT: {"hu": "Hőtároló: most nem tölt.", "en": "Storage heater: not charging now."},
     Reason.FLOOR_COOL: {"hu": "Padlóhűtés: cél {target} °C.", "en": "Floor cooling: target {target} °C."},
     Reason.DEW_POINT: {"hu": "Harmatpont-védelem: a padló nem hűthető most.", "en": "Dew point protection: the floor cannot be cooled now."},
+    Reason.THERMOSTAT_CALL: {"hu": "A fali termosztát fűtést kér.", "en": "The wall thermostat asks for heat."},
+    Reason.THERMOSTAT_IDLE: {"hu": "A fali termosztát nem kér fűtést.", "en": "The wall thermostat asks for no heat."},
+    Reason.FLOOR_TEMPER: {"hu": "Padlótemperálás: a padló {floor} °C, a cél {floor_target} °C (a szoba már elég meleg).",
+                          "en": "Floor tempering: floor {floor} °C, target {floor_target} °C (the room is warm enough)."},
 }
 
 
@@ -97,13 +101,18 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
         until=until.strftime("%H:%M") if until else "–",
         forecast=(f"{forecast:.1f}".replace(".", ",") if lang == "hu" else f"{forecast:.1f}") if forecast is not None else "–",
         setpoint=_num(details.get("setpoint"), lang), aim=_num(details.get("aim"), lang),
-        floor=_num(details.get("floor"), lang), floor_max=_num(details.get("floor_max"), lang))
+        floor=_num(details.get("floor"), lang), floor_max=_num(details.get("floor_max"), lang),
+        floor_target=_num(details.get("floor_target"), lang))
     if decision.reason == Reason.FLOOR_LIMIT and details.get("floor_why") == "lost":
         text = ("Padlószenzor nélkül nem fűt: nincs friss padlóhőfok (elektromos padlófűtésnél ez kötelező)." if lang == "hu"
                 else "No heat without the floor sensor: no fresh floor temperature (required for electric floor heating).")
     if decision.reason == Reason.SENSOR_LOST and details.get("no_blind"):
         text = ("Nincs friss benti hőfok: elektromos fűtés vakon nem fűt (igény 0 %)." if lang == "hu"
                 else "No fresh indoor temperature: electric heat does not run blind (demand 0 %).")
+    if decision.reason == Reason.SENSOR_LOST and details.get("floor_fallback"):
+        aim, now = _num(details.get("floor_target"), lang), _num(details.get("floor"), lang)
+        text = (f"A szobahőmérő nem jelez: a padlót tartom {aim} °C-on (most {now} °C)." if lang == "hu"
+                else f"The room thermometer is silent: holding the floor at {aim} °C (now {now} °C).")
     if decision.limited_by == "load_limit" and "load_limit_kw" in details:
         used, limit = _num(details.get("load_used_kw"), lang), _num(details.get("load_limit_kw"), lang)
         text += (f" Terheléskorlát: most {used} kW fűt a {limit} kW-ból, ez a zóna vár a sorára." if lang == "hu"

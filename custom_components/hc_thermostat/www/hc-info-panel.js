@@ -21,6 +21,7 @@ const T = {
     fan: "Ventilátor", coil: "Hőcserélő", relay: "Relé", setpoint: "Alapjel", power: "Teljesítmény",
     charge: "Töltés", discharge: "Kisütés", trv: "Szelepfej", unit: "Beltéri egység", outdoor_unit: "Kültéri egység",
     noinst: "Még nincs HC példány.", group_other: "Egyéb",
+    pump_ex: "Szivattyú-átmozgatás", pump_next: "Következő átmozgatás", pump_last: "Szivattyú utoljára ment",
   },
   en: {
     title: "HC info", pick: "Instance", live: "live", shadow: "shadow", refresh: "refreshes every 5 s", none: "–",
@@ -37,6 +38,7 @@ const T = {
     fan: "Fan", coil: "Coil", relay: "Relay", setpoint: "Setpoint", power: "Power",
     charge: "Charge", discharge: "Discharge", trv: "TRV head", unit: "Indoor unit", outdoor_unit: "Outdoor unit",
     noinst: "No HC instance yet.", group_other: "Other",
+    pump_ex: "Pump exercise", pump_next: "Next pump exercise", pump_last: "Pump last ran",
   },
 };
 
@@ -46,7 +48,7 @@ const REASON = {
     restart_hold: "Újraindítás után vár", restart_burn: "Újraindítás utáni égés", external: "Külső termosztát",
     valve_exercise: "Szelepmozgatás", ac_heat: "Klíma fűt", ac_cool: "Klíma hűt", ac_pause: "Klíma szünetel",
     floor_limit: "Padlóhőfok-limit", floor_cool: "Padlóhűtés", dew_point: "Harmatpont-védelem",
-    storage_charge: "Hőtároló tölt", storage_wait: "Hőtároló vár",
+    storage_charge: "Hőtároló tölt", storage_wait: "Hőtároló vár", floor_temper: "Padlótemperálás", thermostat_call: "Fali termosztát kér", thermostat_idle: "Fali termosztát nem kér",
     no_demand: "Nincs igény", waiting_valves: "Szelepekre vár", heating: "Fűt", min_on: "Minimális futás",
     min_off: "Minimális szünet", valves_closed: "Szelepek zárva", charging: "Tölt", full: "Tele", ready: "Elég meleg",
     waiting_demand: "Igényre vár", no_sensor: "Nincs hőmérő" },
@@ -90,7 +92,7 @@ const KEY_HU = {
   boiler_entity: "Kazán / hőforrás relé", pump_entity: "Szivattyú", room_trvs: "Szelepfejek", zone_entities: "Zónák",
   buffer_top_entity: "Tartály teteje", buffer_bottom_entity: "Tartály alja", assist_entity: "Segítő klíma",
   boiler_price_entity: "Kazán ár", other_price_entity: "Másik forrás ár", boiler_allowance_entity: "Kazán keret",
-  other_allowance_entity: "Másik keret",
+  other_allowance_entity: "Másik keret", demand_entity: "Fali termosztát érintkező",
 };
 
 const GROUPS = [
@@ -134,6 +136,7 @@ const WHEN = {
   load: (c) => !!c.d.config?.load_limit_kw, power_signal: (c) => !!ENT(c.d, "power_available_entity"),
   rooms: (c) => !!ENTS(c.d, "room_sensors") || !!ENTS(c.d, "room_trvs"),
 };
+const LIMIT_FROM = { manual: "kézi / manual", covering: "burkolat és szenzor / covering and probe", electric: "elektromos alapérték 27 °C / electric default", water: "vizes padló alapértéke 29 °C / water floor default" };
 const INFO = [
   // HC controller
   ["reason", "hc", "Döntés", "Decision", (d) => d.decision?.reason, "reason", []],
@@ -171,6 +174,7 @@ const INFO = [
   ["hum", "indoor", "Páratartalom", "Humidity", (d) => d.inputs?.humidity?.value, "pctv", []],
   ["dew", "indoor", "Harmatpont", "Dew point", (d) => d.decision?.details?.dew_point, "deg", ["cooling"]],
   ["zone_door", "indoor", "Zóna ajtó", "Zone door", (d) => CA(d, "zone_door_open"), "open", []],
+  ["call", "indoor", "Fali termosztát kér", "Wall thermostat asks", (d) => (ENT(d, "demand_entity") ? ({ true: "be / on", false: "ki / off" }[d.inputs?.call] ?? "ismeretlen / unknown") : null), "text", ["relay"]],
   ["tsource", "indoor", "Célhő forrás", "Target source", (d) => ENT(d, "target_source_entity")?.temperature ?? ENT(d, "target_source_entity")?.state, "text", []],
   // heat source
   ["relay", "source", "Relé", "Relay", (d) => ENT(d, "actuator_entity")?.state, "state", ["relay"]],
@@ -221,8 +225,14 @@ const INFO = [
   // floor
   ["floor_t", "floor", "Padló", "Floor", (d) => d.inputs?.floor?.value ?? d.decision?.details?.floor, "deg", ["floor"]],
   ["floor_age", "floor", "Mérés kora", "Reading age", (d) => (d.inputs?.floor?.value != null ? d.inputs.floor.age_s : null), "age", ["floor"]],
-  ["floor_max", "floor", "Padlóhőfok-limit", "Floor limit", (d) => d.config?.floor_max || null, "deg", ["floor"]],
+  ["floor_max", "floor", "Padlóhőfok-limit", "Floor limit", (d) => d.live?.floor_limit?.value || d.config?.floor_max || null, "deg", ["floor"]],
+  ["floor_limit_from", "floor", "Limit forrása", "Limit from", (d) => LIMIT_FROM[d.live?.floor_limit?.from] ?? null, "text", ["floor"]],
+  ["floor_cover", "floor", "Burkolat / szenzor helye", "Covering / probe", (d) => (d.config?.floor_covering && d.config.floor_covering !== "none" ? `${d.config.floor_covering} / ${d.config.floor_probe}` : null), "text", ["floor"]],
   ["floor_why", "floor", "Limit oka", "Limit reason", (d) => d.decision?.details?.floor_why, "text", ["floor"]],
+  ["floor_temper", "floor", "Padlótemperálás", "Floor tempering", (d) => d.live?.floor_temper_on, "onoff", ["floor", "relay"]],
+  ["floor_target", "floor", "Padló célja", "Floor target", (d) => d.decision?.details?.floor_target, "deg", ["floor"]],
+  ["temper_offset", "floor", "Temperálás eltérése", "Tempering offset", (d) => (d.config?.floor_temper ? d.live?.floor_limit?.temper_offset : null), "deg", ["floor", "relay"]],
+  ["floor_fallback", "floor", "Hőmérő nélkül a padló szerint", "No room thermometer: by the floor", (d) => d.decision?.details?.floor_fallback || null, "bool", ["floor", "relay"]],
   ["safe", "floor", "Biztonságos víz", "Safe water", (d) => d.decision?.details?.safe_flow, "deg", ["floor", "cooling"]],
   ["cool_why", "floor", "Hűtés leállás oka", "Cooling stop", (d) => d.decision?.details?.why, "text", ["floor", "cooling"]],
   // fan coil
@@ -612,7 +622,9 @@ class HcInfoPanel extends HTMLElement {
     svg.push(`<g class="dev ${dec.output ? "on" : ""}"><rect x="60" y="250" width="180" height="200" rx="10"/><path class="lang ${dec.output ? "eg" : ""}" d="M140,400 c-6,-18 18,-26 10,-46 c18,10 24,28 16,46 z"/></g>`);
     this._nextMark = [62, 252];
     cards.push(this._card(20, 20, t.boiler, [[t.reason, this._reason(dec.reason), true], [t.output, dec.output ? t.on : t.off, dec.output],
-      [t.pump, dec.pump ? t.on : t.off], [t.flow, dec.flow_setpoint != null ? this._deg(dec.flow_setpoint) : null],
+      [t.pump, dec.pump ? t.on : t.off], [t.pump_ex, dec.details?.pump_exercise ? `${t.on} → ${this._val(dec.details.pump_exercise_until)}` : null, true],
+      [t.pump_next, d.state?.pump_exercise_next ? this._val(d.state.pump_exercise_next) : null], [t.pump_last, d.state?.pump_last_run ? this._val(d.state.pump_last_run) : null],
+      [t.flow, dec.flow_setpoint != null ? this._deg(dec.flow_setpoint) : null],
       ["flow by", dec.details?.flow_by], [t.demand, this._num(dec.demand, 2)], ["stuck", (dec.details?.stuck || []).join(", ") || null, true]]));
     const n = Math.max(zones.length, 1);
     zones.forEach((z, i) => {

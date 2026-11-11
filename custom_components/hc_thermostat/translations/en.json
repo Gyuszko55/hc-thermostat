@@ -23,7 +23,7 @@
         "title": "Entities",
         "description": "A new instance always starts in shadow mode: it calculates but switches nothing.",
         "data": {
-          "indoor_entity": "Indoor temperature",
+          "indoor_entity": "Indoor temperature (optional when a wall thermostat contact is given)",
           "outdoor_entity": "Outdoor temperature",
           "actuator_entity": "Boiler relay",
           "external_climate": "External thermostat",
@@ -42,7 +42,7 @@
           "heat_enable_entity": "Heating enable (switch, if any)",
           "valve_feedback_entity": "Valve feedback (end switch or valve position, if there is one)",
           "floor_entity": "Floor thermometer (floor sensor)",
-          "floor_max": "Floor temperature limit (0 = none)",
+          "floor_max": "Floor temperature limit (0 = by covering and probe position)",
           "floor_hysteresis": "Back on this far below the limit",
           "target_source_entity": "Target source (wall thermostat or number)",
           "hp_defrost_entity": "Heat pump: defrost signal",
@@ -54,17 +54,31 @@
           "discharge_entity": "Discharge fan / damper (optional)",
           "fan_entity": "Fan coil fan (fan entity, optional)",
           "coil_temp_entity": "Coil / supply temperature (optional)",
-          "return_temp_entity": "Return water temperature (optional)"
+          "return_temp_entity": "Return water temperature (optional)",
+          "floor_temper": "Floor tempering (keep the floor warm even when the room is warm enough)",
+          "floor_temper_offset": "Floor target above the room target (0 = by the floor covering)",
+          "floor_temper_night": "Floor target at night / in the sleep preset (0 = as by day)",
+          "floor_temper_hysteresis": "Tempering back on this far below the floor target",
+          "floor_temper_room_margin": "No tempering once the room is this much above its target",
+          "floor_fallback": "Lost room thermometer: keep the floor warm by the floor sensor",
+          "floor_covering": "Floor covering",
+          "floor_probe": "Where the floor sensor sits",
+          "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)"
         },
         "data_description": {
           "reference_entity": "Used by fault detection and the shadow comparison. If empty, the relay or thermostat.",
           "heat_energy_entity": "The heat need is learned from these and the temperatures. It needs at least 3 whole days, statistics count too.",
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
           "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
-          "floor_max": "No heat above it, whatever the regulator says. 27 °C under wood or laminate, at most 29 °C under tiles.",
+          "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.",
           "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
           "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
-          "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault."
+          "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
+          "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
+          "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
+          "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
+          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher.",
+          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat; then the room thermometer is optional. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
         }
       },
       "central": {
@@ -88,7 +102,14 @@
           "flow_setpoint_entity": "Flow setpoint (modulating boiler, optional: number / input_number)",
           "central_flow_min": "Lowest flow",
           "central_flow_max": "Highest flow",
-          "central_flow_default": "Flow when no zone asks for a value"
+          "central_flow_default": "Flow when no zone asks for a value",
+          "central_pump_exercise_s": "Weekly pump exercise: run time (0 = off)",
+          "central_pump_exercise_weekday": "Pump exercise day",
+          "central_pump_exercise_time": "Pump exercise start",
+          "central_pump_exercise_idle_days": "Only when the pump has stood still for (days)"
+        },
+        "data_description": {
+          "central_pump_exercise_s": "With a pump entity: a pump that stood still for days runs alone for this long once a week, so it does not seize. Only while the boiler is off and no zone asks; the boiler does not start; not in the first minutes after a restart."
         }
       },
       "buffer": {
@@ -109,7 +130,8 @@
     },
     "error": {
       "confirm_required": "Confirm your choice for a system that is not recommended.",
-      "buffer_order": "The stop temperature must be above the start temperature."
+      "buffer_order": "The stop temperature must be above the start temperature.",
+      "indoor_required": "Give a room thermometer or a wall thermostat contact."
     },
     "abort": {
       "already_configured": "An instance with this name already exists."
@@ -185,7 +207,7 @@
           "yield_margin": "While the other (cheaper) source heats the coupled zone, the boiler regulates this much below the target (0 = off)",
           "assist_climate": "House thermostat the AC helps when cheaper and the door is open (HC)",
           "floor_entity": "Floor thermometer (floor sensor)",
-          "floor_max": "Floor temperature limit (0 = none)",
+          "floor_max": "Floor temperature limit (0 = by covering and probe position)",
           "floor_hysteresis": "Back on this far below the limit",
           "target_source_entity": "Target source (wall thermostat or number)",
           "hp_defrost_entity": "Heat pump: defrost signal",
@@ -216,18 +238,32 @@
           "fan_overrun_s": "Fan overrun after the valve closes",
           "fan_min_coil": "The fan starts only above this coil temperature",
           "return_max": "Return limit (0 = none): the valve stays closed above it",
-          "return_hysteresis": "Return limit releases this far below"
+          "return_hysteresis": "Return limit releases this far below",
+          "floor_temper": "Floor tempering (keep the floor warm even when the room is warm enough)",
+          "floor_temper_offset": "Floor target above the room target (0 = by the floor covering)",
+          "floor_temper_night": "Floor target at night / in the sleep preset (0 = as by day)",
+          "floor_temper_hysteresis": "Tempering back on this far below the floor target",
+          "floor_temper_room_margin": "No tempering once the room is this much above its target",
+          "floor_fallback": "Lost room thermometer: keep the floor warm by the floor sensor",
+          "floor_covering": "Floor covering",
+          "floor_probe": "Where the floor sensor sits",
+          "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)"
         },
         "data_description": {
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
           "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start.",
           "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
-          "floor_max": "No heat above it, whatever the regulator says. 27 °C under wood or laminate, at most 29 °C under tiles.",
+          "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.",
           "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
           "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
           "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
           "load_limit_kw": "Give the zone's own power in the boiler power field (for electric heat: the heater's). If switching on would exceed the limit, the zone waits and its cycle starts later – the zones heat staggered. Counts in live mode only.",
-          "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor."
+          "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor.",
+          "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
+          "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
+          "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
+          "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher.",
+          "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
         }
       },
       "presets": {
@@ -272,7 +308,14 @@
           "flow_setpoint_entity": "Flow setpoint (modulating boiler, optional: number / input_number)",
           "central_flow_min": "Lowest flow",
           "central_flow_max": "Highest flow",
-          "central_flow_default": "Flow when no zone asks for a value"
+          "central_flow_default": "Flow when no zone asks for a value",
+          "central_pump_exercise_s": "Weekly pump exercise: run time (0 = off)",
+          "central_pump_exercise_weekday": "Pump exercise day",
+          "central_pump_exercise_time": "Pump exercise start",
+          "central_pump_exercise_idle_days": "Only when the pump has stood still for (days)"
+        },
+        "data_description": {
+          "central_pump_exercise_s": "With a pump entity: a pump that stood still for days runs alone for this long once a week, so it does not seize. Only while the boiler is off and no zone asks; the boiler does not start; not in the first minutes after a restart."
         }
       },
       "trv_rooms": {
@@ -303,7 +346,8 @@
     "error": {
       "confirm_active": "Confirm your choice for active mode.",
       "humidity_required": "Floor cooling needs a humidity sensor (no cooling without a dew point).",
-      "buffer_order": "The stop temperature must be above the start temperature."
+      "buffer_order": "The stop temperature must be above the start temperature.",
+      "demand_required": "This instance has no room thermometer: the wall thermostat contact is required."
     }
   },
   "selector": {
@@ -388,6 +432,23 @@
         "5": "Saturday",
         "6": "Sunday"
       }
+    },
+    "floor_covering": {
+      "options": {
+        "none": "Not set",
+        "tiles": "Tiles",
+        "laminate": "Laminate",
+        "wood": "Wood / parquet",
+        "vinyl": "Vinyl",
+        "carpet": "Carpet"
+      }
+    },
+    "floor_probe": {
+      "options": {
+        "surface": "Under the covering (in the adhesive)",
+        "screed": "In the screed, between the pipes",
+        "above_pipe": "Above a supply pipe"
+      }
     }
   },
   "entity": {
@@ -415,7 +476,10 @@
           "floor_cool": "Floor cooling",
           "dew_point": "Dew point protection",
           "storage_charge": "Storage charging",
-          "storage_wait": "Storage waiting"
+          "storage_wait": "Storage waiting",
+          "floor_temper": "Floor tempering",
+          "thermostat_call": "Wall thermostat asks for heat",
+          "thermostat_idle": "Wall thermostat idle"
         }
       },
       "demand": {

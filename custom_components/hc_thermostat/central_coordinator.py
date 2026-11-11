@@ -9,6 +9,9 @@ feedback entity (end switch or position): then that entity says whether the valv
 Modulating boiler (0.27.0): with a flow setpoint entity (number / input_number) the highest flow request of
 the zones is written there while the boiler runs; when it stops, the entity's lowest value (the boiler relay
 or OpenTherm heating-enable switch does the actual stop).
+
+Weekly pump exercise (0.39.0): with a pump entity the pump runs alone once a week when it stood still for days; when
+the pump last ran is kept over restarts (a store of its own), and no exercise starts in the first minutes after one.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from datetime import datetime, timedelta
 import logging
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -26,10 +30,12 @@ from .executor import KeepAlive
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
+_SAVE_EVERY = timedelta(minutes=10)
 
 
 def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: datetime,
-               valve_off: dict[str, datetime] | None = None) -> list[ZoneState]:
+               valve_off: dict[str, datetime] | None = None,
+               exercise_on: dict[str, datetime] | None = None) -> list[ZoneState]:
     """Zone states from the zone thermostats; remembers when each zone's valve was switched on and off."""
     valve_off = {} if valve_off is None else valve_off
     zones = []
@@ -38,6 +44,8 @@ def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: da
         if state is None or state.state in ("unavailable", "unknown"):
             valve_on.pop(entity_id, None)
             valve_off.pop(entity_id, None)
+            if exercise_on is not None:
+                exercise_on.pop(entity_id, None)
             zones.append(ZoneState(entity_id, False, fault=True))
             continue
         attrs = state.attributes
@@ -47,6 +55,12 @@ def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: da
         elif valve_on.pop(entity_id, None) is not None:
             valve_off[entity_id] = now  # the valve starts closing now
         trv = attrs.get("control_type") == "external"
+        exercise_since = None
+        if exercise_on is not None:
+            if attrs.get("valve_exercising"):
+                exercise_since = exercise_on.setdefault(entity_id, now)  # its weekly valve exercise opens the valve
+            else:
+                exercise_on.pop(entity_id, None)
         feedback = None
         if fb_id := attrs.get("valve_feedback"):
             fb = hass.states.get(fb_id)
@@ -63,6 +77,7 @@ def read_zones(hass, zone_ids: list[str], valve_on: dict[str, datetime], now: da
             valve_off_since=valve_off.get(entity_id),
             trv=trv,
             flow_request=float(request) if isinstance(request, (int, float)) else None,
+            exercise_since=exercise_since,
         ))
     return zones
 
@@ -76,10 +91,31 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
         known = CentralConfig.__dataclass_fields__
         self.central = CentralBoiler(CentralConfig(**{k: v for k, v in data.items() if k in known and v is not None}))
         self._valve_on: dict[str, datetime] = {}
+        self._exercise_on: dict[str, datetime] = {}  # zones in their weekly valve exercise (an open circuit)
         self._valve_off: dict[str, datetime] = {}
         self.keep_alive = KeepAlive(self.central.cfg.central_keep_alive_s)
         self.zones: list[ZoneState] = []
         self._last_flow: float | None = None
+        self.central.has_pump = bool(data.get(CONF_PUMP))  # only a pump entity can be exercised (0.39.0)
+        self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
+        self._started = dt_util.utcnow()
+        self._last_save = self._started
+        self._saved_run: datetime | None = None
+
+    async def async_load(self) -> None:
+        """When the pump last ran (pump exercise, 0.39.0)."""
+        data = await self._store.async_load() or {}
+        self.central.exercise.restore(data.get("pump_exercise") or {})
+        self._saved_run = self.central.exercise.last_run
+
+    async def async_save(self) -> None:
+        await self._store.async_save({"pump_exercise": self.central.exercise.state()})
+        self._saved_run = self.central.exercise.last_run
+
+    def _pump_on(self) -> bool:
+        pump = self.conf.get(CONF_PUMP)
+        state = self.hass.states.get(pump) if pump else None
+        return state is not None and state.state == "on"
 
     @property
     def is_shadow(self) -> bool:
@@ -87,12 +123,19 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
 
     async def _async_update_data(self) -> CentralDecision:
         now = dt_util.now()
-        self.zones = read_zones(self.hass, list(self.conf.get(CONF_ZONES) or []), self._valve_on, now, self._valve_off)
-        decision = self.central.step(now, self.zones)
+        self.zones = read_zones(self.hass, list(self.conf.get(CONF_ZONES) or []), self._valve_on, now, self._valve_off,
+                                self._exercise_on)
+        uptime = (now - self._started).total_seconds()
+        decision = self.central.step(now, self.zones, uptime_s=uptime, pump_on=self._pump_on())
         if self.mode == MODE_ACTIVE:
             await self._switch(decision.output, now)
             await self._switch_pump(decision.pump)
             await self._write_flow(decision.flow_setpoint)
+        last_run = self.central.exercise.last_run
+        # the pump stopped (after the boiler or an exercise): save at once; while it runs every 10 minutes is enough
+        if last_run != self._saved_run and (not decision.pump or now - self._last_save >= _SAVE_EVERY):
+            self._last_save = now
+            await self.async_save()
         return decision
 
     async def _write_flow(self, value: float | None) -> None:

@@ -24,12 +24,20 @@ boiler decides when the boiler and its pump may run:
   while the valves are still opening), or `central_flow_default` when no zone sends one, clamped to
   [`central_flow_min`, `central_flow_max`]. So the coldest / steepest zone sets the water temperature and
   the other zones throttle with their valves.
+- weekly pump exercise (0.39.0, core/exercise.py PumpExercise): with a pump entity, a pump that has not run for
+  `central_pump_exercise_idle_days` runs alone for `central_pump_exercise_s` seconds on the given day from the given
+  time, as soon as a circuit is open (bypass, or a valve open – e.g. by the zones' valve exercise) –
+  only while the boiler is off and no zone asks, never in the first minutes after a restart; the boiler stays off.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+
+from .exercise import PumpExercise
+
+EXERCISE_GRACE_S = 300.0  # no pump exercise in the first minutes after a restart
 
 
 @dataclass(frozen=True)
@@ -43,6 +51,7 @@ class ZoneState:
     valve_off_since: datetime | None = None  # when the zone stopped asking (its relay valve is closing)
     trv: bool = False  # the zone drives a TRV (external thermostat), not a relay valve
     flow_request: float | None = None  # °C: the flow the zone's own curve asks for (modulating boiler)
+    exercise_since: datetime | None = None  # the zone's weekly valve exercise opened its valve at this time
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,10 @@ class CentralConfig:
     central_flow_min: float = 25.0  # modulating boiler: lowest flow setpoint
     central_flow_max: float = 75.0  # ... highest flow setpoint
     central_flow_default: float = 55.0  # ... when no asking zone sends a request
+    central_pump_exercise_s: float = 60.0  # weekly pump exercise (0.39.0): run this long; 0 = off
+    central_pump_exercise_weekday: int = 0  # 0 = Monday
+    central_pump_exercise_time: str = "10:00"
+    central_pump_exercise_idle_days: float = 7.0  # only when the pump has not run for this long
 
 
 OPEN_PERCENT = 20.0  # a valve position at or above this lets enough water through
@@ -104,6 +117,8 @@ class CentralBoiler:
         self.output = False
         self.last_change: datetime | None = None
         self.pump_until: datetime | None = None
+        self.exercise = PumpExercise(self.cfg)
+        self.has_pump = False  # a pump entity is configured (set by the coordinator): only then is it exercised
 
     def _circuit_open(self, zones: list[ZoneState], now: datetime) -> bool:
         """Is there still an open circuit for the pump overrun?"""
@@ -116,6 +131,8 @@ class CentralBoiler:
                 if z.valve_open:
                     return True
                 continue
+            if z.exercise_since is not None and (now - z.exercise_since).total_seconds() >= self.cfg.central_valve_open_s:
+                return True  # the valve exercise holds it open (the pump exercise waits for this)
             if z.trv:
                 continue
             if z.valve_on_since is not None and self._valve_open(z, now):
@@ -153,7 +170,10 @@ class CentralBoiler:
             flow, by = cfg.central_flow_default, None
         return round(max(cfg.central_flow_min, min(cfg.central_flow_max, flow)), 1), by
 
-    def step(self, now: datetime, zones: list[ZoneState]) -> CentralDecision:
+    def step(self, now: datetime, zones: list[ZoneState], uptime_s: float = 1e9,
+             pump_on: bool = False) -> CentralDecision:
+        """uptime_s: seconds since the start (no pump exercise right after a restart); pump_on: the pump entity is on
+        now (it ran, whoever switched it)."""
         cfg = self.cfg
         asking = [z for z in zones if z.wants_heat and not z.fault]
         open_zones = [z for z in asking if self._valve_open(z, now)]
@@ -186,6 +206,12 @@ class CentralBoiler:
         details = {"stuck": stuck}
         if pump_until is not None:
             details["pump_until"] = pump_until.isoformat()
+        if self.has_pump:
+            quiet = (not self.output and not any(z.wants_heat for z in zones) and uptime_s >= EXERCISE_GRACE_S
+                     and self._circuit_open(zones, now))  # never against closed valves
+            if self.exercise.step(now, pump or pump_on, quiet):
+                pump = True  # the pump alone; the boiler stays off
+                details.update(pump_exercise=True, pump_exercise_until=self.exercise.until.isoformat())
         flow = None
         if self.output:
             flow, details["flow_by"] = self._flow(asking, open_zones)

@@ -47,6 +47,7 @@ const T = {
       power_available_entity: "Vezérelt áram jelzése (ha van)", discharge_entity: "Kisütő ventilátor / csappantyú (ha van)",
       fan_entity: "Fan-coil ventilátora (ha van)", coil_temp_entity: "Hőcserélő hőmérője (ha van)",
       return_temp_entity: "Visszatérő víz hőmérője (ha van)",
+      demand_entity: "Vezetékes fali termosztát érintkezője (ha van; ezzel a helyiség-hőmérő elhagyható)",
     },
     derived_hint: "Ezeket a választott hőforrásból, rendszerből és eszközökből számoltam. Mindegyik mellett ott az indok; bármelyik átírható.",
     rooms: "Helyiség-hőmérők (csak javaslatot adnak, a fő hőmérő dönt)",
@@ -57,6 +58,7 @@ const T = {
       night_start: "Éjszaka kezdete", night_end: "Éjszaka vége", curve_slope: "Görbe meredeksége", flow_max: "Előremenő maximum",
       flow_min: "Előremenő minimum", unit_step: "Klíma lépésköze", unit_range: "Klíma határai", ac_min_change_s: "Legritkább célváltás",
       floor_max: "Padlóhőfok-limit", hp_min_on_s: "Legrövidebb futás", hp_min_off_s: "Legrövidebb szünet", onoff_hysteresis: "Bekapcsolási hiszterézis",
+      floor_temper: "Padlótemperálás", floor_temper_offset: "Padló célja a szoba célja fölött", floor_temper_night: "Padló célja éjjel", floor_fallback: "Padló tartása hőmérő nélkül", floor_covering: "Padlóburkolat", floor_probe: "Padlószenzor helye",
     },
     summary_new: "Új példány jön létre árnyék módban. Ha a döntései rendben vannak, a beállításokban állítható élesre.",
     summary_edit: "A meglévő példány beállításai frissülnek; az üzemmódja (éles/árnyék) nem változik. A példány újratöltődik.",
@@ -108,6 +110,7 @@ const T = {
       power_available_entity: "Controlled power signal (if any)", discharge_entity: "Discharge fan / damper (if any)",
       fan_entity: "Fan coil fan (if any)", coil_temp_entity: "Coil thermometer (if any)",
       return_temp_entity: "Return water thermometer (if any)",
+      demand_entity: "Wired wall thermostat contact (if any; with it the room thermometer is optional)",
     },
     derived_hint: "Worked out from the chosen heat source, system and devices. Each shows its reason; any can be changed.",
     rooms: "Room thermometers (advice only, the main thermometer decides)",
@@ -118,6 +121,7 @@ const T = {
       night_start: "Night from", night_end: "Night until", curve_slope: "Curve slope", flow_max: "Flow maximum",
       flow_min: "Flow minimum", unit_step: "Unit step", unit_range: "Unit limits", ac_min_change_s: "Minimum time between changes",
       floor_max: "Floor limit", hp_min_on_s: "Shortest run", hp_min_off_s: "Shortest pause", onoff_hysteresis: "Switch-on hysteresis",
+      floor_temper: "Floor tempering", floor_temper_offset: "Floor target above the room target", floor_temper_night: "Floor target at night", floor_fallback: "Keep the floor without a room thermometer", floor_covering: "Floor covering", floor_probe: "Floor sensor position",
     },
     summary_new: "A new instance is created in shadow mode. When its decisions look right, make it live in the options.",
     summary_edit: "The instance's settings are updated; its mode (live/shadow) stays. The instance reloads.",
@@ -131,7 +135,8 @@ const SOURCE_ICON = { onoff_boiler: "mdi:fire", modulating_boiler: "mdi:fire-cir
   air_conditioner: "mdi:air-conditioner", electric_heater: "mdi:radiator", storage_heater: "mdi:heat-wave", district_heating: "mdi:city", pellet_boiler: "mdi:fire" };
 const SETTING_KEYS = ["cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_w", "power_burn_w", "boiler_power_kw", "energy_factor",
   "target_home", "target_night", "target_away", "target_cool", "night_start", "night_end", "curve_slope", "flow_max", "flow_min",
-  "room_tolerance", "ac_min_change_s", "floor_max", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis"];
+  "room_tolerance", "ac_min_change_s", "floor_max", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis",
+  "floor_temper", "floor_temper_offset", "floor_temper_night", "floor_fallback", "floor_covering", "floor_probe"];
 const CONTROL_DEVICE = { tpi: "actuator_entity", pid: "actuator_entity", onoff: "actuator_entity", storage: "actuator_entity", external: "external_climate", ac: "external_climate", curve: "flow_setpoint_entity" };
 
 // Small line drawings of the systems (stroke = currentColor)
@@ -281,7 +286,7 @@ class HcWizardPanel extends HTMLElement {
     const e = (this._start.entries || []).find((x) => x.entry_id === id);
     const keys = ["indoor_entity", "outdoor_entity", "actuator_entity", "external_climate", "flame_entity", "boiler_power_entity",
       "heat_energy_entity", "flow_setpoint_entity", "heat_enable_entity", "window_entities", "presence_entities", "assist_climate",
-      "floor_entity", "target_source_entity", "hp_defrost_entity", "hp_dhw_entity"];
+      "floor_entity", "target_source_entity", "hp_defrost_entity", "hp_dhw_entity", "demand_entity"];
     if (e) {
       const c = e.conf || {};
       this._s = { entry_id: id, name: e.title, heat_source: e.heat_source, system: e.system, control: e.control,
@@ -329,6 +334,7 @@ class HcWizardPanel extends HTMLElement {
       table { width:100%; border-collapse:collapse; } td { padding:8px 6px; border-bottom:1px solid var(--divider-color); vertical-align:top; }
       td.k { width:34%; font-weight:500; } td.why { color: var(--secondary-text-color); font-size:12.5px; }
       .val { display:flex; align-items:center; gap:6px; }
+      select { padding:6px 8px; border-radius:6px; border:1px solid var(--divider-color); background: var(--primary-background-color); color: var(--primary-text-color); font:inherit; max-width:100%; }
       input { width:110px; padding:6px 8px; border-radius:6px; border:1px solid var(--divider-color); background: var(--primary-background-color); color: var(--primary-text-color); font:inherit; }
       input:focus-visible { outline:2px solid var(--primary-color); }
       .rooms label { display:flex; gap:8px; align-items:center; padding:4px 0; }
@@ -401,7 +407,11 @@ class HcWizardPanel extends HTMLElement {
       const rows = d.items.map((it) => {
         const v = it.editable ? s.settings[it.key] : it.value;
         const isTime = typeof v === "string" && /^\d\d:\d\d/.test(v);
-        const input = !it.editable ? `<span>${v}</span>` : isTime
+        // a switch (boolean), a choice (options: [value, label hu, label en]), a time or a number
+        const input = !it.editable ? `<span>${v}</span>` : typeof v === "boolean"
+          ? `<input type="checkbox" data-set="${it.key}" ${v ? "checked" : ""} style="width:auto">`
+          : it.options ? `<select data-set="${it.key}">${it.options.map((o) => `<option value="${o[0]}" ${o[0] === v ? "selected" : ""}>${t === T.hu ? o[1] : o[2]}</option>`).join("")}</select>`
+          : isTime
           ? `<input type="time" data-set="${it.key}" value="${String(v).slice(0, 5)}">`
           : `<input type="number" step="any" data-set="${it.key}" value="${v}">`;
         return `<tr><td class="k">${this._keyLabel(it.key)}</td><td><div class="val">${input}<span>${it.unit || ""}</span></div></td><td class="why">${it.why}</td></tr>`;
@@ -414,7 +424,10 @@ class HcWizardPanel extends HTMLElement {
     const line = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
     const ents = Object.entries(s.entities).filter(([, v]) => v && (!Array.isArray(v) || v.length))
       .map(([k, v]) => line(t.fields[k] || k, [].concat(v).map((x) => this._name(x)).join(", "))).join("");
-    const sets = Object.entries(s.settings).map(([k, v]) => line(this._keyLabel(k), v)).join("");
+    const yes = t === T.hu ? ["igen", "nem"] : ["yes", "no"];
+    const shown = (k, v) => (typeof v === "boolean" ? yes[v ? 0 : 1] : ((this._derived?.items || []).find((x) => x.key === k)?.options || [])
+      .map((o) => (o[0] === v ? (t === T.hu ? o[1] : o[2]) : null)).find((x) => x) ?? v);
+    const sets = Object.entries(s.settings).map(([k, v]) => line(this._keyLabel(k), shown(k, v))).join("");
     return top + `<div class="card sum">
       ${line(t.fields.name, s.name || "–")}${line(t.steps[1], t.sources[s.heat_source][0])}${line(t.steps[2], `${t.systems[s.system]} · ${t.controls[s.control][0]}`)}
       ${m ? line("", `<span class="badge ${m.status}">${t.status[m.status]}</span> ${m.text}`) : ""}${ents}${sets}
@@ -456,7 +469,10 @@ class HcWizardPanel extends HTMLElement {
     const TEMP = f("sensor", "temperature");
     const sc = [];
     if (!s.entry_id) sc.push({ name: "name", required: true, selector: { text: {} } });
-    sc.push({ ...ent("indoor_entity", TEMP), required: true });
+    // 0.38.0: a relay control may take its demand from a wired wall thermostat – then the room thermometer is optional
+    const relay = ["tpi", "pid", "onoff"].includes(c);
+    sc.push({ ...ent("indoor_entity", TEMP), required: !(relay && s.entities.demand_entity) });
+    if (relay) sc.push(ent("demand_entity", [f("binary_sensor"), f("input_boolean"), f("switch")]));
     sc.push(ent("outdoor_entity", [TEMP, f("weather")]));
     if (c === "tpi" || c === "pid" || c === "onoff" || c === "storage") {
       sc.push({ ...ent("actuator_entity", [f("switch"), f("input_boolean")]), required: true });
@@ -511,6 +527,8 @@ class HcWizardPanel extends HTMLElement {
     }));
     r.querySelectorAll("[data-control]").forEach((b) => b.addEventListener("click", () => { s.control = b.dataset.control; this._render(); }));
     r.querySelectorAll("[data-set]").forEach((i) => i.addEventListener("change", () => {
+      if (i.type === "checkbox") { s.settings[i.dataset.set] = i.checked; return; }
+      if (i.tagName === "SELECT") { s.settings[i.dataset.set] = i.value; return; }
       const v = i.type === "time" ? `${i.value}:00` : parseFloat(i.value);
       if (i.type === "time" || Number.isFinite(v)) s.settings[i.dataset.set] = v;
     }));
@@ -536,8 +554,10 @@ class HcWizardPanel extends HTMLElement {
         const v = e.detail.value || {};
         s.name = v.name ?? s.name;
         const { name, ...rest } = v;
+        const had = !!s.entities.demand_entity;
         s.entities = rest;
         f.data = v;
+        if (had !== !!rest.demand_entity) f.schema = this._schema();  // the room thermometer becomes (not) required
         this._updNext();
       });
       host.appendChild(f);

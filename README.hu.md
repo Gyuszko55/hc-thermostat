@@ -130,6 +130,53 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 `/hc-info?entity=climate.x` címmel nyílik – a [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card) (1.14+)
 „i” ikonja így nyitja meg.
 
+## Padlótemperálás (0.35.0)
+
+- Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / kétállású, padlószenzorral): amíg a
+  szoba elég meleg, a padlót a szoba célja + 2 °C-on tartja (`floor_temper_offset`), így a padló meleg marad.
+- Megadható éjszakai érték (`floor_temper_night`): éjjel és alvás presetben ez a padló célja.
+- A padló célja − 0,3 °C alatt indul, a célnál áll le; a minimális futás és szünet érvényes. Leáll, ha a szoba 1 °C-kal
+  a célja fölé ér (`floor_temper_room_margin`), és nyitott ablaknál, kikapcsolva, nyáron nem fűt. A padlóhőfok-limit
+  mindig előbbre való, és a tanulás ezekből a futásokból nem tanul.
+
+## Kiesett szobahőmérő: a padló meleg marad (0.36.0)
+
+- Padlófűtés padlószenzorral (TPI / PID / kétállású): ha a szobahőmérő kiesik, a padlót a padlószenzor szerint a
+  szoba célja + a temperálás eltérése (vagy az éjszakai érték) hőfokán tartja – a kazán vak 35 %-a, illetve
+  elektromos padlónál a fűtés nélküli állapot helyett. Alapból be van kapcsolva (`floor_fallback`).
+- A fagyvédelem előbbre való, a padlóhőfok-limit mindig érvényes, nyitott ablaknál szünetel; padlóhőfok nélkül
+  minden a régi módon működik.
+
+## Padlóhőfok-limit a burkolat és a szenzor helye szerint (0.37.0)
+
+- Add meg a burkolatot (csempe, laminált, fa/parketta, vinyl, szőnyeg) és hogy hol ül a padlószenzor (a burkolat
+  alatt, az esztrichben a csövek között, cső fölött), a limitet hagyd 0-n: a limit táblázatból jön – a burkolat alatt
+  csempénél 29 °C, a többinél 27 °C, az esztrichben 29 / 33 / 31 (vinyl) °C, cső fölött 36 °C (a mélyebben ülő szenzor
+  melegebbet mér). Elektromos padlónál mindig a burkolat alatti érték, burkolat nélkül 27 °C. Ezek kiinduló értékek; a
+  beírt limit mindig előbbre való.
+- A burkolatból jön a temperálás eltérése is: csempénél 2 °C, a többinél 3 °C.
+- Az új űrlapok 0-val (burkolat szerint) indulnak; a már elmentett limit marad. A HC info panel mutatja az érvényes
+  limitet és hogy honnan jön.
+
+## Vezetékes fali termosztát mint igény (0.38.0)
+
+- A relés példány (TPI / PID / kétállású) az igényt egy potenciálmentes fali termosztáttól is veheti, bináris
+  szenzoron, input_booleanen vagy kapcsolón át (`demand_entity`): érintkező be – fűt, ki – nem fűt. A szobahőmérő
+  ekkor elhagyható.
+- A fagyvédelem (a szobahőmérő, ennek hiányában a padlószenzor szerint), az újraindítás utáni várakozás, a kikapcsolás,
+  a nyitott ablak és a nyári pihenő előbbre való; a padlóhőfok-limit és a padlótemperálás erre is érvényes (a nem kérő
+  fali termosztát „célon” számít). Nincs felfűtés és utómelegedés, a szabályozó áll. Ha az érintkező nem elérhető: a
+  kiesett hőmérő tartalék üzeme (padlószenzorral a padló szerint).
+
+## Heti szivattyú-átmozgatás (0.39.0)
+
+- A keringető szivattyú entitással megadott központi kazán hetente egyszer (alapból hétfő 10:00, 60 mp) egyedül
+  járatja a szivattyút, ha az 7 napja állt – így nyáron sem ragad be. Csak ha a kazán áll és egy zóna sem kér; a kazán
+  emiatt soha nem indul, és újraindítás után az első percekben nincs átmozgatás. Hogy a szivattyú mikor ment utoljára,
+  azt újraindítás után is tudja. `central_pump_exercise_s` (0 = ki), `_weekday`, `_time`, `_idle_days`; a központi
+  döntés mutatja a `pump_exercise`-t és a végét, a következő és a legutóbbi futást. (A puffer szerep nem hajt
+  szivattyút.)
+
 ## Biztonság
 
 A program nem helyettesíti a kazán saját védelmeit. Tarts független tartalékot is, például alacsonyra állított, párhuzamosan kötött hagyományos szobatermosztátot. Használat saját felelősségre (MIT, garancia nélkül).

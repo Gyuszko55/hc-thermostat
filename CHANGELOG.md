@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.39.1 – 2026-11-11
+- Pump exercise never runs against closed valves: it needs an open circuit – a bypass, a valve that is open, or a zone in its own weekly valve exercise (the zones now tell the central boiler, attribute `valve_exercising`; counted open after `central_valve_open_s`). From the set time it waits for such a circuit until the end of that day, then runs once; if the circuit closes during the run it stops and does not count.
+- Floor limit: 0 with no covering now means 29 °C for a water floor (27 °C electric), never "no limit". An old instance that never stored a limit had 29 °C; saving its options stores 0, and that must not drop the limit.
+
+## 0.39.0 – 2026-11-11
+Weekly pump exercise:
+- Central boiler with a pump entity: new options `central_pump_exercise_s` (60 s; 0 = off), `central_pump_exercise_weekday` (Monday), `central_pump_exercise_time` (10:00), `central_pump_exercise_idle_days` (7). The pump runs alone for the given time on that day from that time when it has not run for the idle days (the boiler, the overrun or anyone switching the pump counts as a run) – only while the boiler is off and no zone asks, never in the first 5 minutes after a restart; the boiler does not start. `core/exercise.py` `PumpExercise`.
+- When the pump last ran is saved (the central instance now has its own store), so a restart does not repeat or skip it. A zone that starts asking ends the exercise at once.
+- Central decision details `pump_exercise`, `pump_exercise_until`; attributes also `pump_exercise_next`, `pump_last_run`; the pump binary sensor is on meanwhile; HC info central card rows. Config flow, options and translations. The buffer tank role drives no pump, so it has nothing to exercise; the wizard sets up standalone instances only, so the options are in the central forms.
+
+## 0.38.0 – 2026-11-11
+Wired wall thermostat as the demand:
+- New entity option `demand_entity` (binary sensor, input boolean or switch) for TPI / PID / on-off: contact on – new reason `thermostat_call`, demand 100 %; off – `thermostat_idle`, 0 % (counts as at target for floor tempering and the valve exercise). Texts.
+- Before it, as before: frost (by the room thermometer; without one by a fresh floor reading at or below the frost limit), restart wait, switched off, open window, summer rest. No boost, no after-heat, the regulator is held; the floor limit and floor tempering apply on top (tempering without a room thermometer has no room margin check). Unknown / unavailable contact: the lost-sensor path (floor fallback or blind demand).
+- With a contact the room thermometer is optional: config flow (error if neither is given), options (the contact is required when the instance has no room thermometer), wizard (the room thermometer stops being required once a contact is picked) and `wizard/apply`. The coordinator, sensors, attributes and the info panel work without an indoor entity; a lost contact is reported as a sensor problem; the boiler health overheating check is skipped in this mode.
+- HC info: the contact's state; translations.
+
+## 0.37.0 – 2026-11-11
+Floor limit by covering and probe position:
+- New options `floor_covering` ("" / tiles / laminate / wood / vinyl / carpet) and `floor_probe` (surface / screed / above_pipe) next to the floor limit. The limit in effect (`HcConfig.floor_limit`, `core/floor.py`): `floor_max` when above 0, else the table value of the covering, else 27 °C for an electric floor, else none. Table – surface: tiles 29, others 27; screed: tiles 29, laminate / wood / carpet 33, vinyl 31; above a pipe: 36 °C. An electric floor always uses the surface column. Starting points from EN 1264 and the makers' advice; `floor_max` overrides them.
+- The supervisor, the decision details (`floor_max` is the limit in effect), the climate attribute `floor_limit` and the HC info panel (limit, where it comes from, covering / probe, tempering offset) use the effective limit.
+- Floor tempering "0 = by covering" now works: tiles 2 °C, other coverings 3 °C, none 2 °C.
+- Forms: the floor limit accepts 0 for every floor type ("0 = by covering and probe position"); new forms default to 0; saved values stay as they are (no migration). Config flow, options, wizard (choices with labels) and translations.
+
+## 0.36.0 – 2026-11-11
+Lost room thermometer – the floor stays warm:
+- New option `floor_fallback` (on by default) for floor heating with a floor sensor and TPI / PID / on-off control. When the room thermometer is lost (after the restart wait) and a fresh floor reading exists, the floor is held at the tempering target (room target + offset, or the night value) with the same latch, instead of the blind `sensor_lost_demand` – and an electric floor no longer stays cold. The reason stays `sensor_lost`; details `floor_fallback`, `floor`, `floor_target`; texts.
+- Frost first, the floor limit wins, an open window or a warm day gives no heat. Without a floor reading, or with the option off, everything is as before.
+- Config flow, options, wizard, HC info row; translations.
+
+## 0.35.0 – 2026-11-11
+Floor tempering:
+- New options for floor heating (water or electric) with a floor sensor and TPI / PID / on-off control: `floor_temper` (off by default), `floor_temper_offset` (°C above the room target; 0 = 2 °C), `floor_temper_night` (absolute floor target at night / in the sleep preset; 0 = as by day), `floor_temper_hysteresis` (0.3 °C), `floor_temper_room_margin` (1 °C).
+- While the room is at target (or in the after-heat, or regulating with a smaller demand) and below target + margin, the floor is held at its target: on at floor target − hysteresis, off at the target, by a fresh floor reading only (the same age limits as the floor limit). New reason `floor_temper`, demand 100 %, details `floor`, `floor_target`; texts.
+- Window, switched off, summer rest, frost and boost keep their priority; the floor limit always wins. The minimum run and pause hold. The learning skips these minutes. An on/off run started for the floor does not run on as a regulating run.
+- Config flow, options, wizard (worked-out settings: switch, offset, night value – the wizard now shows switches and choices too), climate attributes `floor_tempering` / `floor_target`, HC info rows; translations.
+
 ## 0.34.3 – 2026-11-11
 - Setup wizard and options: the entity pickers only list what fits the field – temperature sensors for thermometers, humidity / power / energy sensors, window and door contacts, presence (person, presence / occupancy sensor). The heat source relay and the other device fields stay as before.
 - Setup wizard: under **Next** it says in red what is still missing (for example "Missing: Room thermometer, Boiler relay"); the required fields come from the same form that is drawn, so a field and the check can no longer drift apart. If the device of the chosen control is not in the form at all, an "Internal error" message names the field and the way round it.

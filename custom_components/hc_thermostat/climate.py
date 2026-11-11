@@ -77,6 +77,7 @@ class HcClimate(HcEntity, ClimateEntity):
             "demand": round(data.demand * 100),  # read by a central boiler instance
             "fault": data.fault,
             "valve_feedback": self.coordinator.conf.get(CONF_VALVE_FEEDBACK),  # read by a central boiler
+            "valve_exercising": data.reason == Reason.VALVE_EXERCISE,  # read by a central boiler (pump exercise)
             "valve_exercise_next": (n.isoformat() if (n := sup.exercise.next_run(dt_util.now())) else None),
             "control_type": self.coordinator.cfg.control,
             "flow_request": self._flow_request(),  # read by a central modulating boiler
@@ -90,7 +91,18 @@ class HcClimate(HcEntity, ClimateEntity):
             "preset_until_home": sup.preset_until_home,
             "preset_end_preview": sup.preset_end_preview(self.preset_modes, dt_util.now()),
             **controller_attributes(self.coordinator.cfg, sup, data.demand, dt_util.now()),
+            **self._floor_attributes(),
         }
+
+    def _floor_attributes(self) -> dict:
+        """The floor limit in effect (0.37.0); floor tempering (0.35.0): whether it heats for the floor now, the floor
+        target."""
+        cfg, data = self.coordinator.cfg, self.coordinator.data
+        out = {"floor_limit": cfg.floor_limit} if cfg.floor_system and cfg.floor_limit > 0 else {}  # 0.37.0: in effect
+        if cfg.floor_temper:
+            out.update(floor_tempering=data.reason == Reason.FLOOR_TEMPER,
+                       floor_target=(data.details or {}).get("floor_target"))
+        return out
 
     def _flow_request(self) -> float | None:
         """Zone of a central modulating boiler: the flow its own curve asks for while it wants heat."""

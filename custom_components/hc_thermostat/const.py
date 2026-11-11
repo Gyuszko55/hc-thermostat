@@ -64,6 +64,7 @@ CONF_COIL = "coil_temp_entity"  # fan coil: coil / supply water temperature (opt
 CONF_RETURN = "return_temp_entity"  # district heating: return water temperature (optional)
 CONF_HP_DHW = "hp_dhw_entity"  # heat pump: on while it makes hot water (optional; a 3-way valve or a mode)
 CONF_TARGET_SOURCE = "target_source_entity"  # a wall thermostat / number whose setpoint this instance takes over
+CONF_DEMAND = "demand_entity"  # a wired (dry-contact) wall thermostat: its contact is the room's demand (0.38.0)
 
 MODE_SHADOW = "shadow"
 MODE_ACTIVE = "active"

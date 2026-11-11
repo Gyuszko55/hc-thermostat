@@ -23,7 +23,7 @@
         "title": "Entitások",
         "description": "Az új példány mindig árnyék módban indul: számol, de nem kapcsol semmit.",
         "data": {
-          "indoor_entity": "Benti hőmérő",
+          "indoor_entity": "Benti hőmérséklet (fali termosztát érintkezőjével elhagyható)",
           "outdoor_entity": "Kinti hőmérő",
           "actuator_entity": "Kazánt kapcsoló relé",
           "external_climate": "Külső termosztát",
@@ -42,7 +42,7 @@
           "heat_enable_entity": "Fűtés engedélyezése (kapcsoló, ha van)",
           "valve_feedback_entity": "Szelep visszajelzése (végálláskapcsoló vagy szelephelyzet, ha van)",
           "floor_entity": "Padlóhőmérő (padlószenzor)",
-          "floor_max": "Padlóhőfok-limit (0 = nincs)",
+          "floor_max": "Padlóhőfok-limit (0 = a burkolat és a szenzor helye szerint)",
           "floor_hysteresis": "Visszakapcsolás a limit alatt ennyivel",
           "target_source_entity": "Célhő forrása (fali termosztát vagy number)",
           "hp_defrost_entity": "Hőszivattyú: leolvasztás jelzője",
@@ -54,17 +54,31 @@
           "discharge_entity": "Kisütő ventilátor / csappantyú (nem kötelező)",
           "fan_entity": "Fan-coil ventilátora (fan entitás, nem kötelező)",
           "coil_temp_entity": "Hőcserélő / előremenő hőmérséklete (nem kötelező)",
-          "return_temp_entity": "Visszatérő víz hőmérséklete (nem kötelező)"
+          "return_temp_entity": "Visszatérő víz hőmérséklete (nem kötelező)",
+          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a szoba már elég meleg)",
+          "floor_temper_offset": "Padló célja a szoba célja fölött (0 = a burkolat szerint)",
+          "floor_temper_night": "Padló célja éjjel / alvás presetben (0 = mint nappal)",
+          "floor_temper_hysteresis": "A temperálás ennyivel a padló célja alatt indul újra",
+          "floor_temper_room_margin": "Nincs temperálás, ha a szoba ennyivel a célja fölött van",
+          "floor_fallback": "Kiesett szobahőmérő: a padlót a padlószenzor szerint tartja melegen",
+          "floor_covering": "Padlóburkolat",
+          "floor_probe": "Szenzor helye",
+          "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)"
         },
         "data_description": {
           "reference_entity": "Ezt figyeli a hibafigyelés és az árnyék-összehasonlítás. Ha üres, a relét vagy a termosztátot.",
           "heat_energy_entity": "A hőigényt ezekből és a hőfokokból tanulja. Legalább 3 teljes nap kell, a statisztikák is számítanak.",
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
           "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
-          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. Fa vagy laminált burkolatnál 27 °C, járólapnál legfeljebb 29 °C.",
+          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.",
           "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
           "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
-          "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba."
+          "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
+          "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
+          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
+          "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
+          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit.",
+          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a szobahőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme."
         }
       },
       "central": {
@@ -88,7 +102,14 @@
           "flow_setpoint_entity": "Előremenő-alapjel (moduláló kazán, nem kötelező: number / input_number)",
           "central_flow_min": "Legkisebb előremenő",
           "central_flow_max": "Legnagyobb előremenő",
-          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket"
+          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket",
+          "central_pump_exercise_s": "Heti szivattyú-átmozgatás: futásidő (0 = ki)",
+          "central_pump_exercise_weekday": "Szivattyú-átmozgatás napja",
+          "central_pump_exercise_time": "Szivattyú-átmozgatás kezdete",
+          "central_pump_exercise_idle_days": "Csak ha a szivattyú ennyi napja állt"
+        },
+        "data_description": {
+          "central_pump_exercise_s": "Szivattyú entitással: a napok óta álló szivattyú hetente egyszer ennyi ideig egyedül fut, hogy ne ragadjon be. Csak ha a kazán áll és egy zóna sem kér; a kazán nem indul; újraindítás után az első percekben nem."
         }
       },
       "buffer": {
@@ -109,7 +130,8 @@
     },
     "error": {
       "confirm_required": "Nem ajánlott rendszerhez erősítsd meg a választást.",
-      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie."
+      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
+      "indoor_required": "Adj meg szobahőmérőt vagy fali termosztát érintkezőt."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van."
@@ -185,7 +207,7 @@
           "yield_margin": "Ha a másik (olcsóbb) hőforrás fűti az összenyitott zónát, a kazán ennyivel a cél alatt szabályoz (0 = ki)",
           "assist_climate": "Ház termosztátja, amelyet a klíma segít, ha olcsóbb és nyitva az ajtó (HC)",
           "floor_entity": "Padlóhőmérő (padlószenzor)",
-          "floor_max": "Padlóhőfok-limit (0 = nincs)",
+          "floor_max": "Padlóhőfok-limit (0 = a burkolat és a szenzor helye szerint)",
           "floor_hysteresis": "Visszakapcsolás a limit alatt ennyivel",
           "target_source_entity": "Célhő forrása (fali termosztát vagy number)",
           "hp_defrost_entity": "Hőszivattyú: leolvasztás jelzője",
@@ -216,18 +238,32 @@
           "fan_overrun_s": "Ventilátor utánfutása a szelep zárása után",
           "fan_min_coil": "A ventilátor csak ennél melegebb hőcserélőnél indul",
           "return_max": "Visszatérő-korlát (0 = nincs): efölött zárva marad a szelep",
-          "return_hysteresis": "Visszatérő-korlát visszakapcsolása ennyivel alatta"
+          "return_hysteresis": "Visszatérő-korlát visszakapcsolása ennyivel alatta",
+          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a szoba már elég meleg)",
+          "floor_temper_offset": "Padló célja a szoba célja fölött (0 = a burkolat szerint)",
+          "floor_temper_night": "Padló célja éjjel / alvás presetben (0 = mint nappal)",
+          "floor_temper_hysteresis": "A temperálás ennyivel a padló célja alatt indul újra",
+          "floor_temper_room_margin": "Nincs temperálás, ha a szoba ennyivel a célja fölött van",
+          "floor_fallback": "Kiesett szobahőmérő: a padlót a padlószenzor szerint tartja melegen",
+          "floor_covering": "Padlóburkolat",
+          "floor_probe": "Szenzor helye",
+          "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)"
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
           "valve_exercise": "Hetente egyszer néhány percre kinyitja a régóta zárt szelepet, hogy ne ragadjon be. Közben a zóna nem kér hőt, a központi kazán nem indul.",
           "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
-          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. Fa vagy laminált burkolatnál 27 °C, járólapnál legfeljebb 29 °C.",
+          "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.",
           "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
           "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
           "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
           "load_limit_kw": "A zóna saját teljesítményét a „Kazán teljesítménye” mezőben add meg (elektromos fűtésnél a fűtőtesté). Ha a bekapcsolás túllépné a korlátot, a zóna vár, és a ciklusa később indul – így a zónák elcsúsztatva fűtenek. Csak éles módban számít.",
-          "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell."
+          "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell.",
+          "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
+          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
+          "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
+          "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit.",
+          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme."
         }
       },
       "presets": {
@@ -272,7 +308,14 @@
           "flow_setpoint_entity": "Előremenő-alapjel (moduláló kazán, nem kötelező: number / input_number)",
           "central_flow_min": "Legkisebb előremenő",
           "central_flow_max": "Legnagyobb előremenő",
-          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket"
+          "central_flow_default": "Előremenő, ha egy zóna sem kér konkrét értéket",
+          "central_pump_exercise_s": "Heti szivattyú-átmozgatás: futásidő (0 = ki)",
+          "central_pump_exercise_weekday": "Szivattyú-átmozgatás napja",
+          "central_pump_exercise_time": "Szivattyú-átmozgatás kezdete",
+          "central_pump_exercise_idle_days": "Csak ha a szivattyú ennyi napja állt"
+        },
+        "data_description": {
+          "central_pump_exercise_s": "Szivattyú entitással: a napok óta álló szivattyú hetente egyszer ennyi ideig egyedül fut, hogy ne ragadjon be. Csak ha a kazán áll és egy zóna sem kér; a kazán nem indul; újraindítás után az első percekben nem."
         }
       },
       "trv_rooms": {
@@ -303,7 +346,8 @@
     "error": {
       "confirm_active": "Az éles módhoz erősítsd meg a választást.",
       "humidity_required": "Padlóhűtéshez páratartalom-szenzor kell (harmatpont nélkül nem hűt).",
-      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie."
+      "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
+      "demand_required": "Ennek a példánynak nincs szobahőmérője: a fali termosztát érintkezője kötelező."
     }
   },
   "selector": {
@@ -388,6 +432,23 @@
         "5": "Szombat",
         "6": "Vasárnap"
       }
+    },
+    "floor_covering": {
+      "options": {
+        "none": "Nincs megadva",
+        "tiles": "Csempe",
+        "laminate": "Laminált",
+        "wood": "Fa/parketta",
+        "vinyl": "Vinyl",
+        "carpet": "Szőnyeg"
+      }
+    },
+    "floor_probe": {
+      "options": {
+        "surface": "A burkolat alatt (a ragasztóban)",
+        "screed": "Az esztrichben, a csövek között",
+        "above_pipe": "Cső fölött"
+      }
     }
   },
   "entity": {
@@ -415,7 +476,10 @@
           "floor_cool": "Padlóhűtés",
           "dew_point": "Harmatpont-védelem",
           "storage_charge": "Hőtároló töltés",
-          "storage_wait": "Hőtároló vár"
+          "storage_wait": "Hőtároló vár",
+          "floor_temper": "Padlótemperálás",
+          "thermostat_call": "Fali termosztát fűtést kér",
+          "thermostat_idle": "Fali termosztát nem kér"
         }
       },
       "demand": {

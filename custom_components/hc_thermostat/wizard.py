@@ -26,7 +26,7 @@ from .const import (
     CONF_FLAME, CONF_FLOW, CONF_HEAT_ENABLE, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_ROLE, CONF_ROOMS, CONF_SYSTEM, CONF_WINDOWS, DOMAIN, MODE_SHADOW,
     CONF_FLOOR, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN,
-    CONF_COIL, CONF_RETURN,
+    CONF_COIL, CONF_RETURN, CONF_DEMAND,
 )
 from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
@@ -45,11 +45,12 @@ BOILER_EFFICIENCY = 0.9
 ENTITY_KEYS = (CONF_INDOOR, CONF_OUTDOOR, CONF_ACTUATOR, CONF_EXTERNAL, CONF_FLAME, CONF_BOILER_POWER, CONF_HEAT_ENERGY,
                CONF_FLOW, CONF_HEAT_ENABLE, CONF_WINDOWS, CONF_PRESENCE, CONF_ROOMS, "assist_climate", CONF_FLOOR,
                CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL,
-               CONF_RETURN)
+               CONF_RETURN, CONF_DEMAND)
 SETTING_KEYS = ("cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_w", "power_burn_w", "boiler_power_kw",
                 CONF_ENERGY_FACTOR, "target_home", "target_night", "target_away", "target_cool", "night_start",
                 "night_end", "curve_slope", "flow_max", "flow_min", "room_tolerance", "ac_min_change_s", "floor_max",
-                "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis")
+                "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "floor_temper", "floor_temper_offset", "floor_temper_night",
+                "floor_fallback", "floor_covering", "floor_probe")
 
 
 async def async_setup_wizard(hass: HomeAssistant) -> None:
@@ -193,8 +194,10 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
     T = (lambda hu, en: hu) if lang == "hu" else (lambda hu, en: en)
     items: list[dict] = []
 
-    def add(key, value, why, unit=None, editable=True):
-        items.append({"key": key, "value": value, "why": why, "unit": unit, "editable": editable})
+    def add(key, value, why, unit=None, editable=True, options=None):
+        # options: a choice, as [value, label hu, label en] lists
+        items.append({"key": key, "value": value, "why": why, "unit": unit, "editable": editable,
+                      **({"options": options} if options else {})})
 
     base = HcConfig()
     if control in ("tpi", "pid"):
@@ -211,12 +214,29 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
         add("cycle_s", t["cycle_s"], why, "s")
         add("min_on_s", t["min_on_s"], why, "s")
         add("min_off_s", t["min_off_s"], why, "s")
-        if floor:
-            add("floor_max", 27.0 if efloor else 0.0,
-                T("padlóhőfok-limit: e fölött nem fűt; elektromos padlónál kötelező (fa/laminált burkolatnál 27 °C, járólapnál legfeljebb 29 °C)"
-                  if efloor else "padlóhőfok-limit (0 = nincs): padlószenzorral e fölött nem fűt",
-                  "floor limit: no heat above it; required for an electric floor (27 °C under wood/laminate, at most 29 °C under tiles)"
-                  if efloor else "floor limit (0 = none): with a floor sensor, no heat above it"), "°C")
+    if system.startswith("floor") and control in ("tpi", "pid", "onoff", "curve"):
+        # floor limit (0.37.0): 0 = by the covering and where the sensor sits
+        add("floor_max", 0.0,
+            T("padlóhőfok-limit: e fölött nem fűt; 0 = a burkolat és a szenzor helye szerint (burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C)",
+              "floor limit: no heat above it; 0 = by the covering and the probe position (without a covering: 27 °C electric, 29 °C water floor)"), "°C")
+        add("floor_covering", "none", T("a padló burkolata: ebből jön a limit és a temperálás eltérése",
+                                        "the floor covering: gives the limit and the tempering offset"),
+            options=[["none", "Nincs megadva", "Not set"], ["tiles", "Csempe", "Tiles"], ["laminate", "Laminált", "Laminate"],
+                     ["wood", "Fa/parketta", "Wood / parquet"], ["vinyl", "Vinyl", "Vinyl"], ["carpet", "Szőnyeg", "Carpet"]])
+        add("floor_probe", "surface", T("hol van a padlószenzor: mélyebben melegebbet mér, ott magasabb a limit (elektromos padlónál mindig a burkolat alatti érték)",
+                                        "where the floor sensor sits: deeper it reads warmer, so the limit is higher (an electric floor always uses the under-covering value)"),
+            options=[["surface", "A burkolat alatt", "Under the covering"], ["screed", "Az esztrichben, a csövek között", "In the screed, between the pipes"],
+                     ["above_pipe", "Cső fölött", "Above a supply pipe"]])
+    if system.startswith("floor") and control in ("tpi", "pid", "onoff"):
+        # floor tempering (0.35.0): comfort, off by default
+        add("floor_temper", False, T("padlótemperálás: a padló meleg marad akkor is, ha a szoba már elég meleg (padlószenzor kell)",
+                                     "floor tempering: the floor stays warm even when the room is warm enough (needs a floor sensor)"))
+        add("floor_temper_offset", 0.0, T("a padló célja a szoba célja fölött; 0 = a burkolat szerint (csempe 2 °C, más 3 °C, nincs megadva 2 °C)",
+                                          "the floor target above the room target; 0 = by the covering (tiles 2 °C, others 3 °C, not set 2 °C)"), "°C")
+        add("floor_temper_night", 0.0, T("a padló célja éjjel / alvás presetben; 0 = mint nappal",
+                                         "the floor target at night / in the sleep preset; 0 = as by day"), "°C")
+        add("floor_fallback", True, T("ha a szobahőmérő kiesik, a padlószenzor szerint tartja a padlót (vakon fűtés helyett)",
+                                      "if the room thermometer is lost, the floor is held by the floor sensor (instead of blind heat)"))
     if source == "heat_pump" and control in ("curve", "onoff"):
         why = T("hőszivattyú: hosszú futások, ritka indítás (kíméli a kompresszort)", "heat pump: long runs, few starts (spares the compressor)")
         add("hp_min_on_s", base.hp_min_on_s, why, "s")
@@ -301,8 +321,9 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
         return
     ents = {k: v for k, v in msg["entities"].items() if k in ENTITY_KEYS and v not in (None, "", [])}
     sets = {k: v for k, v in msg["settings"].items() if k in SETTING_KEYS and v not in (None, "")}
-    if not ents.get(CONF_INDOOR):
-        connection.send_error(msg["id"], "missing_indoor", "an indoor thermometer is required")
+    if not ents.get(CONF_INDOOR) and not (control in ("tpi", "pid", "onoff") and ents.get(CONF_DEMAND)):
+        # 0.38.0: a relay control may take its demand from a wired wall thermostat instead
+        connection.send_error(msg["id"], "missing_indoor", "an indoor thermometer (or a wall thermostat contact) is required")
         return
     need = {"tpi": CONF_ACTUATOR, "pid": CONF_ACTUATOR, "onoff": CONF_ACTUATOR, "storage": CONF_ACTUATOR, "external": CONF_EXTERNAL, "ac": CONF_EXTERNAL,
             "curve": CONF_FLOW}[control]

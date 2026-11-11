@@ -315,7 +315,19 @@ class HcCentralDecision(HcEntity, SensorEntity):
                 "stuck": list(d.details.get("stuck", [])),
                 "pump": d.pump, "pump_until": d.details.get("pump_until"),
                 "flow_setpoint": d.flow_setpoint, "flow_by": d.details.get("flow_by"),
-                "flow_requests": d.details.get("flow_requests", {})}
+                "flow_requests": d.details.get("flow_requests", {}),
+                **self._exercise()}
+
+    def _exercise(self) -> dict:
+        """Weekly pump exercise (0.39.0): running now and until when, the next one, when the pump last ran."""
+        c, d = self.coordinator, self.coordinator.data
+        if not c.central.has_pump:
+            return {}
+        ex = c.central.exercise
+        nxt = ex.next_run(d.now)
+        return {"pump_exercise": bool(d.details.get("pump_exercise")), "pump_exercise_until": d.details.get("pump_exercise_until"),
+                "pump_exercise_next": nxt.isoformat() if nxt else None,
+                "pump_last_run": ex.last_run.isoformat() if ex.last_run else None}
 
 
 class HcRooms(HcEntity, SensorEntity):
