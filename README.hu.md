@@ -9,6 +9,38 @@
 
 A HC Thermostat a Home Assistant fűtési **felügyelője**, egyszerű rendszerekhez beépített szabályozóval. Nem akarja leváltani a jó termosztát-integrációkat: föléjük kerül, eldönti, mit csináljon a ház, és megmondja, miért.
 
+## Funkciók
+
+**Hőforrások és rendszerek**
+- Gázkazán (be-ki), moduláló kazán fűtési görbével, elektromos fűtő, elektromos padlófűtés, hőszivattyú, klíma, hőtárolós kályha, távfűtés, pellet kazán.
+- Radiátor, vizes vagy elektromos padló (egy helyiség vagy zónák), fan-coil, helyiségben álló egység; központi kazán zónákkal és puffertartály szerep.
+
+**Szabályozás**
+- Saját szabályozó: TPI vagy PID PWM-mel, kétállású hosszú futásokkal, időjáráskövető fűtési görbe, vagy külső termosztát / klíma vezérlése a célértékén át.
+- Minimális futási idő és szünet, amit egyik algoritmus sem írhat felül; árnyék-szabályozó a másik algoritmussal, összehasonlításhoz.
+- Árnyék mód (számol, nem kapcsol) vagy éles mód, példányonként.
+
+**Kényelem és jelenlét**
+- Presetek (komfort, otthon, alvás, eco, távol, szabadság, felfűtés) saját lejárattal; éjszakai ütemezés.
+- Jelenlét példányonként: a ház a háztartást, egy helyiség egy személyt követhet (lásd lent).
+- Felfűtés, ami az utómelegedéssel együtt áll meg a célnál; tanulja az utómelegedést, a perc/fok arányt és a tartást.
+- Célhő átvétele fali termosztátból vagy number entitásból; vezetékes fali termosztát kontaktusa mint fűtésigény.
+
+**Padlófűtés**
+- Padlóhőfok-limit a burkolat és a szenzor helye szerint, padlótemperálás (meleg padló), padló szerinti tartalék a szobahőmérő kiesésekor, padlóhűtés harmatpont-védelemmel.
+
+**Helyiségek és zónák**
+- Szelepfejes (TRV) szobák saját eltolással és kalibrálással; zónánkénti előremenő-kérés és -plafon a központi moduláló kazánnál; elektromos zónák közös terheléskorlátja; csatlakozó tér (nyitott ajtó) és olcsóbb hőforrás javaslat.
+
+**Biztonság és felügyelet**
+- Szünet nyitott ablaknál (érzékelő vagy gyors hőesés), nyári pihenő, fagyvédelem, újraindítás-védelem, hihetetlen mérések kiszűrése, tartalék üzem érzékelő-kiesésnél.
+- Kazán-egészség a fogyasztásból és a lángjelzésből (nem reagál, nem gyújt be, taktol, parancs nélküli égés, túlfűtés), fűtési hiba jelző.
+- Heti szelep- és szivattyúmozgatás; vezérelt áram jelzése; távfűtésnél visszatérő-korlát.
+
+**Eszközök**
+- Beállító varázsló az oldalsávban, HC info panel (a rendszer rajza minden adattal), döntésnapló és szövegek magyarul és angolul, hőveszteség- és hőigény-becslés, költség-összevetés.
+- Kerek termosztát kártya hozzá: [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card).
+
 ## Alapok
 
 - **Árnyék mód (alapértelmezett):** mindent kiszámol, semmit nem kapcsol, és összeveti magát a valódi fűtéssel.

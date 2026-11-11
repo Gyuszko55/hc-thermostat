@@ -9,6 +9,38 @@
 
 HC Thermostat is a heating **supervisor** for Home Assistant, with a built-in regulator for simple systems. It does not try to replace good thermostat integrations. It sits above them and decides what the house should do, and says why.
 
+## Features
+
+**Heat sources and systems**
+- Gas boiler (on/off), modulating boiler with heating curve, electric heater, electric floor, heat pump, air conditioner, storage heater, district heating, pellet boiler.
+- Radiators, water or electric floor (one room or zones), fan coil, room units; a central boiler with zones and a buffer tank role.
+
+**Control**
+- Own regulator: TPI or PID with PWM, on/off with long runs, weather-compensated heating curve, or an external thermostat / air conditioner driven by its setpoint.
+- Minimum run and pause times that no algorithm may override; a shadow regulator runs the other algorithm side by side for comparison.
+- Shadow mode (calculates, switches nothing) or active mode, per instance.
+
+**Comfort and presence**
+- Presets (comfort, home, sleep, eco, away, vacation, boost) with their own expiry; night schedule.
+- Presence per instance: the house can follow the household, one room one person (see below).
+- Boost that stops when the after-heat will reach the target; learning of after-heat, minutes per degree and holding.
+- Target taken over from a wall thermostat or number entity; a wired wall thermostat contact as the demand.
+
+**Floor heating**
+- Floor limit by covering and sensor position, floor tempering (warm floor), floor fallback when the room thermometer is lost, floor cooling with dew point protection.
+
+**Rooms and zones**
+- TRV rooms with their own offset and calibration; zone flow requests and flow cap for a central modulating boiler; load limit shared by electric zones; adjoining room (door open) and cheaper-source advice.
+
+**Safety and supervision**
+- Open window pause (sensor or a fast temperature drop), summer rest, frost protection, restart protection, implausible readings, lost sensor fallback.
+- Boiler health from power and flame (no response, no ignition, short cycling, uncommanded burn, overheating) with a fault sensor.
+- Weekly valve and pump exercise; controlled power signal; district heating return limit.
+
+**Tools**
+- Setup wizard in the sidebar, HC info panel (the system drawn with every value), decision log and texts in English and Hungarian, heat loss and heat need estimate, cost comparison.
+- Companion round dial card: [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card).
+
 ## Basics
 
 - **Shadow mode (default):** calculates everything, switches nothing, and compares itself with your real heating.
