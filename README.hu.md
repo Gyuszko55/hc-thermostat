@@ -16,7 +16,7 @@ A HC Thermostat a Home Assistant fűtési **felügyelője**, egyszerű rendszere
 - Radiátor, vizes vagy elektromos padló (egy helyiség vagy zónák), fan-coil, helyiségben álló egység; központi kazán zónákkal és puffertartály szerep.
 
 **Szabályozás**
-- Saját szabályozó: TPI vagy PID PWM-mel, kétállású hosszú futásokkal, időjáráskövető fűtési görbe, vagy külső termosztát / klíma vezérlése a célértékén át.
+- Saját szabályozó: TPI vagy PID PWM-mel, on-off vezérlés hosszú futásokkal, időjáráskövető fűtési görbe, vagy külső termosztát / klíma vezérlése a célértékén át.
 - Minimális futási idő és szünet, amit egyik algoritmus sem írhat felül; árnyék-szabályozó a másik algoritmussal, összehasonlításhoz.
 - Árnyék mód (számol, nem kapcsol) vagy éles mód, példányonként.
 
@@ -87,7 +87,7 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 
 ## Hőszivattyú (0.26.0)
 
-- **Kétállású, hosszú futással** (`onoff` vezérlés): a hőszivattyú termosztát-bemenetét a cél alatt bekapcsolja, a
+- **On-off, hosszú futással** (`onoff` vezérlés): a hőszivattyú termosztát-bemenetét a cél alatt bekapcsolja, a
   cél elérésekor kikapcsolja – nincs szaggatás; a legrövidebb futás és szünet állítható (20 / 10 perc).
 - **Leolvasztás és melegvíz-készítés:** választható jelzők (bináris szenzor, kapcsoló vagy üzemmód-szenzor). Amíg
   a hőszivattyú leolvaszt vagy melegvizet készít, a hibafigyelés vár, és az egészségfigyelés nem riaszt.
@@ -158,7 +158,7 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 
 ## Pellet kazán és puffertartály (0.33.0)
 
-- **Pellet kazán** (új hőforrás): kétállású vezérlés hosszú futásokkal – legalább 45 perc, 20 perc szünet –, mert
+- **Pellet kazán** (új hőforrás): on-off vezérlés hosszú futásokkal – legalább 45 perc, 20 perc szünet –, mert
   lassan gyújt és ég ki; az állapotfigyelés az áramfelvétele szerint ítél, és kivárja a kiégést.
 - **Puffertartály** (új szerep, a központi kazánhoz hasonlóan): a tartály felső (és ha van, alsó) hőmérője szerint
   kapcsolja a hőforrást: a töltés akkor indul, ha a teteje `buffer_on` (45 °C) vagy hidegebb, és mindig addig tart,
@@ -180,7 +180,7 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 
 ## Padlótemperálás (0.35.0)
 
-- Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / kétállású, padlószenzorral): amíg a
+- Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a
   szoba elég meleg, a padlót a szoba célja + 2 °C-on tartja (`floor_temper_offset`), így a padló meleg marad.
 - Megadható éjszakai érték (`floor_temper_night`): éjjel és alvás presetben ez a padló célja.
 - A padló célja − 0,3 °C alatt indul, a célnál áll le; a minimális futás és szünet érvényes. Leáll, ha a szoba 0,5 °C-kal
@@ -190,7 +190,7 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 
 ## Kiesett szobahőmérő: a padló meleg marad (0.36.0)
 
-- Padlófűtés padlószenzorral (TPI / PID / kétállású): ha a szobahőmérő kiesik, a padlót a padlószenzor szerint a
+- Padlófűtés padlószenzorral (TPI / PID / on-off): ha a szobahőmérő kiesik, a padlót a padlószenzor szerint a
   szoba célja + a temperálás eltérése (vagy az éjszakai érték) hőfokán tartja – a kazán vak 35 %-a, illetve
   elektromos padlónál a fűtés nélküli állapot helyett. Alapból be van kapcsolva (`floor_fallback`).
 - A fagyvédelem előbbre való, a padlóhőfok-limit mindig érvényes, nyitott ablaknál szünetel; padlóhőfok nélkül
@@ -211,7 +211,7 @@ adat melyik elemnél jelenik meg, azt egyetlen **adat-mátrix** adja meg (`hc-in
 
 ## Vezetékes fali termosztát mint igény (0.38.0)
 
-- A relés példány (TPI / PID / kétállású) az igényt egy potenciálmentes fali termosztáttól is veheti, bináris
+- A relés példány (TPI / PID / on-off) az igényt egy potenciálmentes fali termosztáttól is veheti, bináris
   szenzoron, input_booleanen vagy kapcsolón át (`demand_entity`): érintkező be – fűt, ki – nem fűt. A szobahőmérő
   ekkor elhagyható.
 - A fagyvédelem (a szobahőmérő, ennek hiányában a padlószenzor szerint), az újraindítás utáni várakozás, a kikapcsolás,
