@@ -33,7 +33,7 @@ const T = {
       external: ["Külső termosztát", "Egy meglévő termosztátot (TRV, BT) állít; a hőt az szabályozza."],
       curve: ["Fűtési görbe (kísérleti)", "Előremenő hőfok a kinti hőmérséklet szerint, szobakorrekcióval."],
       ac: ["Klíma – virtuális i-Feel", "A klíma célját tolja el a helyiség-hőmérő szerint; nem kapcsolgat."],
-      onoff: ["Kétállású, hosszú futással", "A hőszivattyú termosztát-bemenetét kapcsolja: a cél alatt indul, fölötte áll le; nincs szaggatás."],
+      onoff: ["On-off, hosszú futással", "A hőszivattyú termosztát-bemenetét kapcsolja: a cél alatt indul, fölötte áll le; nincs szaggatás."],
       storage: ["Hőtároló", "Éjjel a kinti napi átlag szerint tölt, az ablak végére időzítve; nappal a szoba szerint süt ki."],
     },
     fields: {

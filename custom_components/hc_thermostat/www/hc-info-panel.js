@@ -56,7 +56,7 @@ const REASON = {
 };
 
 const SOURCE = {
-  hu: { onoff_boiler: "Kétállású gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú",
+  hu: { onoff_boiler: "On-off gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú",
     electric_boiler: "Elektromos kazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő",
     storage_heater: "Hőtárolós kályha", district_heating: "Távfűtés", pellet_boiler: "Pellet kazán" },
   en: { onoff_boiler: "On/off gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump",
@@ -72,7 +72,7 @@ const SYSTEM = {
     mixed_rtl: "Mixed, RTL valve", mixed_mixing: "Mixed, mixing loop", room_unit: "Room unit", fan_coil: "Fan coil" },
 };
 const CONTROL = { tpi: "TPI + PWM", pid: "PID + PWM", external: "Külső termosztát / external", curve: "Fűtési görbe / curve",
-  onoff: "Kétállású / on-off", ac: "Klíma (i-Feel)", storage: "Hőtároló / storage" };
+  onoff: "On-off", ac: "Klíma (i-Feel)", storage: "Hőtároló / storage" };
 
 // Entity keys: which ones are read (inputs) and which are switched / written (outputs)
 const OUT_KEYS = ["actuator_entity", "external_climate", "external_entity", "flow_setpoint_entity", "heat_enable_entity",

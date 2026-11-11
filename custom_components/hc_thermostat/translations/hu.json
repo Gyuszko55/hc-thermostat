@@ -391,7 +391,7 @@
         "external": "Külső termosztát",
         "curve": "Fűtési görbe + szobakorrekció (KÍSÉRLETI)",
         "ac": "Klíma: céleltolás helyiség-hőmérő szerint (virtuális i-Feel)",
-        "onoff": "Kétállású, hosszú futással (hőszivattyú)",
+        "onoff": "On-off, hosszú futással (hőszivattyú)",
         "storage": "Hőtároló: éjszakai töltés + kisütés"
       }
     },

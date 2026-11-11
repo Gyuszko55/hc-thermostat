@@ -96,11 +96,11 @@ _DISTRICT = {
 }
 _DISTRICT_OTHER = Cell(P, "Távfűtés vegyes rendszeren: zónaszelep TPI-vel, a keverést a hőközpont végzi",
                        "District heating on a mixed system: zone valve with TPI, the substation mixes")
-_PELLET = Cell(R, "Pellet kazán: kétállású vezérlés hosszú futásokkal (legalább 45 perc, 20 perc szünet); puffertartállyal a "
+_PELLET = Cell(R, "Pellet kazán: on-off vezérlés hosszú futásokkal (legalább 45 perc, 20 perc szünet); puffertartállyal a "
                   "puffer szerep tölti, a körök zónaként fűtenek",
                "Pellet boiler: on/off with long runs (45 minutes at least, 20 minutes pause); with a buffer tank the buffer "
                "role charges it and the circuits heat as zones")
-_PELLET_FLOOR = Cell(R, "Pellet kazán padlóra: puffer és keverőkör ajánlott; kétállású vezérlés hosszú futásokkal, padlóhőfok-limit",
+_PELLET_FLOOR = Cell(R, "Pellet kazán padlóra: puffer és keverőkör ajánlott; on-off vezérlés hosszú futásokkal, padlóhőfok-limit",
                      "Pellet boiler on a floor: a buffer and a mixing loop are advised; on/off with long runs, floor limit")
 _ODD = Cell(Status.NOT_RECOMMENDED, "Ez a hőforrás nem ehhez a rendszerhez való", "This heat source does not fit this system")
 _EFLOOR = Cell(Status.RECOMMENDED,

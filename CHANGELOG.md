@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.4 – 2026-11-11
+- Hungarian texts: the on/off control is called "on-off" everywhere (options, wizard, HC info panel, control matrix, README) instead of "kétállású".
+- README: a feature overview at the top, and a section on presence per room (a room can follow one person; guesthouse and family house examples).
+
 ## 0.39.3 – 2026-11-11
 Fixes from the second outside review (0.33.0) and of 0.35.0–0.39.1:
 - On/off control (heat pump, pellet boiler) with a lost room sensor: the fallback demand (35 %) meant "on" without end, as there is no PWM here. Now it is a share of the time: one minimum run, then a pause that keeps the share (never under the minimum pause); details `fallback_run_s`, `fallback_pause_s`.
