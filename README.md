@@ -18,6 +18,19 @@ HC Thermostat is a heating **supervisor** for Home Assistant, with a built-in re
 - **Decision log** in English and Hungarian.
 - **Control matrix:** heat source and hydraulics give a recommended control. These are engineering defaults, not an installation design.
 
+## Presence per room
+
+- Every instance has its own presence entities (`presence_entities`): a person, a binary sensor, an input boolean, or
+  any entity that says home / on / Otthon, or vacation / Szabadság. With several, the instance is home while any of
+  them is home, away when none is, and on vacation when one of them says so.
+- So the whole house can follow the household, and one room can follow one person: when that person is away, only
+  their room drops to the Away (later Vacation) target, the rest of the house heats as before; back home, the room
+  returns to its own target. It works the same way as the house-level presence control.
+- Examples: in a large family house the room of a grown-up child who is away stays on a setback; in a guesthouse or a
+  hotel a room that is not let (an input boolean or a booking sensor per room) stays on a setback, while a let room
+  heats normally.
+- The away and vacation targets and how long a chosen preset lasts are set per instance.
+
 ## Setup wizard (0.21.0)
 
 A sidebar panel, **HC setup** (admins only), walks through six steps: what to set up (a new instance or an

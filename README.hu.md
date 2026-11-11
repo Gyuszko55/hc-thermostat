@@ -18,6 +18,19 @@ A HC Thermostat a Home Assistant fűtési **felügyelője**, egyszerű rendszere
 - **Döntésnapló** magyarul és angolul.
 - **Vezérlési mátrix:** a hőtermelőből és a hidraulikából javaslatot ad. Ez szakmai alapbeállítás, nem helyettesíti a gépész méretezését.
 
+## Jelenlét helyiségenként
+
+- Minden példánynak saját jelenlét-entitásai vannak (`presence_entities`): személy, bináris érzékelő, input_boolean,
+  vagy bármi, ami otthon / on / Otthon, illetve vacation / Szabadság állapotot mond. Ha több van megadva, a példány
+  otthon van, amíg bármelyik otthon van; távol, ha egyik sincs; szabadságon, ha valamelyik ezt mondja.
+- Így az egész ház követheti a háztartást, egy helyiség pedig egyetlen személyt: ha ő nincs otthon, csak az ő
+  helyisége áll a Távol (később Szabadság) célra, a ház többi része ugyanúgy fűt; hazaérve a helyiség visszaáll a saját
+  céljára. Ugyanúgy működik, mint a ház szintű jelenlét-szabályozás.
+- Példák: nagy családi házban a nem otthon lévő nagyobb gyerek szobája csökkentett fűtésen marad; panzióban,
+  szállodában a ki nem adott szoba (szobánként egy input_boolean vagy foglalási érzékelő) csökkentett célon marad, a
+  kiadott szoba rendesen fűt.
+- A Távol és Szabadság célja és a kézzel választott preset időtartama példányonként állítható.
+
 ## Beállító varázsló (0.21.0)
 
 Oldalsáv-panel, **HC beállítás** (csak adminnak), hat lépésben: mit állítunk be (új vagy meglévő példány) →
