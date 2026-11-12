@@ -34,6 +34,11 @@ class Pwm:
         if new_cycle:
             self.cycle_start = now
         want = (now - self.cycle_start).total_seconds() < self._on_time(demand)
+        if not want and not self.output and not new_cycle and not self._deferred and self._on_time(demand) > 0 \
+                and not self._burned_this_cycle() and self._off_long_enough(now):
+            # 0.44.2: a demand that grows past the minimum run only mid-cycle (the cycle began below it) used to wait
+            # for the next cycle – up to a whole cycle (30 min) with the room under its target. Start a cycle now.
+            self.cycle_start, want = now, True
         if allow_on is not None and want and self.output and new_cycle and not allow_on(True):
             self.output, self.last_change = False, now  # its minimum run is long over: hand over to a waiting zone
             return False, "load_limit"
@@ -48,11 +53,21 @@ class Pwm:
         if want and allow_on is not None and not allow_on(False):
             self.cycle_start, self._deferred = now, True  # the on-time starts when the room is granted: staggered
             return False, "load_limit"
-        if want and self._deferred:
+        if want and (self._deferred or not self._burned_this_cycle()):
+            # 0.44.5 (as Versatile Thermostat #2194): a start delayed by the minimum off time used to lose the delay
+            # from its run (40 %, 30-min cycle: 8 instead of 12 min). The cycle begins when the burner really starts.
             self.cycle_start = now
         self._deferred = False
         self.output, self.last_change = want, now
         return self.output, None
+
+    def _burned_this_cycle(self) -> bool:
+        """On now, or switched within this cycle (an on, or the off of a run that reached into it)."""
+        return self.output or (self.last_change is not None and self.cycle_start is not None
+                               and self.last_change > self.cycle_start)
+
+    def _off_long_enough(self, now: datetime) -> bool:
+        return self.last_change is None or (now - self.last_change).total_seconds() >= self._cfg.min_off_s
 
     def force_off(self, now: datetime) -> bool:
         """Off at once, ignoring the minimum run time: a safety limit (floor temperature) was hit."""

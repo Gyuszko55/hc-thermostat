@@ -20,7 +20,7 @@ def test_new_cycle_starts_heating_at_once():
     start = datetime(2026, 11, 8, 15, 57, tzinfo=LOCAL)
     # An old cycle that began 19 minutes ago: its on part (about 11 minutes) is over.
     sup.pwm.cycle_start = start
-    sup.pwm.last_change = start - timedelta(hours=1)
+    sup.pwm.last_change = start + timedelta(minutes=11)  # it burned and went off (0.44.2: a cycle without a burn restarts)
     now = start + timedelta(minutes=19)
     assert sup.step(_inputs(now)).output is False  # waits for the old cycle phase
     sup.new_cycle()

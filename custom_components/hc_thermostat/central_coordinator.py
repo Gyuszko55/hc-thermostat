@@ -28,6 +28,8 @@ from .const import CONF_BOILER, CONF_FLOW, CONF_MODE, CONF_PUMP, CONF_ZONES, DOM
 from .core.central import CentralBoiler, CentralConfig, CentralDecision, ZoneState, feedback_open
 from .executor import KeepAlive
 
+from .units import from_c
+
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
 _SAVE_EVERY = timedelta(minutes=10)
@@ -148,6 +150,8 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
             return
         if value is None:
             value = float(state.attributes.get("min", 0) or 0)
+        else:  # 0.45.0: a flow setpoint number in °F gets °F
+            value = from_c(value, state.attributes.get("unit_of_measurement"))
         if self._last_flow is not None and abs(value - self._last_flow) < 0.5:
             return
         try:

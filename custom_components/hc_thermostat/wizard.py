@@ -5,6 +5,9 @@ Websocket commands (admin only):
 - hc_thermostat/wizard/start   – heat sources, systems, the matrix, control types, existing instances,
                                   candidate entities and first suggestions;
 - hc_thermostat/wizard/derive  – settings calculated from the source, system, control and the chosen devices;
+- hc_thermostat/wizard/trv     – per TRV head: its room and the thermometers offered for it (0.42.0);
+- hc_thermostat/wizard/rooms   – the home's areas with their thermometers, TRV heads and presence sources, the
+                                  room-tracking sensors, and a first room list (0.43.0);
 - hc_thermostat/wizard/apply   – create a new instance (always in shadow mode) or update an existing one.
 """
 
@@ -24,20 +27,26 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_ACTUATOR, CONF_BOILER_POWER, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR,
     CONF_FLAME, CONF_FLOW, CONF_HEAT_ENABLE, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_ROLE, CONF_ROOMS, CONF_SYSTEM, CONF_WINDOWS, DOMAIN, MODE_SHADOW,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_ROLE, CONF_ROOMS, CONF_SYSTEM, CONF_WINDOWS, DOMAIN, MODE_ACTIVE, MODE_SHADOW,
     CONF_FLOOR, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN,
-    CONF_COIL, CONF_RETURN, CONF_DEMAND,
+    CONF_COIL, CONF_RETURN, CONF_DEMAND, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS,
 )
 from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
 )
 from .core.model import HcConfig
 from .info import ws_info, ws_info_list
-from .rooms_ha import area_id_of, area_name, suggest_room_sensors
+from .units import climate_attrs_c
+from .core.room_model import CONF_LEADING, CONF_ROOM_LIST, parse_rooms, rooms_options
+from .rooms_ha import (
+    climates_of_other_instances, excluded_climates, hc_climates,
+    area_id_of, area_name, current_trv_sensors, room_specs_for, rooms_candidates, suggest_room_sensors,
+    trv_sensor_candidates,
+)
 
 STATIC_URL = "/hc_thermostat_static"
 PANEL_URL = "hc-wizard"
-_OUTDOOR_WORDS = ("kulso", "kinti", "outdoor", "outside", "udvar", "kert", "bthome")
+_OUTDOOR_WORDS = ("kulso", "külső", "kinti", "outdoor", "outside", "udvar", "kert")  # 0.45.0: not "bthome" (indoor ones too)
 GAS_KWH_PER_M3 = 9.61  # typical Hungarian calorific value (MVM bills: 34.6 MJ/m³)
 BOILER_EFFICIENCY = 0.9
 
@@ -60,24 +69,53 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
     hass.data[f"{DOMAIN}_wizard"] = True
     await hass.http.async_register_static_paths(
         [StaticPathConfig(STATIC_URL, str(Path(__file__).parent / "www"), False)])
+    await async_register_panels(hass)
+    websocket_api.async_register_command(hass, ws_info_list)
+    websocket_api.async_register_command(hass, ws_info)
+    websocket_api.async_register_command(hass, ws_start)
+    websocket_api.async_register_command(hass, ws_derive)
+    websocket_api.async_register_command(hass, ws_apply)
+    websocket_api.async_register_command(hass, ws_trv)
+    websocket_api.async_register_command(hass, ws_rooms)
+
+
+INFO_URL = "hc-info"
+_PANELS = f"{DOMAIN}_panels"
+
+
+async def async_register_panels(hass: HomeAssistant) -> None:
+    """The two sidebar panels (admins only); again after async_remove_panels (0.45.0)."""
+    if hass.data.get(_PANELS):
+        return
+    hass.data[_PANELS] = True
     version = await hass.async_add_executor_job(_version)
     await panel_custom.async_register_panel(
         hass, frontend_url_path=PANEL_URL, webcomponent_name="hc-wizard-panel",
-        sidebar_title="HC beállítás", sidebar_icon="mdi:auto-fix", module_url=f"{STATIC_URL}/hc-wizard-panel.js?v={version}",
+        sidebar_title=panel_title(hass), sidebar_icon="mdi:auto-fix", module_url=f"{STATIC_URL}/hc-wizard-panel.js?v={version}",
         require_admin=True, config={})
     # info panel (0.34.0): everything an instance knows, read only
     await panel_custom.async_register_panel(
         hass, frontend_url_path=INFO_URL, webcomponent_name="hc-info-panel",
         sidebar_title="HC info", sidebar_icon="mdi:information-outline", module_url=f"{STATIC_URL}/hc-info-panel.js?v={version}",
         require_admin=True, config={})
-    websocket_api.async_register_command(hass, ws_info_list)
-    websocket_api.async_register_command(hass, ws_info)
-    websocket_api.async_register_command(hass, ws_start)
-    websocket_api.async_register_command(hass, ws_derive)
-    websocket_api.async_register_command(hass, ws_apply)
 
 
-INFO_URL = "hc-info"
+@callback
+def async_remove_panels(hass: HomeAssistant) -> None:
+    """0.45.0: the last instance was deleted – no empty HC panels in the sidebar (the next instance brings them back)."""
+    if not hass.data.pop(_PANELS, None):
+        return
+    from homeassistant.components import frontend
+    for url in (PANEL_URL, INFO_URL):
+        try:
+            frontend.async_remove_panel(hass, url)
+        except Exception:  # already gone
+            pass
+
+
+def panel_title(hass) -> str:
+    """0.45.0: the sidebar title in Home Assistant's language (it is one text for every user)."""
+    return "HC beállítás" if str(hass.config.language or "").startswith("hu") else "HC setup"
 
 
 def _version() -> str:
@@ -135,8 +173,119 @@ def _entries(hass) -> list[dict]:
         res.append({"entry_id": e.entry_id, "title": e.title, "role": conf.get(CONF_ROLE, "standalone"),
                     "heat_source": conf.get(CONF_HEAT_SOURCE), "system": conf.get(CONF_SYSTEM),
                     "control": conf.get(CONF_CONTROL), "mode": conf.get(CONF_MODE, MODE_SHADOW),
-                    "conf": {k: v for k, v in conf.items() if k in ENTITY_KEYS + SETTING_KEYS}})
+                    "conf": {k: v for k, v in conf.items() if k in ENTITY_KEYS + SETTING_KEYS},
+                    # 0.42.0: the TRV heads as they work now (legacy calibration → the room thermometer it follows)
+                    "trv": {CONF_ROOM_TRVS: list(conf.get(CONF_ROOM_TRVS) or []),
+                            CONF_TRV_SENSORS: current_trv_sensors(hass, conf),
+                            CONF_TRV_OFFSETS: dict(conf.get(CONF_TRV_OFFSETS) or {}),
+                            CONF_ROOM_TRV_DEMAND: bool(conf.get(CONF_ROOM_TRV_DEMAND, False))},
+                    # 0.43.0: the rooms as they work now (saved, or derived from the options above)
+                    **_rooms_of(hass, conf)})
     return res
+
+
+def _rooms_of(hass, conf: dict) -> dict:
+    if conf.get(CONF_ROLE, "standalone") != "standalone" or conf.get(CONF_CONTROL) not in ("tpi", "pid"):
+        return {"rooms": [], "leading_room": None}
+    try:
+        specs, leading = room_specs_for(hass, conf)
+    except Exception:  # a broken registry must not hide the instance
+        return {"rooms": [], "leading_room": None}
+    return {"rooms": [s.as_dict() for s in specs], "leading_room": leading}
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): "hc_thermostat/wizard/rooms",
+                                  vol.Optional("indoor"): vol.Any(str, None)})
+@callback
+def ws_rooms(hass: HomeAssistant, connection, msg) -> None:
+    """The areas with what can go into a room; `suggest`: a room per area that has a thermometer or a TRV head, the
+    main thermometer's area leading."""
+    cand = rooms_candidates(hass)
+    indoor = msg.get("indoor")
+    lead_area = area_id_of(hass, indoor) if indoor else None
+    suggest = []
+    if indoor and lead_area is None:
+        # 0.44.2: a main thermometer without an area still has its room – the leading one (before: no leading room,
+        # and a later leading room silently replaced the main thermometer)
+        st = hass.states.get(indoor)
+        name = (st.attributes.get("friendly_name") if st is not None else None) or indoor
+        suggest.append({"key": "main", "name": str(name), "area": None, "sensors": [indoor], "trvs": [],
+                        "mode": "follow", "offset": 0.0, "presence": [], "absent_min": 15.0, "setback": 2.0,
+                        "demand": False})
+        lead_area = "main"
+    for a in cand["areas"]:
+        # 0.44.2: only real heads that no other HC instance drives are suggested; outdoor areas are no rooms
+        heads = [t["id"] for t in a["trvs"] if t.get("head") and not t.get("taken_by")]
+        sensors = [s["id"] for s in a["sensors"] if not s.get("head")][:1]
+        if a["area"] == lead_area:
+            sensors = [indoor]
+        elif a.get("outdoor") or not (sensors or heads):
+            continue
+        suggest.append({"key": a["area"], "name": a["name"], "area": a["area"], "sensors": sensors,
+                        "trvs": heads, "mode": "follow", "offset": 0.0, "presence": [],
+                        "absent_min": 15.0, "setback": 2.0, "demand": False})
+    connection.send_result(msg["id"], {**cand, "suggest": suggest, "suggest_leading": lead_area})
+
+
+def wizard_rooms(hass, control: str, rooms, leading, indoor: str | None, entry_id: str | None = None) -> dict | None:
+    """The room options the wizard writes (tpi / pid only; None: leave them as they are). HC's own climates are no
+    TRV heads; a head is in one room only."""
+    if not isinstance(rooms, list) or control not in ("tpi", "pid"):
+        return None
+    from homeassistant.helpers import entity_registry as er
+    try:
+        reg = er.async_get(hass)
+        ours = lambda e: (x := reg.async_get(e)) is not None and x.platform == DOMAIN
+    except Exception:
+        ours = lambda e: False
+    from .rooms_ha import heads_of_other_instances
+    others = heads_of_other_instances(hass, entry_id)
+    seen: set[str] = set()
+    clean = []
+    for r in rooms:
+        if not isinstance(r, dict):
+            continue
+        heads = [h for h in r.get("trvs") or [] if isinstance(h, str) and h.startswith("climate.") and not ours(h)
+                 and h not in seen and h not in others]  # 0.44.2: nor a head another HC instance drives
+        seen.update(heads)
+        clean.append({**r, "trvs": heads})
+    if not parse_rooms(clean):
+        return {CONF_ROOM_LIST: [], CONF_LEADING: None, "room_sensors": [], "room_trvs": [], "trv_sensors": {},
+                "trv_offsets": {}, "room_trv_demand": False}
+    return rooms_options(clean, leading, indoor)
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): "hc_thermostat/wizard/trv", vol.Required("heads"): [str]})
+@callback
+def ws_trv(hass: HomeAssistant, connection, msg) -> None:
+    """Per head: its name, room (the key of its offset) and the thermometers offered for it."""
+    out = {}
+    for head in msg["heads"]:
+        st = hass.states.get(head)
+        out[head] = {"name": st.attributes.get("friendly_name", head) if st is not None else head,
+                     **trv_sensor_candidates(hass, head)}
+    connection.send_result(msg["id"], out)
+
+
+def trv_options(control: str, trv: dict | None) -> dict | None:
+    """The TRV options the wizard writes (tpi / pid only; None: leave them as they are). Every head not given a
+    thermometer uses its own; the old switch trv_calibration is replaced by trv_sensors."""
+    if trv is None or control not in ("tpi", "pid"):
+        return None
+    heads = [h for h in dict.fromkeys(trv.get(CONF_ROOM_TRVS) or []) if isinstance(h, str) and h.startswith("climate.")]
+    sensors = {h: v for h, v in (trv.get(CONF_TRV_SENSORS) or {}).items()
+               if h in heads and isinstance(v, str) and v.startswith("sensor.")}
+    offsets = {}
+    for room, v in (trv.get(CONF_TRV_OFFSETS) or {}).items():
+        try:
+            if (value := max(-5.0, min(5.0, float(v)))) != 0.0:
+                offsets[str(room)] = value
+        except (TypeError, ValueError):
+            continue
+    return {CONF_ROOM_TRVS: heads, CONF_TRV_SENSORS: sensors, CONF_TRV_OFFSETS: offsets,
+            CONF_ROOM_TRV_DEMAND: bool(trv.get(CONF_ROOM_TRV_DEMAND, False)) and bool(heads)}
 
 
 @websocket_api.require_admin
@@ -155,7 +304,23 @@ def ws_start(hass: HomeAssistant, connection, msg) -> None:
         "controls": {so: _controls(so) for so in SOURCES},
         "controls_fan_coil": {so: _controls(so, "fan_coil") for so in SOURCES}, "entries": _entries(hass),
         "candidates": cand, "suggest": suggest, "language": hass.config.language,
+        # 0.45.0: the climates a thermostat / AC / TRV picker must not offer: HC's own, and per instance the ones
+        # another instance drives ("" = a new instance)
+        "hc_climates": hc_climates(hass),
+        "taken_climates": {e.entry_id: sorted(climates_of_other_instances(hass, e.entry_id))
+                           for e in hass.config_entries.async_entries(DOMAIN)} | {"": sorted(climates_of_other_instances(hass))},
+        "default_name": _free_name(hass),
     })
+
+
+def _free_name(hass, base: str = "HC Thermostat") -> str:
+    """0.45.0: a default name no instance has yet."""
+    titles = {str(e.title).strip().casefold() for e in hass.config_entries.async_entries(DOMAIN)}
+    name, n = base, 1
+    while name.casefold() in titles:
+        n += 1
+        name = f"{base} {n}"
+    return name
 
 
 def _power_levels(hass, entity_id: str) -> tuple[float, float, int] | None:
@@ -174,6 +339,10 @@ def _power_levels(hass, entity_id: str) -> tuple[float, float, int] | None:
     return round(max(lo * 2, lo + 5), 0), round(lo + (hi - lo) * 0.8, 0), len(values)
 
 
+def _r1(v):
+    return round(v, 1) if isinstance(v, (int, float)) else v
+
+
 def _num(v):
     try:
         return float(v)
@@ -186,11 +355,12 @@ def _num(v):
     vol.Required("type"): "hc_thermostat/wizard/derive",
     vol.Required("heat_source"): str, vol.Required("system"): str, vol.Required("control"): str,
     vol.Optional("entities", default={}): dict,
+    vol.Optional("language"): vol.Any(str, None),  # 0.45.0: the user's language (the panel's hass.language)
 })
 @websocket_api.async_response
 async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
     source, system, control, ent = msg["heat_source"], msg["system"], msg["control"], msg["entities"]
-    lang = "hu" if hass.config.language.startswith("hu") else "en"
+    lang = "hu" if str(msg.get("language") or hass.config.language or "en").startswith("hu") else "en"
     T = (lambda hu, en: hu) if lang == "hu" else (lambda hu, en: en)
     items: list[dict] = []
 
@@ -229,13 +399,13 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
                      ["above_pipe", "Cső fölött (becslés)", "Above a supply pipe (estimate)"]])
     if system.startswith("floor") and control in ("tpi", "pid", "onoff"):
         # floor tempering (0.35.0): comfort, off by default
-        add("floor_temper", False, T("padlótemperálás: a padló meleg marad akkor is, ha a szoba már elég meleg (padlószenzor kell)",
+        add("floor_temper", False, T("padlótemperálás: a padló meleg marad akkor is, ha a helyiség már elég meleg (padlószenzor kell)",
                                      "floor tempering: the floor stays warm even when the room is warm enough (needs a floor sensor)"))
-        add("floor_temper_offset", 0.0, T("a padló célja a szoba célja fölött; 0 = a burkolat szerint (csempe 2 °C, más 3 °C, nincs megadva 2 °C)",
+        add("floor_temper_offset", 0.0, T("a padló célja a helyiség célja fölött; 0 = a burkolat szerint (csempe 2 °C, más 3 °C, nincs megadva 2 °C)",
                                           "the floor target above the room target; 0 = by the covering (tiles 2 °C, others 3 °C, not set 2 °C)"), "°C")
         add("floor_temper_night", 0.0, T("a padló célja éjjel / alvás presetben; 0 = mint nappal",
                                          "the floor target at night / in the sleep preset; 0 = as by day"), "°C")
-        add("floor_fallback", True, T("ha a szobahőmérő kiesik, a padlószenzor szerint tartja a padlót (vakon fűtés helyett)",
+        add("floor_fallback", True, T("ha a helyiséghőmérő kiesik, a padlószenzor szerint tartja a padlót (vakon fűtés helyett)",
                                       "if the room thermometer is lost, the floor is held by the floor sensor (instead of blind heat)"))
     if source == "heat_pump" and control in ("curve", "onoff"):
         why = T("hőszivattyú: hosszú futások, ritka indítás (kíméli a kompresszort)", "heat pump: long runs, few starts (spares the compressor)")
@@ -251,9 +421,9 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
         add("flow_max", c["flow_max"], why, "°C")
         add("flow_min", c["flow_min"], why, "°C")
     if control == "ac" and (st := hass.states.get(ent.get(CONF_EXTERNAL) or "")):
-        a = st.attributes
-        add("unit_step", a.get("target_temp_step") or 1, T("a klíma lépésköze (a készülékből)", "the unit's step (from the device)"), "°C", False)
-        add("unit_range", f"{a.get('min_temp')}–{a.get('max_temp')}", T("a klíma határai: ezen kívül nem állítható, a határon a HC szünetet tart",
+        a = climate_attrs_c(hass, st.attributes)  # 0.45.0: a °F unit shown in °C
+        add("unit_step", round(a.get("target_temp_step") or 1, 2), T("a klíma lépésköze (a készülékből)", "the unit's step (from the device)"), "°C", False)
+        add("unit_range", f"{_r1(a.get('min_temp'))}–{_r1(a.get('max_temp'))}", T("a klíma határai: ezen kívül nem állítható, a határon a HC szünetet tart",
             "the unit's limits: the HC pauses when pinned there"), "°C", False)
         add("target_cool", 26.0, T("nyári hűtési cél (évszak szerint)", "summer cooling target (by season)"), "°C")
         add("ac_min_change_s", 600, T("legfeljebb 10 percenként változtat a klíma célján (kompresszorkímélés)",
@@ -271,10 +441,12 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
             why = T("alapérték (kevés mérés): a fűtő készenlétben szinte semmit, fűtéskor több száz W-ot vesz fel",
                     "default (few readings): a heater draws almost nothing on standby and hundreds of W while heating")
         else:
-            idle, burn = base.power_idle_w, base.power_burn_w
-            why = T("alapérték (kevés mérés): ellenőrizd a kazán áramfelvételét", "default (few readings): check the boiler's draw")
-        add("power_idle_w", idle, why, "W")
-        add("power_burn_w", burn, why, "W")
+            # 0.45.0: no measured levels – nothing is written; the boiler health learns ("learning") until the
+            # levels are set in the options (the 20 W / 115 W defaults are one boiler's)
+            idle = burn = None
+        if idle is not None:
+            add("power_idle_w", idle, why, "W")
+            add("power_burn_w", burn, why, "W")
     if (gas := ent.get(CONF_HEAT_ENERGY)) and (st := hass.states.get(gas)):
         unit = (st.attributes.get("unit_of_measurement") or "").lower()
         if "m³" in unit or unit in ("m3", "m^3"):
@@ -312,6 +484,9 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
     vol.Required("name"): str,
     vol.Required("heat_source"): vol.In(SOURCES), vol.Required("system"): vol.In(SYSTEMS), vol.Required("control"): str,
     vol.Optional("entities", default={}): dict, vol.Optional("settings", default={}): dict,
+    vol.Optional("trv"): vol.Any(dict, None),
+    vol.Optional("rooms"): vol.Any(list, None), vol.Optional("leading_room"): vol.Any(str, None),
+    vol.Optional("start_active", default=False): bool,  # 0.45.0: a new instance may start live (confirmed in the panel)
 })
 @websocket_api.async_response
 async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
@@ -333,22 +508,41 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
     if electric_floor(system, source) and control in ("tpi", "pid") and not ents.get(CONF_FLOOR):
         connection.send_error(msg["id"], "missing_floor", "an electric floor needs a floor temperature sensor")
         return
+    trv = trv_options(control, msg.get("trv"))
+    rooms = wizard_rooms(hass, control, msg.get("rooms"), msg.get("leading_room"), ents.get(CONF_INDOOR), msg.get("entry_id"))
+    if rooms is not None:  # 0.43.0: the rooms card replaces the TRV card (and the room thermometer list)
+        trv = rooms
+        ents.pop(CONF_ROOMS, None)
+        ents.update({k: v for k, v in rooms.items() if k == CONF_INDOOR})
+    if trv is not None:
+        ents.pop(CONF_ROOM_TRVS, None)
     if (entry_id := msg.get("entry_id")):
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry is None or entry.domain != DOMAIN:
             connection.send_error(msg["id"], "not_found", "no such HC instance")
             return
+        if ents.get(CONF_EXTERNAL) in excluded_climates(hass, entry_id):
+            connection.send_error(msg["id"], "climate_taken", "an HC thermostat, or driven by another HC instance")
+            return
         data = {**entry.data, CONF_HEAT_SOURCE: source, CONF_SYSTEM: system, CONF_CONTROL: control}
         options = {**entry.options, **ents, **sets}
+        if trv is not None:
+            options.update(trv)
+            options.pop("trv_calibration", None)
+            data.pop("trv_calibration", None)
         hass.config_entries.async_update_entry(entry, title=msg["name"] or entry.title, data=data, options=options)
         connection.send_result(msg["id"], {"entry_id": entry.entry_id, "created": False})
         return
     name = msg["name"].strip() or "HC Thermostat"
-    if any(e.title == name for e in hass.config_entries.async_entries(DOMAIN)):
+    if any(e.title.strip().casefold() == name.casefold() for e in hass.config_entries.async_entries(DOMAIN)):
         connection.send_error(msg["id"], "name_taken", "an HC instance with this name exists")
         return
+    if ents.get(CONF_EXTERNAL) in excluded_climates(hass):
+        connection.send_error(msg["id"], "climate_taken", "an HC thermostat, or driven by another HC instance")
+        return
+    mode = MODE_ACTIVE if msg.get("start_active") else MODE_SHADOW
     data = {"name": name, CONF_ROLE: "standalone", CONF_HEAT_SOURCE: source, CONF_SYSTEM: system,
-            CONF_CONTROL: control, CONF_MODE: MODE_SHADOW, **ents, **sets}
+            CONF_CONTROL: control, **ents, **sets, **(trv or {}), CONF_MODE: mode}
     if control == "curve":
         data = {**default_curve(system, source), **data}
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "wizard"}, data=data)

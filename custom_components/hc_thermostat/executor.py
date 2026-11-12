@@ -9,9 +9,11 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MODE_ACTIVE
+from .core.adapters import GenericAdapter, adapter_for
 from .core.fancoil import fan_at_level, fan_level
 from .core.model import Decision
 from .core.target_source import WriteLog
+from .units import CELSIUS, from_c, system_unit, to_c
 
 _LOGGER = logging.getLogger(__name__)
 _SLACK_S = 2.0
@@ -20,6 +22,13 @@ _SLACK_S = 2.0
 def write_log(hass: Any) -> WriteLog:
     """Setpoints written by any HC instance – a target-source follower ignores these (no echo)."""
     return hass.data.setdefault(f"{DOMAIN}_writes", WriteLog())
+
+
+def _same(current: Any, target: float) -> bool:
+    try:
+        return abs(float(current) - float(target)) < 0.01
+    except (TypeError, ValueError):
+        return False
 
 
 class KeepAlive:
@@ -60,9 +69,11 @@ class Executor:
         self._discharge = discharge  # storage heater: discharge fan / damper
         self._keep_script = keep_script  # 0.41.0: re-arms a device-side off timer while the relay should stay on
         self._fan = fan  # fan coil: its fan, by percentage  # air conditioner: heat and cool are both real modes, set exactly
+        self.adapter: GenericAdapter = adapter_for(None)  # 0.42.0: the managed thermostat's integration (coordinator)
+        self.paused = False  # 0.42.0: "HC supervision paused" – nothing is written to the managed thermostat
 
     async def apply(self, decision: Decision) -> None:
-        if self.mode != MODE_ACTIVE:
+        if self.mode != MODE_ACTIVE or self.paused:
             return
         try:
             await self._apply_cool_mode(decision)
@@ -104,14 +115,34 @@ class Executor:
         if state is None or state.state in ("unavailable", "unknown"):
             return
         command = decision.external
-        if state.state != command.hvac and (self._exact or not (command.hvac == "heat" and state.state != "off")):
+        attrs = state.attributes
+        hvac, target = command.hvac, command.target
+        # 0.45.0: a climate takes its temperatures in Home Assistant's unit system – a °C target goes in as °F there
+        unit = system_unit(self._hass)
+        if target is not None and unit != CELSIUS:
+            target = from_c(target, unit)
+        if not self._exact:
+            # 0.42.0: external control – the mode that means heat for this entity, the target fitted to its own step
+            # and range (a 1 °C-step unit refuses 22.5). The AC control already steps and clamps its setpoint.
+            if hvac == "heat":
+                hvac = self.adapter.heat_mode(attrs)
+            if target is not None:
+                target = self.adapter.fit_target(target, attrs)
+        elif target is not None and unit != CELSIUS:
+            # the AC control stepped it in °C by the unit's own step: back on that step in °F (no float noise)
+            step = attrs.get("target_temp_step")
+            step = float(step) if isinstance(step, (int, float)) and step > 0 else 1.0
+            target = round(round(target / step) * step, 2)
+        now = dt_util.utcnow()
+        if state.state != hvac and (self._exact or not (command.hvac == "heat" and state.state != "off")):
+            write_log(self._hass).note_mode(self._external, hvac, now)
             await self._hass.services.async_call(
-                "climate", "set_hvac_mode", {"entity_id": self._external, "hvac_mode": command.hvac}, blocking=True
+                "climate", "set_hvac_mode", {"entity_id": self._external, "hvac_mode": hvac}, blocking=True
             )
-        if command.hvac in ("heat", "cool") and command.target is not None and state.attributes.get("temperature") != command.target:
-            write_log(self._hass).note(self._external, command.target, dt_util.utcnow())
+        if command.hvac in ("heat", "cool") and target is not None and not _same(attrs.get("temperature"), target):
+            write_log(self._hass).note(self._external, to_c(target, unit), now)  # the followers compare in °C
             await self._hass.services.async_call(
-                "climate", "set_temperature", {"entity_id": self._external, "temperature": command.target}, blocking=True
+                "climate", "set_temperature", {"entity_id": self._external, "temperature": target}, blocking=True
             )
 
     async def _apply_fan(self, decision: Decision) -> None:
@@ -164,6 +195,8 @@ class Executor:
         if state is None or state.state in ("unavailable", "unknown"):
             return
         value = decision.flow_setpoint if decision.output and decision.flow_setpoint is not None else None
+        if value is not None:  # 0.45.0: a flow setpoint number in °F gets °F (its min / max below are its own)
+            value = from_c(value, state.attributes.get("unit_of_measurement"))
         if value is None:
             if self._enable:
                 return  # switched off by the enable switch; leave the setpoint alone

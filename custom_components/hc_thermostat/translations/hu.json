@@ -13,10 +13,13 @@
       },
       "control": {
         "title": "Javasolt vezérlés",
-        "description": "Értékelés: **{status}**\n\n{advice}\n\nEz szakmai alapbeállítás, nem helyettesíti a gépész méretezését.",
+        "description": "Értékelés: **{status_hu}**\n\n{advice_hu}<!-- {status_en} {advice_en} -->\n\nEz szakmai alapbeállítás, nem helyettesíti a gépész méretezését.",
         "data": {
           "control": "Szabályozó",
           "confirm": "Tudom, hogy ez a rendszer nem ajánlott, és vállalom"
+        },
+        "data_description": {
+          "control": "TPI + PWM: a relét impulzusokkal kapcsolja (minden ciklus egy részében bekapcsolva) a hiba és a hőigény szerint – a legtöbb relés kazánhoz. PID + PWM: ugyanilyen impulzusok integráló taggal, nem marad tartósan a cél alatt. Külső termosztát: a HC csak egy meglévő termosztát célját állítja (szelepfej, Better Thermostat, wifis fűtő). Klíma – virtuális i-Feel: a HC úgy tolja a klíma célját, hogy a helyiség hőmérője (nem a beltéri egység saját szenzora) érje el a célt. On-off: a cél alatt be, fölötte ki, hosszú futásokkal (hőszivattyú). Fűtési görbe: előremenő hőfok a kinti hőmérséklet szerint."
         }
       },
       "entities": {
@@ -35,7 +38,7 @@
           "extra_heat_entity": "Másik hőforrás energiája (összegző, pl. klíma)",
           "extra_factor": "Egységnyi hő a másik forrásból (pl. COP)",
           "boiler_power_kw": "Kazán teljesítménye (0 = a hőigényt nem használja a szabályozásban)",
-          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. terasz)",
+          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. télikert, szomszéd helyiség)",
           "zone_door_entities": "Ajtók a csatlakozó térbe",
           "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
           "flow_setpoint_entity": "Előremenő-cél entitás (number / input_number, pl. OpenTherm vagy ebusd)",
@@ -55,12 +58,12 @@
           "fan_entity": "Fan-coil ventilátora (fan entitás, nem kötelező)",
           "coil_temp_entity": "Hőcserélő / előremenő hőmérséklete (nem kötelező)",
           "return_temp_entity": "Visszatérő víz hőmérséklete (nem kötelező)",
-          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a szoba már elég meleg)",
-          "floor_temper_offset": "Padló célja a szoba célja fölött (0 = a burkolat szerint)",
+          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a helyiség már elég meleg)",
+          "floor_temper_offset": "Padló célja a helyiség célja fölött (0 = a burkolat szerint)",
           "floor_temper_night": "Padló célja éjjel / alvás presetben (0 = mint nappal)",
           "floor_temper_hysteresis": "A temperálás ennyivel a padló célja alatt indul újra",
-          "floor_temper_room_margin": "Nincs temperálás, ha a szoba ennyivel a célja fölött van",
-          "floor_fallback": "Kiesett szobahőmérő: a padlót a padlószenzor szerint tartja melegen",
+          "floor_temper_room_margin": "Nincs temperálás, ha a helyiség ennyivel a célja fölött van",
+          "floor_fallback": "Kiesett helyiséghőmérő: a padlót a padlószenzor szerint tartja melegen",
           "floor_covering": "Padlóburkolat",
           "floor_probe": "Szenzor helye",
           "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)"
@@ -74,12 +77,13 @@
           "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
           "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
           "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
-          "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
-          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
+          "floor_temper": "Kényelem: meleg padló. Amíg a helyiség elég meleg, a padlót a helyiség célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a helyiség ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
+          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a helyiség célja + a temperálás eltérése hőfokán tartja, amíg a helyiséghőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
           "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
           "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
-          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a szobahőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
-          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt."
+          "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a helyiséghőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
+          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a helyiség jobban a célja fölé ingadozhat, és többet fogyaszt.",
+          "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő)."
         }
       },
       "central": {
@@ -133,7 +137,9 @@
     "error": {
       "confirm_required": "Nem ajánlott rendszerhez erősítsd meg a választást.",
       "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
-      "indoor_required": "Adj meg szobahőmérőt vagy fali termosztát érintkezőt."
+      "indoor_required": "Adj meg helyiséghőmérőt vagy fali termosztát érintkezőt.",
+      "name_taken": "Már van ilyen nevű példány – adj másik nevet.",
+      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van."
@@ -142,6 +148,26 @@
   "options": {
     "step": {
       "init": {
+        "title": "HC Thermostat",
+        "description": "Mit szeretnél módosítani?",
+        "menu_options": {
+          "settings": "Beállítások (célok, időzítés, eszközök, helyiségek)",
+          "go_live": "Élesítés – a HC kapcsolni kezd",
+          "go_shadow": "Vissza árnyék módba – a HC csak számol"
+        }
+      },
+      "go_live": {
+        "title": "Élesítés: {name}",
+        "description": "Árnyék módban a HC számol és naplózza, mit tenne, de semmit nem kapcsol. Élesen ő kapcsolja a kazán reléjét (vagy állítja a termosztátot / klímát, a szelepfejeket).\n\nCsak akkor élesítsd, ha az árnyék döntések egy ideje rendben vannak, és semmi más (fali termosztát, automatizálás) nem vezérli ugyanazt a kimenetet. Minden más beállítás marad.",
+        "data": {
+          "confirm": "Megerősítem: a HC mostantól kapcsolhatja a fűtést"
+        }
+      },
+      "go_shadow": {
+        "title": "Árnyék mód: {name}",
+        "description": "A HC tovább számol és naplóz, de mostantól semmit nem kapcsol. A kimenet úgy marad, ahogy most van – szükség esetén kapcsold kézzel."
+      },
+      "settings": {
         "title": "Beállítások",
         "description": "Éles módba csak akkor kapcsold, ha ugyanazt a kimenetet más már nem vezérli.",
         "data": {
@@ -164,11 +190,8 @@
           "energy_factor": "Egységnyi hő a kazánból (pl. kWh/m³ gáz × hatásfok)",
           "extra_factor": "Egységnyi hő a másik forrásból (pl. COP)",
           "boiler_power_kw": "Kazán teljesítménye (0 = a hőigényt nem használja a szabályozásban)",
-          "room_sensors": "Más helyiségek hőmérői (csak javaslat: radiátorszelep lejjebb/feljebb; a fő hőmérő dönt)",
           "room_tolerance": "Helyiség eltérésének tűrése",
-          "room_trvs": "Más helyiségek termosztátfejei (TRV): a ház célját kapják",
-          "room_trv_demand": "TRV-s helyiség hőt kérhet, ha tartósan 1 °C-kal a cél alatt van (a fő hőmérő célja fölött soha)",
-          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. terasz)",
+          "zone_temp_entity": "Csatlakozó tér hőmérője (pl. télikert, szomszéd helyiség)",
           "zone_door_entities": "Ajtók a csatlakozó térbe",
           "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
           "window_entities": "Ablakok és ajtók",
@@ -196,8 +219,8 @@
           "curve_shift": "Görbe eltolása",
           "flow_min": "Legkisebb előremenő",
           "flow_max": "Legnagyobb előremenő",
-          "room_kp": "Szobakorrekció (°C előremenő / °C eltérés)",
-          "room_ki_per_hour": "Szobakorrekció lassú tagja (°C / °C / óra)",
+          "room_kp": "Helyiségkorrekció (°C előremenő / °C eltérés)",
+          "room_ki_per_hour": "Helyiségkorrekció lassú tagja (°C / °C / óra)",
           "valve_feedback_entity": "Szelep visszajelzése (végálláskapcsoló vagy szelephelyzet, ha van)",
           "zone_own_mixer": "Saját keverőköre van (a padló a kazán előremenőjétől függetlenül védett)",
           "valve_exercise": "Nyári szelepmozgatás (ha egy hétig nem nyitott)",
@@ -242,19 +265,20 @@
           "fan_min_coil": "A ventilátor csak ennél melegebb hőcserélőnél indul",
           "return_max": "Visszatérő-korlát (0 = nincs): efölött zárva marad a szelep",
           "return_hysteresis": "Visszatérő-korlát visszakapcsolása ennyivel alatta",
-          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a szoba már elég meleg)",
-          "floor_temper_offset": "Padló célja a szoba célja fölött (0 = a burkolat szerint)",
+          "floor_temper": "Padlótemperálás (a padló meleg marad akkor is, ha a helyiség már elég meleg)",
+          "floor_temper_offset": "Padló célja a helyiség célja fölött (0 = a burkolat szerint)",
           "floor_temper_night": "Padló célja éjjel / alvás presetben (0 = mint nappal)",
           "floor_temper_hysteresis": "A temperálás ennyivel a padló célja alatt indul újra",
-          "floor_temper_room_margin": "Nincs temperálás, ha a szoba ennyivel a célja fölött van",
-          "floor_fallback": "Kiesett szobahőmérő: a padlót a padlószenzor szerint tartja melegen",
+          "floor_temper_room_margin": "Nincs temperálás, ha a helyiség ennyivel a célja fölött van",
+          "floor_fallback": "Kiesett helyiséghőmérő: a padlót a padlószenzor szerint tartja melegen",
           "floor_covering": "Padlóburkolat",
           "floor_probe": "Szenzor helye",
           "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)",
           "pid_d_filter_s": "PID deriváló tag szűrése (időállandó)",
-          "frozen_after_h": "Beragadt szobahőmérő: ennyi óra változatlan érték",
-          "frozen_burn_min": "Beragadt szobahőmérő: ennyi perc fűtés közben",
-          "keep_alive_script": "Relé-őr szkript (minden életjelnél)"
+          "frozen_after_h": "Beragadt helyiséghőmérő: ennyi óra változatlan érték",
+          "frozen_burn_min": "Beragadt helyiséghőmérő: ennyi perc fűtés közben",
+          "keep_alive_script": "Relé-őr szkript (minden életjelnél)",
+          "adopt_manual": "A kezelt termosztáton végzett változtatások átvétele"
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
@@ -267,16 +291,25 @@
           "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
           "load_limit_kw": "A zóna saját teljesítményét a „Kazán teljesítménye” mezőben add meg (elektromos fűtésnél a fűtőtesté). Ha a bekapcsolás túllépné a korlátot, a zóna vár, és a ciklusa később indul – így a zónák elcsúsztatva fűtenek. Csak éles módban számít.",
           "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell.",
-          "floor_temper": "Kényelem: meleg padló. Amíg a szoba elég meleg, a padlót a szoba célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a szoba ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
-          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a szoba célja + a temperálás eltérése hőfokán tartja, amíg a szobahőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
+          "floor_temper": "Kényelem: meleg padló. Amíg a helyiség elég meleg, a padlót a helyiség célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a helyiség ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
+          "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a helyiség célja + a temperálás eltérése hőfokán tartja, amíg a helyiséghőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
           "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
           "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
           "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
-          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a szoba jobban a célja fölé ingadozhat, és többet fogyaszt.",
-          "pid_d_filter_s": "A szoba-hőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
-          "frozen_after_h": "Ha a szobahőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan.",
-          "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi szoba ennyi fűtéstől legalább egy lépést melegszik.",
-          "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol."
+          "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a helyiség jobban a célja fölé ingadozhat, és többet fogyaszt.",
+          "pid_d_filter_s": "A helyiséghőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
+          "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan.",
+          "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi helyiség ennyi fűtéstől legalább egy lépést melegszik.",
+          "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol.",
+          "adopt_manual": "Külső vezérlés: a kezelt termosztáton (nem a HC által) beállított cél kézi cél lesz a következő ütemezett váltásig; ha valaki kikapcsolja, a HC kikapcsolva hagyja (a fagyvédelem kivétel), amíg valaki vissza nem kapcsolja. Kikapcsolva: a HC a régi módon írja a saját célját és üzemmódját.",
+          "control": "TPI: arányos impulzusok a hiba és a kinti hőmérséklet szerint. PID: arányos + integráló (+ deriváló) tag – a tartós eltérést is eltünteti. Mindkettő PWM-mel kapcsolja a relét: minden ciklus egy részében bekapcsolva.",
+          "cycle_s": "PWM-ciklus: egy be- és kikapcsolt szakasz. Az igény a ciklus bekapcsolt része (900 s 50 %-a = 7,5 perc égés).",
+          "min_on_s": "Legrövidebb égés: ennél rövidebb impulzus elmarad vagy hosszabb lesz (kíméli a kazánt és a relét).",
+          "pid_kp": "Mennyire erősen válaszol a HC a pillanatnyi eltérésre (0,4 = 40 % igény °C-onként a cél alatt).",
+          "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).",
+          "power_idle_w": "Ez alatt a kazán készenlétben van. Ha az alapértékeket (20 W / 115 W) érintetlenül hagyod, a kazán-állapot csak tanul – a „nem reagál” / „nem gyújt be” jelzést az áramfelvétel szerint csak a saját kazánod értékeivel adja.",
+          "power_burn_w": "E fölött ég az égő (a kettő között csak a szivattyú megy).",
+          "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő)."
         }
       },
       "presets": {
@@ -331,13 +364,6 @@
           "central_pump_exercise_s": "Szivattyú entitással: a napok óta álló szivattyú hetente egyszer ennyi ideig egyedül fut, hogy ne ragadjon be. Csak ha a kazán áll és egy zóna sem kér; a kazán nem indul; újraindítás után az első percekben nem."
         }
       },
-      "trv_rooms": {
-        "title": "Szelepfejes (TRV) szobák",
-        "description": "Szobánként: mennyivel legyen melegebb (+) vagy hűvösebb (−) a ház céljánál – így követi az ütemezést (éjszaka, távollét). Szobák: {rooms}.\n\nKalibrálás: ahol a szobában saját hőmérő is van, a fej saját (radiátor melletti) mérésének eltérését lassan követi, és a fejre írt célt ennyivel korrigálja (legfeljebb ±5 °C, félóránként legfeljebb egy írás).",
-        "data": {
-          "trv_calibration": "Fejek kalibrálása a szobahőmérők szerint"
-        }
-      },
       "buffer": {
         "title": "Puffertartály",
         "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul.",
@@ -355,13 +381,79 @@
           "mode": "Üzemmód",
           "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol"
         }
+      },
+      "rooms": {
+        "title": "Helyiségek",
+        "description": "A kazánhoz tartozó helyiségek. A vezető helyiség (szabályozó szelepfej nélkül) a ház hőmérőjével vezérli a kazánt; minden más helyiség saját HC termosztátot (climate) kap:\n- a szelepfejes helyiség a fejekkel szabályoz: saját cél (a ház célja + eltérés, vagy saját menetrend), opcionális jelenlét, opcionális rövid égés-kérés;\n- a szelepfej nélküli helyiség csak a kazánon át fűthető: a ház célját mutatja, és radiátorszelep-tanácsot kap.\n\nMost:\n{rooms_hu}<!-- {rooms_en} -->\n\nA lista sorrendje a helyiségek sorrendje a HC info házrajzán: alsó sor először (a kazánház mellett), balról jobbra, aztán felfelé; Home Assistant-szintek esetén a szintek adják az emeleteket. Egy helyiség helyét a szerkesztő űrlapján lehet módosítani.",
+        "menu_options": {
+          "room_add": "Helyiség hozzáadása",
+          "room_pick": "Helyiség szerkesztése",
+          "room_remove": "Helyiségek törlése",
+          "room_leading": "Vezető helyiség (a kazánt vezérli)",
+          "rooms_done": "Mentés"
+        }
+      },
+      "room_pick": {
+        "title": "Helyiség szerkesztése",
+        "description": "Melyik helyiség?",
+        "data": {
+          "room": "Helyiség"
+        }
+      },
+      "room_remove": {
+        "title": "Helyiségek törlése",
+        "description": "A helyiség HC termosztátja is megszűnik; a szelepfejekhez nem nyúl.",
+        "data": {
+          "rooms": "Törlendő helyiségek"
+        }
+      },
+      "room_leading": {
+        "title": "Vezető helyiség",
+        "description": "Az a helyiség, amelynek hőmérője a kazánt vezérli (általában a nappali, szelepfej nélkül). A hőmérői lesznek a ház hőmérői.",
+        "data": {
+          "leading_room": "Vezető helyiség",
+          "confirm": "Igen, a vezető helyiségben szelepfej van (a ház célját kapja)"
+        }
+      },
+      "room": {
+        "title": "Helyiség: {room}",
+        "description": "Hőmérők: több esetén az átlaguk számít (a kiesett kimarad). Szelepfejek: a helyiség célját kapják, a helyiség hőmérőihez kalibrálva (hőmérő nélkül a saját mérésük szerint). Szelepfej nélkül a helyiség a ház célját követi, a lenti cél-, jelenlét- és égéskérés-mezők nem számítanak.\n\nCél: „követi” = a ház célja + eltérés (éjszaka, távollét, presetek követik); „saját” = saját otthon / éjszakai / távolléti hőfok és éjszakai időszak.\n\nJelenlét (opcionális): olyan szenzorok, amelyek állapota a helyiség területe (telefonos helyiség-követő, pl. Bermuda, vagy input_select), vagy mozgás-/jelenlétérzékelők (be = jelen van). A megadott percig senki → cél − csökkentés (a fagyhatár alá soha); a háztartás távol / szabadságon → a háztartás célja.",
+        "data": {
+          "name": "Név",
+          "area": "Terület",
+          "sensors": "Hőmérők",
+          "trvs": "Szelepfejek (climate)",
+          "mode": "Cél",
+          "offset": "Eltérés a ház céljától",
+          "target_home": "Saját: otthon hőfok",
+          "target_night": "Saját: éjszakai hőfok",
+          "target_away": "Saját: háztartás távol hőfok",
+          "night_start": "Saját: éjszaka kezdete",
+          "night_end": "Saját: éjszaka vége",
+          "presence": "Jelenlét-források",
+          "absent_min": "Távollét ennyi perc után",
+          "setback": "Csökkentés távollétben",
+          "demand": "Kérhet rövid égést a kazántól, ha messze a célja alatt van (szelepfejes helyiség)",
+          "position": "Helye a listában (sorrend a HC info rajzán)"
+        },
+        "data_description": {
+          "presence": "Helyiség-követő (állapota a helyiség területe, pl. Bermuda BLE-követés) vagy mozgás- / jelenlétérzékelő. Ha a megadott percig senki nincs ott, a helyiség célja csökken."
+        }
       }
     },
     "error": {
       "confirm_active": "Az éles módhoz erősítsd meg a választást.",
       "humidity_required": "Padlóhűtéshez páratartalom-szenzor kell (harmatpont nélkül nem hűt).",
       "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
-      "demand_required": "Ennek a példánynak nincs szobahőmérője: a fali termosztát érintkezője kötelező."
+      "demand_required": "Ennek a példánynak nincs helyiséghőmérője: a fali termosztát érintkezője kötelező.",
+      "room_name": "Adj nevet a helyiségnek.",
+      "room_name_taken": "Van már ilyen nevű helyiség.",
+      "room_empty": "Egy helyiséghez hőmérő vagy szelepfej kell.",
+      "trv_is_hc": "HC termosztát nem lehet szelepfej.",
+      "trv_taken": "Ez a szelepfej már egy másik helyiségben van.",
+      "trv_other_instance": "Ezt a szelepfejet már egy másik HC-példány vezérli – két példány egymással versengene.",
+      "leading_trv": "A vezető helyiségben szelepfej van: pipáld be a megerősítést (a fejei a ház célját kapják).",
+      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna."
     }
   },
   "selector": {
@@ -397,8 +489,8 @@
         "tpi": "TPI + PWM",
         "pid": "PID + PWM",
         "external": "Külső termosztát",
-        "curve": "Fűtési görbe + szobakorrekció (KÍSÉRLETI)",
-        "ac": "Klíma: céleltolás helyiség-hőmérő szerint (virtuális i-Feel)",
+        "curve": "Fűtési görbe + helyiségkorrekció (KÍSÉRLETI)",
+        "ac": "Klíma: céleltolás helyiséghőmérő szerint (virtuális i-Feel)",
         "onoff": "On-off, hosszú futással (hőszivattyú)",
         "storage": "Hőtároló: éjszakai töltés + kisütés"
       }
@@ -463,6 +555,12 @@
         "screed": "Az esztrichben, a csövek között (becslés)",
         "above_pipe": "Cső fölött (becslés)"
       }
+    },
+    "room_mode": {
+      "options": {
+        "follow": "A ház célját követi (+ eltérés)",
+        "own": "Saját menetrend"
+      }
     }
   },
   "entity": {
@@ -493,7 +591,8 @@
           "storage_wait": "Hőtároló vár",
           "floor_temper": "Padlótemperálás",
           "thermostat_call": "Fali termosztát fűtést kér",
-          "thermostat_idle": "Fali termosztát nem kér"
+          "thermostat_idle": "Fali termosztát nem kér",
+          "managed_off": "Termosztát kézzel kikapcsolva"
         }
       },
       "demand": {
@@ -531,7 +630,8 @@
           "no_response": "Nem reagál",
           "no_flame": "Nem gyújt be",
           "heating_fault": "Fűtési hiba",
-          "short_cycling": "Taktol"
+          "short_cycling": "Taktol",
+          "learning": "Kazán szintjeit tanulja"
         }
       },
       "shadow_regulator": {
@@ -604,12 +704,36 @@
             }
           }
         }
+      },
+      "room": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Automatikus",
+              "home": "Jelen van",
+              "away": "Távol"
+            }
+          }
+        }
       }
     },
     "button": {
       "reset_learning": {
         "name": "Tanult értékek visszaállítása"
       }
+    },
+    "switch": {
+      "supervision_paused": {
+        "name": "HC felügyelet szünetel"
+      },
+      "supervision_paused_plain": {
+        "name": "Felügyelet szünetel"
+      }
+    }
+  },
+  "exceptions": {
+    "room_no_target": {
+      "message": "{room}: itt nincs szelepfej, a helyiség csak a kazánon át fűthető – a célját a(z) {host} termosztáton állítsd (a ház célját követi)."
     }
   }
 }

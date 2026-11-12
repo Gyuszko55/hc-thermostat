@@ -43,6 +43,6 @@ def test_ki_per_hour_wins_over_ki():
     from datetime import timedelta
     from sim import START
     reg = PidRegulator(HcConfig(pid_kp=0.0, pid_ki=0.0, pid_ki_per_hour=0.5, pid_ke=0.0))
-    reg.update(22.0, 21.0, None, START)
-    reg.update(22.0, 21.0, None, START + timedelta(hours=1))
+    for k in range(121):  # one hour in 30-s steps (0.44.5: a single 1-h gap is a pause, not integrated)
+        reg.update(22.0, 21.0, None, START + timedelta(seconds=30 * k))
     assert abs(reg.integral - 0.5) < 1e-9

@@ -20,8 +20,8 @@ REASONS: dict[Reason, dict[str, str]] = {
     Reason.RESTART_BURN: {"hu": "Újraindítás utáni fölösleges égést állít meg.", "en": "Stopping an unnecessary burn after restart."},
     Reason.VALVE_EXERCISE: {"hu": "Szelepmozgatás: a régóta zárt szelep néhány percre kinyit, hogy ne ragadjon be ({until}-ig); a kazán nem indul.",
                             "en": "Valve exercise: the long-closed valve opens for a few minutes so it does not seize (until {until}); the boiler does not start."},
-    Reason.AC_HEAT: {"hu": "Klíma fűt: cél {target} °C (teraszi hőmérő szerint), a klímán beállítva {setpoint} °C.", "en": "AC heating: target {target} °C (room thermometer), set on the unit {setpoint} °C."},
-    Reason.AC_COOL: {"hu": "Klíma hűt: cél {aim} °C (helyiség-hőmérő szerint), a klímán beállítva {setpoint} °C.", "en": "AC cooling: target {aim} °C (room thermometer), set on the unit {setpoint} °C."},
+    Reason.AC_HEAT: {"hu": "Klíma fűt: cél {target} °C (a helyiség hőmérője szerint), a klímán beállítva {setpoint} °C.", "en": "AC heating: target {target} °C (room thermometer), set on the unit {setpoint} °C."},
+    Reason.AC_COOL: {"hu": "Klíma hűt: cél {aim} °C (helyiséghőmérő szerint), a klímán beállítva {setpoint} °C.", "en": "AC cooling: target {aim} °C (room thermometer), set on the unit {setpoint} °C."},
     Reason.AC_PAUSE: {"hu": "Klíma szünetel: a határán ({setpoint} °C) is túllépné a {aim} °C-os célt; visszakapcsol, ha a helyiség a cél másik oldalára ér.", "en": "AC paused: even at its limit ({setpoint} °C) it would overshoot the {aim} °C target; it resumes when the room crosses the target."},
     Reason.EXTERNAL: {"hu": "A külső termosztát szabályoz, cél {target} °C.", "en": "The external thermostat regulates, target {target} °C."},
     Reason.FLOOR_LIMIT: {"hu": "Padlóhőfok-limit: a padló {floor} °C, a határ {floor_max} °C – nem fűt, amíg a padló vissza nem hűl.",
@@ -32,7 +32,9 @@ REASONS: dict[Reason, dict[str, str]] = {
     Reason.DEW_POINT: {"hu": "Harmatpont-védelem: a padló nem hűthető most.", "en": "Dew point protection: the floor cannot be cooled now."},
     Reason.THERMOSTAT_CALL: {"hu": "A fali termosztát fűtést kér.", "en": "The wall thermostat asks for heat."},
     Reason.THERMOSTAT_IDLE: {"hu": "A fali termosztát nem kér fűtést.", "en": "The wall thermostat asks for no heat."},
-    Reason.FLOOR_TEMPER: {"hu": "Padlótemperálás: a padló {floor} °C, a cél {floor_target} °C (a szoba már elég meleg).",
+    Reason.MANAGED_OFF: {"hu": "A termosztátot kézzel kikapcsolták – nem kapcsolom vissza.",
+                         "en": "The thermostat was switched off by hand – I do not switch it back on."},
+    Reason.FLOOR_TEMPER: {"hu": "Padlótemperálás: a padló {floor} °C, a cél {floor_target} °C (a helyiség már elég meleg).",
                           "en": "Floor tempering: floor {floor} °C, target {floor_target} °C (the room is warm enough)."},
 }
 
@@ -115,18 +117,18 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
                 else "No fresh indoor temperature: electric heat does not run blind (demand 0 %).")
     if decision.reason == Reason.SENSOR_LOST and details.get("floor_fallback"):
         aim, now = _num(details.get("floor_target"), lang), _num(details.get("floor"), lang)
-        text = (f"A szobahőmérő nem jelez: a padlót tartom {aim} °C-on (most {now} °C)." if lang == "hu"
+        text = (f"A helyiséghőmérő nem jelez: a padlót tartom {aim} °C-on (most {now} °C)." if lang == "hu"
                 else f"The room thermometer is silent: holding the floor at {aim} °C (now {now} °C).")
     if details.get("indoor_frozen"):
         val, hrs, mins = _num(details.get("frozen_value"), lang), _num(details.get("frozen_h"), lang), details.get("frozen_burn_min")
-        text += (f" A szobahőmérő {hrs} órája ugyanazt mutatja ({val} °C), pedig közben {mins} percet fűtött: beragadt mérésnek veszem." if lang == "hu"
+        text += (f" A helyiséghőmérő {hrs} órája ugyanazt mutatja ({val} °C), pedig közben {mins} percet fűtött: beragadt mérésnek veszem." if lang == "hu"
                  else f" The room thermometer has shown the same value ({val} °C) for {hrs} h while heating ran {mins} min: treated as frozen.")
     if decision.reason == Reason.SENSOR_LOST and details.get("blind_from") == "heat_need":
         need = _num(details.get("heat_need_kw"), lang)
         text += (f" Az igényt a ház tanult hőveszteségéből számolom (most {need} kW kell)." if lang == "hu"
                  else f" The demand comes from the house's learned heat loss ({need} kW needed now).")
     if details.get("contact_lost"):
-        text += (" A fali termosztát jele elveszett: addig a szobahőmérő és a saját cél szerint szabályozok." if lang == "hu"
+        text += (" A fali termosztát jele elveszett: addig a helyiséghőmérő és a saját cél szerint szabályozok." if lang == "hu"
                  else " The wall thermostat's contact is lost: regulating by the room thermometer and my own target until it is back.")
     if decision.limited_by == "load_limit" and "load_limit_kw" in details:
         used, limit = _num(details.get("load_used_kw"), lang), _num(details.get("load_limit_kw"), lang)
@@ -149,6 +151,13 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
         elif why == "cold_coil":
             text += (" A ventilátor vár, amíg a hőcserélő átmelegszik." if lang == "hu"
                      else " The fan waits until the coil is warm.")
+    if decision.limited_by == "coast" and "coast" in details:
+        c = details["coast"]
+        rise, mins = _num(c.get("rise"), lang), _num(c.get("since_off_min"), lang)
+        text += (f" Utánfűtés: a helyiség még emelkedik (+{rise} °C 15 perc alatt, {mins} perce állt le a kazán), "
+                 "újraindítás helyett kivárom." if lang == "hu"
+                 else f" Coasting: the room is still rising (+{rise} °C in 15 min, the boiler stopped {mins} min ago), "
+                 "waiting for it instead of starting again.")
     if decision.limited_by == "no_power":
         text += (" A vezérelt áram most nincs bekapcsolva: nem kapcsol." if lang == "hu"
                  else " The controlled power is off now: nothing is switched.")
@@ -161,7 +170,7 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
                 else f"Paused: fast temperature drop ({rate_text} °C/h) – a window is probably open.")
     if details.get("assist"):
         aim = _num(details.get("aim"), lang)
-        text += (f" Segít a ház fűtésében {aim} °C-ig: a klíma az olcsóbb, és nyitva a konyhaajtó." if lang == "hu"
+        text += (f" Segít a ház fűtésében {aim} °C-ig: a klíma az olcsóbb, és nyitva az összekötő ajtó." if lang == "hu"
                  else f" Helping to heat the house up to {aim} °C: cheaper than the boiler, the door is open.")
     if details.get("yield"):
         m = _num(details.get("yield"), lang)
@@ -177,7 +186,19 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
     if decision.flow_setpoint is not None:
         flow = f"{decision.flow_setpoint:g}"
         text += f" Előremenő: {flow.replace('.', ',')} °C." if lang == "hu" else f" Flow: {flow} °C."
-    if decision.manual and decision.reason not in (Reason.DISABLED, Reason.EXTERNAL, Reason.AC_PAUSE):
+    if decision.manual and decision.reason not in (Reason.DISABLED, Reason.EXTERNAL, Reason.AC_PAUSE, Reason.MANAGED_OFF):
         plain, until = _MANUAL[lang]
         text += until.format(until=decision.manual_until.strftime("%H:%M")) if decision.manual_until else plain
+    if details.get("adopted") is not None and decision.reason == Reason.EXTERNAL:
+        a = _num(details.get("adopted"), lang)
+        text += (f" A termosztáton kézzel állított {a} °C-os célt átvettem" if lang == "hu"
+                 else f" Adopted the {a} °C target set by hand on the thermostat")
+        if decision.manual_until:
+            at = decision.manual_until.strftime("%H:%M")
+            text += f" ({at}-ig)." if lang == "hu" else f" (until {at})."
+        else:
+            text += "."
+    if details.get("paused"):
+        text += (" A felügyelet szünetel: nem írok a termosztátra." if lang == "hu"
+                 else " Supervision paused: not writing to the thermostat.")
     return text

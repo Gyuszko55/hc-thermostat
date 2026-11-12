@@ -74,10 +74,10 @@ def test_state_round_trip():
     assert n.advice(end, ["Konyha"])[0].advice == "down" and n.announcements(end, n.advice(end, ["Konyha"])) == []
 
 
-def test_seed_room_hours_median_per_room():
+def test_seed_room_hours_mean_per_room():  # 0.43.0: a thermometer group by its mean (before: median)
     start = T0.timestamp()
     stats = {"sensor.main": [{"start": start, "mean": 22.0}],
              "sensor.k1": [{"start": start, "mean": 22.5}], "sensor.k2": [{"start": start, "mean": 23.5}],
              "sensor.k3": [{"start": start, "mean": 22.7}]}
     out = cc.seed_room_hours(stats, "sensor.main", {"Konyha": ["sensor.k1", "sensor.k2", "sensor.k3"]})
-    assert len(out) == 1 and out[0][1] == "Konyha" and abs(out[0][2] - 0.7) < 1e-9
+    assert len(out) == 1 and out[0][1] == "Konyha" and abs(out[0][2] - 0.9) < 1e-9

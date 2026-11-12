@@ -8,8 +8,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
-    BooleanSelector, EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig,
+    AreaSelector, BooleanSelector, EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig,
     NumberSelectorMode, SelectSelector, SelectSelectorConfig, SelectSelectorMode, TextSelector, TimeSelector,
 )
 
@@ -17,7 +18,7 @@ from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
-    CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
+    CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND,
 )
 from .core.matrix import (
@@ -26,8 +27,10 @@ from .core.matrix import (
 )
 from .core.floor import COVERINGS, PROBES, covering_of
 from .core.model import HcConfig
+from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
-from .rooms_ha import group_by_room, suggest_room_sensors
+from .core.room_model import FOLLOW, OWN, parse_room, rooms_options, slugify
+from .rooms_ha import excluded_climates, heads_of_other_instances, room_specs_for
 
 
 def _select(options, key: str) -> SelectSelector:
@@ -56,6 +59,13 @@ _ENTITY_FILTERS: dict[str, list] = {
     CONF_DEMAND: [("binary_sensor", None), ("input_boolean", None), ("switch", None)],
 }
 _RELAY = ("tpi", "pid", "onoff")  # controls that switch a relay themselves
+def _no_comment_end(text: str) -> str:
+    """A placeholder that may sit inside an HTML comment of a translation must not end it."""
+    return str(text).replace("-->", "->")
+
+
+_STATUS_TEXT = {"recommended": ("Ajánlott", "Recommended"), "possible": ("Lehetséges", "Possible"),
+                "not_recommended": ("Nem ajánlott", "Not recommended")}
 
 
 def _ent(key: str, *domains: str, multiple: bool = False) -> EntitySelector:
@@ -67,9 +77,22 @@ def _ent(key: str, *domains: str, multiple: bool = False) -> EntitySelector:
         filter=[{"domain": d, **({"device_class": dc} if dc else {})} for d, dc in filters], multiple=multiple))
 
 
+def _rooms_ok(conf: dict, control: str | None) -> bool:
+    """Rooms (0.43.0; TRV rooms before): a single zone with TPI / PID."""
+    return conf.get(CONF_ROLE, "standalone") == "standalone" and control in ("tpi", "pid")
+
+
 def _number(minimum: float, maximum: float, step: float, unit: str = "") -> NumberSelector:
     return NumberSelector(NumberSelectorConfig(
         min=minimum, max=maximum, step=step, unit_of_measurement=unit, mode=NumberSelectorMode.BOX))
+
+
+def _position(value, default: int, count: int) -> int:
+    """0.44.0: a room's 1-based place from the form -> a list index (0..count), lenient."""
+    try:
+        return max(0, min(count, int(round(float(value))) - 1))
+    except (TypeError, ValueError):
+        return max(0, min(count, default))
 
 
 _FEEDBACK_DOMAINS = ("binary_sensor", "sensor", "valve", "cover")
@@ -265,27 +288,46 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
 
+    def _name_taken(self, name: str) -> bool:
+        name = str(name or "").strip().casefold()
+        return any(str(e.title).strip().casefold() == name or str(e.data.get(CONF_NAME, "")).strip().casefold() == name
+                   for e in self._async_current_entries(include_ignore=False))
+
+    def _free_name(self, base: str = "HC Thermostat") -> str:
+        """0.45.0: a default name no instance has yet (HC Thermostat, HC Thermostat 2, …)."""
+        name, n = base, 1
+        while self._name_taken(name):
+            n += 1
+            name = f"{base} {n}"
+        return name
+
     async def async_step_user(self, user_input=None):
-        if user_input is not None:
-            self._async_abort_entries_match({CONF_NAME: user_input[CONF_NAME]})
+        errors = {}
+        if user_input is not None and self._name_taken(user_input[CONF_NAME]):
+            errors[CONF_NAME] = "name_taken"  # 0.45.0: a field error; before, the flow aborted and the input was lost
+        elif user_input is not None:
+            user_input = {**user_input, CONF_NAME: str(user_input[CONF_NAME]).strip()}
             self._data.update(user_input)
             if user_input.get(CONF_ROLE) == "central":
                 return await self.async_step_central()
             if user_input.get(CONF_ROLE) == "buffer":
                 return await self.async_step_buffer()
             return await self.async_step_control()
+        last = user_input or {}
         schema = vol.Schema({
-            vol.Required(CONF_NAME, default="HC Thermostat"): TextSelector(),
-            vol.Required(CONF_ROLE, default="standalone"): _select(ROLES, "role"),
-            vol.Required(CONF_HEAT_SOURCE, default="onoff_boiler"): _select(SOURCES, "heat_source"),
-            vol.Required(CONF_SYSTEM, default="radiator_single"): _select(SYSTEMS, "system"),
+            vol.Required(CONF_NAME, default=last.get(CONF_NAME) or self._free_name()): TextSelector(),
+            vol.Required(CONF_ROLE, default=last.get(CONF_ROLE, "standalone")): _select(ROLES, "role"),
+            vol.Required(CONF_HEAT_SOURCE, default=last.get(CONF_HEAT_SOURCE, "onoff_boiler")): _select(SOURCES, "heat_source"),
+            vol.Required(CONF_SYSTEM, default=last.get(CONF_SYSTEM, "radiator_single")): _select(SYSTEMS, "system"),
         })
-        return self.async_show_form(step_id="user", data_schema=schema)
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     async def async_step_wizard(self, data):
-        """An instance put together in the setup wizard (already validated there); starts in shadow mode."""
+        """An instance put together in the setup wizard (already validated there); starts in shadow mode, or live
+        when the user ticked "start live" on the wizard's summary (0.45.0)."""
         self._async_abort_entries_match({CONF_NAME: data[CONF_NAME]})
-        return self.async_create_entry(title=data[CONF_NAME], data={**data, CONF_MODE: MODE_SHADOW})
+        mode = MODE_ACTIVE if data.get(CONF_MODE) == MODE_ACTIVE else MODE_SHADOW
+        return self.async_create_entry(title=data[CONF_NAME], data={**data, CONF_MODE: mode})
 
     async def async_step_central(self, user_input=None):
         """Central boiler: the zone thermostats it gathers and the boiler relay it switches."""
@@ -319,11 +361,17 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         fields: dict = {vol.Required(CONF_CONTROL, default=options[0]): _select(options, "control")}
         if risky:
             fields[vol.Required(CONF_CONFIRM, default=False)] = BooleanSelector()
-        language = self.hass.config.language
+        # 0.45.0: the flow does not know the user's language – both languages go in, and each translation (hu.json,
+        # en.json) uses its own; "status" / "advice" stay for a translation that still names them
+        language = self.hass.config.language or "en"
+        status_hu, status_en = _STATUS_TEXT[matrix.status.value]
+        # each translation shows its own language and hides the other in an HTML comment (same placeholders in
+        # every translation, as Home Assistant checks)
         return self.async_show_form(
             step_id="control", data_schema=vol.Schema(fields), errors=errors,
             description_placeholders={
-                "status": matrix.status.value,
+                "status_hu": status_hu, "status_en": status_en, "advice_hu": matrix.text_hu, "advice_en": matrix.text_en,
+                "status": status_hu if language.startswith("hu") else status_en,
                 "advice": matrix.text_hu if language.startswith("hu") else matrix.text_en,
             },
         )
@@ -335,6 +383,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None and not user_input.get(CONF_INDOOR) and not user_input.get(CONF_DEMAND):
             errors[CONF_INDOOR] = "indoor_required"  # a room thermometer, or a wall thermostat's contact (0.38.0)
+        elif user_input is not None and user_input.get(CONF_EXTERNAL) in excluded_climates(self.hass):
+            errors[CONF_EXTERNAL] = "climate_taken"  # 0.45.0: an HC thermostat or another instance's device
         elif user_input is not None:
             data = {
                 **self._data, **user_input, **default_timing(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE]),
@@ -349,7 +399,9 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         if relay:
             fields[vol.Optional(CONF_DEMAND)] = _ent(CONF_DEMAND, "binary_sensor", "input_boolean", "switch")
         if external:
-            fields[vol.Required(CONF_EXTERNAL)] = _entity("climate")
+            # 0.45.0: not an HC thermostat, nor a climate another instance drives
+            fields[vol.Required(CONF_EXTERNAL)] = EntitySelector(EntitySelectorConfig(
+                domain="climate", exclude_entities=excluded_climates(self.hass)))
         elif curve:
             fields[vol.Required(CONF_FLOW)] = _entity("number", "input_number")
             fields[vol.Optional(CONF_HEAT_ENABLE)] = _entity("switch", "input_boolean")
@@ -363,13 +415,11 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         fields[vol.Optional(CONF_HEAT_ENERGY)] = _ent(CONF_HEAT_ENERGY, "sensor")
         fields[vol.Optional(CONF_ENERGY_FACTOR, default=8.55)] = _number(0.01, 100, 0.01, "kWh")
         fields[vol.Optional(CONF_EXTRA_HEAT)] = _ent(CONF_EXTRA_HEAT, "sensor")
-        fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "kWh")
+        fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "×")
         fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
         fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
         fields[vol.Optional(CONF_PRESENCE)] = _ent(CONF_PRESENCE, "person", "sensor", "binary_sensor", "input_select", multiple=True)
-        fields[vol.Optional(CONF_ZONE_TEMP)] = _ent(CONF_ZONE_TEMP, "sensor")
-        fields[vol.Optional(CONF_ZONE_DOORS)] = _ent(CONF_ZONE_DOORS, "binary_sensor", multiple=True)
-        fields[vol.Optional(CONF_ZONE_DIFF, default=2.0)] = _number(0, 10, 0.5, "°C")
+        # 0.45.0: the adjoining room (a second heat source behind a door) is rare – it is set in the options
         if self._data.get(CONF_ROLE) == "zone":
             fields[vol.Optional(CONF_VALVE_FEEDBACK)] = _entity(*_FEEDBACK_DOMAINS)
         fields.update(_floor_fields(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE], self._data[CONF_CONTROL], {}))
@@ -387,11 +437,36 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class HcOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input=None):
+        """0.45.0: a menu first – all settings, or only going live (back to shadow) with one confirmation."""
         current = {**self.config_entry.data, **self.config_entry.options}
         if current.get(CONF_ROLE) == "central":
             return await self.async_step_central(user_input)
         if current.get(CONF_ROLE) == "buffer":
             return await self.async_step_buffer(user_input)
+        live = current.get(CONF_MODE, MODE_SHADOW) == MODE_ACTIVE
+        return self.async_show_menu(step_id="init", menu_options=["settings", "go_shadow" if live else "go_live"])
+
+    async def async_step_go_live(self, user_input=None):
+        """Only the mode: shadow → active, with the usual confirmation; every other setting stays."""
+        errors = {}
+        if user_input is not None:
+            if not user_input.get(CONF_CONFIRM):
+                errors[CONF_CONFIRM] = "confirm_active"
+            else:
+                return self.async_create_entry(data={**self.config_entry.options, CONF_MODE: MODE_ACTIVE})
+        return self.async_show_form(step_id="go_live", errors=errors, data_schema=vol.Schema({
+            vol.Required(CONF_CONFIRM, default=False): BooleanSelector()}),
+            description_placeholders={"name": self.config_entry.title})
+
+    async def async_step_go_shadow(self, user_input=None):
+        """Back to shadow mode: it calculates on, but switches nothing."""
+        if user_input is not None:
+            return self.async_create_entry(data={**self.config_entry.options, CONF_MODE: MODE_SHADOW})
+        return self.async_show_form(step_id="go_shadow", data_schema=vol.Schema({}),
+                                    description_placeholders={"name": self.config_entry.title})
+
+    async def async_step_settings(self, user_input=None):
+        current = {**self.config_entry.data, **self.config_entry.options}
         errors = {}
         if user_input is not None:
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
@@ -403,6 +478,13 @@ class HcOptionsFlow(OptionsFlow):
                 errors[CONF_DEMAND] = "demand_required"  # no room thermometer: the wall thermostat gives the demand
             else:
                 self._settings = {k: v for k, v in user_input.items() if k != CONF_CONFIRM}
+                # 0.45.0: the boiler's power levels count as given only when someone set them – the untouched
+                # defaults (one boiler's values) are not saved, so the health check keeps learning
+                base = HcConfig()
+                if not power_levels_known(current) and user_input.get("power_idle_w") == base.power_idle_w \
+                        and user_input.get("power_burn_w") == base.power_burn_w:
+                    self._settings.pop("power_idle_w", None)
+                    self._settings.pop("power_burn_w", None)
                 return await self.async_step_presets()
         cfg = HcConfig.from_mapping(current)
         temp = _number(5, 30, 0.5, "°C")
@@ -451,16 +533,13 @@ class HcOptionsFlow(OptionsFlow):
                if current.get(CONF_HEAT_SOURCE) in ELECTRIC_SOURCES and cfg.control in ("tpi", "pid") else {}),
             vol.Optional(CONF_HEAT_ENERGY, description={"suggested_value": current.get(CONF_HEAT_ENERGY)}): _ent(CONF_HEAT_ENERGY, "sensor"),
             vol.Required(CONF_ENERGY_FACTOR, default=current.get(CONF_ENERGY_FACTOR, 8.55)): _number(0.01, 100, 0.01, "kWh"),
-            vol.Required(CONF_EXTRA_FACTOR, default=current.get(CONF_EXTRA_FACTOR, 3.0)): _number(0.1, 10, 0.1, "kWh"),
+            vol.Required(CONF_EXTRA_FACTOR, default=current.get(CONF_EXTRA_FACTOR, 3.0)): _number(0.1, 10, 0.1, "×"),
             vol.Optional(CONF_WINDOWS, description={"suggested_value": current.get(CONF_WINDOWS)}): _ent(CONF_WINDOWS, "binary_sensor", multiple=True),
             vol.Optional(CONF_WINDOW_DROP, description={"suggested_value": current.get(CONF_WINDOW_DROP)}): _ent(CONF_WINDOW_DROP, "sensor", multiple=True),
             vol.Required("window_drop_rate", default=cfg.window_drop_rate): _number(0.5, 10, 0.1, "°C/h"),
-            **({vol.Optional(CONF_ROOMS, description={"suggested_value": current[CONF_ROOMS] if CONF_ROOMS in current else suggest_room_sensors(self.hass, current)}):
-                    EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature", multiple=True)),
-                vol.Required(CONF_ROOM_TOL, default=current.get(CONF_ROOM_TOL, 0.5)): _number(0.2, 3, 0.1, "°C"),
-                vol.Optional(CONF_ROOM_TRVS, description={"suggested_value": current.get(CONF_ROOM_TRVS)}): _entity("climate", multiple=True),
-                vol.Required(CONF_ROOM_TRV_DEMAND, default=current.get(CONF_ROOM_TRV_DEMAND, False)): BooleanSelector()}
-               if current.get(CONF_ROLE, "standalone") == "standalone" and cfg.control in ("tpi", "pid") else {}),
+            # 0.43.0: the rooms themselves are edited in the "Rooms" menu after the presets
+            **({vol.Required(CONF_ROOM_TOL, default=current.get(CONF_ROOM_TOL, 0.5)): _number(0.2, 3, 0.1, "°C")}
+               if _rooms_ok(current, cfg.control) else {}),
             vol.Optional(CONF_ZONE_TEMP, description={"suggested_value": current.get(CONF_ZONE_TEMP)}): _ent(CONF_ZONE_TEMP, "sensor"),
             vol.Optional(CONF_ZONE_DOORS, description={"suggested_value": current.get(CONF_ZONE_DOORS)}): _ent(CONF_ZONE_DOORS, "binary_sensor", multiple=True),
             vol.Required(CONF_ZONE_DIFF, default=current.get(CONF_ZONE_DIFF, 2.0)): _number(0, 10, 0.5, "°C"),
@@ -480,6 +559,8 @@ class HcOptionsFlow(OptionsFlow):
         fields.update(_water_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), current, settings=True))
         fields[vol.Optional(CONF_TARGET_SOURCE, description={"suggested_value": current.get(CONF_TARGET_SOURCE)})] = \
             _entity("climate", "number", "input_number")
+        if cfg.control == "external":  # 0.42.0: take over a target / off set on the managed thermostat itself
+            fields[vol.Required("adopt_manual", default=cfg.adopt_manual)] = BooleanSelector()
         if cfg.control in _RELAY:  # a wired wall thermostat's contact as the demand (0.38.0)
             fields[vol.Optional(CONF_DEMAND, description={"suggested_value": current.get(CONF_DEMAND)})] = \
                 _ent(CONF_DEMAND, "binary_sensor", "input_boolean", "switch")
@@ -496,7 +577,7 @@ class HcOptionsFlow(OptionsFlow):
             fields[vol.Required("flow_max", default=cfg.flow_max)] = _number(25, 90, 1, "°C")
             fields[vol.Required("room_kp", default=cfg.room_kp)] = _number(0, 20, 0.5)
             fields[vol.Required("room_ki_per_hour", default=cfg.room_ki_per_hour)] = _number(0, 10, 0.1)
-        return self.async_show_form(step_id="init", data_schema=vol.Schema(fields), errors=errors)
+        return self.async_show_form(step_id="settings", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_buffer(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}
@@ -530,31 +611,175 @@ class HcOptionsFlow(OptionsFlow):
         }
         return self.async_show_form(step_id="central", data_schema=vol.Schema(fields), errors=errors)
 
-    def _trv_rooms(self) -> list[str]:
-        current = {**self.config_entry.data, **self.config_entry.options, **self._settings}
-        return sorted(group_by_room(self.hass, list(current.get(CONF_ROOM_TRVS) or [])))
-
-    async def async_step_trv_rooms(self, user_input=None):
-        """TRV rooms (0.30.0): each room's offset to the house target, and the calibration by room thermometers."""
-        rooms = self._trv_rooms()
-        if user_input is not None:
-            offsets = {room: float(user_input.get(room, 0.0)) for room in rooms if float(user_input.get(room, 0.0)) != 0.0}
-            return self.async_create_entry(data={**self._settings, "trv_calibration": user_input.get("trv_calibration", False),
-                                                 CONF_TRV_OFFSETS: offsets})
+    # --- rooms (0.43.0) ------------------------------------------------------------------------------------------
+    def _load_rooms(self) -> None:
+        """The rooms as they work now: saved, or derived from the legacy options (unchanged until saved here)."""
+        if getattr(self, "_rooms", None) is not None:
+            return
         current = {**self.config_entry.data, **self.config_entry.options}
-        offsets = current.get(CONF_TRV_OFFSETS) or {}
-        fields = {vol.Required("trv_calibration", default=bool(current.get("trv_calibration", False))): BooleanSelector()}
-        for room in rooms:
-            fields[vol.Required(room, default=float(offsets.get(room, 0.0)))] = _number(-5, 5, 0.5, "°C")
-        return self.async_show_form(step_id="trv_rooms", data_schema=vol.Schema(fields),
-                                    description_placeholders={"rooms": ", ".join(rooms)})
+        specs, leading = room_specs_for(self.hass, current)
+        self._rooms = [s.as_dict() for s in specs]
+        self._leading = leading
+        self._edit: str | None = None
+
+    def _hu(self) -> bool:
+        return str(self.hass.config.language or "").startswith("hu")
+
+    def _summary(self, hu: bool | None = None) -> str:
+        """The rooms as text; 0.45.0: in the given language (both go to the form, each translation takes its own)."""
+        hu_ = self._hu() if hu is None else hu
+        if not self._rooms:
+            return "–"
+        lines = []
+        for i, r in enumerate(self._rooms, 1):
+            bits = []
+            if r["key"] == self._leading:
+                bits.append("vezető (a kazánt vezérli)" if hu_ else "leading (drives the boiler)")
+            bits.append(f"{len(r.get('sensors') or [])} " + ("hőmérő" if hu_ else "thermometer(s)"))
+            if r.get("trvs"):
+                bits.append(f"{len(r['trvs'])} " + ("szelepfej" if hu_ else "TRV head(s)"))
+            elif r["key"] != self._leading:
+                bits.append("a ház célját követi" if hu_ else "follows the house")
+            if r.get("trvs") and r.get("mode") == OWN:
+                bits.append("saját cél" if hu_ else "own target")
+            elif r.get("trvs") and r.get("offset"):
+                bits.append(f"{float(r['offset']):+.1f} °C")
+            if r.get("trvs") and r.get("presence"):
+                bits.append("jelenlét" if hu_ else "presence")
+            lines.append(f"{i}. {r['name']}: " + ", ".join(bits))
+        return "\n".join(lines)
+
+    async def async_step_rooms(self, user_input=None):
+        """Rooms menu: add / edit / remove a room, pick the leading room, done."""
+        options = ["room_add"]
+        if self._rooms:
+            options += ["room_pick", "room_remove", "room_leading"]
+        options.append("rooms_done")
+        return self.async_show_menu(step_id="rooms", menu_options=options,
+                                    description_placeholders={"rooms": self._summary(None),
+                                                               "rooms_hu": _no_comment_end(self._summary(True)),
+                                                               "rooms_en": _no_comment_end(self._summary(False))})
+
+    async def async_step_room_add(self, user_input=None):
+        self._edit = None
+        return await self.async_step_room(None)
+
+    async def async_step_room_pick(self, user_input=None):
+        if user_input is not None:
+            self._edit = user_input["room"]
+            return await self.async_step_room(None)
+        opts = [{"value": r["key"], "label": r["name"]} for r in self._rooms]
+        return self.async_show_form(step_id="room_pick", data_schema=vol.Schema({
+            vol.Required("room", default=opts[0]["value"]): SelectSelector(SelectSelectorConfig(options=opts, mode=SelectSelectorMode.DROPDOWN))}))
+
+    async def async_step_room_remove(self, user_input=None):
+        if user_input is not None:
+            gone = set(user_input.get("rooms") or [])
+            self._rooms = [r for r in self._rooms if r["key"] not in gone]
+            if self._leading in gone:
+                self._leading = None
+            return await self.async_step_rooms()
+        opts = [{"value": r["key"], "label": r["name"]} for r in self._rooms]
+        return self.async_show_form(step_id="room_remove", data_schema=vol.Schema({
+            vol.Optional("rooms", default=[]): SelectSelector(SelectSelectorConfig(options=opts, multiple=True, mode=SelectSelectorMode.LIST))}))
+
+    async def async_step_room_leading(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            key = user_input.get("leading_room")
+            room = next((r for r in self._rooms if r["key"] == key), None)
+            if room is not None and room.get("trvs") and not user_input.get(CONF_CONFIRM):
+                errors["leading_room"] = "leading_trv"  # a regulating head would fight the boiler's thermometer
+            else:
+                self._leading = key if room is not None else None
+                return await self.async_step_rooms()
+        opts = [{"value": "-", "label": "–"}] + [{"value": r["key"], "label": r["name"] + (" (TRV)" if r.get("trvs") else "")}
+                                                 for r in self._rooms]
+        return self.async_show_form(step_id="room_leading", errors=errors, data_schema=vol.Schema({
+            vol.Required("leading_room", default=self._leading or "-"): SelectSelector(SelectSelectorConfig(options=opts, mode=SelectSelectorMode.DROPDOWN)),
+            vol.Optional(CONF_CONFIRM, default=False): BooleanSelector()}))
+
+    def _hc_climates(self, ids: list[str]) -> list[str]:
+        reg = er.async_get(self.hass)
+        return [e for e in ids if (x := reg.async_get(e)) is not None and x.platform == DOMAIN]
+
+    async def async_step_room(self, user_input=None):
+        """One room: thermometers, TRV heads, target (follow the house + offset, or its own), presence, demand."""
+        old = next((r for r in self._rooms if r["key"] == self._edit), None) if self._edit else None
+        errors = {}
+        if user_input is not None:
+            name = str(user_input.get("name") or "").strip()
+            trvs = list(user_input.get("trvs") or [])
+            others = [r for r in self._rooms if r is not old]
+            if not name:
+                errors["name"] = "room_name"
+            elif any(r["name"].casefold() == name.casefold() for r in others):
+                errors["name"] = "room_name_taken"
+            elif not user_input.get("sensors") and not trvs and not (old and old["key"] == self._leading):
+                errors["sensors"] = "room_empty"
+            elif self._hc_climates(trvs):
+                errors["trvs"] = "trv_is_hc"
+            elif any(h in (r.get("trvs") or []) for r in others for h in trvs):
+                errors["trvs"] = "trv_taken"
+            elif any(h in heads_of_other_instances(self.hass, self.config_entry.entry_id) for h in trvs):
+                errors["trvs"] = "trv_other_instance"  # 0.44.2: two instances writing one head fight each other
+            else:
+                raw = {**user_input, "name": name, "trvs": trvs,
+                       "key": old["key"] if old else (user_input.get("area") or slugify(name)),
+                       "head_sensors": {h: v for h, v in ((old or {}).get("head_sensors") or {}).items() if h in trvs}}
+                spec = parse_room(raw, {r["key"] for r in others})
+                at = self._rooms.index(old) if old is not None else len(self._rooms)
+                if old is not None:
+                    self._rooms.remove(old)
+                # 0.44.0: the room's place in the list = its place in the HC info drawing (bottom row first)
+                self._rooms.insert(_position(user_input.get("position"), at, len(self._rooms)), spec.as_dict())
+                return await self.async_step_rooms()
+        r = {**(old or {}), **(user_input or {})}
+        spec = parse_room({**r, "name": r.get("name") or "x"}) if r else None
+        d = spec.as_dict() if spec is not None else {}
+        temp = _number(5, 30, 0.5, "°C")
+        cur = lambda k, default=None: (old or {}).get(k, default) if user_input is None else (user_input or {}).get(k, default)
+        fields = {
+            vol.Required("name", default=(old or {}).get("name", "")): TextSelector(),
+            vol.Optional("area", description={"suggested_value": cur("area")}): AreaSelector(),
+            vol.Optional("sensors", description={"suggested_value": cur("sensors", [])}):
+                EntitySelector(EntitySelectorConfig(domain="sensor", device_class="temperature", multiple=True)),
+            vol.Optional("trvs", description={"suggested_value": cur("trvs", [])}): EntitySelector(EntitySelectorConfig(
+                domain="climate", multiple=True,
+                exclude_entities=[e for e in excluded_climates(self.hass, self.config_entry.entry_id)
+                                  if e not in (cur("trvs", []) or [])])),
+            vol.Required("mode", default=d.get("mode", FOLLOW)): _select([FOLLOW, OWN], "room_mode"),
+            vol.Required("offset", default=float(d.get("offset", 0.0))): _number(-5, 5, 0.5, "°C"),
+            vol.Required("target_home", default=float((old or {}).get("target_home", 21.0))): temp,
+            vol.Required("target_night", default=float((old or {}).get("target_night", 19.0))): temp,
+            vol.Required("target_away", default=float((old or {}).get("target_away", 17.0))): temp,
+            vol.Required("night_start", default=(old or {}).get("night_start", "22:00")): TimeSelector(),
+            vol.Required("night_end", default=(old or {}).get("night_end", "06:00")): TimeSelector(),
+            vol.Optional("presence", description={"suggested_value": cur("presence", [])}): EntitySelector(EntitySelectorConfig(
+                domain=["sensor", "binary_sensor", "input_select", "input_boolean", "person", "device_tracker"], multiple=True)),
+            vol.Required("absent_min", default=float(d.get("absent_min", 15.0))): _number(1, 720, 1, "min"),
+            vol.Required("setback", default=float(d.get("setback", 2.0))): _number(0, 10, 0.5, "°C"),
+            vol.Required("demand", default=bool(d.get("demand", False))): BooleanSelector(),
+            # 0.44.0: the order of the rooms (HC info drawing: bottom row first, left to right, then upwards)
+            vol.Required("position", default=(self._rooms.index(old) + 1) if old is not None else len(self._rooms) + 1):
+                _number(1, max(1, len(self._rooms) + (0 if old is not None else 1)), 1),
+        }
+        return self.async_show_form(step_id="room", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"room": (old or {}).get("name", "")})
+
+    async def async_step_rooms_done(self, user_input=None):
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_create_entry(data={**self._settings, **rooms_options(self._rooms, self._leading, current.get(CONF_INDOOR))})
+
 
     async def async_step_presets(self, user_input=None):
         """Which presets are offered, their targets, and when a preset chosen by hand ends."""
         if user_input is not None:
             self._settings = {**self._settings, **user_input}
-            if self._trv_rooms():
-                return await self.async_step_trv_rooms()
+            current = {**self.config_entry.data, **self.config_entry.options}
+            if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
+                self._load_rooms()
+                return await self.async_step_rooms()
             return self.async_create_entry(data=self._settings)
         current = {**self.config_entry.data, **self.config_entry.options}
         cfg = HcConfig.from_mapping(current)
@@ -570,3 +795,4 @@ class HcOptionsFlow(OptionsFlow):
             fields[vol.Required(f"expiry_{preset}", default=getattr(cfg, f"expiry_{preset}"))] = _select(EXPIRY, "expiry")
             fields[vol.Required(f"hours_{preset}", default=getattr(cfg, f"hours_{preset}"))] = _number(0.5, 336, 0.5, "h")
         return self.async_show_form(step_id="presets", data_schema=vol.Schema(fields))
+

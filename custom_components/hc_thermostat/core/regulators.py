@@ -11,6 +11,9 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+
+MAX_STEP_S = 300.0  # 0.44.5: a longer gap between two updates is a pause, not regulation
+
 class TpiRegulator:
     """Time proportional: indoor error plus outdoor compensation."""
 
@@ -50,6 +53,8 @@ class PidRegulator:
                feedforward: float | None = None) -> float:
         cfg = self._cfg
         dt = 0.0 if self._last is None else max((now - self._last).total_seconds(), 0.0)
+        if dt > MAX_STEP_S:
+            dt = 0.0  # 0.44.5 (as in the AC since 0.44.1): a stalled update is not integrated in one step
         error = target - indoor
         raw = 0.0
         if dt > 0 and self._last_indoor is not None:
@@ -67,13 +72,16 @@ class PidRegulator:
         base = cfg.pid_kp * error + cfg.pid_kd * derivative + ext
         ki = cfg.pid_ki_per_hour / 3600 if cfg.pid_ki_per_hour is not None else cfg.pid_ki
         candidate = self.integral + ki * error * dt
-        # Anti-windup: the integral may only grow while the output has room for it.
-        if 0.0 <= base + candidate <= 1.0:
+        # Anti-windup (conditional integration, 0.44.1): while the total output (P + D + feed-forward + I) is
+        # saturated, the integral is frozen in the direction that would push it deeper – it is never thrown away.
+        # Before 0.44.1 it was cut back to max(1 − base, 0) / min(−base, 0): a large P (a target step of a few
+        # degrees) wiped a learned positive integral and an overshoot wiped a negative one (the one that cancels a
+        # too generous feed-forward). It may still move back towards the range at once.
+        total = base + candidate
+        pushing_deeper = (total > 1.0 and candidate > self.integral) or (total < 0.0 and candidate < self.integral)
+        if not pushing_deeper:
             self.integral = candidate
-        elif base + self.integral > 1.0:
-            self.integral = min(self.integral, max(1.0 - base, 0.0))
-        elif base + self.integral < 0.0:
-            self.integral = max(self.integral, min(-base, 0.0))
+        self.integral = max(-1.0, min(1.0, self.integral))  # alone it never needs more than the whole output range
         self._last, self._last_indoor = now, indoor
         return _clamp(base + self.integral)
 

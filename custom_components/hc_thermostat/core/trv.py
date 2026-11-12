@@ -12,6 +12,11 @@ may ask for short burns (`RoomDemand`) – only while the main thermometer is no
   its own thermometer, the difference head − room is followed slowly (30 minute smoothing, at most ±5 °C) and added
   to the target written to the head: the head then aims at the right room temperature by its own sensor. A change
   that only comes from the calibration is written at most every 30 minutes (battery, valve motor).
+
+0.42.0 – a thermometer per head (`trv_sensors`: head -> sensor): a head listed there is calibrated against that
+sensor; a head not listed uses its own thermometer (no calibration). Without `trv_sensors` the 0.30.0 behaviour
+stays: `trv_calibration` on → the room's own thermometers (same area). A head whose thermometer changes forgets
+what it learned.
 """
 
 from __future__ import annotations
@@ -26,6 +31,8 @@ DEMAND_HOLD_S = 30 * 60.0  # … for this long before the room may ask for heat
 CAL_TAU_S = 30 * 60.0  # calibration smoothing
 CAL_MAX = 5.0  # °C – a larger difference is a misplaced sensor, not a calibration
 CAL_REWRITE_S = 30 * 60.0  # a calibration-only change is written this seldom
+ECHO_S = 5 * 60.0  # 0.44.5: a head may report our write this late (sleepy Zigbee end device)
+REWRITES = 2  # 0.44.5: a write the head never took is repeated this often, then left alone
 
 
 @dataclass
@@ -41,6 +48,8 @@ class TrvTargets:
         self.sent: dict[str, float] = {}  # head -> target last written by us
         self.for_house: dict[str, float] = {}  # head -> house (room) target that write was for
         self.last_write: dict[str, datetime] = {}
+        self.before: dict[str, float | None] = {}  # 0.44.5: head -> its target before our last write
+        self.retries: dict[str, int] = {}
 
     def plan(self, head: str, house_target: float, state: str | None, current_target: float | None,
              lo: float | None = None, hi: float | None = None, want: float | None = None,
@@ -56,16 +65,31 @@ class TrvTargets:
         if hi is not None:
             want = min(want, hi)
         sent, for_house = self.sent.get(head), self.for_house.get(head)
+        if sent is not None and current_target is not None and abs(current_target - sent) < MIN_CHANGE:
+            self.before.pop(head, None)  # the head took our write: any later change on it is by hand
         if (sent is not None and for_house == house_target and current_target is not None
                 and abs(current_target - sent) >= MIN_CHANGE):
+            # 0.44.5 (as Versatile Thermostat #2141/#2175): the head still showing its old target is not a manual
+            # change – our write has not arrived yet (late report) or was lost. Wait for it, then write it again.
+            before = self.before.get(head)
+            if before is not None and abs(current_target - before) < MIN_CHANGE:
+                last = self.last_write.get(head)
+                if now is not None and last is not None and (now - last).total_seconds() < ECHO_S:
+                    return TrvPlan(None, "pending")
+                if self.retries.get(head, 0) < REWRITES:
+                    self.retries[head] = self.retries.get(head, 0) + 1
+                    self.before[head] = current_target
+                    return TrvPlan(sent, "rewrite")
             return TrvPlan(None, "manual")  # changed on the head since our write: respect it until the house target changes
         if current_target is not None and abs(current_target - want) < MIN_CHANGE:
             self.sent[head], self.for_house[head] = current_target, house_target
+            self.retries.pop(head, None)
             return TrvPlan(None, "same")
         last = self.last_write.get(head)
         if (now is not None and last is not None and for_house == house_target
                 and (now - last).total_seconds() < CAL_REWRITE_S):
             return TrvPlan(None, "wait")  # only the calibration moved: spare the battery
+        self.before[head], self.retries[head] = current_target, 0
         return TrvPlan(want, "write")
 
     def written(self, head: str, target: float, house_target: float, now: datetime | None = None) -> None:
@@ -83,12 +107,44 @@ class TrvTargets:
         self.last_write = {k: datetime.fromisoformat(v) for k, v in (data.get("last_write") or {}).items()}
 
 
+HEAD = "head"  # a head's own thermometer (no calibration)
+
+
+def trv_sources(conf, rooms: dict[str, list[str]], trvs: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Head -> the thermometers its calibration follows ([]: its own sensor, no calibration).
+
+    `trv_sensors` set (even empty): per head, as chosen. Not set: the legacy switch `trv_calibration` – on, every head
+    follows its room's own thermometers (`rooms`: room -> room_sensors of that area); off, no calibration."""
+    chosen = conf.get("trv_sensors")
+    heads = [(room, h) for room, hs in trvs.items() for h in hs]
+    if isinstance(chosen, dict):
+        return {h: [s] if isinstance(s := chosen.get(h), str) and "." in s else [] for _, h in heads}
+    if conf.get("trv_calibration"):
+        return {h: list(rooms.get(room, [])) for room, h in heads}
+    return {h: [] for _, h in heads}
+
+
 class TrvCalibration:
     """Head sensor − room thermometer, smoothed; added to the target written to the head."""
 
     def __init__(self) -> None:
         self.offset: dict[str, float] = {}
         self._last: dict[str, datetime] = {}
+        self.source: dict[str, str] = {}  # head -> the thermometer(s) the offset was learned against ("head": none)
+
+    def set_source(self, head: str, sensors: list[str]) -> bool:
+        """Remember what the head is calibrated against; a change (or its own sensor) drops what was learned.
+        Returns True when something learned was dropped. A head with no record yet (restored from before 0.42.0)
+        keeps its offset: it was learned against the room thermometers."""
+        new = ",".join(sorted(sensors)) or HEAD
+        old = self.source.get(head)
+        self.source[head] = new
+        if (old is not None and old != new) or new == HEAD:
+            dropped = head in self.offset
+            self.offset.pop(head, None)
+            self._last.pop(head, None)
+            return dropped
+        return False
 
     def update(self, head: str, head_temp: float | None, room_temp: float | None, now: datetime) -> float:
         if head_temp is None or room_temp is None:
@@ -107,8 +163,9 @@ class TrvCalibration:
     def state(self) -> dict:
         return {h: round(v, 3) for h, v in self.offset.items()}
 
-    def restore(self, data: dict) -> None:
+    def restore(self, data: dict, sources: dict | None = None) -> None:
         self.offset = {k: float(v) for k, v in (data or {}).items()}
+        self.source = {k: str(v) for k, v in (sources or {}).items()}
 
 
 class RoomDemand:

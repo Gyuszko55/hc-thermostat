@@ -8,6 +8,7 @@ import logging
 
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -21,21 +22,27 @@ from .const import (
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
     CONF_CONTROL, CONF_DEMAND,
 )
-from .core.boiler_health import BoilerHealth, health_kind
+from .core.boiler_health import BoilerHealth, health_kind, power_levels_known
 from .core.plausibility import Plausibility
 from .core.matrix import ROOM_SOURCES, default_curve, floor_system, source_defaults
-from .core.target_source import TargetFollower, source_value
+from .core.target_source import ModeWatch, TargetFollower
+from .core.adapters import adapter_for
 from .core.model import Reason
 from .core.rooms import RoomMonitor, room_text
 from .core.trv import RoomDemand, TrvCalibration, TrvTargets
+from .core.room_model import (
+    PRESENT, SETTLE_S, RoomControl, RoomSpec, group_mean, presence_of,
+)
 from .core.cost import CostAdvice, compare
 from .core.messages import explain
-from .core.model import Decision, HcConfig, Inputs, Presence, Reading
+from .core.model import Decision, ExternalCommand, HcConfig, Inputs, Presence, Reading
+from dataclasses import replace
 from .core.supervisor import Supervisor
 from .core.zone import coupled
 from .core.load import LoadClient, LoadManager
 from .executor import Executor, write_log
-from .rooms_ha import group_by_room, room_value
+from .rooms_ha import area_name, group_by_room, room_specs_for, room_value
+from .units import climate_attrs_c, climate_temp_c, source_value_c, state_value_c, to_system
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
@@ -47,6 +54,25 @@ _HOME = {"home", "on", "otthon"}
 # a heat pump's defrost / hot-water signal: a binary sensor, a switch, or a mode sensor that names it
 _BUSY_STATES = {"on", "true", "1", "defrost", "defrosting", "dhw", "hot_water", "domestic_hot_water", "leolvasztás", "hmv"}
 _VACATION = {"vacation", "szabadság", "szabadsag"}
+HA_STARTED = f"{DOMAIN}_ha_started"
+FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
+FAILSAFE_KEY = "hc_supervisor"  # its entry in sensor_problems (the fault binary sensor)
+
+
+def ha_started(hass) -> datetime | None:
+    """When this Home Assistant started, as noted by async_setup (None: not known – the entry's load counts)."""
+    data = getattr(hass, "data", None)
+    return data.get(HA_STARTED) if isinstance(data, dict) else None
+
+
+def note_ha_start(hass) -> None:
+    """At the domain's setup: Home Assistant is starting now – or it already runs (the first instance is added
+    later), then its start lies far enough back for the restart protection."""
+    if HA_STARTED in hass.data:
+        return
+    now = dt_util.utcnow()
+    running = getattr(hass, "is_running", False)
+    hass.data[HA_STARTED] = now - timedelta(days=1) if running else now
 
 
 def load_manager(hass) -> LoadManager:
@@ -83,8 +109,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                   discharge=data.get(CONF_DISCHARGE), fan=data.get(CONF_FAN),
                                   keep_script=data.get(CONF_KEEP_ALIVE_SCRIPT))
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
-        self._started = dt_util.utcnow()
-        self._last_save = self._started
+        # 0.45.0: the restart protection counts from Home Assistant's start, not from this entry's load – an instance
+        # added or reloaded (options saved) while Home Assistant runs has its sensors already and does not wait
+        self._started = ha_started(hass) or dt_util.utcnow()
+        self._last_save = dt_util.utcnow()
         self._last_key: tuple | None = None
         self._extra_samples: deque[tuple[datetime, float]] = deque()
         self._counted_extra = 0.0  # kWh of the other source that reached the house
@@ -93,14 +121,31 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.extra_kw = 0.0
         self.cost = CostAdvice("unknown")
         self.actual: bool | None = None
-        self.health = BoilerHealth(self.cfg, health_kind(data.get(CONF_HEAT_SOURCE)))
+        # 0.45.0: the 20 W / 115 W defaults are one boiler's – only levels given in the options (or measured by the
+        # wizard) judge "no response" / "no flame" by the power draw
+        self.health = BoilerHealth(self.cfg, health_kind(data.get(CONF_HEAT_SOURCE)),
+                                   levels_known=power_levels_known(data))
         cfg = self.cfg
         self._plaus_indoor = Plausibility(cfg.plaus_indoor_min, cfg.plaus_indoor_max, cfg.plaus_jump, cfg.plaus_confirm_s)
         self._plaus_outdoor = Plausibility(cfg.plaus_outdoor_min, cfg.plaus_outdoor_max)
         self._plaus_floor = Plausibility(0.0, 50.0, 6.0, cfg.plaus_confirm_s)  # a floor sensor inside the screed
         self._follower = TargetFollower()
+        # 0.42.0: the managed thermostat (external / AC control): its integration, two-way following, pause
+        self.managed = data.get(CONF_CONTROL, "tpi") in ("external", "ac") and bool(data.get(CONF_EXTERNAL))
+        self.managed_platform: str | None = None
+        self.adapter = adapter_for(None)
+        self._managed_follower = TargetFollower()
+        self._mode_watch = ModeWatch()
+        self._own_seen = None  # the HC setpoint write whose echo the managed tracking has already seen
+        self.adopted: dict | None = None  # {"target", "at", "how"}: the last target taken over from the thermostat
+        self.paused = False
+        self._paused_restored = False
+        self._paused_unit: float | None = None  # AC: the unit's setpoint when the pause began
+        if self.managed:
+            self._detect_platform()
         self._sensor_bad_since: dict[str, datetime] = {}
         self.sensor_problems: dict[str, str] = {}  # entity → lost | stale | out_of_range | jump (after a while)
+        self.step_errors = 0  # 0.45.0: failed decisions in a row (failsafe)
         # one room (a heater, an AC unit, a zone): the texts say "the room" instead of "the house"
         self.room_wording = data.get(CONF_HEAT_SOURCE) in ROOM_SOURCES or data.get(CONF_ROLE) == "zone"
         self.rooms = RoomMonitor(float(data.get(CONF_ROOM_TOL, 0.5)))
@@ -112,6 +157,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.trv_info: dict[str, dict] = {}  # room -> {target, offset, heads: {head: {calibration, written}}}
         self.room_demand = RoomDemand()
         self.asking_rooms: list[str] = []
+        # 0.43.0: rooms of one boiler (core/room_model.py)
+        self._specs: tuple[list[RoomSpec], str | None] | None = None
+        self.room_ctl: dict[str, RoomControl] = {}
+        self.room_states: dict[str, dict] = {}  # room key -> what its climate and the info panel show
 
     # --- persistence -----------------------------------------------------------
     async def async_load(self) -> None:
@@ -131,7 +180,16 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self._last_extra = data.get("last_extra")
         self.rooms.restore(data.get("rooms") or {})
         self.trv_targets.restore(data.get("trv") or {})
-        self.trv_cal.restore(data.get("trv_cal") or {})
+        self.trv_cal.restore(data.get("trv_cal") or {}, data.get("trv_cal_src"))
+        for key, value in (data.get("room_ctl") or {}).items():
+            self._ctl(key).restore(value)
+        if self.managed:
+            self._mode_watch.off_by_hand = bool(data.get("managed_off", False)) and self._two_way
+            if "paused" in data:
+                self.paused, self._paused_restored = bool(data["paused"]), True
+                self._executor.paused = self.paused
+            self._paused_unit = data.get("paused_unit")
+            self.adopted = data.get("adopted")
 
     async def async_backfill(self) -> None:
         """Seed the heat need from the statistics so it does not start empty."""
@@ -177,7 +235,11 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "rooms": self.rooms.state(),
             "trv": self.trv_targets.state(),
             "trv_cal": self.trv_cal.state(),
+            "trv_cal_src": dict(self.trv_cal.source),
+            "room_ctl": {k: c.state() for k, c in self._ctls().items()},
             "last_extra": self._last_extra,
+            **({"managed_off": self.managed_off, "paused": self.paused, "paused_unit": self._paused_unit,
+                "adopted": self.adopted} if self.managed else {}),
         })
 
     # --- reading Home Assistant ------------------------------------------------
@@ -185,10 +247,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         state = self.hass.states.get(entity_id) if entity_id else None
         if state is None:
             return Reading()
-        raw = state.attributes.get("temperature") if entity_id.startswith("weather.") else state.state
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
+        # 0.45.0: a temperature in °F (or K) is read in °C – by the sensor's unit, a weather entity's temperature_unit
+        value = state_value_c(state)
+        if value is None:
             return Reading()
         return Reading(value, (now - state.last_reported).total_seconds())
 
@@ -252,6 +313,13 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _actual_heating(self) -> bool | None:
         conf = self.conf
+        if self.managed and not conf.get(CONF_FLAME) and not conf.get(CONF_REFERENCE):
+            # 0.42.0: no burner / heating signal of its own: the managed thermostat's hvac_action, read by its
+            # adapter (None when the integration does not report it, e.g. Gree)
+            state = self.hass.states.get(conf.get(CONF_EXTERNAL))
+            if state is None or state.state in ("unknown", "unavailable"):
+                return None
+            return self.adapter.actual_heating(dict(state.attributes))
         # A flame sensor shows the real burner; otherwise the reference thermostat or the relay itself.
         entity = conf.get(CONF_FLAME) or conf.get(CONF_REFERENCE) or conf.get(CONF_ACTUATOR) or conf.get(CONF_EXTERNAL)
         state = self.hass.states.get(entity) if entity else None
@@ -274,7 +342,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     def build_inputs(self, now: datetime) -> Inputs:
         conf = self.conf
         outdoor = self._plaus_outdoor.check(now, self._reading(conf.get(CONF_OUTDOOR), now))
-        indoor = self._plaus_indoor.check(now, self._reading(conf.get(CONF_INDOOR), now))
+        indoor = self._plaus_indoor.check(now, self._indoor_reading(now))
         floor = self._plaus_floor.check(now, self._reading(conf.get(CONF_FLOOR), now)) if conf.get(CONF_FLOOR) else Reading()
         self._update_sensor_problems(now)
         door_open, counts = self._zone_state(indoor, now)
@@ -303,8 +371,21 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             power_available=self._power_available(),
             coil=self._reading(conf.get(CONF_COIL), now) if conf.get(CONF_COIL) else Reading(),
             return_temp=self._reading(conf.get(CONF_RETURN), now) if conf.get(CONF_RETURN) else Reading(),
+            managed_off=self.managed_off,
             **self._unit_inputs(),
         )
+
+    def _indoor_reading(self, now: datetime) -> Reading:
+        """The house thermometer; 0.43.0: a leading room with a thermometer group gives the mean of its fresh ones."""
+        main = self._reading(self.conf.get(CONF_INDOOR), now)
+        lead = self.leading_spec()
+        if lead is None or len(lead.sensors) < 2 or not self._explicit_rooms():
+            return main
+        fresh = [(r.value, r.age_s) for e in lead.sensors
+                 if (r := self._reading(e, now)).fresh(self.cfg.sensor_max_age_s) is not None]
+        if not fresh:
+            return main
+        return Reading(group_mean([v for v, _ in fresh]), min(a for _, a in fresh))
 
     def _update_sensor_problems(self, now: datetime) -> None:
         """Which sensor is missing, silent or unbelievable – reported after `sensor_problem_after_s`."""
@@ -316,6 +397,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             checks.append((conf.get(CONF_FLOOR), self._plaus_floor))
         if self.cfg.demand_contact:
             checks.append((conf.get(CONF_DEMAND), None))
+        # 0.44.5 (as Versatile Thermostat #2052): a window / door contact that is gone counts as closed – say so
+        checks += [(e, None) for e in conf.get(CONF_WINDOWS) or []]
         current: dict[str, str] = {}
         for entity, plaus in checks:
             if not entity:
@@ -374,7 +457,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             return lambda: None
 
         def value(state) -> float | None:
-            return source_value(state.domain, state.state, dict(state.attributes)) if state is not None else None
+            return source_value_c(self.hass, state) if state is not None else None
 
         self._follower.changed(value(self.hass.states.get(entity)), None, False)  # remember the start value
 
@@ -391,6 +474,161 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
         return async_track_state_change_event(self.hass, [entity], changed)
 
+    # --- the managed thermostat (0.42.0) -------------------------------------------------------------------
+    @property
+    def _two_way(self) -> bool:
+        """External control (not AC: there HC moves the setpoint all the time) with adopt_manual on."""
+        return self.managed and self.cfg.control == "external" and self.cfg.adopt_manual
+
+    @property
+    def managed_off(self) -> bool:
+        """Someone (not HC) switched the managed thermostat off: HC leaves it off (frost excepted)."""
+        return self._two_way and self._mode_watch.off_by_hand
+
+    def _detect_platform(self) -> None:
+        """The integration behind the managed climate entity, from the entity registry; it picks the adapter."""
+        entity = self.conf.get(CONF_EXTERNAL)
+        try:
+            entry = er.async_get(self.hass).async_get(entity) if entity else None
+        except Exception:  # no registry (tests) – the generic adapter
+            entry = None
+        platform = entry.platform if entry is not None else None
+        if platform is None and entity:
+            platform = _platform_of_entity(self.hass, entity)  # a YAML entity without a unique_id
+        self.managed_platform = platform
+        self.adapter = adapter_for(self.managed_platform)
+        self._executor.adapter = self.adapter
+
+    def managed_info(self) -> dict | None:
+        """For the climate attributes and the info panel."""
+        if not self.managed:
+            return None
+        state = self.hass.states.get(self.conf.get(CONF_EXTERNAL))
+        attrs = dict(state.attributes) if state is not None else {}
+        sup = self.supervisor
+        adopted = self.adopted if (self.adopted and sup.manual_target is not None
+                                   and abs(float(self.adopted.get("target", 0)) - sup.manual_target) < 0.01) else None
+        return {"entity_id": self.conf.get(CONF_EXTERNAL), "platform": self.managed_platform,
+                "adapter": self.adapter.key, "adapter_name": self.adapter.name, "adapter_name_hu": self.adapter.name_hu,
+                "state": state.state if state is not None else None, "target": attrs.get("temperature"),
+                "hvac_action": attrs.get("hvac_action"), "adopt_manual": self._two_way,
+                "paused": self.paused, "managed_off": self.managed_off, "adopted": adopted,
+                "capabilities": self.adapter.describe(attrs)}
+
+    def supervision_switch_id(self) -> str | None:
+        """The entity_id of this instance's pause switch (the dial card switches it)."""
+        if not self.managed:
+            return None
+        try:
+            return er.async_get(self.hass).async_get_entity_id(
+                "switch", DOMAIN, f"{self.config_entry.entry_id}_supervision_paused")
+        except Exception:
+            return None
+
+    def _managed_details(self, decision: Decision) -> Decision:
+        if not self.managed:
+            return decision
+        extra: dict = {}
+        if self.paused:
+            extra["paused"] = True
+        a = self.adopted
+        if (a and decision.manual and self.supervisor.manual_target is not None
+                and abs(float(a.get("target", 0)) - self.supervisor.manual_target) < 0.01):
+            extra["adopted"] = a["target"]
+        return replace(decision, details={**decision.details, **extra}) if extra else decision
+
+    def restore_paused(self, on: bool) -> None:
+        """The pause switch's restored state – only when the coordinator's own store did not know it."""
+        if not self._paused_restored:
+            self.paused = self._executor.paused = bool(on)
+            self._paused_restored = True
+
+    async def async_set_paused(self, on: bool) -> None:
+        """"HC supervision paused": nothing is written to the managed thermostat; switched off, HC takes over its
+        current target as a manual target (no jump back)."""
+        on = bool(on)
+        if on == self.paused:
+            return
+        state = self.hass.states.get(self.conf.get(CONF_EXTERNAL))
+        unit = climate_temp_c(self.hass, state.attributes, "temperature") if state is not None else None
+        if on:
+            self._paused_unit = unit
+        else:
+            self._adopt_on_resume(state, unit)
+            self._paused_unit = None
+        self.paused = self._executor.paused = on
+        self._paused_restored = True
+        await self.async_save()
+        await self.async_request_refresh()
+
+    def _adopt_on_resume(self, state, unit: float | None) -> None:
+        if state is None or state.state in ("unknown", "unavailable") or unit is None or self.data is None:
+            return
+        now = dt_util.now()
+        target = None
+        if self.cfg.control == "ac":
+            # the unit's setpoint is the room target plus the correction: a change made during the pause moves the
+            # room target by as much
+            if self._paused_unit is not None and abs(unit - self._paused_unit) >= 0.01:
+                target = round((self.data.target + unit - self._paused_unit) * 2) / 2
+        elif abs(unit - (self.adapter.fit_target(self.data.target, climate_attrs_c(self.hass, state.attributes))
+                         or self.data.target)) >= 0.01:
+            target = unit
+        if target is not None:
+            self.supervisor.manual_target = target
+            self.adopted = {"target": target, "at": now.isoformat(), "how": "resume"}
+        if (self._two_way and state.state == "off" and not self._mode_watch.off_by_hand
+                and self.data.external is not None and self.data.external.hvac != "off"):
+            self._mode_watch.off_by_hand = True  # switched off during the pause: stays off
+
+    @callback
+    def async_track_managed(self):
+        """0.42.0, external control: a target or on/off set on the managed thermostat by someone else is adopted
+        (target: manual until the next scheduled change; off: left off until someone switches it on). What any HC
+        instance wrote there is recognised and not taken back."""
+        entity = self.conf.get(CONF_EXTERNAL)
+        if not self._two_way:
+            return lambda: None
+        follow_target = self.conf.get(CONF_TARGET_SOURCE) != entity  # else the target-source option does it
+        start = self.hass.states.get(entity)
+        if start is not None:
+            self._managed_follower.changed(source_value_c(self.hass, start), None, False)
+
+        @callback
+        def changed(event: Event) -> None:
+            old, new = event.data.get("old_state"), event.data.get("new_state")
+            if new is None:
+                return
+            now, log = dt_util.utcnow(), write_log(self.hass)
+            refresh = False
+            flag = self._mode_watch.changed(old.state if old is not None else None, new.state,
+                                            log.recent_mode(entity, new.state, now, consume=True))
+            if flag is not None:
+                refresh = True
+                _LOGGER.debug("%s: %s switched %s by hand", self.config_entry.title, entity, new.state)
+            if follow_target:
+                v = source_value_c(self.hass, new)
+                last = self._managed_follower.last
+                moved = v is not None and (last is None or abs(v - last) >= 0.01)
+                own = moved and log.recent(entity, v, now) and log.stamp(entity) != self._own_seen
+                if own:
+                    self._own_seen = log.stamp(entity)  # its echo is seen: the same value again is a hand
+                current = self.data.target if self.data is not None else None
+                if v is not None and current is not None and not own:
+                    fitted = self.adapter.fit_target(current, climate_attrs_c(self.hass, new.attributes))
+                    if fitted is not None and abs(fitted - v) < 0.01:
+                        current = v  # HC's own (rounded) target, written earlier: not a hand on the knob
+                target = self._managed_follower.changed(v, current, own)
+                if target is not None:
+                    self.supervisor.manual_target = target
+                    self.adopted = {"target": target, "at": dt_util.now().isoformat(), "how": "thermostat"}
+                    refresh = True
+                    _LOGGER.debug("%s: target %s adopted from %s", self.config_entry.title, target, entity)
+            if refresh:
+                self.hass.async_create_task(self.async_request_refresh())
+
+        return async_track_state_change_event(self.hass, [entity], changed)
+
     def _assist_target(self) -> float | None:
         """Air conditioner: the house target, while the house says this source is cheaper and its door is open."""
         house = self.conf.get(CONF_ASSIST) if self.cfg.control == "ac" else None
@@ -398,8 +636,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if state is None or state.state in ("off", "unavailable", "unknown"):
             return None
         a = state.attributes
-        if a.get("source_advice") in ("other", "other_zone_only") and a.get("zone_door_open") and isinstance(a.get("temperature"), (int, float)):
-            return float(a["temperature"])
+        if a.get("source_advice") in ("other", "other_zone_only") and a.get("zone_door_open"):
+            return climate_temp_c(self.hass, a, "temperature")  # 0.45.0: a climate shows the system unit
         return None
 
     def _unit_inputs(self) -> dict:
@@ -409,7 +647,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         state = self.hass.states.get(self.conf.get(CONF_EXTERNAL) or "")
         if state is None:
             return {}
-        a = state.attributes
+        a = climate_attrs_c(self.hass, state.attributes)  # 0.45.0: °F unit → °C (the executor writes it back in °F)
         num = lambda k: float(a[k]) if isinstance(a.get(k), (int, float)) else None
         return {"unit_temp": num("current_temperature"), "unit_step": num("target_temp_step"),
                 "unit_min": num("min_temp"), "unit_max": num("max_temp")}
@@ -437,7 +675,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     def _record(self, decision: Decision) -> None:
         if decision.external is None and self.actual is not None:
             self._agreement.append(decision.output == self.actual)
-        key = (decision.reason, decision.output, decision.fault)
+        key = (decision.reason, decision.output, decision.fault, bool(decision.details.get("paused")))
         if key == self._last_key:
             return
         self._last_key = key
@@ -457,9 +695,22 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     async def _async_update_data(self) -> Decision:
         now = dt_util.now()
+        if self.managed and self.managed_platform is None:
+            self._detect_platform()  # the integration may load after HC
         inputs = self.build_inputs(now)
         self.last_inputs = inputs  # shown by the info panel
-        decision = self.supervisor.step(inputs)
+        try:
+            decision = self._managed_details(self.supervisor.step(inputs))
+        except Exception:
+            # 0.45.0: a decision that fails again and again must not leave the heat on – the relay (or the managed
+            # thermostat) is switched off after FAILSAFE_AFTER failed steps in a row, and the fault sensor says so
+            decision = await self._failsafe(now)
+        else:
+            if self.step_errors:
+                _LOGGER.warning("%s: the decision works again after %d failed step(s)", self.config_entry.title,
+                                self.step_errors)
+            self.step_errors = 0
+            self.sensor_problems.pop(FAILSAFE_KEY, None)
         self._record(decision)
         self.cost = self._compare_cost(decision)
         self._update_health(decision, now)
@@ -471,6 +722,24 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             await self.async_save()
         return decision
 
+    async def _failsafe(self, now: datetime) -> Decision:
+        """The supervisor raised: log it; from the FAILSAFE_AFTER-th failure in a row the heat goes off (active mode
+        through the executor's usual path) until a step works again. Before that – or without a decision to base
+        the off command on – the error is raised as before (the entities go unavailable for the step)."""
+        self.step_errors = getattr(self, "step_errors", 0) + 1
+        _LOGGER.exception("%s: the decision failed (%d in a row)", self.config_entry.title, self.step_errors)
+        last = self.data
+        if self.step_errors < FAILSAFE_AFTER or last is None:
+            raise
+        if self.step_errors == FAILSAFE_AFTER:
+            _LOGGER.warning("%s: %d failed decisions in a row – the heat output is switched off for safety",
+                            self.config_entry.title, self.step_errors)
+        self.sensor_problems[FAILSAFE_KEY] = "internal_error"
+        return replace(last, now=now, output=False, demand=0.0, fault=True, flow_setpoint=None,
+                       external=ExternalCommand("off", last.target) if last.external is not None else None,
+                       details={**(last.details or {}), "failsafe": self.step_errors},
+                       shadow=None)
+
     def _groups(self) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
         if self._room_groups is None:
             self._room_groups = group_by_room(self.hass, list(self.conf.get(CONF_ROOMS) or []))
@@ -478,97 +747,250 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self._trv_groups = group_by_room(self.hass, list(self.conf.get(CONF_ROOM_TRVS) or []))
         return self._room_groups, self._trv_groups
 
-    def _trv_temp(self, head: str) -> float | None:
-        state = self.hass.states.get(head)
-        value = state.attributes.get("current_temperature") if state is not None else None
-        return float(value) if isinstance(value, (int, float)) else None
+    # --- rooms (0.43.0) --------------------------------------------------------------------------------------------
+    def _explicit_rooms(self) -> bool:
+        return isinstance(self.conf.get("rooms"), list) and bool(self.conf.get("rooms"))
 
-    def _room_readings(self, now: datetime) -> dict[str, float | None]:
-        """Room thermometers (median); a TRV room without one uses its heads' own sensors."""
-        sensors, trvs = self._groups()
-        out = {}
-        for room, ids in sensors.items():
-            values = [r.value for e in ids if (r := self._reading(e, now)).fresh(self.cfg.sensor_max_age_s) is not None]
-            out[room] = room_value([v for v in values if v is not None])
-        for room, heads in trvs.items():
-            if room not in out:
-                out[room] = room_value([t for h in heads if (t := self._trv_temp(h)) is not None])
+    def room_specs(self) -> tuple[list[RoomSpec], str | None]:
+        """(rooms, leading room key): the saved `rooms`, else derived from the legacy options (rooms_ha)."""
+        cached = getattr(self, "_specs", None)
+        if cached is None:
+            if self._explicit_rooms():
+                cached = room_specs_for(self.hass, self.conf)
+            else:
+                sensors, trvs = self._groups()
+                cached = room_specs_for(self.hass, self.conf, sensors, trvs)
+            self._specs = cached
+        return cached
+
+    def other_rooms(self) -> list[RoomSpec]:
+        """Every room but the leading one (the host thermostat is the leading room's)."""
+        specs, leading = self.room_specs()
+        return [s for s in specs if s.key != leading]
+
+    def leading_spec(self) -> RoomSpec | None:
+        specs, leading = self.room_specs()
+        return next((s for s in specs if s.key == leading), None)
+
+    def all_heads(self) -> list[str]:
+        return list(dict.fromkeys(h for s in self.room_specs()[0] for h in s.trvs))
+
+    def _ctls(self) -> dict[str, RoomControl]:
+        if "room_ctl" not in self.__dict__:
+            self.room_ctl = {}
+        return self.room_ctl
+
+    def _ctl(self, key: str) -> RoomControl:
+        return self._ctls().setdefault(key, RoomControl())
+
+    def _spec(self, room: str) -> RoomSpec | None:
+        return next((s for s in self.room_specs()[0] if room in (s.key, s.name)), None)
+
+    def _household(self, now: datetime) -> str:
+        """home | away | vacation: the host's active preset (household presence or a preset set by hand)."""
+        sup = getattr(self, "supervisor", None)
+        try:
+            active = sup.active_preset(now) if sup is not None else "home"
+        except Exception:
+            active = "home"
+        return active if active in ("away", "vacation") else "home"
+
+    def _presence_obs(self, spec: RoomSpec) -> list[bool | None]:
+        name = None
+        if spec.area:
+            try:
+                name = area_name(self.hass, spec.area)
+            except Exception:
+                name = None
+        out = []
+        for entity in spec.presence:
+            st = self.hass.states.get(entity)
+            out.append(presence_of(st.state if st is not None else None, dict(st.attributes) if st is not None else {},
+                                   entity.split(".")[0], spec.area or spec.key, name or spec.name))
         return out
 
+    def _update_presence(self, now: datetime) -> None:
+        started = getattr(self, "_started", None)
+        settling = started is not None and (now - started).total_seconds() < SETTLE_S
+        for spec in self.other_rooms():
+            ctl = self._ctl(spec.key)
+            if not spec.presence or not spec.trvs:
+                ctl.presence_state = PRESENT
+                continue
+            ctl.presence_state = ctl.presence.update(now, self._presence_obs(spec), spec.absent_min * 60, settling)
+
+    @callback
+    def async_track_room_presence(self):
+        """A presence source changes: decide at once (the 30 s step would follow anyway)."""
+        ids = list(dict.fromkeys(e for s in self.other_rooms() if s.trvs for e in s.presence))
+        if not ids:
+            return lambda: None
+
+        @callback
+        def changed(_event: Event) -> None:
+            self.hass.async_create_task(self.async_request_refresh())
+
+        return async_track_state_change_event(self.hass, ids, changed)
+
+    def room_target(self, room: str, house: float) -> float:
+        """A TRV room's own target (0.30.0: the house target plus its offset; 0.43.0: or its own schedule, presence,
+        a manual target on its climate)."""
+        spec = self._spec(room)
+        if spec is None:
+            offsets = self.conf.get(CONF_TRV_OFFSETS) or {}
+            try:
+                return house + float(offsets.get(room, 0.0))
+            except (TypeError, ValueError):
+                return house
+        return self._room_target(spec, house, dt_util.now(), commit=False).target
+
+    def _room_target(self, spec: RoomSpec, house: float, now: datetime, commit: bool = True):
+        cfg = self.cfg
+        return self._ctl(spec.key).target(spec, now, house, self._household(now), cfg.frost_temp, cfg.target_vacation,
+                                          commit)
+
+    def _trv_temp(self, head: str) -> float | None:
+        state = self.hass.states.get(head)
+        return climate_temp_c(self.hass, state.attributes, "current_temperature") if state is not None else None
+
+    def trv_sources(self) -> dict[str, list[str]]:
+        """Head -> the thermometers its calibration follows ([]: its own sensor)."""
+        return {h: src for s in self.room_specs()[0] for h, src in s.head_sources().items()}
+
+    def _fresh_value(self, ids: list[str], now: datetime) -> float | None:
+        values = [r.value for e in ids if (r := self._reading(e, now)).fresh(self.cfg.sensor_max_age_s) is not None]
+        return room_value([v for v in values if v is not None])
+
+    def _room_reading(self, spec: RoomSpec, now: datetime) -> float | None:
+        """A room's temperature: the mean of its fresh thermometers; a TRV room without one uses the thermometers
+        chosen for its heads (0.42.0), else the heads' own sensors."""
+        if spec.sensors:
+            return self._fresh_value(spec.sensors, now)
+        if not spec.trvs:
+            return None
+        chosen = [x for src in spec.head_sources().values() for x in src]
+        value = self._fresh_value(chosen, now) if chosen else None
+        return value if value is not None else room_value([t for h in spec.trvs if (t := self._trv_temp(h)) is not None])
+
+    def _room_readings(self, now: datetime) -> dict[str, float | None]:
+        """Every room but the leading one, by name."""
+        return {s.name: self._room_reading(s, now) for s in self.other_rooms() if s.sensors or s.trvs}
+
     def _room_demand(self, now: datetime) -> list[str]:
-        """Optional: TRV rooms far below the house target with an open head ask for heat."""
-        _, trvs = self._groups()
-        if not self.conf.get(CONF_ROOM_TRV_DEMAND) or not trvs or self.data is None:
+        """Optional, per room: a TRV room far below its target with an open head asks for heat."""
+        self._update_presence(now)
+        rooms_allowed = [s for s in self.other_rooms() if s.trvs and s.demand]
+        if not rooms_allowed or self.data is None:
             self.asking_rooms = []
+            self.room_demand.update(now, {})
             return []
-        readings = self._room_readings(now)
         rooms = {}
-        for room, heads in trvs.items():
+        for spec in rooms_allowed:
             heating = any((s := self.hass.states.get(h)) is not None and s.attributes.get("hvac_action") == "heating"
-                          for h in heads)
-            rooms[room] = (readings.get(room), self.room_target(room, self.data.target), heating)
+                          for h in spec.trvs)
+            rt = self._room_target(spec, self.data.target, now, commit=False)
+            rooms[spec.name] = (self._room_reading(spec, now), rt.target if rt.reason != "off" else None, heating)
         self.asking_rooms = self.room_demand.update(now, rooms)
         return self.asking_rooms
 
-    def room_target(self, room: str, house: float) -> float:
-        """A TRV room's own target: the house target plus its offset (0.30.0)."""
-        offsets = self.conf.get(CONF_TRV_OFFSETS) or {}
-        try:
-            return house + float(offsets.get(room, 0.0))
-        except (TypeError, ValueError):
-            return house
-
     def _room_sensor_temp(self, room: str, now: datetime) -> float | None:
-        """The room's own thermometers only (not the heads) – the reference of the calibration."""
-        sensors, _ = self._groups()
-        values = [r.value for e in sensors.get(room, []) if (r := self._reading(e, now)).fresh(self.cfg.sensor_max_age_s) is not None]
-        return room_value([v for v in values if v is not None])
+        """The room's own thermometers only (not the heads) – the reference of the legacy calibration."""
+        spec = self._spec(room)
+        return self._fresh_value(spec.sensors, now) if spec is not None else None
 
     async def _apply_trvs(self, decision: Decision) -> None:
-        """TRV heads get their room's target (house target + offset, + calibration) – only in active mode; a target
-        set on the head by hand stays until the room's target changes."""
-        _, trvs = self._groups()
-        if not trvs or decision.target is None:
+        """Every room: its target and state (for its climate); TRV heads get their room's target (+ calibration) –
+        written only in active mode; a target set on the head by hand stays until the room's target changes."""
+        specs, leading = self.room_specs()
+        if decision.target is None:
+            return
+        if not specs:
+            self.trv_info, self.room_states = {}, {}
             return
         now = dt_util.now()
+        house = decision.target
         info: dict[str, dict] = {}
-        for room, heads in trvs.items():
-            base = self.room_target(room, decision.target)
-            room_temp = self._room_sensor_temp(room, now) if self.cfg.trv_calibration else None
-            info[room] = {"target": round(base, 2), "offset": round(base - decision.target, 2), "room_temp": room_temp, "heads": {}}
-            for head in heads:
+        states: dict[str, dict] = {}
+        advice = {a.room: a for a in getattr(self, "room_advice", [])}
+        asking = set(getattr(self, "asking_rooms", []))
+        for spec in specs:
+            is_lead = spec.key == leading
+            temp = decision.indoor if is_lead else self._room_reading(spec, now)
+            a = advice.get(spec.name)
+            common = {"key": spec.key, "name": spec.name, "area": spec.area, "leading": is_lead, "trv": spec.has_trv,
+                      "temperature": round(temp, 2) if temp is not None else None, "sensors": list(spec.sensors),
+                      "house_target": house, "mode": spec.mode, "offset": spec.offset,
+                      "advice": {"advice": a.advice, "deviation": a.deviation, "hours": a.hours} if a else None}
+            if not spec.trvs:
+                states[spec.key] = {**common, "target": house, "reason": "leading" if is_lead else "house",
+                                    "heating": bool(decision.output), "presence": None}
+                continue
+            if is_lead:
+                base, reason, presence = house, "leading", None
+            else:
+                rt = self._room_target(spec, house, now)
+                base, reason = rt.target, rt.reason
+                presence = self._ctl(spec.key).presence_state if spec.presence else None
+            info[spec.name] = {"target": round(base, 2), "offset": round(base - house, 2), "room_temp": None,
+                               "heads": {}, "key": spec.key, "reason": reason}
+            heating = False
+            for head in spec.trvs:
                 state = self.hass.states.get(head)
-                attrs = state.attributes if state is not None else {}
+                native = state.attributes if state is not None else {}
+                attrs = climate_attrs_c(self.hass, native)  # 0.45.0: in °C (a °F system shows °F)
+                heating = heating or attrs.get("hvac_action") == "heating"
                 step = float(attrs.get("target_temp_step") or 0.5)
-                cal = self.trv_cal.update(head, self._trv_temp(head), room_temp, now) if self.cfg.trv_calibration else 0.0
+                ref_ids = spec.head_sources().get(head, [])  # [] : its own sensor, no calibration
+                self.trv_cal.set_source(head, ref_ids)
+                ref = self._fresh_value(ref_ids, now) if ref_ids else None
+                if ref is not None and info[spec.name]["room_temp"] is None:
+                    info[spec.name]["room_temp"] = ref
+                cal = self.trv_cal.update(head, self._trv_temp(head), ref, now) if ref_ids else 0.0
                 room_base = round(base / step) * step
                 want = round((base + cal) / step) * step
-                info[room]["heads"][head] = {"calibration": cal, "want": want}
+                ref_st = self.hass.states.get(ref_ids[0]) if len(ref_ids) == 1 else None
+                info[spec.name]["heads"][head] = {"sensor": ref_ids[0] if len(ref_ids) == 1 else (ref_ids or "head"),
+                                                  **({"sensor_name": ref_st.attributes.get("friendly_name", ref_ids[0])}
+                                                     if ref_st is not None else {}),
+                                                  "sensor_temp": ref, "head_temp": self._trv_temp(head),
+                                                  "calibration": cal, "want": want,
+                                                  "state": state.state if state is not None else None,
+                                                  "head_target": attrs.get("temperature")}
                 if self.mode != MODE_ACTIVE:
                     continue
                 plan = self.trv_targets.plan(head, room_base, state.state if state is not None else None,
                                              attrs.get("temperature"), attrs.get("min_temp"), attrs.get("max_temp"),
                                              want=want, now=now)
-                info[room]["heads"][head]["plan"] = plan.reason
+                info[spec.name]["heads"][head]["plan"] = plan.reason
                 if plan.target is None:
                     continue
                 try:
-                    write_log(self.hass).note(head, plan.target, dt_util.utcnow())
+                    value = to_system(self.hass, plan.target, native.get("target_temp_step"))
+                    write_log(self.hass).note(head, value, dt_util.utcnow())
                     await self.hass.services.async_call("climate", "set_temperature",
-                                                        {"entity_id": head, "temperature": plan.target}, blocking=True)
+                                                        {"entity_id": head, "temperature": value}, blocking=True)
                     self.trv_targets.written(head, plan.target, room_base, now)
                 except Exception:  # A head that does not answer must not stop the next decision.
                     _LOGGER.warning("Could not set the target of %s", head, exc_info=True)
+            ctl = self._ctl(spec.key)
+            states[spec.key] = {**common, "target": round(base, 2), "reason": reason, "heating": heating,
+                                "presence": presence, "presence_sources": list(spec.presence),
+                                "absent_since": ctl.presence.absent_since.isoformat() if ctl.presence.absent_since else None,
+                                "enabled": ctl.enabled, "manual": ctl.manual, "preset": ctl.preset,
+                                "demand_allowed": spec.demand, "asking": spec.name in asking,
+                                "heads": info[spec.name]["heads"]}
         self.trv_info = info
+        self.room_states = states
 
     def _update_rooms(self, decision: Decision, now: datetime) -> None:
         """Single zone: the other rooms against the main thermometer; advice only, never the boiler."""
-        if not self.conf.get(CONF_ROOMS) and not self.conf.get(CONF_ROOM_TRVS):
+        others = [s for s in self.other_rooms() if s.sensors or s.trvs]
+        if not others:
             return
         quiet = decision.reason in (Reason.REGULATING, Reason.AT_TARGET, Reason.THERMOSTAT_IDLE)
         readings = self._room_readings(now)
         self.rooms.update(now, decision.indoor, readings, quiet)
-        trv_rooms = set(self._trv_groups or {})
+        trv_rooms = {s.name for s in others if s.trvs}
         self.room_advice = self.rooms.advice(now, sorted(readings))
         for a in self.rooms.announcements(now, self.room_advice):
             self.hass.bus.async_fire(EVENT_ROOM_ADVICE, {
@@ -579,7 +1001,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     async def async_backfill_rooms(self) -> None:
         """Seed the room deviations from the hourly statistics (every hour counts here, not only quiet ones)."""
-        ids = list(self.conf.get(CONF_ROOMS) or [])
+        groups = {s.name: list(s.sensors) for s in self.other_rooms() if s.sensors}
+        ids = sorted({e for v in groups.values() for e in v})
         indoor = self.conf.get(CONF_INDOOR)
         if not ids or not indoor or self.rooms.hours:
             return
@@ -594,8 +1017,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         except Exception:
             _LOGGER.debug("No statistics to seed the rooms from", exc_info=True)
             return
-        self._room_groups = group_by_room(self.hass, ids)
-        for hour_iso, room, deviation in seed_room_hours(stats, indoor, self._room_groups):
+        for hour_iso, room, deviation in seed_room_hours(stats, indoor, groups):
             self.rooms.add_hour(room, hour_iso, deviation)
 
     def _update_health(self, decision: Decision, now: datetime) -> None:
@@ -619,6 +1041,25 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     @property
     def is_shadow(self) -> bool:
         return self.mode == MODE_SHADOW
+
+
+def _platform_of_entity(hass, entity_id: str) -> str | None:
+    """The integration of a climate entity that has no registry entry (YAML without a unique_id)."""
+    try:
+        from homeassistant.components.climate import DATA_COMPONENT
+        component = hass.data.get(DATA_COMPONENT)
+        ent = component.get_entity(entity_id) if component is not None else None
+        platform = getattr(ent, "platform", None)
+        return getattr(platform, "platform_name", None)
+    except Exception:
+        return None
+
+
+def _float(value) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def seed_samples(stats: dict, energy: str, indoor: str, outdoor: str, extra: str | None,
@@ -652,7 +1093,7 @@ def seed_samples(stats: dict, energy: str, indoor: str, outdoor: str, extra: str
 
 
 def seed_room_hours(stats: dict, indoor: str, groups: dict[str, list[str]]) -> list[tuple[str, str, float]]:
-    """Hourly (room − main) deviations from the hourly statistics; several sensors in a room by their median."""
+    """Hourly (room − main) deviations from the hourly statistics; several sensors in a room by their mean (0.43.0)."""
     def _ts(value) -> float:
         return value.timestamp() if hasattr(value, "timestamp") else float(value) / (1000 if value > 1e11 else 1)
 

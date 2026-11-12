@@ -1,6 +1,7 @@
 """Health of an on/off boiler, read from its relay and its power draw (or a flame sensor).
 
-The Cirkó draws 117-123 W while burning, 105-111 W when only the pump runs, 5-7 W on standby; the limits
+A typical on/off gas boiler (the author's) draws 117-123 W while burning, 105-111 W when only the pump runs, 5-7 W on
+standby; the limits
 are options (`power_idle_w`, `power_burn_w`). Seen as normal: the flame comes 0.5-3.5 minutes after the
 relay (the pump runs first), and in a long burn the boiler pauses the flame for a few minutes on its own
 when the flow is hot enough.
@@ -20,6 +21,9 @@ States, the first that applies:
   start, or for `health_flame_lost_min` minutes after it burned (not for electric);
 - heating_fault: the supervisor's heating fault (long heating while the house still cools);
 - short_cycling: more than `health_max_starts_per_hour` burner starts in the last hour;
+- learning (0.45.0): a burner judged by its power draw whose levels nobody gave yet (no `power_idle_w` /
+  `power_burn_w` in the options, none measured by the setup wizard) – the defaults are one boiler's and
+  would raise no_response / no_flame on another, so those two are not judged; not a problem;
 - ok.
 """
 
@@ -28,8 +32,15 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timedelta
 
-STATES = ["ok", "no_data", "uncommanded_burn", "overheating", "no_response", "no_flame", "heating_fault", "short_cycling"]
+STATES = ["ok", "no_data", "uncommanded_burn", "overheating", "no_response", "no_flame", "heating_fault", "short_cycling",
+          "learning"]
+QUIET_STATES = ("ok", "learning")  # no problem
 FLAME_SOURCES = ("onoff_boiler", "modulating_boiler")
+
+
+def power_levels_known(conf) -> bool:
+    """The burner's power levels were given (options, wizard): both keys are in the instance's settings."""
+    return "power_idle_w" in conf and "power_burn_w" in conf
 
 
 def health_kind(source: str | None) -> str:
@@ -42,9 +53,10 @@ def health_kind(source: str | None) -> str:
 
 
 class BoilerHealth:
-    def __init__(self, cfg, kind: str = "flame") -> None:
+    def __init__(self, cfg, kind: str = "flame", levels_known: bool = True) -> None:
         self.cfg = cfg
         self.kind = kind
+        self.levels_known = levels_known  # 0.45.0: the power levels are this boiler's (set or measured)
         self.state = "ok"
         self.since: datetime | None = None
         self.starts: deque[datetime] = deque()
@@ -118,15 +130,17 @@ class BoilerHealth:
             overheating = burn_min >= cfg.health_overheat_min and bool(temps) and indoor - min(temps) >= 0.2
 
         minutes = lambda since: (now - since).total_seconds() / 60 if since else 0.0  # noqa: E731
+        # 0.45.0: levels nobody gave: a power-judged burner is not judged by them (no false no_response / no_flame)
+        judged = self.levels_known or power is None
         if self._missing_since and minutes(self._missing_since) >= cfg.health_no_data_min:
             state = "no_data"
         elif uncommanded:
             state = "uncommanded_burn"
         elif overheating:
             state = "overheating"
-        elif not electric and relay_on and self._idle_since and minutes(self._idle_since) >= cfg.health_no_response_min:
+        elif judged and not electric and relay_on and self._idle_since and minutes(self._idle_since) >= cfg.health_no_response_min:
             state = "no_response"
-        elif not electric and relay_on and self._no_flame_since and minutes(self._no_flame_since) >= (
+        elif judged and not electric and relay_on and self._no_flame_since and minutes(self._no_flame_since) >= (
                 cfg.health_flame_lost_min if self._burned_this_run else cfg.health_no_ignition_min):
             state = "no_flame"
         elif heating_fault:
@@ -134,7 +148,7 @@ class BoilerHealth:
         elif len(self.starts) > cfg.health_max_starts_per_hour:
             state = "short_cycling"
         else:
-            state = "ok"
+            state = "ok" if judged or electric else "learning"
         if state != self.state:
             self.state, self.since = state, now
         return state
@@ -146,11 +160,12 @@ class BoilerHealth:
 
     @property
     def problem(self) -> bool:
-        return self.state not in ("ok",)
+        return self.state not in QUIET_STATES
 
     def attributes(self) -> dict:
         return {
             "kind": self.kind,
+            "power_levels": "set" if self.levels_known else "default",
             "since": self.since.isoformat() if self.since else None,
             "starts_last_hour": len(self.starts),
             "last_ignition_s": self.last_ignition_s,

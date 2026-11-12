@@ -34,9 +34,17 @@ class CurveRegulator:
         self._last = now
         error = target - indoor
         limit = cfg.room_integral_limit
-        self.integral = max(-limit, min(limit, self.integral + cfg.room_ki_per_hour * error * dt / 3600))
-        flow = self.base(target, outdoor) + cfg.room_kp * error + self.integral
-        flow = max(cfg.flow_min, min(cfg.flow_max, flow))
+        candidate = max(-limit, min(limit, self.integral + cfg.room_ki_per_hour * error * dt / 3600))
+        base = self.base(target, outdoor) + cfg.room_kp * error
+        raw = base + candidate
+        # 0.44.1 anti-windup: no further integration in the direction of a limit the flow already sits at (flow_max
+        # while cold, flow_min or no demand at all while warm) – before, it ran on up to ±room_integral_limit.
+        off = indoor >= target + cfg.overshoot_stop or max(cfg.flow_min, min(cfg.flow_max, raw)) < indoor + cfg.flow_off_delta
+        pushing_deeper = ((raw > cfg.flow_max and candidate > self.integral)
+                          or ((raw < cfg.flow_min or off) and candidate < self.integral))
+        if not pushing_deeper:
+            self.integral = candidate
+        flow = max(cfg.flow_min, min(cfg.flow_max, base + self.integral))
         if flow < indoor + cfg.flow_off_delta or indoor >= target + cfg.overshoot_stop:
             return None
         return round(flow, 1)

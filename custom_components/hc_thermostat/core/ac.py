@@ -26,6 +26,7 @@ import math
 
 OFFSET_TAU_S = 20 * 60.0
 INTEGRAL_MAX = 2.0
+MAX_STEP_S = 300.0  # 0.44.1: a longer gap between two steps is not integrated (window, switched off, HA busy)
 BAND = 0.2  # room past the target by more than this: round the setpoint towards the correction
 PAUSE_AFTER_S = 10 * 60.0
 PAUSE_MARGIN = 0.3  # room past the target by this much (with the setpoint pinned) starts the pause clock
@@ -60,6 +61,8 @@ class AcController:
     def step(self, now: datetime, mode: str, target: float, room: float | None, unit: float | None,
              step: float = 1.0, lo: float = 16.0, hi: float = 30.0) -> AcCommand:
         dt = 0.0 if self._last is None else max((now - self._last).total_seconds(), 0.0)
+        if dt > MAX_STEP_S:
+            dt = 0.0  # 0.44.1: the room was not regulated in between – do not integrate the whole gap in one step
         self._last = now
         new_mode, new_target = mode != self.mode, target != self.target
         if new_mode:
@@ -111,6 +114,11 @@ class AcController:
         if mode == "off":
             return AcCommand("off", None)
         return AcCommand("off" if self.paused else mode, self.sent, self.paused)
+
+    def hold(self, now: datetime) -> None:
+        """0.44.1: the unit is not regulated now (window, switched off, frost, lost sensor): the next step starts
+        its time from here instead of integrating the whole pause at once."""
+        self._last = now
 
     @property
     def raw_offset(self) -> float:

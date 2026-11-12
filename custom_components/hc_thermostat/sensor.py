@@ -37,6 +37,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 class HcDecision(HcEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = [r.value for r in Reason]
+    # 0.45.0: the last 20 decisions are in the state (cards read them there) – not again in the history every 30 s
+    _unrecorded_attributes = frozenset({"log"})
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "decision")
@@ -336,6 +338,7 @@ class HcRooms(HcEntity, SensorEntity):
 
     _attr_icon = "mdi:home-thermometer"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"trv_rooms"})  # 0.45.0: per-head live details, in the state only
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "rooms")
@@ -347,8 +350,10 @@ class HcRooms(HcEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         c = self.coordinator
-        trv_rooms = c._trv_groups or {}
+        trv_rooms = {r.name: list(r.trvs) for r in c.other_rooms() if r.trvs}
+        lead = c.leading_spec()
         return {"tolerance": c.rooms.tolerance, "asking": list(c.asking_rooms), "trv_rooms": c.trv_info,
+                "leading_room": lead.name if lead is not None else None,
                 "rooms": {a.room: {"advice": a.advice, "deviation": a.deviation, "hours": a.hours,
                                    "trv": trv_rooms.get(a.room, [])}
                           for a in c.room_advice}}

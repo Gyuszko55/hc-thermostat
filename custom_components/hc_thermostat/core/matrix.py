@@ -37,7 +37,7 @@ R, P, N = Status.RECOMMENDED, Status.POSSIBLE, Status.NOT_RECOMMENDED
 
 MATRIX: dict[tuple[str, str], Cell] = {
     ("radiator_single", "onoff_boiler"): Cell(R, "TPI vagy PID + PWM, referenciahelyiség szerint", "TPI or PID + PWM, by a reference room"),
-    ("radiator_single", "modulating_boiler"): Cell(R, "Fűtési görbe + szobakorrekció; lehetséges: relés mód", "Heating curve + room correction; possible: relay mode"),
+    ("radiator_single", "modulating_boiler"): Cell(R, "Fűtési görbe + helyiségkorrekció; lehetséges: relés mód", "Heating curve + room correction; possible: relay mode"),
     ("radiator_single", "heat_pump"): Cell(R, "Görbe, hosszú futások, minimális futási idő; nem PWM", "Curve, long runs, minimum run time; no PWM"),
     ("radiator_trv", "onoff_boiler"): Cell(R, "TRV helyiségenként, a kazánt az igénylő zónák indítják; kell átfolyás", "Room TRVs, the boiler starts on zone demand; flow path required"),
     ("radiator_trv", "modulating_boiler"): Cell(R, "TRV + görbe, a legnagyobb igény emeli az előremenőt", "TRV + curve, the highest demand raises the flow"),
@@ -73,12 +73,12 @@ MATRIX: dict[tuple[str, str], Cell] = {
 _FLOOR = {"floor_single", "floor_zones"}
 
 
-_AC = Cell(Status.RECOMMENDED, "Klíma: a célját a helyiség-hőmérő szerint tolja el (virtuális i-Feel), nem kapcsolgatja; nyáron hűt",
+_AC = Cell(Status.RECOMMENDED, "Klíma: a célját a helyiséghőmérő szerint tolja el (virtuális i-Feel), nem kapcsolgatja; nyáron hűt",
            "Air conditioner: its setpoint follows the room thermometer (virtual i-Feel), never switched to regulate; cools in summer")
 _HEATER = Cell(Status.RECOMMENDED, "Elektromos fűtő: relén vagy okosdugaljon TPI/PID + PWM rövid ciklussal; wifis, saját termosztátos fűtőnél külső termosztát mód",
                "Electric heater: TPI/PID + PWM with a short cycle on a relay or smart plug; for a Wi-Fi heater with its own thermostat, external thermostat mode")
 _STORAGE = Cell(Status.RECOMMENDED,
-                "Hőtárolós kályha: éjszakai (vezérelt áramos) feltöltés a kinti napi átlag szerint, az ablak végére időzítve; nappal kisütés ventilátorral a szoba hőfoka szerint",
+                "Hőtárolós kályha: éjszakai (vezérelt áramos) feltöltés a kinti napi átlag szerint, az ablak végére időzítve; nappal kisütés ventilátorral a helyiség hőfoka szerint",
                 "Storage heater: night (off-peak) charge by the outdoor daily average, timed to the end of the window; daytime discharge by a fan, by the room temperature")
 _FANCOIL = Cell(Status.RECOMMENDED,
                 "Fan-coil: a vízszelepet TPI/PID kapcsolja, a ventilátor fordulata az igényt követi (zárás után rövid utánfutás); "

@@ -1,0 +1,154 @@
+{
+ "options": {
+  "name": "Boiler HC",
+  "role": "standalone",
+  "heat_source": "onoff_boiler",
+  "system": "radiator_single",
+  "control": "tpi",
+  "mode": "active",
+  "indoor_entity": "sensor.living",
+  "outdoor_entity": "sensor.outdoor",
+  "actuator_entity": "switch.boiler",
+  "target_home": 21.5,
+  "target_night": 19.0,
+  "target_away": 17.0,
+  "night_start": "22:00:00",
+  "night_end": "06:00:00",
+  "cycle_s": 900,
+  "min_on_s": 300,
+  "min_off_s": 300,
+  "keep_alive_s": 60,
+  "power_idle_w": 20.0,
+  "power_burn_w": 115.0,
+  "boiler_power_kw": 24.0,
+  "presets_enabled": [
+   "comfort",
+   "home",
+   "sleep",
+   "eco",
+   "away",
+   "boost"
+  ],
+  "pid_kp": 0.4,
+  "season_enabled": true,
+  "boost_enabled": true,
+  "learning_enabled": true,
+  "shadow_regulator": true
+ },
+ "store": {
+  "version": 1,
+  "minor_version": 1,
+  "key": "hc_thermostat.01TEST041",
+  "data": {
+   "supervisor": {
+    "pwm": {
+     "output": false,
+     "last_change": "2026-11-01T21:50:00+00:00",
+     "cycle_start": "2026-11-02T05:45:00+00:00"
+    },
+    "storage": {
+     "locked": null,
+     "locked_for": null,
+     "charged_s": 0,
+     "charged_for": null
+    },
+    "regulator": {},
+    "ac": {
+     "offset": null,
+     "integral": 0.0,
+     "sent": null,
+     "mode": null,
+     "target": null,
+     "paused": false,
+     "changed": null
+    },
+    "shadow": {
+     "regulator": {
+      "integral": 0.7031080000009016
+     },
+     "pwm": {
+      "output": true,
+      "last_change": "2026-11-02T05:56:00+00:00",
+      "cycle_start": "2026-11-02T05:45:00+00:00"
+     },
+     "stats": {
+      "day": "2026-11-02",
+      "shadow_on_s": 240.0,
+      "live_on_s": 0.0,
+      "yesterday": {
+       "day": "2026-11-01",
+       "shadow_min": 940,
+       "live_min": 503
+      }
+     }
+    },
+    "heat_need": {
+     "model": 2,
+     "samples": []
+    },
+    "learner": {
+     "learned": {
+      "afterheat": {
+       "mild": 0.6
+      },
+      "minutes_per_degree": {
+       "mild": 20.0
+      },
+      "trim": -0.1,
+      "tpi_coef_int": 0.7,
+      "tpi_offset": 0.05,
+      "boosts": 1,
+      "days": 1,
+      "last_boost": {
+       "start": "2026-11-01T06:00:00+00:00",
+       "target": 21.5,
+       "indoor_start": 19.0,
+       "indoor_stop": 19.48000000000016,
+       "peak": 19.48000000000016,
+       "flame_min": 60.0,
+       "outdoor": 4.0,
+       "used": true
+      }
+     },
+     "day": "2026-11-02",
+     "reg_s": 21600.0,
+     "err_s": -21664.800000065265,
+     "under_s": 0.0,
+     "over_s": 21600.0
+    },
+    "curve": {
+     "integral": 0.0
+    },
+    "exercise": {
+     "last_open": "2026-11-01T21:49:30+00:00"
+    },
+    "manual_target": null,
+    "preset": null,
+    "preset_until": null,
+    "preset_until_home": false,
+    "base_target": 19.0,
+    "season_on": true,
+    "fault": false,
+    "fault_temp": null
+   },
+   "mode": "active",
+   "enabled": true,
+   "log": [],
+   "outdoor": [],
+   "heat_basis": [
+    null,
+    null,
+    null,
+    null,
+    [],
+    null
+   ],
+   "counted_extra": 0.0,
+   "rooms": {},
+   "trv": {},
+   "trv_cal": {},
+   "last_extra": null
+  }
+ },
+ "made_with": "0.41.0 (hc-thermostat-public 9810636), one simulated day"
+}

@@ -11,14 +11,15 @@ from homeassistant.helpers.storage import Store
 from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
 from .const import CENTRAL_PLATFORMS, CONF_ROLE, DOMAIN, PLATFORMS
-from .coordinator import HcCoordinator
-from .wizard import async_setup_wizard
+from .coordinator import HcCoordinator, note_ha_start
+from .wizard import async_register_panels, async_remove_panels, async_setup_wizard
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """The setup wizard panel ("HC setup" in the sidebar), available at any time."""
+    note_ha_start(hass)  # 0.45.0: the restart protection counts from here
     await async_setup_wizard(hass)
     return True
 
@@ -29,6 +30,7 @@ def _central(entry: ConfigEntry) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    await async_register_panels(hass)  # 0.45.0: back after the last instance was deleted
     if _central(entry):
         if entry.data.get(CONF_ROLE) == "buffer":
             central = BufferCoordinator(hass, entry)
@@ -48,6 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(coordinator.async_track_target_source())
+    entry.async_on_unload(coordinator.async_track_managed())  # 0.42.0: two-way with the managed thermostat
+    entry.async_on_unload(coordinator.async_track_room_presence())  # 0.43.0: room presence sources
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
 
@@ -63,7 +67,11 @@ async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The instance is deleted: its store goes. TRV heads and the managed thermostat keep the last target HC wrote
+    (nothing is written back – README "Removing an instance"). 0.45.0: the last instance takes the panels with it."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
+    if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
+        async_remove_panels(hass)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

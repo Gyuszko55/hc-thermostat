@@ -36,6 +36,11 @@ class DropDetector:
     def update(self, now: datetime, value: float | None) -> bool:
         cfg = self.cfg
         if value is None:
+            # 0.44.5: a thermometer that drops out must not hold the pause beyond its longest time
+            if self.open and now - self.since >= timedelta(minutes=cfg.window_drop_max_min):
+                self.since = None
+                self.cooldown_until = now + timedelta(minutes=cfg.window_drop_cooldown_min)
+                self.samples.clear()
             return self.open
         if not self.samples or self.samples[-1][1] != value:
             self.samples.append((now, value))  # a new report: kept with the time it first appeared

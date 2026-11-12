@@ -1,7 +1,8 @@
 /* HC Thermostat – setup wizard (sidebar panel "HC setup").
  * Six steps: what to set up → heat source → system and control (with the matrix) → devices → worked-out
  * settings (each with its reason, editable) → summary and save. New instances always start in shadow mode.
- * Talks to the integration through hc_thermostat/wizard/{start,derive,apply}.
+ * Talks to the integration through hc_thermostat/wizard/{start,derive,rooms,apply}. 0.43.0: the "Rooms" card (single zone
+ * TPI / PID): per room thermometers, TRV heads, leading room, target, presence, boiler demand.
  */
 const T = {
   hu: {
@@ -10,11 +11,11 @@ const T = {
     existing: "Meglévő példány átállítása", mode: { shadow: "árnyék", active: "éles" },
     back: "Vissza", next: "Tovább", save: "Mentés", saving: "Mentés…", again: "Új beállítás",
     sources: {
-      onoff_boiler: ["Be/ki kazán (relé)", "Gázkazán szobatermosztát-bemenettel; a HC a relén kapcsolja."],
+      onoff_boiler: ["Be/ki kazán (relé)", "Gázkazán helyiségtermosztát-bemenettel; a HC a relén kapcsolja."],
       modulating_boiler: ["Moduláló kazán", "OpenTherm / eBUS: előremenő hőfok állítható (fűtési görbe)."],
       heat_pump: ["Hőszivattyú (levegő–víz)", "Hosszú, egyenletes futás, alacsony előremenő."],
       electric_boiler: ["Elektromos kazán", "Vizes rendszer, mágneskapcsolóval vagy relével; a HC kapcsolja."],
-      air_conditioner: ["Klíma (levegő–levegő)", "Fűt és hűt; a HC a célját tolja a helyiség-hőmérő szerint."],
+      air_conditioner: ["Klíma (levegő–levegő)", "Fűt és hűt; a HC a célját tolja a helyiséghőmérő szerint."],
       electric_heater: ["Elektromos fűtő", "Konvektor, olajradiátor, infrapanel: relén, okosdugaljon vagy wifis saját termosztáttal."],
       pellet_boiler: ["Pellet kazán", "Lassan gyújt és ég ki: hosszú futásokkal kapcsolja; puffertartállyal a puffer szerep tölti."],
       district_heating: ["Távfűtés", "Lakásonkénti zónaszeleppel vagy szelepfejekkel; nincs saját kazán."],
@@ -31,10 +32,10 @@ const T = {
       tpi: ["TPI + PWM", "Arányos impulzusok a hiba és a hőigény szerint; a legtöbb relés kazánhoz."],
       pid: ["PID + PWM", "Integráló taggal: nem marad tartósan a cél alatt."],
       external: ["Külső termosztát", "Egy meglévő termosztátot (TRV, BT) állít; a hőt az szabályozza."],
-      curve: ["Fűtési görbe (kísérleti)", "Előremenő hőfok a kinti hőmérséklet szerint, szobakorrekcióval."],
-      ac: ["Klíma – virtuális i-Feel", "A klíma célját tolja el a helyiség-hőmérő szerint; nem kapcsolgat."],
+      curve: ["Fűtési görbe (kísérleti)", "Előremenő hőfok a kinti hőmérséklet szerint, helyiségkorrekcióval."],
+      ac: ["Klíma – virtuális i-Feel", "A klíma célját tolja el a helyiséghőmérő szerint; nem kapcsolgat."],
       onoff: ["On-off, hosszú futással", "A hőszivattyú termosztát-bemenetét kapcsolja: a cél alatt indul, fölötte áll le; nincs szaggatás."],
-      storage: ["Hőtároló", "Éjjel a kinti napi átlag szerint tölt, az ablak végére időzítve; nappal a szoba szerint süt ki."],
+      storage: ["Hőtároló", "Éjjel a kinti napi átlag szerint tölt, az ablak végére időzítve; nappal a helyiség szerint süt ki."],
     },
     fields: {
       name: "Név", indoor_entity: "Helyiség-hőmérő (a fő hőmérő)", outdoor_entity: "Kinti hőmérő",
@@ -47,10 +48,23 @@ const T = {
       power_available_entity: "Vezérelt áram jelzése (ha van)", discharge_entity: "Kisütő ventilátor / csappantyú (ha van)",
       fan_entity: "Fan-coil ventilátora (ha van)", coil_temp_entity: "Hőcserélő hőmérője (ha van)",
       return_temp_entity: "Visszatérő víz hőmérője (ha van)",
-      demand_entity: "Vezetékes fali termosztát érintkezője (ha van; ezzel a helyiség-hőmérő elhagyható)",
+      demand_entity: "Vezetékes fali termosztát érintkezője (ha van; ezzel a helyiséghőmérő elhagyható)",
     },
     derived_hint: "Ezeket a választott hőforrásból, rendszerből és eszközökből számoltam. Mindegyik mellett ott az indok; bármelyik átírható.",
-    rooms: "Helyiség-hőmérők (csak javaslatot adnak, a fő hőmérő dönt)",
+    rm: { title: "Helyiségek", hint: "Egy helyiség = egy hőmérő vagy hőmérő-csoport (az elérhetők átlaga), nulla vagy több szelepfej, de egy kazán. A vezető helyiség (szelepfej nélkül, általában a nappali) hőmérője vezérli a kazánt; minden más helyiség saját HC termosztátot kap. Szelepfejes helyiség: a fejek a helyiség célját kapják, a helyiség hőmérőjéhez kalibrálva. Szelepfej nélküli helyiség: csak a kazánon át fűthető, a ház célját mutatja és radiátorszelep-tanácsot kap. A sorrend (↑ ↓) a HC info házrajzáé: alsó sor először, balról jobbra, aztán felfelé.",
+      add: "Helyiség hozzáadása (terület)…", custom: "Egyéni helyiség (terület nélkül)", custom_name: "Új helyiség", empty: "Még nincs helyiség.", name: "Név", no_area: "nincs terület",
+      leading: "Vezető helyiség", remove: "Levesz", up: "Előrébb", down: "Hátrébb", sensors: "Hőmérők", trvs: "Szelepfejek", add_sensor: "Másik hőmérő…", add_trv: "Másik szelepfej…",
+      lead_hint: "Ennek a hőmérője vezérli a kazánt (a ház célja: menetrend, presetek, háztartás-jelenlét). A HC példány termosztátja ennek a helyiségnek a termosztátja.",
+      trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Saját HC termosztát, de csak a kazánon át fűthető: a ház célját követi, radiátorszelep-tanácsot kap.",
+      head_hint: "Fejenként: mihez kalibrálja a HC.", head_room: "A helyiség hőmérő(i) – kalibrálás", head_room_none: "A helyiség hőmérője (nincs: a fej saját mérése)", head_own: "A fej saját hőmérője – nincs kalibrálás",
+      target: "Cél", follow: "A ház célját követi", own: "Saját menetrend", offset: "Eltérés a ház céljától", target_home: "Otthon", target_night: "Éjszaka", target_away: "Háztartás távol", night: "Éjszaka",
+      presence: "Jelenlét", presence_hint: "Helyiség-követő (állapota a helyiség területe, pl. Bermuda) vagy mozgásérzékelő. Senki: a megadott perc után a cél csökken (a fagyhatár alá soha); háztartás távol / szabadság: a háztartás célja.",
+      tracker: "helyiség-követő", no_presence: "Nincs jelenlét-forrás.", absent_min: "Távollét ennyi perc után", setback: "Csökkentés", min: "perc",
+      demand: "Kérhet rövid égést a kazántól, ha messze a célja alatt van (csak ha a ház nincs a célja fölött)", demand_short: "égést kérhet",
+      follows_house: "a ház célját követi", n_sensors: "hőmérő", n_trvs: "fej", rooms_line: "Helyiségek",
+      warn_no_leading: "Nincs vezető helyiség kiválasztva: a kazánt a fő hőmérő vezérli, de jelöld meg, melyik helyiségben van.",
+      warn_leading_trv: "A vezető helyiségben ({room}) szelepfej van: a fej és a kazán egymás ellen dolgozhat. A fej a ház célját kapja.",
+      warn_indoor_trv: "A ház fő hőmérője a(z) {room} szelepfejes helyiségben van: a fej lezár, a kazán pedig a fej szerint áll le – válassz más vezető hőmérőt." },
     keys: {
       cycle_s: "Ciklusidő", min_on_s: "Minimális égés", min_off_s: "Minimális szünet", keep_alive_s: "Bekapcsolt állapot újraküldése",
       power_idle_w: "Kazán alapjárata", power_burn_w: "Kazán égése", boiler_power_kw: "Kazán teljesítménye", energy_factor: "Hő egységnyi mért mennyiségre",
@@ -58,9 +72,11 @@ const T = {
       night_start: "Éjszaka kezdete", night_end: "Éjszaka vége", curve_slope: "Görbe meredeksége", flow_max: "Előremenő maximum",
       flow_min: "Előremenő minimum", unit_step: "Klíma lépésköze", unit_range: "Klíma határai", ac_min_change_s: "Legritkább célváltás",
       floor_max: "Padlóhőfok-limit", hp_min_on_s: "Legrövidebb futás", hp_min_off_s: "Legrövidebb szünet", onoff_hysteresis: "Bekapcsolási hiszterézis",
-      floor_temper: "Padlótemperálás", floor_temper_offset: "Padló célja a szoba célja fölött", floor_temper_night: "Padló célja éjjel", floor_fallback: "Padló tartása hőmérő nélkül", floor_covering: "Padlóburkolat", floor_probe: "Padlószenzor helye",
+      floor_temper: "Padlótemperálás", floor_temper_offset: "Padló célja a helyiség célja fölött", floor_temper_night: "Padló célja éjjel", floor_fallback: "Padló tartása hőmérő nélkül", floor_covering: "Padlóburkolat", floor_probe: "Padlószenzor helye",
     },
-    summary_new: "Új példány jön létre árnyék módban. Ha a döntései rendben vannak, a beállításokban állítható élesre.",
+    summary_new: "Új példány jön létre árnyék módban: számol és naplóz, de nem kapcsol. Ha a döntései rendben vannak, élesíthető: Beállítások → Eszközök és szolgáltatások → HC Thermostat → Konfigurálás → Élesítés.",
+    start_active: "Élesen indul: a HC azonnal kapcsolja a fűtést (csak ha semmi más nem vezérli ugyanazt a kimenetet)",
+    start_active_on: "Élesen indul – azonnal kapcsol.", name_taken: "Már van ilyen nevű példány.",
     summary_edit: "A meglévő példány beállításai frissülnek; az üzemmódja (éles/árnyék) nem változik. A példány újratöltődik.",
     done_new: "Elkészült az új példány.", done_edit: "A példány beállításai frissültek.", open_integration: "Megnyitás a beállításokban",
     load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:", pick_need: "Válaszd ki, mit állítunk be.", source_need: "Válassz hőforrást.",
@@ -113,7 +129,20 @@ const T = {
       demand_entity: "Wired wall thermostat contact (if any; with it the room thermometer is optional)",
     },
     derived_hint: "Worked out from the chosen heat source, system and devices. Each shows its reason; any can be changed.",
-    rooms: "Room thermometers (advice only, the main thermometer decides)",
+    rm: { title: "Rooms", hint: "One room = one thermometer or a group (the mean of the available ones), none or several TRV heads, but one boiler. The leading room's thermometer (no TRV head, usually the living room) runs the boiler; every other room gets its own HC thermostat. A TRV room: its heads get the room's target, calibrated to the room's thermometer. A room without a TRV: heated only through the boiler, shows the house target and gets radiator valve advice. The order (↑ ↓) is the order in the HC info house drawing: bottom row first, left to right, then upwards.",
+      add: "Add a room (area)…", custom: "Custom room (no area)", custom_name: "New room", empty: "No rooms yet.", name: "Name", no_area: "no area",
+      leading: "Leading room", remove: "Remove", up: "Move up", down: "Move down", sensors: "Thermometers", trvs: "TRV heads", add_sensor: "Another thermometer…", add_trv: "Another TRV head…",
+      lead_hint: "Its thermometer runs the boiler (the house target: schedule, presets, household presence). The HC instance's thermostat is this room's thermostat.",
+      trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Its own HC thermostat, but heated only through the boiler: follows the house target, gets radiator valve advice.",
+      head_hint: "Per head: what HC calibrates it to.", head_room: "The room's thermometer(s) – calibrated", head_room_none: "The room's thermometer (none: the head's own reading)", head_own: "The head's own thermometer – no calibration",
+      target: "Target", follow: "Follows the house target", own: "Own schedule", offset: "Offset to the house target", target_home: "Home", target_night: "Night", target_away: "Household away", night: "Night",
+      presence: "Presence", presence_hint: "A room tracker (its state is the room's area, e.g. Bermuda) or a motion sensor. Nobody: after the given minutes the target is set back (never below the frost limit); household away / vacation: the household target.",
+      tracker: "room tracker", no_presence: "No presence source.", absent_min: "Absent after", setback: "Setback", min: "min",
+      demand: "May ask the boiler for short burns when far below its target (only while the house is not above its own)", demand_short: "may ask for burns",
+      follows_house: "follows the house", n_sensors: "thermometer(s)", n_trvs: "head(s)", rooms_line: "Rooms",
+      warn_no_leading: "No leading room chosen: the main thermometer runs the boiler, but mark which room it is in.",
+      warn_leading_trv: "The leading room ({room}) has a TRV head: the head and the boiler may work against each other. The head gets the house target.",
+      warn_indoor_trv: "The house's main thermometer is in the TRV room {room}: the head closes and the boiler stops by it – choose another leading thermometer." },
     keys: {
       cycle_s: "Cycle", min_on_s: "Minimum burn", min_off_s: "Minimum pause", keep_alive_s: "Resend on every",
       power_idle_w: "Boiler idle", power_burn_w: "Boiler burning", boiler_power_kw: "Boiler output", energy_factor: "Heat per metered unit",
@@ -123,7 +152,9 @@ const T = {
       floor_max: "Floor limit", hp_min_on_s: "Shortest run", hp_min_off_s: "Shortest pause", onoff_hysteresis: "Switch-on hysteresis",
       floor_temper: "Floor tempering", floor_temper_offset: "Floor target above the room target", floor_temper_night: "Floor target at night", floor_fallback: "Keep the floor without a room thermometer", floor_covering: "Floor covering", floor_probe: "Floor sensor position",
     },
-    summary_new: "A new instance is created in shadow mode. When its decisions look right, make it live in the options.",
+    summary_new: "A new instance is created in shadow mode: it calculates and logs, but switches nothing. When its decisions look right, make it live: Settings → Devices & services → HC Thermostat → Configure → Go live.",
+    start_active: "Start live: HC switches the heating at once (only when nothing else controls the same output)",
+    start_active_on: "Starts live – switches at once.", name_taken: "An instance with this name exists already.",
     summary_edit: "The instance's settings are updated; its mode (live/shadow) stays. The instance reloads.",
     done_new: "The new instance is ready.", done_edit: "The instance's settings are updated.", open_integration: "Open in settings",
     load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:", pick_need: "Choose what to set up.", source_need: "Choose a heat source.",
@@ -131,6 +162,8 @@ const T = {
     field_bug: "Internal error: this combination ({combo}) has no input field for {field}. Please report it – until then add it under Settings → Devices & services → HC Thermostat → Add integration.",
   },
 };
+// 0.45.0: every name, title or server text goes into the HTML through esc()
+const esc = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const SOURCE_ICON = { onoff_boiler: "mdi:fire", modulating_boiler: "mdi:fire-circle", heat_pump: "mdi:heat-pump", electric_boiler: "mdi:water-boiler",
   air_conditioner: "mdi:air-conditioner", electric_heater: "mdi:radiator", storage_heater: "mdi:heat-wave", district_heating: "mdi:city", pellet_boiler: "mdi:fire" };
 const SETTING_KEYS = ["cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_w", "power_burn_w", "boiler_power_kw", "energy_factor",
@@ -170,7 +203,7 @@ class HcWizardPanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._step = 0;
-    this._s = { entry_id: null, name: "", heat_source: null, system: null, control: null, entities: {}, settings: {}, rooms: [] };
+    this._s = { entry_id: null, name: "", heat_source: null, system: null, control: null, entities: {}, settings: {} };
     this._derived = null;
     this._done = null;
   }
@@ -182,7 +215,8 @@ class HcWizardPanel extends HTMLElement {
   }
   get hass() { return this._hass; }
   set narrow(n) { this._narrow = n; }
-  get _t() { return T[(this._hass?.locale?.language || this._hass?.language || "en").startsWith("hu") ? "hu" : "en"]; }
+  get _lang() { return this._hass?.locale?.language || this._hass?.language || "en"; }
+  get _t() { return T[this._lang.startsWith("hu") ? "hu" : "en"]; }
 
   async _load() {
     this._render();
@@ -211,7 +245,7 @@ class HcWizardPanel extends HTMLElement {
   _whyNot() {
     const s = this._s, t = this._t;
     switch (this._step) {
-      case 0: return this._picked === undefined ? t.pick_need : null;
+      case 0: return null;  // 0.45.0: nothing chosen yet is no error (Next stays disabled)
       case 1: return s.heat_source ? null : t.source_need;
       case 2: return s.system && s.control ? null : t.system_need;
       case 3: {
@@ -222,15 +256,21 @@ class HcWizardPanel extends HTMLElement {
         const miss = sc.filter((f) => f.required && f.name !== "name" && !(Array.isArray(s.entities[f.name]) ? s.entities[f.name].length : s.entities[f.name]))
           .map((f) => this._label(f.name));
         if (!s.entry_id && !String(s.name || "").trim()) miss.unshift(t.fields.name);
-        return miss.length ? `${t.missing} ${miss.join(", ")}` : null;
+        if (miss.length) return `${t.missing} ${miss.join(", ")}`;
+        if (!s.entry_id && this._nameTaken(s.name)) return t.name_taken;  // 0.45.0: said here, not lost at the save
+        return null;
       }
       default: return null;
     }
   }
+  _nameTaken(name) {
+    const n = String(name || "").trim().toLowerCase();
+    return !!n && (this._start?.entries || []).some((e) => String(e.title || "").trim().toLowerCase() === n);
+  }
   _updNext() {
     const r = this.shadowRoot, why = this._whyNot();
     const next = r?.getElementById("next");
-    if (next) next.disabled = !!why;
+    if (next) next.disabled = !!why || !this._canNext();
     const need = r?.getElementById("need");
     if (need) need.textContent = why || "";
   }
@@ -258,12 +298,169 @@ class HcWizardPanel extends HTMLElement {
     const names = new Set(this._schema().map((x) => x.name));
     s.entities = Object.fromEntries(Object.entries(s.entities).filter(([k]) => names.has(k)));
     this._derived = await this._hass.callWS({ type: "hc_thermostat/wizard/derive", heat_source: s.heat_source, system: s.system,
-      control: s.control, entities: s.entities });
+      control: s.control, entities: s.entities, language: this._lang });
     // only what belongs to this choice; values the user already changed are kept
     const prev = s.settings;
     s.settings = {};
     for (const it of this._derived.items) if (it.editable) s.settings[it.key] = it.key in prev ? prev[it.key] : it.value;
-    if (!s.entry_id && !s.rooms.length) s.rooms = [...(this._derived.rooms || [])];
+    if (this._trvOk()) await this._loadRooms();
+  }
+  // ---------- rooms (0.43.0): single zone TPI / PID – one boiler, a leading room, every other room its own ----------
+  _trvOk() { return ["tpi", "pid"].includes(this._s.control); }
+  async _loadRooms() {
+    const s = this._s;
+    try {
+      this._rc = await this._hass.callWS({ type: "hc_thermostat/wizard/rooms", indoor: s.entities.indoor_entity || null });
+    } catch (e) { this._error = e.message || String(e); return; }
+    if (!Array.isArray(s.roomList)) {
+      const e = s.entry_id ? (this._start.entries || []).find((x) => x.entry_id === s.entry_id) : null;
+      if (e && (e.rooms || []).length) { s.roomList = e.rooms.map((r) => ({ ...r })); s.leading = e.leading_room || null; }
+      else {
+        s.roomList = (this._rc.suggest || []).map((r) => ({ ...r })); s.leading = this._rc.suggest_leading || null;
+        s.roomList.sort((x, y) => (y.key === s.leading) - (x.key === s.leading));  // a first suggestion: the leading room first
+      }
+    }
+    if (s.leading && !s.roomList.some((r) => r.key === s.leading)) s.leading = null;
+  }
+  _area(key) { return (this._rc?.areas || []).find((a) => a.area === key) || null; }
+  _room(key) { return (this._s.roomList || []).find((r) => r.key === key); }
+  _newRoom(area) {
+    const s = this._s, a = this._area(area), t = this._t.rm;
+    let key = area || `room_${Date.now().toString(36)}`;
+    while (s.roomList.some((r) => r.key === key)) key += "_2";
+    s.roomList = [...s.roomList, { key, name: a ? a.name : t.custom_name, area: a ? a.area : null,
+      sensors: a ? a.sensors.filter((x) => !x.head).slice(0, 1).map((x) => x.id) : [], trvs: a ? a.trvs.map((x) => x.id).filter((h) => !this._usedHead(h)) : [],
+      mode: "follow", offset: 0, presence: [], absent_min: 15, setback: 2, demand: false }];
+    this._render();
+  }
+  _usedHead(h, except) { return (this._s.roomList || []).some((r) => r.key !== except && (r.trvs || []).includes(h)); }
+  _roomWarnings() {
+    const s = this._s, t = this._t.rm, out = [];
+    if (!s.roomList?.length) return out;
+    const lead = this._room(s.leading);
+    if (!lead) out.push(t.warn_no_leading);
+    else if ((lead.trvs || []).length) out.push(t.warn_leading_trv.replace("{room}", lead.name));
+    const indoor = s.entities.indoor_entity;
+    const inTrv = indoor && s.roomList.find((r) => r.key !== s.leading && (r.trvs || []).length
+      && ((r.sensors || []).includes(indoor) || (r.area && r.area === this._rc?.suggest_leading)));
+    if (inTrv) out.push(t.warn_indoor_trv.replace("{room}", inTrv.name));
+    return out;
+  }
+  _renderRooms() {
+    const t = this._t.rm, s = this._s, rc = this._rc || { areas: [], tracking: [], temperature: [], climates: [] };
+    const excl = new Set(this._excluded());  // 0.45.0: heads another instance drives are not offered
+    const list = s.roomList || [];  // 0.44.0: in their order (= the HC info drawing: bottom row first, left to right, upwards)
+    const item = (x) => `${esc(x.name)}${x.state != null && x.state !== "" ? ` <span class="muted">(${esc(x.state)}${x.unit ? " " + esc(x.unit) : ""})</span>` : ""}`;
+    const checks = (room, field, cands, chosen) => {
+      const ids = new Set(cands.map((c) => c.id));
+      const extra = chosen.filter((id) => !ids.has(id)).map((id) => ({ id, name: this._name(id), state: this._hass.states[id]?.state }));
+      return [...cands, ...extra].map((c) => `<label class="chk"><input type="checkbox" data-rm-list="${esc(room.key)}|${field}" value="${esc(c.id)}" ${chosen.includes(c.id) ? "checked" : ""}>${item(c)}</label>`).join("");
+    };
+    const adder = (room, field, cands, chosen, label) => {
+      const rest = cands.filter((c) => !chosen.includes(c.id) && !(field === "trvs" && (this._usedHead(c.id, room.key) || c.id === s.entities.external_climate)));
+      return rest.length ? `<select data-rm-add="${esc(room.key)}|${field}" aria-label="${esc(label)}"><option value="">${esc(label)}</option>${rest.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}${c.area_name ? " · " + esc(c.area_name) : ""}</option>`).join("")}</select>` : "";
+    };
+    const num = (room, k, v, min, max, step, unit) => `<div class="val"><span>${t[k]}</span><input type="number" min="${min}" max="${max}" step="${step}" data-rm-num="${esc(room.key)}|${k}" value="${v}"><span>${unit}</span></div>`;
+    const cards = list.map((r, i) => {
+      const a = this._area(r.area) || { sensors: [], trvs: [], presence: [] };
+      const lead = r.key === s.leading, trv = (r.trvs || []).length > 0;
+      const headSel = (h) => {
+        const cur = (r.head_sensors || {})[h] || "room";
+        const opts = [["room", (r.sensors || []).length ? t.head_room : t.head_room_none], ["head", t.head_own],
+          ...a.sensors.filter((x) => !(r.sensors || []).includes(x.id)).map((x) => [x.id, x.name])];
+        if (!opts.some(([v]) => v === cur)) opts.push([cur, this._name(cur)]);
+        return `<div class="val"><span>${esc(this._name(h))}</span><select data-rm-head="${esc(r.key)}|${esc(h)}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>`;
+      };
+      const presC = [...rc.tracking.map((x) => ({ ...x, name: `${x.name} (${t.tracker})` })), ...a.presence];
+      const own = r.mode === "own";
+      return `<div class="room ${lead ? "lead" : ""}" data-room-key="${esc(r.key)}">
+        <div class="trvtop"><input class="rname" data-rm-name="${esc(r.key)}" value="${esc(r.name)}" aria-label="${t.name}">
+          <span class="muted">${esc(r.area ? (this._area(r.area)?.name || r.area) : t.no_area)}</span>
+          <label class="chk"><input type="radio" name="leading" data-rm-lead="${esc(r.key)}" ${lead ? "checked" : ""}>${t.leading}</label>
+          <span class="order"><button class="btn ghost small" data-rm-move="${esc(r.key)}|-1" ${i ? "" : "disabled"} title="${esc(t.up)}" aria-label="${esc(t.up)}">↑</button><button class="btn ghost small" data-rm-move="${esc(r.key)}|1" ${i < list.length - 1 ? "" : "disabled"} title="${esc(t.down)}" aria-label="${esc(t.down)}">↓</button></span>
+          <button class="btn ghost small" data-rm-remove="${esc(r.key)}">${t.remove}</button></div>
+        <div class="muted small">${lead ? t.lead_hint : trv ? t.trv_hint : t.notrv_hint}</div>
+        <div class="sub"><b>${t.sensors}</b>${checks(r, "sensors", a.sensors, r.sensors || [])}${adder(r, "sensors", rc.temperature, r.sensors || [], t.add_sensor)}</div>
+        <div class="sub"><b>${t.trvs}</b>${checks(r, "trvs", a.trvs.filter((c) => !this._usedHead(c.id, r.key) && !excl.has(c.id)), r.trvs || [])}${adder(r, "trvs", rc.climates.filter((c) => !excl.has(c.id)), r.trvs || [], t.add_trv)}
+          ${trv ? `<div class="muted small">${t.head_hint}</div>${r.trvs.map(headSel).join("")}` : ""}</div>
+        ${trv && !lead ? `<div class="sub"><b>${t.target}</b>
+          <select data-rm-mode="${esc(r.key)}"><option value="follow" ${own ? "" : "selected"}>${t.follow}</option><option value="own" ${own ? "selected" : ""}>${t.own}</option></select>
+          ${own ? num(r, "target_home", r.target_home ?? 21, 5, 30, 0.5, "°C") + num(r, "target_night", r.target_night ?? 19, 5, 30, 0.5, "°C") + num(r, "target_away", r.target_away ?? 17, 5, 30, 0.5, "°C")
+            + `<div class="val"><span>${t.night}</span><input type="time" data-rm-time="${esc(r.key)}|night_start" value="${esc(r.night_start || "22:00")}"><span>–</span><input type="time" data-rm-time="${esc(r.key)}|night_end" value="${esc(r.night_end || "06:00")}"></div>`
+            : num(r, "offset", r.offset ?? 0, -5, 5, 0.5, "°C")}</div>
+        <div class="sub"><b>${t.presence}</b><div class="muted small">${t.presence_hint}</div>${presC.length || (r.presence || []).length ? checks(r, "presence", presC, r.presence || []) : `<span class="muted small">${t.no_presence}</span>`}
+          ${(r.presence || []).length ? num(r, "absent_min", r.absent_min ?? 15, 1, 720, 1, t.min) + num(r, "setback", r.setback ?? 2, 0, 10, 0.5, "°C") : ""}</div>
+        <label class="chk"><input type="checkbox" data-rm-demand="${esc(r.key)}" ${r.demand ? "checked" : ""}>${t.demand}</label>` : ""}
+      </div>`;
+    }).join("");
+    const used = new Set(list.map((r) => r.area).filter(Boolean));
+    const free = (rc.areas || []).filter((a) => !used.has(a.area));
+    const warn = this._roomWarnings().map((w) => `<div class="warn">⚠ ${esc(w)}</div>`).join("");
+    return `<div class="card trv rooms2"><b>${t.title}</b><p class="hint">${t.hint}</p>${warn}${cards || `<p class="muted">${t.empty}</p>`}
+      <select id="rmadd" aria-label="${t.add}"><option value="">${t.add}</option>${free.map((a) => `<option value="${esc(a.area)}">${esc(a.name)}${a.sensors.length || a.trvs.length ? ` (${a.sensors.length} ${t.n_sensors}, ${a.trvs.length} ${t.n_trvs})` : ""}</option>`).join("")}<option value="__custom">${t.custom}</option></select></div>`;
+  }
+  _bindRooms() {
+    const r = this.shadowRoot, s = this._s;
+    const room = (k) => this._room(k);
+    const split = (v) => { const i = v.indexOf("|"); return [v.slice(0, i), v.slice(i + 1)]; };
+    r.getElementById("rmadd")?.addEventListener("change", (e) => { if (e.target.value) this._newRoom(e.target.value === "__custom" ? null : e.target.value); });
+    r.querySelectorAll("[data-rm-remove]").forEach((b) => b.addEventListener("click", () => {
+      s.roomList = s.roomList.filter((x) => x.key !== b.dataset.rmRemove);
+      if (s.leading === b.dataset.rmRemove) s.leading = null;
+      this._render();
+    }));
+    r.querySelectorAll("[data-rm-move]").forEach((b) => b.addEventListener("click", () => {  // 0.44.0: the room order
+      const [k, d] = split(b.dataset.rmMove), i = s.roomList.findIndex((x) => x.key === k), j = i + Number(d);
+      if (i < 0 || j < 0 || j >= s.roomList.length) return;
+      const l = [...s.roomList];
+      [l[i], l[j]] = [l[j], l[i]];
+      s.roomList = l;
+      this._render();
+    }));
+    r.querySelectorAll("[data-rm-lead]").forEach((i) => i.addEventListener("change", () => { s.leading = i.dataset.rmLead; this._render(); }));
+    r.querySelectorAll("[data-rm-name]").forEach((i) => i.addEventListener("change", () => { const x = room(i.dataset.rmName); if (x && i.value.trim()) x.name = i.value.trim(); }));
+    r.querySelectorAll("[data-rm-list]").forEach((i) => i.addEventListener("change", () => {
+      const [k, f] = split(i.dataset.rmList), x = room(k);
+      if (!x) return;
+      const cur = x[f] || [];
+      x[f] = i.checked ? [...new Set([...cur, i.value])] : cur.filter((v) => v !== i.value);
+      if (f === "trvs" && !i.checked && x.head_sensors) delete x.head_sensors[i.value];
+      if (f === "trvs" && !x.trvs.length) x.demand = false;
+      this._render();
+    }));
+    r.querySelectorAll("[data-rm-add]").forEach((i) => i.addEventListener("change", () => {
+      const [k, f] = split(i.dataset.rmAdd), x = room(k);
+      if (x && i.value) { x[f] = [...new Set([...(x[f] || []), i.value])]; this._render(); }
+    }));
+    r.querySelectorAll("[data-rm-head]").forEach((i) => i.addEventListener("change", () => {
+      const [k, h] = split(i.dataset.rmHead), x = room(k);
+      if (!x) return;
+      const hs = { ...(x.head_sensors || {}) };
+      if (i.value === "room") delete hs[h]; else hs[h] = i.value;
+      x.head_sensors = hs;
+    }));
+    r.querySelectorAll("[data-rm-mode]").forEach((i) => i.addEventListener("change", () => { const x = room(i.dataset.rmMode); if (x) { x.mode = i.value; this._render(); } }));
+    r.querySelectorAll("[data-rm-num]").forEach((i) => i.addEventListener("change", () => {
+      const [k, f] = split(i.dataset.rmNum), x = room(k), v = parseFloat(i.value);
+      if (x && Number.isFinite(v)) { x[f] = Math.max(+i.min, Math.min(+i.max, v)); if (f === "absent_min" || f === "setback") return; }
+    }));
+    r.querySelectorAll("[data-rm-time]").forEach((i) => i.addEventListener("change", () => { const [k, f] = split(i.dataset.rmTime), x = room(k); if (x && i.value) x[f] = i.value; }));
+    r.querySelectorAll("[data-rm-demand]").forEach((i) => i.addEventListener("change", () => { const x = room(i.dataset.rmDemand); if (x) x.demand = i.checked; }));
+  }
+  _roomsSummary() {
+    const t = this._t.rm, s = this._s;
+    return (s.roomList || []).map((r) => {
+      const bits = [];
+      if (r.key === s.leading) bits.push(t.leading);
+      bits.push(`${(r.sensors || []).length} ${t.n_sensors}`);
+      if ((r.trvs || []).length) {
+        bits.push(`${r.trvs.length} ${t.n_trvs}`);
+        if (r.key !== s.leading) bits.push(r.mode === "own" ? t.own : `${t.follow}${r.offset ? ` ${r.offset > 0 ? "+" : ""}${r.offset} °C` : ""}`);
+        if ((r.presence || []).length && r.key !== s.leading) bits.push(`${t.presence}: ${r.presence.length}`);
+        if (r.demand && r.key !== s.leading) bits.push(t.demand_short);
+      } else if (r.key !== s.leading) bits.push(t.follows_house);
+      return `${r.name} (${bits.join(", ")})`;  // plain text: line() escapes it
+    }).join("; ");
   }
   async _save() {
     const s = this._s;
@@ -271,11 +468,14 @@ class HcWizardPanel extends HTMLElement {
     this._render();
     try {
       const ents = { ...s.entities };
-      if (["tpi", "pid"].includes(s.control) && s.rooms.length) ents.room_sensors = s.rooms;
+      // 0.43.0: the rooms (the backend writes the legacy keys next to them)
+      const rooms = this._trvOk() && Array.isArray(s.roomList) ? { rooms: s.roomList, leading_room: s.leading || null } : {};
       const res = await this._hass.callWS({ type: "hc_thermostat/wizard/apply", entry_id: s.entry_id, name: s.name,
-        heat_source: s.heat_source, system: s.system, control: s.control, entities: ents, settings: s.settings });
+        heat_source: s.heat_source, system: s.system, control: s.control, entities: ents, settings: s.settings, ...rooms,
+        ...(s.entry_id ? {} : { start_active: !!s.start_active }) });
       this._done = res;
     } catch (e) {
+      if (e?.code === "name_taken") { this._step = 3; this._error = null; this._saving = false; this._render(); return; }
       this._error = e.message || String(e);
     }
     this._saving = false;
@@ -291,12 +491,11 @@ class HcWizardPanel extends HTMLElement {
       const c = e.conf || {};
       this._s = { entry_id: id, name: e.title, heat_source: e.heat_source, system: e.system, control: e.control,
         entities: Object.fromEntries(keys.filter((k) => c[k]).map((k) => [k, c[k]])),
-        settings: Object.fromEntries(SETTING_KEYS.filter((k) => c[k] !== undefined && c[k] !== null).map((k) => [k, c[k]])),
-        rooms: c.room_sensors || [] };
+        settings: Object.fromEntries(SETTING_KEYS.filter((k) => c[k] !== undefined && c[k] !== null).map((k) => [k, c[k]])) };
     } else {
       const sug = this._start.suggest || {};
-      this._s = { entry_id: null, name: "", heat_source: null, system: null, control: null,
-        entities: Object.fromEntries(Object.entries(sug).filter(([, v]) => v && (!Array.isArray(v) || v.length))), settings: {}, rooms: [] };
+      this._s = { entry_id: null, name: this._start.default_name || "HC Thermostat", heat_source: null, system: null, control: null,
+        entities: Object.fromEntries(Object.entries(sug).filter(([, v]) => v && (!Array.isArray(v) || v.length))), settings: {} };
     }
     this._render();
   }
@@ -338,6 +537,25 @@ class HcWizardPanel extends HTMLElement {
       input { width:110px; padding:6px 8px; border-radius:6px; border:1px solid var(--divider-color); background: var(--primary-background-color); color: var(--primary-text-color); font:inherit; }
       input:focus-visible { outline:2px solid var(--primary-color); }
       .rooms label { display:flex; gap:8px; align-items:center; padding:4px 0; }
+      .trvh { display:grid; gap:6px; padding:10px 0; border-bottom:1px solid var(--divider-color); }
+      .trvtop { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+      .trvtop .order { display:inline-flex; gap:2px; margin-left:auto; } .trvtop .order .btn, .trvtop .order + .btn { margin-left:0; } .trvtop .order button[disabled] { opacity:.35; cursor:default; }
+      .trvtop .btn { margin-left:auto; }
+      .trv label.radio { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .trv input[type=radio] { width:auto; }
+      .trvsel { padding-left:26px; display:grid; gap:4px; }
+      .trvsel select, #trvadd { width:100%; }
+      .muted { color: var(--secondary-text-color); } .small { font-size:12.5px; }
+      .room { display:grid; gap:8px; padding:12px; border:1px solid var(--divider-color); border-radius:10px; }
+      .room.lead { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color) inset; }
+      .room .sub { display:grid; gap:4px; padding-left:4px; }
+      .room input.rname { width:auto; min-width:0; flex:1 1 140px; font-weight:500; }
+      .room label.chk, .rooms2 label.chk { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .room input[type=checkbox], .room input[type=radio] { width:auto; }
+      .room .val { flex-wrap:wrap; } .room .val > span:first-child { min-width:140px; }
+      .room select, #rmadd { max-width:100%; }
+      .warn { color: var(--warning-color, #b26a00); font-size:13.5px; }
+      .btn.small { padding:4px 12px; font-size:13px; }
       .nav { display:flex; justify-content:space-between; gap:10px; }
       .btn { font:inherit; padding:10px 20px; border-radius:22px; border:none; cursor:pointer; background: var(--primary-color); color: var(--text-primary-color, #fff); }
       .btn.ghost { background:transparent; color: var(--primary-color); border:1px solid var(--primary-color); }
@@ -347,11 +565,12 @@ class HcWizardPanel extends HTMLElement {
       .need { color: var(--error-color, #db4437); margin:8px 0 0; text-align:right; min-height:1.2em; font-size:14px; }
       .sum div { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--divider-color); flex-wrap:wrap; }
       .sum > div > span:first-child { min-width:200px; color: var(--secondary-text-color); }
+      label.live { display:flex; gap:8px; align-items:center; } label.live input { width:auto; }
       @media (max-width: 520px) { td.k { width:auto; } .sum > div > span:first-child { min-width:0; width:100%; } }
       @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }`;
     const head = `<div class="bar"><ha-menu-button></ha-menu-button><span>${t.title}</span></div>`;
     let body = "";
-    if (this._error && !this._start) body = `<p class="err">${this._error}</p>`;
+    if (this._error && !this._start) body = `<p class="err">${esc(this._error)}</p>`;
     else if (!this._start) body = `<p class="hint">…</p>`;
     else if (this._done) body = this._renderDone();
     else body = this._renderStep();
@@ -377,9 +596,9 @@ class HcWizardPanel extends HTMLElement {
       const entries = (st.entries || []).filter((e) => e.role === "standalone");
       return top + `<div class="grid">
         <button class="opt ${this._picked === null ? "sel" : ""}" data-entry=""><ha-icon icon="mdi:plus-circle-outline"></ha-icon><b>${t.new_inst}</b><small>${t.new_hint}</small></button>
-        ${entries.map((e) => `<button class="opt ${this._picked === e.entry_id ? "sel" : ""}" data-entry="${e.entry_id}">
-          <span class="mode">${t.mode[e.mode] || e.mode}</span><ha-icon icon="${SOURCE_ICON[e.heat_source] || "mdi:thermostat"}"></ha-icon>
-          <b>${e.title}</b><small>${t.existing} · ${(t.sources[e.heat_source] || [e.heat_source])[0]} · ${(t.controls[e.control] || [e.control])[0]}</small></button>`).join("")}
+        ${entries.map((e) => `<button class="opt ${this._picked === e.entry_id ? "sel" : ""}" data-entry="${esc(e.entry_id)}">
+          <span class="mode">${esc(t.mode[e.mode] || e.mode)}</span><ha-icon icon="${SOURCE_ICON[e.heat_source] || "mdi:thermostat"}"></ha-icon>
+          <b>${esc(e.title)}</b><small>${t.existing} · ${esc((t.sources[e.heat_source] || [e.heat_source])[0])} · ${esc((t.controls[e.control] || [e.control])[0])}</small></button>`).join("")}
         </div>` + this._nav();
     }
     if (this._step === 1) {
@@ -393,7 +612,7 @@ class HcWizardPanel extends HTMLElement {
         const m = st.matrix[`${k}|${s.heat_source}`] || { status: "possible", hu: "", en: "" };
         return `<button class="opt ${s.system === k ? "sel" : ""} ${m.status === "not_recommended" ? "dim" : ""}" data-system="${k}">
           <svg viewBox="0 0 120 72" aria-hidden="true">${(k === "room_unit" && ["electric_heater", "storage_heater"].includes(s.heat_source) ? DRAW.heater_unit : DRAW[k])?.() || ""}</svg><b>${t.systems[k] || k}</b>
-          <span class="badge ${m.status}">${t.status[m.status]}</span><small>${m[lang]}</small></button>`;
+          <span class="badge ${esc(m.status)}">${t.status[m.status]}</span><small>${esc(m[lang])}</small></button>`;
       }).join("");
       const ctl = s.system ? `<h1 style="font-size:18px">${t.control_title}</h1><div class="grid">${((s.system === "fan_coil" ? st.controls_fan_coil : st.controls)?.[s.heat_source] || []).map((k) =>
         `<button class="opt ${s.control === k ? "sel" : ""}" data-control="${k}"><b>${t.controls[k][0]}</b><small>${t.controls[k][1]}</small></button>`).join("")}</div>` : "";
@@ -408,31 +627,36 @@ class HcWizardPanel extends HTMLElement {
         const v = it.editable ? s.settings[it.key] : it.value;
         const isTime = typeof v === "string" && /^\d\d:\d\d/.test(v);
         // a switch (boolean), a choice (options: [value, label hu, label en]), a time or a number
-        const input = !it.editable ? `<span>${v}</span>` : typeof v === "boolean"
+        const input = !it.editable ? `<span>${esc(v)}</span>` : typeof v === "boolean"
           ? `<input type="checkbox" data-set="${it.key}" ${v ? "checked" : ""} style="width:auto">`
           : it.options ? `<select data-set="${it.key}">${it.options.map((o) => `<option value="${o[0]}" ${o[0] === v ? "selected" : ""}>${t === T.hu ? o[1] : o[2]}</option>`).join("")}</select>`
           : isTime
           ? `<input type="time" data-set="${it.key}" value="${String(v).slice(0, 5)}">`
-          : `<input type="number" step="any" data-set="${it.key}" value="${v}">`;
-        return `<tr><td class="k">${this._keyLabel(it.key)}</td><td><div class="val">${input}<span>${it.unit || ""}</span></div></td><td class="why">${it.why}</td></tr>`;
+          : `<input type="number" step="any" data-set="${it.key}" value="${esc(v)}">`;
+        return `<tr><td class="k">${esc(this._keyLabel(it.key))}</td><td><div class="val">${input}<span>${esc(it.unit || "")}</span></div></td><td class="why">${esc(it.why)}</td></tr>`;
       }).join("");
-      const rooms = ["tpi", "pid"].includes(s.control) && (d.rooms || []).length ? `<div class="card rooms"><b>${t.rooms}</b>${[...new Set([...d.rooms, ...s.rooms])].map((r) =>
-        `<label><input type="checkbox" data-room="${r}" ${s.rooms.includes(r) ? "checked" : ""} style="width:auto">${this._name(r)}</label>`).join("")}</div>` : "";
-      return top + `<p class="hint">${t.derived_hint}</p><div class="card" style="overflow-x:auto"><table>${rows}</table></div>${rooms}` + this._nav();
+      return top + `<p class="hint">${t.derived_hint}</p><div class="card" style="overflow-x:auto"><table>${rows}</table></div>${this._trvOk() && this._rc ? this._renderRooms() : ""}` + this._nav();
     }
     const m = this._derived?.matrix;
-    const line = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
+    // a, b are plain texts (escaped here); raw: b is HTML built from escaped parts
+    const line = (a, b, raw = false) => `<div><span>${esc(a)}</span><span>${raw ? b : esc(b)}</span></div>`;
     const ents = Object.entries(s.entities).filter(([, v]) => v && (!Array.isArray(v) || v.length))
       .map(([k, v]) => line(t.fields[k] || k, [].concat(v).map((x) => this._name(x)).join(", "))).join("");
     const yes = t === T.hu ? ["igen", "nem"] : ["yes", "no"];
     const shown = (k, v) => (typeof v === "boolean" ? yes[v ? 0 : 1] : ((this._derived?.items || []).find((x) => x.key === k)?.options || [])
       .map((o) => (o[0] === v ? (t === T.hu ? o[1] : o[2]) : null)).find((x) => x) ?? v);
-    const sets = Object.entries(s.settings).map(([k, v]) => line(this._keyLabel(k), shown(k, v))).join("");
+    // 0.45.0: with its unit (s, min, °C, %, W …)
+    const unitOf = (k) => (this._derived?.items || []).find((x) => x.key === k)?.unit || "";
+    const sets = Object.entries(s.settings).map(([k, v]) => {
+      const u = typeof v === "boolean" || typeof v === "string" ? "" : unitOf(k);
+      return line(this._keyLabel(k), `${shown(k, v)}${u ? " " + u : ""}`);
+    }).join("");
+    const live = s.entry_id ? "" : `<label class="chk live"><input type="checkbox" id="start_active" ${s.start_active ? "checked" : ""}>${esc(t.start_active)}</label>`;
     return top + `<div class="card sum">
       ${line(t.fields.name, s.name || "–")}${line(t.steps[1], t.sources[s.heat_source][0])}${line(t.steps[2], `${t.systems[s.system]} · ${t.controls[s.control][0]}`)}
-      ${m ? line("", `<span class="badge ${m.status}">${t.status[m.status]}</span> ${m.text}`) : ""}${ents}${sets}
-      ${s.rooms.length && ["tpi", "pid"].includes(s.control) ? line(t.rooms, s.rooms.map((r) => this._name(r)).join(", ")) : ""}
-      </div><p class="hint">${s.entry_id ? t.summary_edit : t.summary_new}</p>${this._error ? `<p class="err">${this._error}</p>` : ""}` + this._nav(true);
+      ${m ? line("", `<span class="badge ${esc(m.status)}">${t.status[m.status]}</span> ${esc(m.text)}`, true) : ""}${ents}${sets}
+      ${this._trvOk() && (s.roomList || []).length ? line(t.rm.rooms_line, this._roomsSummary()) : ""}
+      </div><p class="hint">${s.entry_id ? t.summary_edit : t.summary_new}</p>${live}${s.start_active && !s.entry_id ? `<p class="warn">⚠ ${esc(t.start_active_on)}</p>` : ""}${this._error ? `<p class="err">${esc(this._error)}</p>` : ""}` + this._nav(true);
   }
   _renderDone() {
     const t = this._t;
@@ -455,6 +679,11 @@ class HcWizardPanel extends HTMLElement {
     return this._t.keys[k] || k;
   }
   _name(id) { return this._hass.states[id]?.attributes?.friendly_name || id; }
+  // 0.45.0: climates no picker offers: HC's own, and those another instance drives
+  _excluded() {
+    const st = this._start || {};
+    return [...new Set([...(st.hc_climates || []), ...((st.taken_climates || {})[this._s.entry_id || ""] || [])])];
+  }
 
   // an electric heating mat / cable under the floor: the floor sensor is required (floor limit)
   _floorNeeded() {
@@ -483,7 +712,8 @@ class HcWizardPanel extends HTMLElement {
       if (String(s.system || "").startsWith("floor"))
         sc.push({ ...ent("floor_entity", TEMP), required: this._floorNeeded() });
     } else if (c === "external" || c === "ac") {
-      sc.push({ ...ent("external_climate", f("climate")), required: true });
+      // 0.45.0: not an HC thermostat, nor a climate another instance drives
+      sc.push({ name: "external_climate", required: true, selector: { entity: { filter: [f("climate")], exclude_entities: this._excluded() } } });
       if (c === "ac") sc.push(ent("assist_climate", f("climate")));
     } else if (c === "curve") {
       sc.push({ ...ent("flow_setpoint_entity", [f("number"), f("input_number")]), required: true },
@@ -509,6 +739,7 @@ class HcWizardPanel extends HTMLElement {
     r.getElementById("back")?.addEventListener("click", () => this._go(-1));
     r.getElementById("next")?.addEventListener("click", () => this._go(1));
     r.getElementById("save")?.addEventListener("click", () => this._save());
+    r.getElementById("start_active")?.addEventListener("change", (e) => { s.start_active = e.target.checked; this._render(); });
     r.getElementById("again")?.addEventListener("click", () => { this._done = null; this._step = 0; this._picked = undefined; this._load(); });
     r.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => this._pickEntry(b.dataset.entry || null)));
     r.querySelectorAll("[data-source]").forEach((b) => b.addEventListener("click", () => {
@@ -532,9 +763,7 @@ class HcWizardPanel extends HTMLElement {
       const v = i.type === "time" ? `${i.value}:00` : parseFloat(i.value);
       if (i.type === "time" || Number.isFinite(v)) s.settings[i.dataset.set] = v;
     }));
-    r.querySelectorAll("[data-room]").forEach((i) => i.addEventListener("change", () => {
-      s.rooms = i.checked ? [...new Set([...s.rooms, i.dataset.room])] : s.rooms.filter((x) => x !== i.dataset.room);
-    }));
+    this._bindRooms();  // 0.43.0
     const host = r.getElementById("form");
     if (host) {
       const f = document.createElement("ha-form");

@@ -52,6 +52,7 @@ class Supervisor:
         self.frozen = FrozenSensor(cfg)  # 0.41.0: a room thermometer that repeats one value while heated
         self.curve = CurveRegulator(cfg)
         self._gate = RunGate()
+        self._indoor_log: list[tuple[datetime, float]] = []  # 0.44.3: recent room readings (coasting)
         self._drops: dict[str, DropDetector] = {}
         self.drop_open: tuple[str, float] | None = None  # (entity, °C/h) while a drop counts as an open window
         self._window_active_flag = False
@@ -78,6 +79,9 @@ class Supervisor:
         self._boost_armed = True
         self._boost_flame_s = 0.0
         self._boost_last: datetime | None = None
+        self._boost_prior_min = 0.0  # 0.44.4: weighted burn minutes before this boost (after-heat still coming)
+        self._boost_saved_at: datetime | None = None  # 0.44.4: a boost restored from storage, saved at this time
+        self._flame_log: list[list] = []  # 0.44.4: recent burns [start, end or None]
         self._quiet_until: datetime | None = None
         self._quiet_cap: datetime | None = None
         self._quiet_peak: float | None = None
@@ -112,7 +116,58 @@ class Supervisor:
             "season_on": self.season_on,
             "fault": self.fault,
             "fault_temp": self._fault_temp,
+            "boost": self._boost_state(),
         }
+
+    def _boost_state(self) -> dict:
+        iso = lambda d: d.isoformat() if d else None  # noqa: E731
+        return {"until": iso(self._boost_until), "flame_s": self._boost_flame_s, "prior_min": self._boost_prior_min,
+                "outdoor": self._boost_outdoor, "armed": self._boost_armed, "saved_at": iso(self._last_now),
+                "quiet": [iso(self._quiet_until), iso(self._quiet_cap), self._quiet_peak, iso(self._quiet_rise),
+                          self._quiet_target, self._quiet_level],
+                "flames": [[iso(s), iso(e)] for s, e in self._flame_log]}
+
+    def _restore_boost(self, data: dict) -> None:
+        """0.44.4: before, a restart forgot a running boost – the next one started from zero burn minutes, with a
+        fresh time limit, and the heat already in the radiators overshot the house (11-12: 22.9 °C for 22.5)."""
+        when = lambda v: datetime.fromisoformat(v) if v else None  # noqa: E731
+        saved = when(data.get("saved_at"))
+        if saved is None:
+            return
+        self._boost_armed = bool(data.get("armed", True))
+        if data.get("until"):
+            self._boost_until, self._boost_saved_at = when(data["until"]), saved
+            self._boost_flame_s = float(data.get("flame_s") or 0.0)
+            self._boost_prior_min = float(data.get("prior_min") or 0.0)
+            self._boost_outdoor, self._boost_last = data.get("outdoor"), None  # the downtime is not burn time
+        q = data.get("quiet") or []
+        if len(q) == 6 and q[0]:
+            self._quiet_until, self._quiet_cap, self._quiet_peak = when(q[0]), when(q[1]), q[2]
+            self._quiet_rise, self._quiet_target, self._quiet_level = when(q[3]), q[4], q[5]
+        # A burn still open at the save ended then at the latest: the boiler is off during a restart.
+        self._flame_log = [[when(s), when(e) or saved] for s, e in data.get("flames") or [] if s]
+
+    def _note_flame(self, now: datetime, on: bool) -> None:
+        log = self._flame_log
+        if on and (not log or log[-1][1] is not None):
+            log.append([now, None])
+        elif not on and log and log[-1][1] is None:
+            log[-1][1] = now
+        cut = now - timedelta(seconds=self.cfg.boost_prior_window_s)
+        self._flame_log = [b for b in log if b[1] is None or b[1] > cut]
+
+    def _prior_flame_min(self, now: datetime) -> float:
+        """Burn minutes of the last `boost_prior_window_s`, a burn's weight falling linearly with its age."""
+        window = self.cfg.boost_prior_window_s
+        total = 0.0
+        for start, end in self._flame_log:
+            end = end or now
+            start = max(start, now - timedelta(seconds=window))
+            if end <= start:
+                continue
+            age = (now - end).total_seconds()
+            total += (end - start).total_seconds() / 60 * max(0.0, 1.0 - age / window)
+        return total
 
     def restore(self, data: dict) -> None:
         self.pwm.restore(data.get("pwm", {}))
@@ -132,6 +187,7 @@ class Supervisor:
         self.preset_until = datetime.fromisoformat(data["preset_until"]) if data.get("preset_until") else None
         self.preset_until_home = bool(data.get("preset_until_home", False))
         self._base_target = data.get("base_target")
+        self._restore_boost(data.get("boost") or {})
         self.season_on = data.get("season_on", True)
         self.fault = data.get("fault", False)
         self._fault_temp = data.get("fault_temp")
@@ -189,6 +245,28 @@ class Supervisor:
             return
         if (self.preset_until is not None and inputs.now >= self.preset_until) or (self.preset_until_home and arrived):
             self.preset, self.preset_until, self.preset_until_home = None, None, False
+
+    def _coasting(self, now: datetime, target: float, indoor: float | None) -> dict | None:
+        """0.44.3: after a burn the radiators keep heating for a while. While the room is just under (or at) the target
+        and still rising (at least `coast_rise` over `coast_lookback_s`), within `coast_window_s` of the burn's end, a
+        new start would only add to the overshoot. Returns what it saw, or None (a normal start)."""
+        cfg = self.cfg
+        if indoor is None:
+            return None
+        log = self._indoor_log
+        if cfg.coast_window_s <= 0 or self.pwm.output or self.pwm.last_change is None:
+            return None
+        since_off = (now - self.pwm.last_change).total_seconds()
+        if since_off > cfg.coast_window_s or indoor < target - cfg.coast_band:  # at / over the target: also wait
+            return None
+        ago = now - timedelta(seconds=cfg.coast_lookback_s)
+        past = [v for t, v in log if t <= ago]
+        if not past:
+            return None  # not enough history (just started): a normal start
+        rise = indoor - past[-1]
+        if rise < cfg.coast_rise - 1e-9:
+            return None
+        return {"rise": round(rise, 2), "since_off_min": round(since_off / 60, 1)}
 
     def new_cycle(self) -> None:
         """Start a fresh PWM cycle at the next step (after going live or switching on)."""
@@ -283,6 +361,9 @@ class Supervisor:
             return False
         if self._window_since is None:
             self._window_since = inputs.now
+            if inputs.uptime_s < self.cfg.restart_grace_s:
+                # 0.44.5 (as Versatile Thermostat #2147): open already when Home Assistant started – no new delay
+                self._window_since = inputs.now - timedelta(seconds=self.cfg.window_delay_s)
         return (inputs.now - self._window_since).total_seconds() >= self.cfg.window_delay_s
 
     def _update_fault(self, inputs: Inputs, indoor: float | None, target: float, dt: float) -> None:
@@ -333,7 +414,7 @@ class Supervisor:
     def boost_forecast(self, indoor: float) -> float:
         """Indoor temperature expected once the after-heat of the burn so far has arrived."""
         cfg = self.cfg
-        minutes = self._boost_flame_s / 60
+        minutes = self._boost_flame_s / 60 + self._boost_prior_min
         if minutes <= 0:
             return indoor
         return indoor + self.learner.afterheat(self._boost_outdoor) * minutes / (minutes + cfg.boost_afterheat_ref_min)
@@ -350,6 +431,10 @@ class Supervisor:
             return True
         if not cfg.boost_enabled and self._boost_until is None:
             return False
+        if self._boost_until is not None and self._boost_saved_at is not None:
+            saved, self._boost_saved_at = self._boost_saved_at, None
+            if (now - saved).total_seconds() > cfg.boost_resume_max_s:
+                self._boost_until = None  # too old to resume; a new boost below still counts the recent burns
         if self._boost_until is not None:
             dt = (now - self._boost_last).total_seconds() if self._boost_last else 0.0
             self._boost_last = now
@@ -377,7 +462,10 @@ class Supervisor:
         self._boost_armed = False
         self._boost_until = inputs.now + timedelta(minutes=max(limit, minimum))
         self._boost_flame_s, self._boost_last, self._boost_outdoor = 0.0, inputs.now, outdoor
+        self._boost_prior_min = self._prior_flame_min(inputs.now)
         self.learner.boost_started(inputs.now, target, indoor, outdoor)
+        if self._boost_prior_min >= 1.0 and self.learner.boost is not None:
+            self.learner.boost.disturbed = True  # earlier burns' after-heat mixes in: nothing to learn
 
     def _end_boost(self, now: datetime, indoor: float, target: float) -> None:
         cfg = self.cfg
@@ -666,6 +754,9 @@ class Supervisor:
             return reason, ExternalCommand("heat", cfg.frost_temp + 1.0)
         if reason in (Reason.DISABLED, Reason.WINDOW, Reason.SEASON_OFF):
             return reason, ExternalCommand("off", target)
+        if inputs.managed_off and cfg.control == "external":
+            # 0.42.0: switched off by hand on the thermostat itself – respected (only frost overrides it)
+            return Reason.MANAGED_OFF, ExternalCommand("off", target)
         if (inputs.uptime_s < cfg.restart_burn_window_s and inputs.actual_heating and indoor is not None
                 and indoor >= target + cfg.overshoot_stop):
             return Reason.RESTART_BURN, ExternalCommand("off", target)
@@ -694,6 +785,7 @@ class Supervisor:
             # heat setpoint must fit the unit (frost asks for 8 °C, most units start at 16 °C and refuse less).
             if command.hvac == "heat":
                 command = ExternalCommand("heat", min(max(command.target, lo), hi))
+            self.ac.hold(now)  # 0.44.1: no integral jump when regulation resumes
             return reason, command, {}
         c = self.ac.step(now, mode, aim, indoor, inputs.unit_temp, step, lo, hi)
         details = {"ac_mode": mode, "setpoint": c.setpoint, "aim": aim, "assist": aim != target and mode == "heat",
@@ -722,6 +814,7 @@ class Supervisor:
         frozen = None
         if cfg.control in ("tpi", "pid", "onoff"):
             heating = inputs.actual_heating if inputs.actual_heating is not None else (self.pwm.output or self._gate.output)
+            self._note_flame(now, bool(heating))
             if self.frozen.step(now, indoor, bool(heating)):
                 frozen, indoor = self.frozen.details(now), None  # looks fresh, measures nothing: the lost-sensor path
         outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
@@ -831,6 +924,11 @@ class Supervisor:
             if decision.reason == Reason.FLOOR_TEMPER:
                 floor_details = {**floor_details, **tempering}
             return replace(decision, details={**decision.details, **floor_details}) if floor_details else decision
+        if indoor is not None:  # 0.44.3: the recent room readings for coasting (every step, not only regulating)
+            self._indoor_log.append((now, indoor))
+            cut = now - timedelta(seconds=cfg.coast_lookback_s + 600)
+            while len(self._indoor_log) > 2 and self._indoor_log[1][0] <= cut:
+                self._indoor_log.pop(0)
         no_power = inputs.power_available is False  # controlled power off: no heat now, no integral wind-up
         if reason == Reason.REGULATING and not no_power:
             if hasattr(self.regulator, "offset"):
@@ -840,7 +938,17 @@ class Supervisor:
             if need is not None and cfg.boiler_power_kw > 0:
                 # The boiler replaces what the house loses and other sources do not cover.
                 feedforward = max(need - inputs.other_heat_kw, 0.0) / cfg.boiler_power_kw
+            integral_before = getattr(self.regulator, "integral", None)
             demand = self.regulator.update(target, indoor, outdoor, now, feedforward)
+            coast = self._coasting(now, target, indoor) if 0 < demand <= cfg.coast_max_demand else None
+            if coast is not None:
+                # 0.44.3: the room still rises towards a near target after a burn – wait for it instead of starting
+                # again (11-12: a second 7-min burn at 22.4 / 22.5 took the room to 22.8), and keep the integral
+                if integral_before is not None and self.regulator.integral > integral_before:
+                    self.regulator.integral = integral_before
+                demand, coasting = 0.0, coast
+            else:
+                coasting = None
             if inputs.room_demand and indoor is not None and indoor <= target:
                 # A TRV room far below its target: short burns, but the main thermometer stays in charge.
                 demand = max(demand, min(1.0, (cfg.min_on_s + 60) / cfg.cycle_s))
@@ -848,6 +956,7 @@ class Supervisor:
                 reason, demand = Reason.FLOOR_TEMPER, 1.0  # the floor asks for more than the room
         else:
             self.regulator.hold(now)
+            coasting = None
         if reason == Reason.FLOOR_LIMIT:
             output, limited = self.pwm.force_off(now), None  # a safety limit: no minimum run time
         elif self._return_block(inputs) and demand > 0:
@@ -866,7 +975,8 @@ class Supervisor:
             details = {"room_demand": list(inputs.room_demand)}
         if reason == Reason.BOOST:
             details = {"until": self._boost_until, "forecast": round(self.boost_forecast(indoor), 2),
-                       "flame_min": round(self._boost_flame_s / 60, 1), "afterheat": cfg.boost_afterheat}
+                       "flame_min": round(self._boost_flame_s / 60, 1),
+                       "prior_min": round(self._boost_prior_min, 1), "afterheat": cfg.boost_afterheat}
         elif reason == Reason.AFTERHEAT:
             details = {"peak": self._quiet_peak}
         elif reason == Reason.WINDOW and self.drop_open and not self._window_active_flag:
@@ -881,6 +991,9 @@ class Supervisor:
             details = {**details, **self.load.details(now)}
         if limited == "return_limit":
             details = {**details, "return": inputs.return_temp.value, "return_max": cfg.return_max}
+        if coasting is not None and not output:
+            limited = limited or "coast"
+            details = {**details, "coast": coasting}
         if cfg.fan_coil:
             pct, why = self.fan.step(now, output, demand, inputs.coil.fresh(cfg.sensor_max_age_s))
             details = {**details, "fan_pct": pct, "fan_why": why}

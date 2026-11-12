@@ -43,6 +43,7 @@ class Reason(StrEnum):
     FLOOR_TEMPER = "floor_temper"
     THERMOSTAT_CALL = "thermostat_call"
     THERMOSTAT_IDLE = "thermostat_idle"
+    MANAGED_OFF = "managed_off"  # 0.42.0: the managed thermostat was switched off by hand; HC leaves it off
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class Inputs:
     power_available: bool | None = None  # controlled power (off-peak circuit) on; None: no signal configured  # room relative humidity in % (floor cooling: dew point)
     hp_mode: str | None = None  # heat pump busy with something else: "defrost" | "dhw" (hot water); None: heating
     call: bool | None = None  # wired wall thermostat (0.38.0): its contact asks for heat; None: unknown / unavailable
+    managed_off: bool = False  # 0.42.0: external control – someone (not HC) switched the managed thermostat off
 
 
 @dataclass(frozen=True)
@@ -91,6 +93,8 @@ class HcConfig:
     """Every limit and default of one installation; values are user editable."""
 
     control: str = "tpi"  # tpi | pid | external | curve (heating curve, EXPERIMENTAL) | onoff (long runs, heat pump) | storage
+    # 0.42.0, external control: a target or on/off set on the managed thermostat by someone else is adopted
+    adopt_manual: bool = True
     target_home: float = 21.0
     target_night: float = 19.0
     target_away: float = 17.0
@@ -127,6 +131,13 @@ class HcConfig:
     pid_kp: float = 0.4
     pid_ki: float = 0.00005
     pid_kd: float = 0.0
+    # 0.44.3: coasting after a burn – no new start while the room still rises towards a near target (the
+    # radiators give off the last burn's heat), and no integral growth meanwhile. 0 = off.
+    coast_window_s: float = 2700.0  # this long after a burn ended
+    coast_band: float = 0.2  # the room at most this far under the target
+    coast_rise: float = 0.1  # and it rose at least this much ...
+    coast_lookback_s: float = 900.0  # ... over this long
+    coast_max_demand: float = 0.3  # and the regulator asks only a little (a large demand is a real need)
     pid_d_filter_s: float = 300.0  # 0.40.0: low-pass time constant of the derivative (stepwise sensors); 0 = off
     pid_ke: float = 0.01
     pid_ki_per_hour: float | None = None  # when set, wins over pid_ki (demand per °C per hour; easier to read)
@@ -219,6 +230,10 @@ class HcConfig:
     boost_quiet_rise_minutes: float = 10.0  # ...or while it rose within this many minutes
     boost_quiet_max_minutes: float = 60.0
     boost_quiet_drop: float = 0.2  # a fall this big below the peak ends the quiet time
+    # 0.44.4: a boost survives a restart (resumed if saved this recently), and a new boost counts the burns of the
+    # last `boost_prior_window_s` (weighted by age) whose after-heat is still on its way
+    boost_resume_max_s: float = 1800.0
+    boost_prior_window_s: float = 2700.0
     # Learning (core/learning.py): after-heat, minutes per degree, trim; TPI strength and holding offset
     learning_enabled: bool = True
     learning_settle_s: float = 7200.0

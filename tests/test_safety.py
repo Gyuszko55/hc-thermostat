@@ -121,8 +121,10 @@ def test_restart_keeps_regulator_state_and_device_limits():
     cfg = HcConfig(**{**CFG.__dict__, "control": "pid"})
     run = Run(cfg, House(indoor=19.0, outdoor=0.0))
     run.run(hours=30)
+    while not run.tick().output:
+        pass  # wait for a burn...
     while run.tick().output:
-        pass  # stop right after the burner went off
+        pass  # ...and stop right after the burner went off
     saved = json.loads(json.dumps(run.sup.state()))
     fresh = Supervisor(cfg)
     fresh.restore(saved)

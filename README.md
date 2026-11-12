@@ -9,6 +9,30 @@
 
 HC Thermostat is a heating **supervisor** for Home Assistant, with a built-in regulator for simple systems. It does not try to replace good thermostat integrations. It sits above them and decides what the house should do, and says why.
 
+## Quick start
+
+**Requirements:** Home Assistant **2026.10** or newer; a room thermometer, and what HC switches or sets (a relay
+`switch` / `input_boolean`, an existing `climate` thermostat or AC unit, or a flow setpoint `number`). °C and °F
+both work (0.45.0): readings in °F are converted, and what HC writes to a thermostat is sent in your system's unit.
+
+1. **Install:** HACS → ⋮ → Custom repositories → `https://github.com/Gyuszko55/hc-thermostat`, type *Integration* →
+   download **HC Thermostat** → **restart** Home Assistant.
+2. **Add:** Settings → Devices & services → Add integration → **HC Thermostat**. Give it a name, pick the heat
+   source and the system, then the devices. (After the first instance the **HC setup** sidebar panel does the same
+   with worked-out settings and rooms; it is for administrators.)
+3. **Watch it in shadow mode:** a new instance calculates and logs what it would do, switches nothing. The
+   **HC info** panel and the decision sensor show why.
+4. **Go live:** Settings → Devices & services → HC Thermostat → **Configure** → **Go live**, tick the confirmation.
+   (The wizard's summary can also start a new instance live.) Back to shadow the same way.
+
+**Presence** (`presence_entities`): home is any of `home`, `on`, `otthon` (a `person` / `device_tracker` at home, a
+binary sensor on); vacation is `vacation`, `szabadság`, `szabadsag`; anything else (a zone name, `not_home`, `off`)
+is away. With no presence entity the house is always home.
+
+**Removing an instance:** HC writes nothing back – a TRV head or a managed thermostat keeps the last target HC sent,
+and a relay stays as it is. Set them by hand if needed. When the last instance is deleted, the HC panels leave the
+sidebar too (they come back with the next instance).
+
 ## Features
 
 **Heat sources and systems**
@@ -30,7 +54,7 @@ HC Thermostat is a heating **supervisor** for Home Assistant, with a built-in re
 - Floor limit by covering and sensor position, floor tempering (warm floor), floor fallback when the room thermometer is lost, floor cooling with dew point protection.
 
 **Rooms and zones**
-- TRV rooms with their own offset and calibration; zone flow requests and flow cap for a central modulating boiler; load limit shared by electric zones; adjoining room (door open) and cheaper-source advice.
+- Rooms of one boiler (0.43.0): a leading room drives the boiler, every other room has its own HC thermostat – TRV rooms with their own target, calibration against the room thermometer(s) and presence per room, rooms without a TRV follow the house; TRV rooms with their own offset and calibration; zone flow requests and flow cap for a central modulating boiler; load limit shared by electric zones; adjoining room (door open) and cheaper-source advice.
 
 **Safety and supervision**
 - Open window pause (sensor or a fast temperature drop), summer rest, frost protection, restart protection, implausible readings, lost sensor fallback.
@@ -130,6 +154,12 @@ exists (add the first one under Settings → Devices & services).
 - Calibration (optional): a head measures next to the hot radiator and closes too early. Where the room has its own
   thermometer, the difference head − room is followed slowly (30 minute smoothing, at most ±5 °C) and added to the
   target written to the head. A change that only comes from the calibration is written at most every 30 minutes.
+- Per head thermometer (0.42.0): for every head the options ("TRV rooms" step) and the setup wizard ("TRV heads")
+  offer "the head's own thermometer" (no calibration) or an external thermometer – the list shows the temperature
+  sensors of the head's area (not the head's own entities; all of them when the area has none). Saved as
+  `trv_sensors` (head → sensor). An instance saved before keeps working as before until it is saved again
+  (`trv_calibration` on: the thermometers of the head's area). Another thermometer restarts what was learned.
+  HC info and the dial card's "i" open the host instance from a TRV head too.
 - A target turned on the head by hand still stays until the room's target changes. The rooms sensor shows
   `trv_rooms` (target, offset, calibration, plan per head).
 
@@ -177,6 +207,21 @@ setting and the log. Which data shows at which part is set in one **data matrix*
 label, value, and the tags of the installations it applies to); the panel lists the matrix too. Open it from the
 sidebar, or as `/hc-info?entity=climate.x` – the [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card) (1.14+)
 opens it with its "i" icon.
+
+**The house view (0.44.0).** A single-zone or zone instance is drawn as its house, a cutaway in the style of a
+picture book: the heat source in the plant room (boiler with its flame, heat pump, district heating, pellet, electric,
+air conditioner, storage heater) with flow / return pipes into every room, the rooms with their thermometer display
+(reading → target, ≈ when the room follows the house target), radiators, floor heating or units, TRV heads (head
+reading → head target), open windows, room presence, the leading room (★), the outdoor temperature and its 24 h
+average, household presence, day / night by the sun, and today's gas (m³) or heat energy (kWh) of the
+`heat_energy_entity` meter since local midnight (recorder statistics, else the state history; read every 5 minutes).
+The rooms come from the host's room list (0.43.0) **in its order**: the bottom row first, next to the plant room, left
+to right, then upwards; when Home Assistant floors are set on the areas, the floors give the storeys. Change the order
+in the options (Rooms → edit a room → place in the list) or with the ↑ ↓ buttons of the wizard's Rooms card. Other
+rooms with a listed sensor (a window-drop thermometer, a separate zone) follow. A click on any part scrolls to its data
+card (outdoor, HC controller, leading room, heat source / gas); a room or a TRV head opens the room's own card.
+Light / dark follows the Home Assistant theme, it fits a phone, and it stays still with "reduce motion". Central and
+buffer instances keep the line drawing.
 
 ## Floor tempering (0.35.0)
 
@@ -230,11 +275,73 @@ opens it with its "i" icon.
   over restarts. `central_pump_exercise_s` (0 = off), `_weekday`, `_time`, `_idle_days`; the central decision shows
   `pump_exercise` and its end, the next run and the last run. (The buffer tank role drives no pump.)
 
+## Managing existing thermostat integrations (0.42.0)
+
+- With external control HC drives an existing climate entity – a Smart Thermostat, a Better Thermostat, a generic
+  thermostat, an air conditioner – and that integration stays free to run on its own. HC finds the integration
+  (`managed_platform`, `managed_adapter`) and fits its target to the entity's own step and range.
+- A target set on the managed thermostat itself is taken over as a manual target until the next scheduled change;
+  if someone switches it off, HC leaves it off (only frost protection heats) until someone switches it on again.
+  Option `adopt_manual` (on). HC's own writes are never taken back. Not for the AC control.
+- The switch "HC supervision paused" (external and AC control) stops every write to the managed thermostat; HC still
+  decides and logs. Switched off, HC keeps the thermostat's current target as a manual target – no jump back.
+  Relay controls (TPI, PID, on-off) have no such switch.
+- Without a flame sensor the managed thermostat's `hvac_action` tells whether it really heats.
+- The integration's presets are not used yet (HC sends a target); that comes in a later stage.
+
+## Rooms of one boiler (0.43.0)
+
+"One room, one thermometer (or a group), none or several TRV heads – but one boiler." A single zone instance (TPI / PID)
+is the house: its boiler is driven by the **leading room** (a room without a regulating TRV head, usually the living
+room; its thermometer is the house thermometer, `indoor_entity`). The house target is the schedule, the presets and
+the household presence as before. Every other room gets **its own HC thermostat** (`climate.<room>_hc`, device
+"<Room> HC" in the room's area, under the host's device):
+
+- **Thermometers:** one or a group – the mean of the available ones, a dropped one is left out. A leading room with a
+  group gives the mean to the boiler too.
+- **TRV room:** regulates by its heads. All heads get the room's target, each calibrated against the room's
+  thermometers (the 0.30.0 calibration); a head may instead follow another thermometer or its own one (no
+  calibration); a room without a thermometer leaves its heads on their own sensors. Optional short burns (the
+  existing room demand), **per room, off by default**, and only while the house is not above its own target.
+- **Room without a TRV:** can only be reached through the boiler: its thermostat shows the house target, a target set
+  on it is refused with a clear message, it gets the radiator valve advice, and it never drives the boiler.
+- **Room target:** *follow* = house target + offset (night, away, presets and a manual house target follow), or *own*
+  = its own home / night / away temperatures and night window (household vacation: the house's vacation target).
+- **Presence per room (optional):** sources whose state is the room's area (phone room trackers such as Bermuda – the
+  area name or `area_id`; an input_select) and motion / occupancy binary sensors (on = present); choosing the sources
+  chooses whose presence counts. Present → the room's target; nobody for `absent_min` minutes (15) → target −
+  `setback` (2 °C), never below the frost limit; while the household is away or on vacation the household target
+  counts and no setback is added. Restart-safe: unknown sources hold the last state, the absence clock survives a
+  restart, and for 5 minutes after a start "nobody here" does not start it.
+- **Manual target / preset** (Automatic, Present, Away) on a room's thermostat holds until the room's automatic
+  target changes (schedule, presence, the house target it follows), like the house. A room thermostat can be
+  switched off (its heads get the frost limit).
+
+**Where it is set:** the setup wizard's "Rooms" card (per area: thermometers, TRV heads, leading room, target, presence,
+boiler demand; warnings when the leading room has a TRV head or the house thermometer sits in a TRV room), and the
+options' "Rooms" menu (add / edit / remove a room, leading room). Saved as one `rooms` list and `leading_room` in the
+instance's options; the old keys (`room_sensors`, `room_trvs`, `trv_sensors`, `trv_offsets`, `room_trv_demand`) are
+written next to them, so the cards and a rollback keep working.
+
+**Upgrade:** without `rooms` the list is derived from the old options, grouped by area, with exactly the old behaviour:
+every room follows the house target with its offset, no presence, the heads keep their thermometers and what they
+learned, the room demand stays as it was. Example: a house with the main thermometer in the living room, a kitchen
+thermometer with a kitchen TRV head and a bedroom thermometer gets Living room (leading), Kitchen (TRV, calibrated)
+and Bedroom (through the boiler) – two new thermostats, `climate.kitchen_hc` and `climate.bedroom_hc`.
+
+HC info lists the rooms under their host; a room's thermostat (or a head) opens the host with a room section (temperature,
+target and why, presence, heads, calibration, advice). The round [HC Dial Card](https://github.com/Gyuszko55/hc-dial-card)
+is a separate HACS frontend repository: its released 1.14.0 opens HC info with the "i" button; the room features
+(a room's thermostat opening HC info with its room, the radiator icon of a TRV room, a read-only room without a TRV)
+come with its next release. A newer copy of the card is kept in this repository's `frontend/` folder for testing.
+
 ## Safety
 
 This software does not replace the safety devices of your boiler. Keep an independent backup, for example a conventional room thermostat set low, wired in parallel. Use at your own risk (MIT, no warranty).
 
-Going live is a separate, confirmed step in the options. Nothing else may control the same output while active mode is on.
+Going live is a separate, confirmed step (Configure → Go live). Nothing else may control the same output while active mode is on.
+0.45.0: if the decision itself fails three times in a row (an internal error), HC switches its output off and the
+fault sensor turns on, until a decision works again.
 
 ## Installation
 

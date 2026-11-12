@@ -166,7 +166,7 @@ def test_onoff_tempering_run_does_not_become_a_regulating_run():
 def test_texts():
     sup = Supervisor(cfg(control="tpi"))
     d = step(sup, 0, indoor=21.5, floor=22.4)
-    assert explain(d, "hu") == "Padlótemperálás: a padló 22,4 °C, a cél 23 °C (a szoba már elég meleg)."
+    assert explain(d, "hu") == "Padlótemperálás: a padló 22,4 °C, a cél 23 °C (a helyiség már elég meleg)."
     assert explain(d, "en") == "Floor tempering: floor 22.4 °C, target 23 °C (the room is warm enough)."
 
 

@@ -13,10 +13,13 @@
       },
       "control": {
         "title": "Recommended control",
-        "description": "Rating: **{status}**\n\n{advice}\n\nThis is an engineering default, not a replacement for an installer's design.",
+        "description": "Rating: **{status_en}**\n\n{advice_en}<!-- {status_hu} {advice_hu} -->\n\nThis is an engineering default, not a replacement for an installer's design.",
         "data": {
           "control": "Regulator",
           "confirm": "I know this system is not recommended and accept it"
+        },
+        "data_description": {
+          "control": "TPI + PWM: switches the relay in pulses (on for a share of every cycle) by the error and the heat need – fits most relay boilers. PID + PWM: the same pulses with an integral, it does not stay below the target. External thermostat: HC only sets the target of an existing thermostat (a TRV, Better Thermostat, a Wi-Fi heater). AC – virtual i-Feel: HC moves the air conditioner's setpoint so that the room thermometer (not the unit's own sensor) reaches the target. On/off: plain on below / off above the target with long runs (heat pumps). Heating curve: flow temperature by the outdoor temperature."
         }
       },
       "entities": {
@@ -35,7 +38,7 @@
           "extra_heat_entity": "Other heat source energy (cumulative, e.g. air conditioner)",
           "extra_factor": "Heat per unit of the other source (e.g. COP)",
           "boiler_power_kw": "Boiler output (0 = heat need is not used in regulation)",
-          "zone_temp_entity": "Adjoining room thermometer (e.g. terrace)",
+          "zone_temp_entity": "Adjoining room thermometer (e.g. a conservatory or the next room)",
           "zone_door_entities": "Doors to the adjoining room",
           "zone_max_diff": "Counts as part of the house if at most this much colder",
           "flow_setpoint_entity": "Flow setpoint entity (number / input_number, e.g. OpenTherm or ebusd)",
@@ -79,7 +82,8 @@
           "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
           "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
           "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat; then the room thermometer is optional. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
-          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy."
+          "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy.",
+          "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat)."
         }
       },
       "central": {
@@ -133,7 +137,9 @@
     "error": {
       "confirm_required": "Confirm your choice for a system that is not recommended.",
       "buffer_order": "The stop temperature must be above the start temperature.",
-      "indoor_required": "Give a room thermometer or a wall thermostat contact."
+      "indoor_required": "Give a room thermometer or a wall thermostat contact.",
+      "name_taken": "An instance with this name exists already – choose another name.",
+      "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it."
     },
     "abort": {
       "already_configured": "An instance with this name already exists."
@@ -142,6 +148,26 @@
   "options": {
     "step": {
       "init": {
+        "title": "HC Thermostat",
+        "description": "What do you want to change?",
+        "menu_options": {
+          "settings": "Settings (targets, timing, devices, rooms)",
+          "go_live": "Go live – HC starts switching",
+          "go_shadow": "Back to shadow mode – HC only calculates"
+        }
+      },
+      "go_live": {
+        "title": "Go live: {name}",
+        "description": "In shadow mode HC calculates and logs what it would do, but switches nothing. Live, it switches the boiler relay (or sets the thermostat / AC unit, the TRV heads) itself.\n\nGo live only when the shadow decisions looked right for a while and nothing else (a wall thermostat, an automation) controls the same output. Every other setting stays as it is.",
+        "data": {
+          "confirm": "I confirm: HC may switch the heating now"
+        }
+      },
+      "go_shadow": {
+        "title": "Shadow mode: {name}",
+        "description": "HC keeps calculating and logging, but switches nothing from now on. The output stays as it is now – switch it by hand if needed."
+      },
+      "settings": {
         "title": "Settings",
         "description": "Switch to active only if nothing else controls the same output.",
         "data": {
@@ -164,11 +190,8 @@
           "energy_factor": "Boiler heat per unit (e.g. kWh per m³ of gas × efficiency)",
           "extra_factor": "Heat per unit of the other source (e.g. COP)",
           "boiler_power_kw": "Boiler output (0 = heat need is not used in regulation)",
-          "room_sensors": "Thermometers of the other rooms (advice only: turn the radiator valve down/up; the main thermometer decides)",
           "room_tolerance": "Room deviation tolerance",
-          "room_trvs": "TRV heads of the other rooms: they get the house target",
-          "room_trv_demand": "A TRV room may ask for heat when 1 °C below target for a while (never above the main target)",
-          "zone_temp_entity": "Adjoining room thermometer (e.g. terrace)",
+          "zone_temp_entity": "Adjoining room thermometer (e.g. a conservatory or the next room)",
           "zone_door_entities": "Doors to the adjoining room",
           "zone_max_diff": "Counts as part of the house if at most this much colder",
           "window_entities": "Windows and doors",
@@ -254,7 +277,8 @@
           "pid_d_filter_s": "PID derivative filter (time constant)",
           "frozen_after_h": "Frozen room thermometer: hours with an unchanged value",
           "frozen_burn_min": "Frozen room thermometer: minutes of heat meanwhile",
-          "keep_alive_script": "Relay watchdog script (at every keep-alive)"
+          "keep_alive_script": "Relay watchdog script (at every keep-alive)",
+          "adopt_manual": "Adopt changes made on the managed thermostat"
         },
         "data_description": {
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
@@ -276,7 +300,16 @@
           "pid_d_filter_s": "Room sensors report in 0.1 °C steps, only on a change: an unfiltered derivative is spiky. 0 = no filter; only matters when the derivative gain is not 0.",
           "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating.",
           "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
-          "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most."
+          "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most.",
+          "adopt_manual": "External control: a target set on the managed thermostat itself (not by HC) becomes the manual target until the next scheduled change; if someone switches it off, HC leaves it off (frost protection excepted) until someone switches it on again. Off: HC writes its own target and mode as before.",
+          "control": "TPI: proportional pulses by the error and the outdoor temperature. PID: proportional + integral (+ derivative) – removes a lasting offset. Both drive the relay by PWM: on for a share of every cycle.",
+          "cycle_s": "PWM cycle: one on + off period. The demand is the share of it the relay is on (50 % of 900 s = 7.5 minutes on).",
+          "min_on_s": "Shortest burn: a shorter pulse is skipped or stretched (spares the boiler and the relay).",
+          "pid_kp": "How strongly HC answers the error now (0.4 = 40 % demand per °C below the target).",
+          "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).",
+          "power_idle_w": "Below this the boiler stands by. Leave the defaults (20 W / 115 W) untouched and the boiler health only learns – it judges \"no response\" / \"no flame\" by the power draw once you give your boiler's own values.",
+          "power_burn_w": "At or above this the burner burns (between the two: only the pump runs).",
+          "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat)."
         }
       },
       "presets": {
@@ -331,13 +364,6 @@
           "central_pump_exercise_s": "With a pump entity: a pump that stood still for days runs alone for this long once a week, so it does not seize. Only while the boiler is off and no zone asks; the boiler does not start; not in the first minutes after a restart."
         }
       },
-      "trv_rooms": {
-        "title": "TRV rooms",
-        "description": "Per room: how much warmer (+) or cooler (−) than the house target – it still follows the schedule (night, away). Rooms: {rooms}.\n\nCalibration: where the room has its own thermometer, the difference of the head's own (next to the radiator) reading is followed slowly and added to the target written to the head (at most ±5 °C, at most one write per half hour).",
-        "data": {
-          "trv_calibration": "Calibrate the heads by the room thermometers"
-        }
-      },
       "buffer": {
         "title": "Buffer tank",
         "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode.",
@@ -355,13 +381,79 @@
           "mode": "Mode",
           "confirm": "I understand: in live mode it switches a real device"
         }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "description": "The rooms of this boiler. The leading room (no regulating TRV head) drives the boiler with the house thermometer; every other room gets its own HC thermostat (climate):\n- a room with TRV heads regulates by them: its own target (follows the house target + offset, or its own schedule), optional presence, optional short burns;\n- a room without a TRV can only be heated through the boiler: it shows the house target and gets radiator valve advice.\n\nNow:\n{rooms_en}<!-- {rooms_hu} -->\n\nThe order of the list is the order of the rooms in the HC info house drawing: bottom row first (next to the plant room), left to right, then upwards; with Home Assistant floors the floors give the storeys. Change a room's place in its edit form.",
+        "menu_options": {
+          "room_add": "Add a room",
+          "room_pick": "Edit a room",
+          "room_remove": "Remove rooms",
+          "room_leading": "Leading room (drives the boiler)",
+          "rooms_done": "Save"
+        }
+      },
+      "room_pick": {
+        "title": "Edit a room",
+        "description": "Which room?",
+        "data": {
+          "room": "Room"
+        }
+      },
+      "room_remove": {
+        "title": "Remove rooms",
+        "description": "The room's HC thermostat goes too; its TRV heads are left as they are.",
+        "data": {
+          "rooms": "Rooms to remove"
+        }
+      },
+      "room_leading": {
+        "title": "Leading room",
+        "description": "The room whose thermometer runs the boiler (normally the living room, without a TRV head). Its thermometers become the house thermometer.",
+        "data": {
+          "leading_room": "Leading room",
+          "confirm": "Yes, the leading room has a TRV head (it gets the house target)"
+        }
+      },
+      "room": {
+        "title": "Room {room}",
+        "description": "Thermometers: several are averaged (an unavailable one is left out). TRV heads: they get the room's target, calibrated to the room's thermometers (without a thermometer: by their own). Without a TRV head the room follows the house target; the target, presence and demand fields below are then ignored.\n\nTarget: \"follow\" = house target + offset (night, away, presets follow); \"own\" = its own home / night / away temperatures and night window.\n\nPresence (optional): sensors whose state is this room's area (phone room trackers such as Bermuda, an input_select) or motion / occupancy sensors (on = present). Absent for the given minutes → target − setback (never below the frost limit); household away / vacation → the household target.",
+        "data": {
+          "name": "Name",
+          "area": "Area",
+          "sensors": "Thermometers",
+          "trvs": "TRV heads (climate)",
+          "mode": "Target",
+          "offset": "Offset to the house target",
+          "target_home": "Own: home temperature",
+          "target_night": "Own: night temperature",
+          "target_away": "Own: household away temperature",
+          "night_start": "Own: night start",
+          "night_end": "Own: night end",
+          "presence": "Presence sources",
+          "absent_min": "Absent after",
+          "setback": "Setback when absent",
+          "demand": "May ask the boiler for short burns when far below its target (TRV rooms)",
+          "position": "Place in the list (order in the HC info drawing)"
+        },
+        "data_description": {
+          "presence": "A room tracker (its state is the room's area, e.g. Bermuda BLE tracking) or a motion / occupancy sensor. Nobody there for the given minutes: the room's target is set back."
+        }
       }
     },
     "error": {
       "confirm_active": "Confirm your choice for active mode.",
       "humidity_required": "Floor cooling needs a humidity sensor (no cooling without a dew point).",
       "buffer_order": "The stop temperature must be above the start temperature.",
-      "demand_required": "This instance has no room thermometer: the wall thermostat contact is required."
+      "demand_required": "This instance has no room thermometer: the wall thermostat contact is required.",
+      "room_name": "Give the room a name.",
+      "room_name_taken": "There is a room with this name already.",
+      "room_empty": "A room needs a thermometer or a TRV head.",
+      "trv_is_hc": "An HC thermostat cannot be a TRV head.",
+      "trv_taken": "This TRV head is in another room already.",
+      "trv_other_instance": "This TRV head is driven by another HC instance already – two instances would fight over it.",
+      "leading_trv": "The leading room has a TRV head: tick the confirmation (its heads get the house target).",
+      "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it."
     }
   },
   "selector": {
@@ -463,6 +555,12 @@
         "screed": "In the screed, between the pipes (estimate)",
         "above_pipe": "Above a supply pipe (estimate)"
       }
+    },
+    "room_mode": {
+      "options": {
+        "follow": "Follow the house target (+ offset)",
+        "own": "Own schedule"
+      }
     }
   },
   "entity": {
@@ -493,7 +591,8 @@
           "storage_wait": "Storage waiting",
           "floor_temper": "Floor tempering",
           "thermostat_call": "Wall thermostat asks for heat",
-          "thermostat_idle": "Wall thermostat idle"
+          "thermostat_idle": "Wall thermostat idle",
+          "managed_off": "Thermostat switched off by hand"
         }
       },
       "demand": {
@@ -531,7 +630,8 @@
           "no_response": "Not responding",
           "no_flame": "No flame",
           "heating_fault": "Heating fault",
-          "short_cycling": "Short cycling"
+          "short_cycling": "Short cycling",
+          "learning": "Learning the boiler's power levels"
         }
       },
       "shadow_regulator": {
@@ -604,12 +704,36 @@
             }
           }
         }
+      },
+      "room": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Automatic",
+              "home": "Present",
+              "away": "Away"
+            }
+          }
+        }
       }
     },
     "button": {
       "reset_learning": {
         "name": "Reset learned values"
       }
+    },
+    "switch": {
+      "supervision_paused": {
+        "name": "HC supervision paused"
+      },
+      "supervision_paused_plain": {
+        "name": "Supervision paused"
+      }
+    }
+  },
+  "exceptions": {
+    "room_no_target": {
+      "message": "{room}: no TRV head here, the room is heated only through the boiler – set the target on {host} (the room follows the house target)."
     }
   }
 }

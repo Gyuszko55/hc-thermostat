@@ -1,7 +1,7 @@
 """Constants of HC Thermostat (Heat Conductor Thermostat)."""
 
 DOMAIN = "hc_thermostat"
-PLATFORMS = ["binary_sensor", "button", "climate", "sensor"]
+PLATFORMS = ["binary_sensor", "button", "climate", "sensor", "switch"]
 CENTRAL_PLATFORMS = ["binary_sensor", "sensor"]
 
 CONF_HEAT_SOURCE = "heat_source"
@@ -49,6 +49,8 @@ CONF_ROOM_TOL = "room_tolerance"
 CONF_ROOM_TRVS = "room_trvs"  # single zone: TRV heads (climate) of the other rooms; they get the house target
 CONF_TRV_OFFSETS = "trv_offsets"  # TRV room -> offset to the house target (°C), set per room in the options
 CONF_ROOM_TRV_DEMAND = "room_trv_demand"  # a TRV room far below its target may ask for short burns
+CONF_TRV_SENSORS = "trv_sensors"  # 0.42.0: TRV head -> the thermometer its calibration follows (absent head: its own sensor)
+TRV_HEAD = "head"  # the choice "the head's own thermometer" in the options and the wizard
 EVENT_ROOM_ADVICE = "hc_thermostat_room_advice"
 CONF_PUMP = "pump_entity"  # central boiler: optional circulation pump relay (runs on after the boiler)
 CONF_VALVE_FEEDBACK = "valve_feedback_entity"  # zone: end switch or valve position, read by the central boiler

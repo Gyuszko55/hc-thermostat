@@ -112,5 +112,5 @@ def test_night_value_counts_too():
 def test_texts():
     sup = Supervisor(cfg(source="electric_heater", control="tpi"))
     d = lost(sup, 0, floor=22.4)
-    assert explain(d, "hu") == "A szobahőmérő nem jelez: a padlót tartom 23 °C-on (most 22,4 °C)."
+    assert explain(d, "hu") == "A helyiséghőmérő nem jelez: a padlót tartom 23 °C-on (most 22,4 °C)."
     assert explain(d, "en") == "The room thermometer is silent: holding the floor at 23 °C (now 22.4 °C)."

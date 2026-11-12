@@ -17,6 +17,8 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_BOILER, CONF_BUFFER_BOTTOM, CONF_BUFFER_TOP, CONF_MODE, CONF_ZONES, DOMAIN, MODE_ACTIVE, MODE_SHADOW
 from .core.buffer import BufferCharger, BufferConfig, BufferDecision, fresh
 
+from .units import state_value_c
+
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
 
@@ -26,9 +28,8 @@ def _temp(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float
     state = hass.states.get(entity_id) if entity_id else None
     if state is None:
         return None  # no sensor (the bottom one is optional) or not loaded yet
-    try:
-        value = float(state.state)
-    except (TypeError, ValueError):
+    value = state_value_c(state)  # 0.45.0: a tank thermometer in °F is read in °C
+    if value is None:
         return None
     reported = getattr(state, "last_reported", None) or state.last_updated
     return fresh(value, (now - reported).total_seconds(), max_age_s)
