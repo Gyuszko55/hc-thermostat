@@ -34,6 +34,9 @@ const T = {
     room: "Helyiség", roomList: "Helyiségek (egy kazán)", roomTrv: "Helyiség – szelepfejes, saját céllal", roomBoiler: "Helyiség – csak a kazánon át",
     r_temp: "Hőmérséklet", r_target: "Cél", r_reason: "Miért ez a cél", r_house: "A ház célja", r_mode: "Cél módja", r_presence: "Jelenlét",
     r_sensors: "Hőmérők", r_heads: "Szelepfejek", r_advice: "Tanács", r_demand: "Égést kérhet", r_entity: "Termosztát", r_lead: "Vezető helyiség (a kazánt vezérli)",
+    r_role: "Szerepe", role_lead: "vezető helyiség (a hőmérője vezérli a kazánt)", role_trv: "szelepfejes helyiség (saját célja van)",
+    role_watch: "megfigyelt helyiség (csak a kazánon át fűthető, szelep-tanácsot kap)", r_windows: "Ablak / ajtó", open_now: "most nyitva",
+    win_own: "csak a helyiség szelepfejeit zárja le", win_boiler: "nyitáskor a kazán leáll",
     follow: "a ház célját követi", own: "saját menetrend", asking_now: "most kér",
     pump_ex: "Szivattyú-átmozgatás", pump_next: "Következő átmozgatás", pump_last: "Szivattyú utoljára ment",
   },
@@ -55,6 +58,9 @@ const T = {
     room: "Room", roomList: "Rooms (one boiler)", roomTrv: "Room – TRV heads, own target", roomBoiler: "Room – through the boiler only",
     r_temp: "Temperature", r_target: "Target", r_reason: "Why this target", r_house: "House target", r_mode: "Target mode", r_presence: "Presence",
     r_sensors: "Thermometers", r_heads: "TRV heads", r_advice: "Advice", r_demand: "May ask for burns", r_entity: "Thermostat", r_lead: "Leading room (runs the boiler)",
+    r_role: "Role", role_lead: "leading room (its thermometer runs the boiler)", role_trv: "TRV room (its own target)",
+    role_watch: "watched room (heated only through the boiler, gets valve advice)", r_windows: "Window / door", open_now: "open now",
+    win_own: "closes only the room's TRV heads", win_boiler: "opened: the boiler stops",
     follow: "follows the house target", own: "own schedule", asking_now: "asking now",
     pump_ex: "Pump exercise", pump_next: "Next pump exercise", pump_last: "Pump last ran",
   },
@@ -172,10 +178,10 @@ const ENTS = (d, k) => d.entities?.[k];
 // 0.43.0: why a room has its target
 const ROOM_REASON = {
   hu: { follow: "a ház célja + eltérés", home: "saját: otthon", night: "saját: éjszaka", household_away: "a háztartás távol", household_vacation: "a háztartás szabadságon",
-    absent: "senki a helyiségben: csökkentve", manual: "kézi cél (a következő változásig)", preset_home: "preset: jelen van", preset_away: "preset: távol", off: "kikapcsolva (fagyvédelem)",
+    absent: "senki a helyiségben: csökkentve", manual: "kézi cél (a következő változásig)", preset_home: "preset: jelen van", preset_away: "preset: távol", off: "kikapcsolva (fagyvédelem)", window: "nyitva az ablak: a fejek fagyvédelmen",
     house: "a ház célja (csak a kazánon át fűthető)", leading: "vezető helyiség: a ház célja" },
   en: { follow: "house target + offset", home: "own: home", night: "own: night", household_away: "household away", household_vacation: "household on vacation",
-    absent: "nobody in the room: set back", manual: "manual target (until the next change)", preset_home: "preset: present", preset_away: "preset: away", off: "off (frost protection)",
+    absent: "nobody in the room: set back", manual: "manual target (until the next change)", preset_home: "preset: present", preset_away: "preset: away", off: "off (frost protection)", window: "window open: the heads on frost protection",
     house: "house target (heated through the boiler only)", leading: "leading room: the house target" },
 };
 const PRESENCE = { hu: { present: "jelen van", leaving: "épp kiment (vár)", absent: "távol" }, en: { present: "present", leaving: "just left (waiting)", absent: "absent" } };
@@ -435,7 +441,8 @@ class HcInfoPanel extends HTMLElement {
     const t = this._t, L = this._hu ? "hu" : "en", n = (id) => r.names?.[id] || id;
     const rows = [];
     const add = (k, v) => { if (v !== null && v !== undefined && v !== "") rows.push(`<tr><td class="k">${esc(k)}</td><td class="v">${v}</td></tr>`); };
-    if (r.leading) add(t.r_lead, esc(t.yes));
+    // 0.46.0: the room's role – leading, TRV room, or watched (heated only through the boiler)
+    add(t.r_role, esc(r.leading ? t.role_lead : r.trv ? t.role_trv : t.role_watch));
     add(t.r_temp, esc(this._deg(r.temperature)));
     add(t.r_target, `<b>${esc(this._deg(r.target))}</b>`);
     add(t.r_reason, esc(ROOM_REASON[L][r.reason] || r.reason || ""));
@@ -445,6 +452,8 @@ class HcInfoPanel extends HTMLElement {
     if ((r.presence_sources || []).length) add(t.r_presence, `${esc(PRESENCE[L][r.presence] || r.presence || "–")}${r.absent_since ? ` · ${esc(this._val(r.absent_since))}` : ""}
       <div class="eid">${esc(r.presence_sources.map(n).join(", "))} · ${esc(r.absent_min)} ${esc(t.min)} / −${esc(r.setback)} °C</div>`);
     add(t.r_sensors, esc((r.sensors || []).map(n).join(", ") || t.none));
+    if ((r.windows || []).length) add(t.r_windows, `${esc(r.windows.map(n).join(", "))}${r.window ? ` · <b>${esc(t.open_now)}</b>` : ""}
+      <div class="eid">${esc(r.trv && !r.leading ? t.win_own : t.win_boiler)}</div>`);
     if ((r.trvs || []).length) add(t.r_heads, r.trvs.map((h) => {
       const v = (r.heads || {})[h] || {};
       return `<div>${esc(n(h))}: ${esc(this._deg(v.head_temp))} → ${esc(this._deg(v.head_target))} · ${this._hu ? "kalibrálás" : "calibration"} ${esc(sgn(v.calibration))} (${esc(v.sensor === "head" ? (this._hu ? "saját" : "own") : Array.isArray(v.sensor) ? v.sensor.map(n).join(" + ") : (v.sensor_name || v.sensor || ""))})${v.plan ? ` · ${esc(v.plan)}` : ""}</div>`;

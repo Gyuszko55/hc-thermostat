@@ -217,7 +217,7 @@ helyiség (★), a kinti hőmérséklet és 24 órás átlaga, a háztartás jel
 `heat_energy_entity` mérő mai gáza (m³) vagy hőenergiája (kWh) helyi éjféltől (recorder-statisztika, különben az
 állapottörténet; 5 percenként olvasva). A helyiségek a gazda helyiséglistájából (0.43.0) jönnek, **annak sorrendjében**:
 alsó sor először, a kazánház mellett, balról jobbra, aztán felfelé; ha a területekhez Home Assistant-szintek tartoznak,
-a szintek adják az emeleteket. A sorrend a beállításokban (Helyiségek → helyiség szerkesztése → helye a listában) vagy a
+a szintek adják az emeleteket. A sorrend a beállításokban (Helyiségek → a helyiség lenyílója → helye a házrajzon) vagy a
 varázsló Helyiségek kártyáján a ↑ ↓ gombokkal módosítható. Utánuk jönnek a más felsorolt szenzorral (ablaknyitás-hőmérő,
 külön zóna) rendelkező helyiségek. Bármelyik elemre kattintva a panel az adatkártyájához görget (kint, HC vezérlő,
 vezető helyiség, hőforrás / gáz); helyiségre vagy szelepfejre a helyiség saját kártyája nyílik. Világos / sötét a Home
@@ -319,9 +319,19 @@ példány eszköze alatt):
   változásáig tart (menetrend, jelenlét, a követett házcél), mint a háznál. A helyiség termosztátja kikapcsolható (a
   fejek a fagyhatárt kapják).
 
-**Hol állítható:** a beállító varázsló „Helyiségek” kártyáján (területenként: hőmérők, szelepfejek, vezető helyiség, cél,
-jelenlét, égés-kérés; figyelmeztet, ha a vezető helyiségben szelepfej van, vagy a ház hőmérője szelepfejes helyiségben van), és
-a beállítások „Helyiségek” menüjében (helyiség hozzáadása / szerkesztése / törlése, vezető helyiség). Egy `rooms` listaként és
+**Hol állítható (0.46.0):** a beállítások **Helyiségek** menüpontjában – (1) kipipálod az otthon azon területeit, amelyek
+helyiségek (mindegyik mellett látszik, mi van benne), (2) helyiségenként egy lenyíló: a terület hőmérői, szelepfejei,
+jelenlét-forrásai és ablak-/ajtóérzékelői jelölőnégyzetekkel (az új helyiségnél előre bepipálva), felül a vezető helyiség; cél,
+jelenlét, égés-kérés és fejenkénti kalibrálás csak a szelepfejes helyiségnél, (3) a saját menetrendek; csak a helyiségeket menti.
+A beállító varázsló „Helyiségek” kártyája ugyanígy működik (egy vagy több helyiség, a területek jelölőnégyzetes listája –
+magától semmi nincs bepipálva). A szelepfej nélküli helyiség neve **megfigyelt helyiség**.
+
+- **Ablak / ajtó helyiségenként (0.46.0):** szelepfejes helyiségben az érzékelői csak a helyiség saját fejeit zárják le
+  (fagyvédelmi cél az ablak-késleltetés után); a vezető és a megfigyelt helyiségben a kazánt állítják le, mint a példány
+  ablaklistája.
+- **Helyiség-csoportok (0.46.0):** ha egy helyiségben két vagy több hőmérő / jelenlét-forrás / nyitásérzékelő van, a HC saját
+  csoport-entitást hoz létre (átlaghőmérséklet, valaki jelen van, bármelyik nyitva) a helyiség eszközén; a helyiséggel
+  együtt változik. Egy `rooms` listaként és
 `leading_room` kulcsként kerül a példány beállításaiba; mellé a régi kulcsok is (`room_sensors`, `room_trvs`,
 `trv_sensors`, `trv_offsets`, `room_trv_demand`), így a kártyák és egy visszaállás is működik.
 

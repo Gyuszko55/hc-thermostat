@@ -12,6 +12,7 @@ from .core.boiler_health import STATES as HEALTH_STATES
 from .core.learning import band
 from .core.model import Reason
 from .entity import HcEntity
+from .room_groups import RoomTemperatureGroup, groups_of, remove_old_groups
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -31,7 +32,10 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
             entities.append(HcShadowRegulator(c))
     if c.conf.get(CONF_ROOMS) or c.conf.get(CONF_ROOM_TRVS):
         entities.append(HcRooms(c))
-    async_add_entities(entities)
+    # 0.46.0: a room with two or more thermometers gets its group (the mean HC regulates by)
+    groups = [RoomTemperatureGroup(c, s) for s, _ in groups_of(c, ("temperature",))]
+    remove_old_groups(hass, entry, "sensor", {g.unique_id for g in groups})
+    async_add_entities(entities + groups)
 
 
 class HcDecision(HcEntity, SensorEntity):

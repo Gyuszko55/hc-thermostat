@@ -29,7 +29,7 @@ from .const import (
     CONF_FLAME, CONF_FLOW, CONF_HEAT_ENABLE, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_ROLE, CONF_ROOMS, CONF_SYSTEM, CONF_WINDOWS, DOMAIN, MODE_ACTIVE, MODE_SHADOW,
     CONF_FLOOR, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN,
-    CONF_COIL, CONF_RETURN, CONF_DEMAND, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS,
+    CONF_COIL, CONF_RETURN, CONF_DEMAND, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, CONF_HOME_NAME,
 )
 from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
@@ -179,6 +179,7 @@ def _entries(hass) -> list[dict]:
                             CONF_TRV_SENSORS: current_trv_sensors(hass, conf),
                             CONF_TRV_OFFSETS: dict(conf.get(CONF_TRV_OFFSETS) or {}),
                             CONF_ROOM_TRV_DEMAND: bool(conf.get(CONF_ROOM_TRV_DEMAND, False))},
+                    "home_name": conf.get(CONF_HOME_NAME) or "",  # 0.46.0
                     # 0.43.0: the rooms as they work now (saved, or derived from the options above)
                     **_rooms_of(hass, conf)})
     return res
@@ -486,6 +487,7 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("entities", default={}): dict, vol.Optional("settings", default={}): dict,
     vol.Optional("trv"): vol.Any(dict, None),
     vol.Optional("rooms"): vol.Any(list, None), vol.Optional("leading_room"): vol.Any(str, None),
+    vol.Optional("home_name"): vol.Any(str, None),  # 0.46.0: the home's name (the HC info house drawing)
     vol.Optional("start_active", default=False): bool,  # 0.45.0: a new instance may start live (confirmed in the panel)
 })
 @websocket_api.async_response
@@ -511,6 +513,8 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
     trv = trv_options(control, msg.get("trv"))
     rooms = wizard_rooms(hass, control, msg.get("rooms"), msg.get("leading_room"), ents.get(CONF_INDOOR), msg.get("entry_id"))
     if rooms is not None:  # 0.43.0: the rooms card replaces the TRV card (and the room thermometer list)
+        if "home_name" in msg:
+            rooms = {**rooms, CONF_HOME_NAME: str(msg.get("home_name") or "").strip()}
         trv = rooms
         ents.pop(CONF_ROOMS, None)
         ents.update({k: v for k, v in rooms.items() if k == CONF_INDOOR})

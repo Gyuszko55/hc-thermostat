@@ -151,7 +151,8 @@
         "title": "HC Thermostat",
         "description": "What do you want to change?",
         "menu_options": {
-          "settings": "Settings (targets, timing, devices, rooms)",
+          "settings": "Settings (targets, timing, devices)",
+          "rooms": "Rooms (areas, thermometers, TRV heads, presence, windows)",
           "go_live": "Go live – HC starts switching",
           "go_shadow": "Back to shadow mode – HC only calculates"
         }
@@ -190,7 +191,6 @@
           "energy_factor": "Boiler heat per unit (e.g. kWh per m³ of gas × efficiency)",
           "extra_factor": "Heat per unit of the other source (e.g. COP)",
           "boiler_power_kw": "Boiler output (0 = heat need is not used in regulation)",
-          "room_tolerance": "Room deviation tolerance",
           "zone_temp_entity": "Adjoining room thermometer (e.g. a conservatory or the next room)",
           "zone_door_entities": "Doors to the adjoining room",
           "zone_max_diff": "Counts as part of the house if at most this much colder",
@@ -383,62 +383,29 @@
         }
       },
       "rooms": {
-        "title": "Rooms",
-        "description": "The rooms of this boiler. The leading room (no regulating TRV head) drives the boiler with the house thermometer; every other room gets its own HC thermostat (climate):\n- a room with TRV heads regulates by them: its own target (follows the house target + offset, or its own schedule), optional presence, optional short burns;\n- a room without a TRV can only be heated through the boiler: it shows the house target and gets radiator valve advice.\n\nNow:\n{rooms_en}<!-- {rooms_hu} -->\n\nThe order of the list is the order of the rooms in the HC info house drawing: bottom row first (next to the plant room), left to right, then upwards; with Home Assistant floors the floors give the storeys. Change a room's place in its edit form.",
-        "menu_options": {
-          "room_add": "Add a room",
-          "room_pick": "Edit a room",
-          "room_remove": "Remove rooms",
-          "room_leading": "Leading room (drives the boiler)",
-          "rooms_done": "Save"
-        }
-      },
-      "room_pick": {
-        "title": "Edit a room",
-        "description": "Which room?",
+        "title": "Rooms – areas",
+        "description": "Tick the Home Assistant areas that are rooms of this boiler; next to each is what I found there. Unticking one removes the room (and its HC thermostat); the TRV heads are left alone. You can change this any time.\n\nNow:\n{rooms_en}<!-- {rooms_hu} -->",
         "data": {
-          "room": "Room"
-        }
-      },
-      "room_remove": {
-        "title": "Remove rooms",
-        "description": "The room's HC thermostat goes too; its TRV heads are left as they are.",
-        "data": {
-          "rooms": "Rooms to remove"
-        }
-      },
-      "room_leading": {
-        "title": "Leading room",
-        "description": "The room whose thermometer runs the boiler (normally the living room, without a TRV head). Its thermometers become the house thermometer.",
-        "data": {
-          "leading_room": "Leading room",
-          "confirm": "Yes, the leading room has a TRV head (it gets the house target)"
-        }
-      },
-      "room": {
-        "title": "Room {room}",
-        "description": "Thermometers: several are averaged (an unavailable one is left out). TRV heads: they get the room's target, calibrated to the room's thermometers (without a thermometer: by their own). Without a TRV head the room follows the house target; the target, presence and demand fields below are then ignored.\n\nTarget: \"follow\" = house target + offset (night, away, presets follow); \"own\" = its own home / night / away temperatures and night window.\n\nPresence (optional): sensors whose state is this room's area (phone room trackers such as Bermuda, an input_select) or motion / occupancy sensors (on = present). Absent for the given minutes → target − setback (never below the frost limit); household away / vacation → the household target.",
-        "data": {
-          "name": "Name",
-          "area": "Area",
-          "sensors": "Thermometers",
-          "trvs": "TRV heads (climate)",
-          "mode": "Target",
-          "offset": "Offset to the house target",
-          "target_home": "Own: home temperature",
-          "target_night": "Own: night temperature",
-          "target_away": "Own: household away temperature",
-          "night_start": "Own: night start",
-          "night_end": "Own: night end",
-          "presence": "Presence sources",
-          "absent_min": "Absent after",
-          "setback": "Setback when absent",
-          "demand": "May ask the boiler for short burns when far below its target (TRV rooms)",
-          "position": "Place in the list (order in the HC info drawing)"
+          "home_name": "Home name",
+          "areas": "Areas",
+          "custom_rooms": "New room without an area (name; several separated by commas)"
         },
         "data_description": {
-          "presence": "A room tracker (its state is the room's area, e.g. Bermuda BLE tracking) or a motion / occupancy sensor. Nobody there for the given minutes: the room's target is set back."
+          "home_name": "Shown in the HC info house drawing (empty: the instance's name)."
         }
+      },
+      "room_details": {
+        "title": "Rooms – settings",
+        "description": "One fold-out per room: the area's devices as check boxes (ticked already for a new room).\n- Several thermometers: their mean counts and HC makes a group thermometer for it; presence and window: any of them.\n- Leading room: its thermometer drives the boiler. TRV room: its heads get the room's target; its window closes only its own heads. Room without a TRV (watched): heated only through the boiler, its window stops the boiler.\n- \"Add another device\": from another area; HC sorts it where it belongs.\n- Presence: a room tracker (its state is the room's area, e.g. Bermuda) or a motion / occupancy sensor. Nobody there for the given minutes: the room's target goes down by the setback (never below the frost limit).\n\n{rooms_en}<!-- {rooms_hu} -->",
+        "data": {
+          "leading_room": "Leading room (drives the boiler)",
+          "confirm": "Yes, the leading room has a TRV head (it gets the house target)",
+          "room_tolerance": "Valve advice tolerance (room's deviation from the house)"
+        }
+      },
+      "room_own": {
+        "title": "Rooms – own schedule",
+        "description": "The temperatures and night of the rooms set to their own schedule. On a household vacation the house's vacation target counts.\n\n{rooms_en}<!-- {rooms_hu} -->"
       }
     },
     "error": {
@@ -446,14 +413,8 @@
       "humidity_required": "Floor cooling needs a humidity sensor (no cooling without a dew point).",
       "buffer_order": "The stop temperature must be above the start temperature.",
       "demand_required": "This instance has no room thermometer: the wall thermostat contact is required.",
-      "room_name": "Give the room a name.",
-      "room_name_taken": "There is a room with this name already.",
-      "room_empty": "A room needs a thermometer or a TRV head.",
-      "trv_is_hc": "An HC thermostat cannot be a TRV head.",
-      "trv_taken": "This TRV head is in another room already.",
-      "trv_other_instance": "This TRV head is driven by another HC instance already – two instances would fight over it.",
-      "leading_trv": "The leading room has a TRV head: tick the confirmation (its heads get the house target).",
-      "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it."
+      "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it.",
+      "room_problem": "{problem}"
     }
   },
   "selector": {

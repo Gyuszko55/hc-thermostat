@@ -158,19 +158,12 @@ def test_room_list_carries_the_area_and_keeps_the_option_order(monkeypatch):
                                                                    ("haloszoba", "haloszoba", False)]
 
 
-def test_room_position_from_the_form():
-    assert config_flow._position(1, 2, 3) == 0
-    assert config_flow._position(3.0, 0, 3) == 2
-    assert config_flow._position(9, 0, 3) == 3  # past the end: last
-    assert config_flow._position(None, 1, 3) == 1 and config_flow._position("x", 5, 3) == 3
-
-
 def test_position_field_is_translated_and_the_house_view_is_served():
     for lang in ("en", "hu"):
         tr = json.loads((ROOT / "translations" / f"{lang}.json").read_text())
-        assert tr["options"]["step"]["room"]["data"]["position"]
+        assert tr["options"]["step"]["room_details"]["title"]  # 0.46.0: the place is a field of the room's section
     js = (ROOT / "www" / "hc-house-view.js").read_text()
     assert "export function fromInfo" in js and 'customElements.define("hc-house-view"' in js
     panel = (ROOT / "www" / "hc-info-panel.js").read_text()
     assert "hc-house-view.js${new URL(import.meta.url).search}" in panel  # cache-busting with the panel's ?v=
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.0", "0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.0", "0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0")

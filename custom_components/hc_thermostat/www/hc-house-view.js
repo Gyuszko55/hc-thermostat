@@ -419,7 +419,7 @@ export function fromInfo(info, x = {}) {
 
   const demand = num(dec.demand) ?? (num(cl.demand) != null ? num(cl.demand) / 100 : null);
   return {
-    lang, title: info.title || conf.name || "HC", subtitle: lang === "hu" ? info.text_hu : info.text_en,
+    lang, title: conf.home_name || info.title || conf.name || "HC", subtitle: lang === "hu" ? info.text_hu : info.text_en,
     mode: info.mode || "active", target: num(dec.target), indoor: num(dec.indoor), demand,
     night: !!night, outdoor: (num(inp.outdoor?.value) ?? num(dec.outdoor)) != null ? { temp: num(inp.outdoor?.value) ?? num(dec.outdoor), avg: num(inp.outdoor_avg) } : null,
     presence, doors, source, rooms: ordered,

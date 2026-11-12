@@ -68,6 +68,7 @@ CONF_RETURN = "return_temp_entity"  # district heating: return water temperature
 CONF_HP_DHW = "hp_dhw_entity"  # heat pump: on while it makes hot water (optional; a 3-way valve or a mode)
 CONF_TARGET_SOURCE = "target_source_entity"  # a wall thermostat / number whose setpoint this instance takes over
 CONF_DEMAND = "demand_entity"  # a wired (dry-contact) wall thermostat: its contact is the room's demand (0.38.0)
+CONF_HOME_NAME = "home_name"  # 0.46.0: the home's name (the HC info house drawing)
 
 MODE_SHADOW = "shadow"
 MODE_ACTIVE = "active"

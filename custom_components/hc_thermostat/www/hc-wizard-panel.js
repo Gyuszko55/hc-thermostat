@@ -55,13 +55,19 @@ const T = {
       add: "Helyiség hozzáadása (terület)…", custom: "Egyéni helyiség (terület nélkül)", custom_name: "Új helyiség", empty: "Még nincs helyiség.", name: "Név", no_area: "nincs terület",
       leading: "Vezető helyiség", remove: "Levesz", up: "Előrébb", down: "Hátrébb", sensors: "Hőmérők", trvs: "Szelepfejek", add_sensor: "Másik hőmérő…", add_trv: "Másik szelepfej…",
       lead_hint: "Ennek a hőmérője vezérli a kazánt (a ház célja: menetrend, presetek, háztartás-jelenlét). A HC példány termosztátja ennek a helyiségnek a termosztátja.",
-      trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Saját HC termosztát, de csak a kazánon át fűthető: a ház célját követi, radiátorszelep-tanácsot kap.",
+      trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Megfigyelt helyiség: saját HC termosztát, de csak a kazánon át fűthető – a ház célját követi, radiátorszelep-tanácsot kap.",
       head_hint: "Fejenként: mihez kalibrálja a HC.", head_room: "A helyiség hőmérő(i) – kalibrálás", head_room_none: "A helyiség hőmérője (nincs: a fej saját mérése)", head_own: "A fej saját hőmérője – nincs kalibrálás",
       target: "Cél", follow: "A ház célját követi", own: "Saját menetrend", offset: "Eltérés a ház céljától", target_home: "Otthon", target_night: "Éjszaka", target_away: "Háztartás távol", night: "Éjszaka",
       presence: "Jelenlét", presence_hint: "Helyiség-követő (állapota a helyiség területe, pl. Bermuda) vagy mozgásérzékelő. Senki: a megadott perc után a cél csökken (a fagyhatár alá soha); háztartás távol / szabadság: a háztartás célja.",
       tracker: "helyiség-követő", no_presence: "Nincs jelenlét-forrás.", absent_min: "Távollét ennyi perc után", setback: "Csökkentés", min: "perc",
       demand: "Kérhet rövid égést a kazántól, ha messze a célja alatt van (csak ha a ház nincs a célja fölött)", demand_short: "égést kérhet",
       follows_house: "a ház célját követi", n_sensors: "hőmérő", n_trvs: "fej", rooms_line: "Helyiségek",
+      watched: "megfigyelt", n_presence: "jelenlét", n_windows: "ablak/ajtó", nothing: "nincs eszköz",
+      home_name: "Az otthon neve", home_hint: "A HC info házrajzán jelenik meg (üresen: a példány neve).",
+      single: "Egy helyiség – ez a termosztát (nincs több helyiség)", multi: "Több helyiség ezzel a hőtermelővel",
+      areas: "Területek", areas_hint: "Pipáld be azokat a területeket, amelyek ennek a hőtermelőnek a helyiségei; a kivett pipa a helyiséget is leveszi. Később bármikor módosíthatod.",
+      no_areas: "Nincs Home Assistant-terület.", windows: "Ablak / ajtó",
+      win_own: "Szelepfejes helyiség: nyitáskor csak a saját fejei zárnak le.", win_boiler: "Nyitáskor a kazán leáll (mint a többi ablak).",
       warn_no_leading: "Nincs vezető helyiség kiválasztva: a kazánt a fő hőmérő vezérli, de jelöld meg, melyik helyiségben van.",
       warn_leading_trv: "A vezető helyiségben ({room}) szelepfej van: a fej és a kazán egymás ellen dolgozhat. A fej a ház célját kapja.",
       warn_indoor_trv: "A ház fő hőmérője a(z) {room} szelepfejes helyiségben van: a fej lezár, a kazán pedig a fej szerint áll le – válassz más vezető hőmérőt." },
@@ -133,13 +139,19 @@ const T = {
       add: "Add a room (area)…", custom: "Custom room (no area)", custom_name: "New room", empty: "No rooms yet.", name: "Name", no_area: "no area",
       leading: "Leading room", remove: "Remove", up: "Move up", down: "Move down", sensors: "Thermometers", trvs: "TRV heads", add_sensor: "Another thermometer…", add_trv: "Another TRV head…",
       lead_hint: "Its thermometer runs the boiler (the house target: schedule, presets, household presence). The HC instance's thermostat is this room's thermostat.",
-      trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Its own HC thermostat, but heated only through the boiler: follows the house target, gets radiator valve advice.",
+      trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Watched room: its own HC thermostat, but heated only through the boiler – follows the house target, gets radiator valve advice.",
       head_hint: "Per head: what HC calibrates it to.", head_room: "The room's thermometer(s) – calibrated", head_room_none: "The room's thermometer (none: the head's own reading)", head_own: "The head's own thermometer – no calibration",
       target: "Target", follow: "Follows the house target", own: "Own schedule", offset: "Offset to the house target", target_home: "Home", target_night: "Night", target_away: "Household away", night: "Night",
       presence: "Presence", presence_hint: "A room tracker (its state is the room's area, e.g. Bermuda) or a motion sensor. Nobody: after the given minutes the target is set back (never below the frost limit); household away / vacation: the household target.",
       tracker: "room tracker", no_presence: "No presence source.", absent_min: "Absent after", setback: "Setback", min: "min",
       demand: "May ask the boiler for short burns when far below its target (only while the house is not above its own)", demand_short: "may ask for burns",
       follows_house: "follows the house", n_sensors: "thermometer(s)", n_trvs: "head(s)", rooms_line: "Rooms",
+      watched: "watched", n_presence: "presence", n_windows: "window/door", nothing: "no devices",
+      home_name: "Home name", home_hint: "Shown in the HC info house drawing (empty: the instance's name).",
+      single: "One room – this thermostat (no other rooms)", multi: "Several rooms with this heat source",
+      areas: "Areas", areas_hint: "Tick the areas that are rooms of this heat source; unticking removes the room too. You can change it any time.",
+      no_areas: "No Home Assistant areas.", windows: "Window / door",
+      win_own: "TRV room: opened, only its own heads close.", win_boiler: "Opened: the boiler stops (like the other windows).",
       warn_no_leading: "No leading room chosen: the main thermometer runs the boiler, but mark which room it is in.",
       warn_leading_trv: "The leading room ({room}) has a TRV head: the head and the boiler may work against each other. The head gets the house target.",
       warn_indoor_trv: "The house's main thermometer is in the TRV room {room}: the head closes and the boiler stops by it – choose another leading thermometer." },
@@ -315,22 +327,28 @@ class HcWizardPanel extends HTMLElement {
     if (!Array.isArray(s.roomList)) {
       const e = s.entry_id ? (this._start.entries || []).find((x) => x.entry_id === s.entry_id) : null;
       if (e && (e.rooms || []).length) { s.roomList = e.rooms.map((r) => ({ ...r })); s.leading = e.leading_room || null; }
-      else {
-        s.roomList = (this._rc.suggest || []).map((r) => ({ ...r })); s.leading = this._rc.suggest_leading || null;
-        s.roomList.sort((x, y) => (y.key === s.leading) - (x.key === s.leading));  // a first suggestion: the leading room first
-      }
+      else { s.roomList = []; s.leading = null; }  // 0.46.0: nothing ticked – the areas are chosen in the check list
+      if (s.multi == null) s.multi = s.roomList.length > 0;
+      if (s.home_name == null) s.home_name = (e && e.home_name) || "";
     }
     if (s.leading && !s.roomList.some((r) => r.key === s.leading)) s.leading = null;
   }
   _area(key) { return (this._rc?.areas || []).find((a) => a.area === key) || null; }
   _room(key) { return (this._s.roomList || []).find((r) => r.key === key); }
   _newRoom(area) {
-    const s = this._s, a = this._area(area), t = this._t.rm;
+    // 0.46.0: filled from the area – its thermometers (several: their mean), real free heads, motion sensors, contacts
+    const s = this._s, a = this._area(area), t = this._t.rm, excl = new Set(this._excluded());
     let key = area || `room_${Date.now().toString(36)}`;
     while (s.roomList.some((r) => r.key === key)) key += "_2";
-    s.roomList = [...s.roomList, { key, name: a ? a.name : t.custom_name, area: a ? a.area : null,
-      sensors: a ? a.sensors.filter((x) => !x.head).slice(0, 1).map((x) => x.id) : [], trvs: a ? a.trvs.map((x) => x.id).filter((h) => !this._usedHead(h)) : [],
-      mode: "follow", offset: 0, presence: [], absent_min: 15, setback: 2, demand: false }];
+    const trvs = a ? a.trvs.filter((x) => x.head && !x.taken_by && !excl.has(x.id) && !this._usedHead(x.id)).map((x) => x.id) : [];
+    const lead = !!a && !s.leading && a.area === this._rc?.suggest_leading;
+    const indoor = s.entities.indoor_entity;
+    const sensors = a ? a.sensors.filter((x) => !x.head).map((x) => x.id) : [];
+    if (lead && indoor && !sensors.includes(indoor)) sensors.unshift(indoor);
+    s.roomList = [...s.roomList, { key, name: a ? a.name : t.custom_name, area: a ? a.area : null, sensors, trvs,
+      mode: "follow", offset: 0, presence: trvs.length && a ? a.presence.filter((x) => x.id.startsWith("binary_sensor.")).map((x) => x.id) : [],
+      absent_min: 15, setback: 2, demand: false, windows: a ? (a.windows || []).map((x) => x.id) : [] }];
+    if (lead) s.leading = key;
     this._render();
   }
   _usedHead(h, except) { return (this._s.roomList || []).some((r) => r.key !== except && (r.trvs || []).includes(h)); }
@@ -383,6 +401,8 @@ class HcWizardPanel extends HTMLElement {
         <div class="sub"><b>${t.sensors}</b>${checks(r, "sensors", a.sensors, r.sensors || [])}${adder(r, "sensors", rc.temperature, r.sensors || [], t.add_sensor)}</div>
         <div class="sub"><b>${t.trvs}</b>${checks(r, "trvs", a.trvs.filter((c) => !this._usedHead(c.id, r.key) && !excl.has(c.id)), r.trvs || [])}${adder(r, "trvs", rc.climates.filter((c) => !excl.has(c.id)), r.trvs || [], t.add_trv)}
           ${trv ? `<div class="muted small">${t.head_hint}</div>${r.trvs.map(headSel).join("")}` : ""}</div>
+        ${(a.windows || []).length || (r.windows || []).length ? `<div class="sub"><b>${t.windows}</b>${checks(r, "windows", a.windows || [], r.windows || [])}
+          <div class="muted small">${trv && !lead ? t.win_own : t.win_boiler}</div></div>` : ""}
         ${trv && !lead ? `<div class="sub"><b>${t.target}</b>
           <select data-rm-mode="${esc(r.key)}"><option value="follow" ${own ? "" : "selected"}>${t.follow}</option><option value="own" ${own ? "selected" : ""}>${t.own}</option></select>
           ${own ? num(r, "target_home", r.target_home ?? 21, 5, 30, 0.5, "°C") + num(r, "target_night", r.target_night ?? 19, 5, 30, 0.5, "°C") + num(r, "target_away", r.target_away ?? 17, 5, 30, 0.5, "°C")
@@ -394,16 +414,35 @@ class HcWizardPanel extends HTMLElement {
       </div>`;
     }).join("");
     const used = new Set(list.map((r) => r.area).filter(Boolean));
-    const free = (rc.areas || []).filter((a) => !used.has(a.area));
-    const warn = this._roomWarnings().map((w) => `<div class="warn">⚠ ${esc(w)}</div>`).join("");
-    return `<div class="card trv rooms2"><b>${t.title}</b><p class="hint">${t.hint}</p>${warn}${cards || `<p class="muted">${t.empty}</p>`}
-      <select id="rmadd" aria-label="${t.add}"><option value="">${t.add}</option>${free.map((a) => `<option value="${esc(a.area)}">${esc(a.name)}${a.sensors.length || a.trvs.length ? ` (${a.sensors.length} ${t.n_sensors}, ${a.trvs.length} ${t.n_trvs})` : ""}</option>`).join("")}<option value="__custom">${t.custom}</option></select></div>`;
+    const warn = s.multi ? this._roomWarnings().map((w) => `<div class="warn">⚠ ${esc(w)}</div>`).join("") : "";
+    const count = (a) => [["sensors", t.n_sensors], ["trvs", t.n_trvs], ["presence", t.n_presence], ["windows", t.n_windows]]
+      .filter(([k]) => (a[k] || []).length).map(([k, w]) => `${a[k].length} ${w}`).join(" · ") || t.nothing;
+    const areaList = (rc.areas || []).filter((a) => !a.outdoor || used.has(a.area)).map((a) => `<label class="chk"><input type="checkbox" data-rm-area="${esc(a.area)}" ${used.has(a.area) ? "checked" : ""}>${esc(a.name)} <span class="muted">– ${esc(count(a))}</span></label>`).join("");
+    const top = `<div class="sub"><b>${t.home_name}</b><input class="rname" id="rmhome" value="${esc(s.home_name || "")}" aria-label="${esc(t.home_name)}"><div class="muted small">${t.home_hint}</div></div>
+      <div class="sub"><label class="chk"><input type="radio" name="rmmulti" data-rm-multi="0" ${s.multi ? "" : "checked"}>${t.single}</label>
+        <label class="chk"><input type="radio" name="rmmulti" data-rm-multi="1" ${s.multi ? "checked" : ""}>${t.multi}</label></div>`;
+    if (!s.multi) return `<div class="card trv rooms2"><b>${t.title}</b>${top}</div>`;
+    return `<div class="card trv rooms2"><b>${t.title}</b><p class="hint">${t.hint}</p>${top}
+      <div class="sub"><b>${t.areas}</b><div class="muted small">${t.areas_hint}</div>${areaList || `<span class="muted small">${t.no_areas}</span>`}</div>
+      ${warn}${cards || `<p class="muted">${t.empty}</p>`}
+      <button class="btn ghost small" id="rmcustom">${t.custom}</button></div>`;
   }
   _bindRooms() {
     const r = this.shadowRoot, s = this._s;
     const room = (k) => this._room(k);
     const split = (v) => { const i = v.indexOf("|"); return [v.slice(0, i), v.slice(i + 1)]; };
-    r.getElementById("rmadd")?.addEventListener("change", (e) => { if (e.target.value) this._newRoom(e.target.value === "__custom" ? null : e.target.value); });
+    // 0.46.0: the home's name, one room or several, the areas ticked in a list
+    r.getElementById("rmcustom")?.addEventListener("click", () => this._newRoom(null));
+    r.getElementById("rmhome")?.addEventListener("change", (e) => { s.home_name = e.target.value.trim(); });
+    r.querySelectorAll("[data-rm-multi]").forEach((i) => i.addEventListener("change", () => { s.multi = i.dataset.rmMulti === "1"; this._render(); }));
+    r.querySelectorAll("[data-rm-area]").forEach((i) => i.addEventListener("change", () => {
+      const area = i.dataset.rmArea;
+      if (i.checked) { if (!s.roomList.some((x) => x.area === area)) this._newRoom(area); return; }
+      const gone = s.roomList.filter((x) => x.area === area).map((x) => x.key);
+      s.roomList = s.roomList.filter((x) => x.area !== area);
+      if (gone.includes(s.leading)) s.leading = null;
+      this._render();
+    }));
     r.querySelectorAll("[data-rm-remove]").forEach((b) => b.addEventListener("click", () => {
       s.roomList = s.roomList.filter((x) => x.key !== b.dataset.rmRemove);
       if (s.leading === b.dataset.rmRemove) s.leading = null;
@@ -458,7 +497,7 @@ class HcWizardPanel extends HTMLElement {
         if (r.key !== s.leading) bits.push(r.mode === "own" ? t.own : `${t.follow}${r.offset ? ` ${r.offset > 0 ? "+" : ""}${r.offset} °C` : ""}`);
         if ((r.presence || []).length && r.key !== s.leading) bits.push(`${t.presence}: ${r.presence.length}`);
         if (r.demand && r.key !== s.leading) bits.push(t.demand_short);
-      } else if (r.key !== s.leading) bits.push(t.follows_house);
+      } else if (r.key !== s.leading) bits.push(t.watched);
       return `${r.name} (${bits.join(", ")})`;  // plain text: line() escapes it
     }).join("; ");
   }
@@ -469,7 +508,8 @@ class HcWizardPanel extends HTMLElement {
     try {
       const ents = { ...s.entities };
       // 0.43.0: the rooms (the backend writes the legacy keys next to them)
-      const rooms = this._trvOk() && Array.isArray(s.roomList) ? { rooms: s.roomList, leading_room: s.leading || null } : {};
+      const rooms = this._trvOk() && Array.isArray(s.roomList)
+        ? { rooms: s.multi ? s.roomList : [], leading_room: s.multi ? s.leading || null : null, home_name: s.home_name || "" } : {};
       const res = await this._hass.callWS({ type: "hc_thermostat/wizard/apply", entry_id: s.entry_id, name: s.name,
         heat_source: s.heat_source, system: s.system, control: s.control, entities: ents, settings: s.settings, ...rooms,
         ...(s.entry_id ? {} : { start_active: !!s.start_active }) });

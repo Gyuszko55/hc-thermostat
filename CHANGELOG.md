@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.46.0 – 2026-11-12
+Rooms set up from the home's areas, in fewer and shorter steps (and point 6 of an outside tester's feedback: only the
+ticked areas are rooms – no server room or control cabinet as a heating zone).
+- **Options:** the menu has **Rooms** next to *Settings*; it saves only the rooms (the other settings stay as they
+  are), and *Settings* no longer walks through the rooms (it ends after the presets and keeps the rooms).
+  1. *Areas:* the home's name and every indoor area as a check box with what it has ("Kitchen – 2 thermometers ·
+     1 TRV head · 1 presence · 1 window/door"); an area another HC instance uses is marked and refused; rooms without
+     an area by name. Unticking removes the room (and its thermostat), never touches the heads.
+  2. *Settings:* the leading room (by default the room of the house thermometer), the valve advice tolerance (moved
+     here from *Settings*), then **one fold-out section per room** with the area's devices as check boxes – ticked
+     already for a new room: thermometers (not a head's own one), real free TRV heads, motion / occupancy sensors,
+     window / door contacts – and "Add another device" for one from another area (sorted in by its kind). Target,
+     presence setback, boiler demand and **per head calibration** (before only in the wizard) appear only for a TRV
+     room that is not the leading one. The place in the house drawing is a number in the section.
+  3. *Own schedule:* only for the rooms set to it.
+  Problems are told with the room's name (a thermometer or head ticked in two rooms, a room with nothing, a head of
+  another instance, a leading room with a head without the confirmation).
+- **Window / door per room:** in a TRV room its contacts close **only the room's own heads** (frost target after the
+  window delay, back at once when closed – reason `window`); in the leading room and in a room without a TRV they stop
+  the boiler as the instance's window list does. A contact of the instance's list that is ticked in a TRV room counts
+  only there from then on.
+- **Room groups (HC's own entities):** a room with two or more thermometers gets `sensor.<room>_homerseklet_hc` (their
+  mean, as HC regulates), two or more presence sources `binary_sensor.<room>_jelenlet_hc` (anyone there), two or more
+  contacts `binary_sensor.<room>_ablak_hc` (any open) (English: `_temperature_hc`, `_presence_hc`, `_window_hc`). They
+  come and go with the room and follow its members; a legacy (pre-0.43) room list gets none.
+- **Wizard:** the Rooms card starts with the home's name and "One room – this thermostat" / "Several rooms with this heat
+  source"; the areas are a check list and **nothing is ticked by itself** (before: every area with a thermometer was
+  suggested); a ticked area comes filled as above (all its thermometers, its windows); window / door per room.
+- **Wording:** a room without a TRV is a **watched room** ("megfigyelt") in the wizard, the options summary and HC info;
+  HC info shows each room's role and its windows (and what they do).
+- **House drawing:** the home's name on the gable (else the instance's name).
+- Tests: tests/test_rooms_460.py (14); tests/test_rooms_430.py etc. unchanged in substance.
+
 ## 0.45.0 – 2026-11-12
 Fixes from a "boxed retail release" review: on a new Home Assistant HC can be taken into use in a few clicks.
 - **°F and imperial systems:** thermometers are read in °C by their `unit_of_measurement` (a weather entity by its

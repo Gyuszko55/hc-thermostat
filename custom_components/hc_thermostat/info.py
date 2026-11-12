@@ -140,11 +140,12 @@ def _room_list(hass, entry) -> list[dict]:
         st = (getattr(c, "room_states", {}) or {}).get(s.key) or {}
         out.append(jsonable({**st, "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
                              "trvs": list(s.trvs), "sensors": list(s.sensors), "presence_sources": list(s.presence),
+                             "windows": list(s.windows),
                              "absent_min": s.absent_min, "setback": s.setback, "mode": s.mode, "offset": s.offset,
                              "demand_allowed": s.demand, "entity_id": ids.get(s.key),
                              "own": {"home": s.target_home, "night": s.target_night, "away": s.target_away,
                                      "night_start": s.night_start, "night_end": s.night_end} if s.mode == "own" else None,
-                             "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence]}}))
+                             "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence, *s.windows]}}))
     return out
 
 

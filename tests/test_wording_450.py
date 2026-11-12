@@ -47,10 +47,10 @@ def test_translation_keys_and_placeholders_match():
 
 def test_area_means_home_assistant_area():
     hu, en = _load("hu.json"), _load("en.json")
-    room_hu, room_en = hu["options"]["step"]["room"], en["options"]["step"]["room"]
-    assert room_en["data"]["area"] == "Area" and room_hu["data"]["area"] == "Terület"
-    assert "room's area" in room_en["data_description"]["presence"]
-    assert "helyiség területe" in room_hu["data_description"]["presence"]
-    assert hu["options"]["step"]["rooms"]["title"] == "Helyiségek" and en["options"]["step"]["rooms"]["title"] == "Rooms"
+    room_hu, room_en = hu["options"]["step"]["room_details"], en["options"]["step"]["room_details"]
+    assert "room's area" in room_en["description"] and "helyiség területe" in room_hu["description"]
+    rooms_hu, rooms_en = hu["options"]["step"]["rooms"], en["options"]["step"]["rooms"]
+    assert rooms_hu["data"]["areas"] == "Területek" and rooms_en["data"]["areas"] == "Areas"
+    assert rooms_hu["title"].startswith("Helyiségek") and rooms_en["title"].startswith("Rooms")
     wiz = (BASE / "www" / "hc-wizard-panel.js").read_text(encoding="utf-8")
     assert 'add: "Add a room (area)…"' in wiz and 'add: "Helyiség hozzáadása (terület)…"' in wiz

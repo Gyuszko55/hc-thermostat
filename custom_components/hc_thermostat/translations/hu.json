@@ -151,7 +151,8 @@
         "title": "HC Thermostat",
         "description": "Mit szeretnél módosítani?",
         "menu_options": {
-          "settings": "Beállítások (célok, időzítés, eszközök, helyiségek)",
+          "settings": "Beállítások (célok, időzítés, eszközök)",
+          "rooms": "Helyiségek (területek, hőmérők, szelepfejek, jelenlét, ablakok)",
           "go_live": "Élesítés – a HC kapcsolni kezd",
           "go_shadow": "Vissza árnyék módba – a HC csak számol"
         }
@@ -190,7 +191,6 @@
           "energy_factor": "Egységnyi hő a kazánból (pl. kWh/m³ gáz × hatásfok)",
           "extra_factor": "Egységnyi hő a másik forrásból (pl. COP)",
           "boiler_power_kw": "Kazán teljesítménye (0 = a hőigényt nem használja a szabályozásban)",
-          "room_tolerance": "Helyiség eltérésének tűrése",
           "zone_temp_entity": "Csatlakozó tér hőmérője (pl. télikert, szomszéd helyiség)",
           "zone_door_entities": "Ajtók a csatlakozó térbe",
           "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
@@ -383,62 +383,29 @@
         }
       },
       "rooms": {
-        "title": "Helyiségek",
-        "description": "A kazánhoz tartozó helyiségek. A vezető helyiség (szabályozó szelepfej nélkül) a ház hőmérőjével vezérli a kazánt; minden más helyiség saját HC termosztátot (climate) kap:\n- a szelepfejes helyiség a fejekkel szabályoz: saját cél (a ház célja + eltérés, vagy saját menetrend), opcionális jelenlét, opcionális rövid égés-kérés;\n- a szelepfej nélküli helyiség csak a kazánon át fűthető: a ház célját mutatja, és radiátorszelep-tanácsot kap.\n\nMost:\n{rooms_hu}<!-- {rooms_en} -->\n\nA lista sorrendje a helyiségek sorrendje a HC info házrajzán: alsó sor először (a kazánház mellett), balról jobbra, aztán felfelé; Home Assistant-szintek esetén a szintek adják az emeleteket. Egy helyiség helyét a szerkesztő űrlapján lehet módosítani.",
-        "menu_options": {
-          "room_add": "Helyiség hozzáadása",
-          "room_pick": "Helyiség szerkesztése",
-          "room_remove": "Helyiségek törlése",
-          "room_leading": "Vezető helyiség (a kazánt vezérli)",
-          "rooms_done": "Mentés"
-        }
-      },
-      "room_pick": {
-        "title": "Helyiség szerkesztése",
-        "description": "Melyik helyiség?",
+        "title": "Helyiségek – területek",
+        "description": "Pipáld be azokat a Home Assistant-területeket, amelyek ennek a kazánnak a helyiségei. Mellettük látszik, mit találtam bennük. Egy pipa kivétele a helyiséget (és a HC termosztátját) megszünteti; a szelepfejekhez nem nyúl. Később bármikor módosíthatod.\n\nMost:\n{rooms_hu}<!-- {rooms_en} -->",
         "data": {
-          "room": "Helyiség"
-        }
-      },
-      "room_remove": {
-        "title": "Helyiségek törlése",
-        "description": "A helyiség HC termosztátja is megszűnik; a szelepfejekhez nem nyúl.",
-        "data": {
-          "rooms": "Törlendő helyiségek"
-        }
-      },
-      "room_leading": {
-        "title": "Vezető helyiség",
-        "description": "Az a helyiség, amelynek hőmérője a kazánt vezérli (általában a nappali, szelepfej nélkül). A hőmérői lesznek a ház hőmérői.",
-        "data": {
-          "leading_room": "Vezető helyiség",
-          "confirm": "Igen, a vezető helyiségben szelepfej van (a ház célját kapja)"
-        }
-      },
-      "room": {
-        "title": "Helyiség: {room}",
-        "description": "Hőmérők: több esetén az átlaguk számít (a kiesett kimarad). Szelepfejek: a helyiség célját kapják, a helyiség hőmérőihez kalibrálva (hőmérő nélkül a saját mérésük szerint). Szelepfej nélkül a helyiség a ház célját követi, a lenti cél-, jelenlét- és égéskérés-mezők nem számítanak.\n\nCél: „követi” = a ház célja + eltérés (éjszaka, távollét, presetek követik); „saját” = saját otthon / éjszakai / távolléti hőfok és éjszakai időszak.\n\nJelenlét (opcionális): olyan szenzorok, amelyek állapota a helyiség területe (telefonos helyiség-követő, pl. Bermuda, vagy input_select), vagy mozgás-/jelenlétérzékelők (be = jelen van). A megadott percig senki → cél − csökkentés (a fagyhatár alá soha); a háztartás távol / szabadságon → a háztartás célja.",
-        "data": {
-          "name": "Név",
-          "area": "Terület",
-          "sensors": "Hőmérők",
-          "trvs": "Szelepfejek (climate)",
-          "mode": "Cél",
-          "offset": "Eltérés a ház céljától",
-          "target_home": "Saját: otthon hőfok",
-          "target_night": "Saját: éjszakai hőfok",
-          "target_away": "Saját: háztartás távol hőfok",
-          "night_start": "Saját: éjszaka kezdete",
-          "night_end": "Saját: éjszaka vége",
-          "presence": "Jelenlét-források",
-          "absent_min": "Távollét ennyi perc után",
-          "setback": "Csökkentés távollétben",
-          "demand": "Kérhet rövid égést a kazántól, ha messze a célja alatt van (szelepfejes helyiség)",
-          "position": "Helye a listában (sorrend a HC info rajzán)"
+          "home_name": "Az otthon neve",
+          "areas": "Területek",
+          "custom_rooms": "Új helyiség terület nélkül (név; több vesszővel)"
         },
         "data_description": {
-          "presence": "Helyiség-követő (állapota a helyiség területe, pl. Bermuda BLE-követés) vagy mozgás- / jelenlétérzékelő. Ha a megadott percig senki nincs ott, a helyiség célja csökken."
+          "home_name": "A HC info házrajzán jelenik meg (üresen: a példány neve)."
         }
+      },
+      "room_details": {
+        "title": "Helyiségek – beállítás",
+        "description": "Helyiségenként egy lenyíló: a terület eszközei jelölőnégyzetekkel (az új helyiségnél előre bepipálva).\n- Több hőmérő: az átlaguk számít, a HC létrehoz hozzá egy csoport-hőmérőt; jelenlét és ablak: bármelyik jelez.\n- Vezető helyiség: a hőmérője vezérli a kazánt. Szelepfejes helyiség: a fejei a helyiség célját kapják; az ablaka csak a saját fejeit zárja le. Szelepfej nélküli (megfigyelt) helyiség: csak a kazánon át fűthető, az ablaka a kazánt állítja le.\n- „Más eszköz hozzáadása”: másik területről; a HC eldönti, hová tartozik.\n- Jelenlét: helyiség-követő (állapota a helyiség területe, pl. Bermuda) vagy mozgás- / jelenlétérzékelő. Ha a megadott percig senki nincs ott, a helyiség célja a csökkentéssel lejjebb megy (a fagyhatár alá soha).\n\n{rooms_hu}<!-- {rooms_en} -->",
+        "data": {
+          "leading_room": "Vezető helyiség (a kazánt vezérli)",
+          "confirm": "Igen, a vezető helyiségben szelepfej van (a ház célját kapja)",
+          "room_tolerance": "Szelep-tanács tűrése (helyiség eltérése a háztól)"
+        }
+      },
+      "room_own": {
+        "title": "Helyiségek – saját menetrend",
+        "description": "A „saját menetrend” célú helyiségek hőfokai és éjszakai időszaka. A háztartás szabadságán a ház szabadság-célja számít.\n\n{rooms_hu}<!-- {rooms_en} -->"
       }
     },
     "error": {
@@ -446,14 +413,8 @@
       "humidity_required": "Padlóhűtéshez páratartalom-szenzor kell (harmatpont nélkül nem hűt).",
       "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
       "demand_required": "Ennek a példánynak nincs helyiséghőmérője: a fali termosztát érintkezője kötelező.",
-      "room_name": "Adj nevet a helyiségnek.",
-      "room_name_taken": "Van már ilyen nevű helyiség.",
-      "room_empty": "Egy helyiséghez hőmérő vagy szelepfej kell.",
-      "trv_is_hc": "HC termosztát nem lehet szelepfej.",
-      "trv_taken": "Ez a szelepfej már egy másik helyiségben van.",
-      "trv_other_instance": "Ezt a szelepfejet már egy másik HC-példány vezérli – két példány egymással versengene.",
-      "leading_trv": "A vezető helyiségben szelepfej van: pipáld be a megerősítést (a fejei a ház célját kapják).",
-      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna."
+      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna.",
+      "room_problem": "{problem}"
     }
   },
   "selector": {

@@ -6,6 +6,7 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass, Bina
 
 from .const import CONF_ROLE
 from .entity import HcEntity
+from .room_groups import RoomBinaryGroup, groups_of, remove_old_groups
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -19,7 +20,10 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     entities = [HcDemand(c), HcFault(c)]
     if c.cfg.control not in ("external", "ac"):
         entities.append(HcBoilerProblem(c))
-    async_add_entities(entities)
+    # 0.46.0: a room with two or more presence sources / window contacts gets its group
+    groups = [RoomBinaryGroup(c, s, k) for s, k in groups_of(c, ("presence", "window"))]
+    remove_old_groups(hass, entry, "binary_sensor", {g.unique_id for g in groups})
+    async_add_entities(entities + groups)
 
 
 class HcDemand(HcEntity, BinarySensorEntity):

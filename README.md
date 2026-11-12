@@ -217,7 +217,7 @@ average, household presence, day / night by the sun, and today's gas (m³) or he
 `heat_energy_entity` meter since local midnight (recorder statistics, else the state history; read every 5 minutes).
 The rooms come from the host's room list (0.43.0) **in its order**: the bottom row first, next to the plant room, left
 to right, then upwards; when Home Assistant floors are set on the areas, the floors give the storeys. Change the order
-in the options (Rooms → edit a room → place in the list) or with the ↑ ↓ buttons of the wizard's Rooms card. Other
+in the options (Rooms → the room's section → place in the house drawing) or with the ↑ ↓ buttons of the wizard's Rooms card. Other
 rooms with a listed sensor (a window-drop thermometer, a separate zone) follow. A click on any part scrolls to its data
 card (outdoor, HC controller, leading room, heat source / gas); a room or a TRV head opens the room's own card.
 Light / dark follows the Home Assistant theme, it fits a phone, and it stays still with "reduce motion". Central and
@@ -317,9 +317,17 @@ the household presence as before. Every other room gets **its own HC thermostat*
   target changes (schedule, presence, the house target it follows), like the house. A room thermostat can be
   switched off (its heads get the frost limit).
 
-**Where it is set:** the setup wizard's "Rooms" card (per area: thermometers, TRV heads, leading room, target, presence,
-boiler demand; warnings when the leading room has a TRV head or the house thermometer sits in a TRV room), and the
-options' "Rooms" menu (add / edit / remove a room, leading room). Saved as one `rooms` list and `leading_room` in the
+**Where it is set (0.46.0):** the options' **Rooms** menu item – (1) tick the home's areas that are rooms (each shows
+what it has), (2) one fold-out section per room with the area's thermometers, TRV heads, presence sources and window /
+door contacts as check boxes (a new room comes ticked), the leading room on top, target / presence / boiler demand /
+per head calibration only for a TRV room, (3) the own schedules; it saves only the rooms. The setup wizard's "Rooms" card
+works the same way (one room or several, the areas as a check list – nothing ticked by itself). A room without a TRV is a
+**watched room**.
+
+- **Window / door per room (0.46.0):** in a TRV room its contacts close only the room's own heads (frost target after
+  the window delay); in the leading room and in a watched room they stop the boiler like the instance's window list.
+- **Room groups (0.46.0):** two or more thermometers / presence sources / contacts in a room give HC's own group entity
+  (mean temperature, anyone present, any open), on the room's device; they follow the room. Saved as one `rooms` list and `leading_room` in the
 instance's options; the old keys (`room_sensors`, `room_trvs`, `trv_sensors`, `trv_offsets`, `room_trv_demand`) are
 written next to them, so the cards and a rollback keep working.
 

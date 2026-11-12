@@ -19,7 +19,10 @@ Room level (every other room):
   vacation the household target counts and no setback is added. Restart-safe: unknown sources hold the last state, and
   for a while after a start a "nobody here" does not start the absence clock;
 - a manual target or preset set on the room's climate holds until the room's automatic target changes (schedule,
-  presence, the house target it follows).
+  presence, the house target it follows);
+- 0.46.0: per room window / door contacts. In a TRV room they close the room's own heads only (frost target while
+  one is open, after the window delay); in the leading room and in a room without a TRV they count as before: the
+  boiler's window stop (`general_windows`).
 
 Storage: one `rooms` list in the host's options (dicts, see RoomSpec.as_dict) and `leading_room` (a room key). Without
 `rooms` the list is derived from the legacy options (`room_sensors`, `room_trvs`, `trv_sensors`, `trv_offsets`,
@@ -94,6 +97,7 @@ class RoomSpec:
     absent_min: float = DEFAULT_ABSENT_MIN
     setback: float = DEFAULT_SETBACK
     demand: bool = False  # a TRV room far below its target may ask the boiler for short burns
+    windows: list[str] = field(default_factory=list)  # 0.46.0: window / door contacts of the room
 
     @property
     def has_trv(self) -> bool:
@@ -117,6 +121,8 @@ class RoomSpec:
                "trvs": list(self.trvs), "mode": self.mode, "offset": self.offset,
                "presence": list(self.presence), "absent_min": self.absent_min, "setback": self.setback,
                "demand": self.demand}
+        if self.windows:
+            out["windows"] = list(self.windows)
         if self.head_sensors:
             out["head_sensors"] = dict(self.head_sensors)
         if self.mode == OWN:
@@ -157,6 +163,7 @@ def parse_room(raw: dict, taken: set[str] | None = None) -> RoomSpec | None:
         absent_min=_num(raw.get("absent_min"), DEFAULT_ABSENT_MIN, 1.0, 720.0),
         setback=_num(raw.get("setback"), DEFAULT_SETBACK, 0.0, 10.0),
         demand=bool(raw.get("demand")) and bool(trvs),
+        windows=_ids(raw.get("windows"), ("binary_sensor.", "input_boolean.")),
     )
 
 
@@ -259,6 +266,19 @@ def rooms_options(rooms: list[dict], leading: str | None, indoor: str | None) ->
     return out
 
 
+def own_windows(specs: list[RoomSpec], leading: str | None) -> set[str]:
+    """0.46.0: the contacts that close only their own room's heads (a TRV room that is not the leading one)."""
+    return {w for s in specs if s.trvs and s.key != leading for w in s.windows}
+
+
+def general_windows(conf_windows, specs: list[RoomSpec], leading: str | None) -> list[str]:
+    """0.46.0: the contacts that stop the boiler: the instance's list and the windows of the leading room and of the
+    rooms without a TRV – but not a contact that belongs to a TRV room (that one closes the room's heads only)."""
+    mine = own_windows(specs, leading)
+    general = [w for s in specs if not (s.trvs and s.key != leading) for w in s.windows]
+    return [w for w in dict.fromkeys([*(conf_windows or []), *general]) if w not in mine]
+
+
 def group_mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
@@ -337,7 +357,7 @@ def is_night(now: datetime, start: str, end: str) -> bool:
 @dataclass
 class RoomTarget:
     target: float
-    reason: str  # off | manual | preset_home | preset_away | follow | home | night | household_away | household_vacation | absent
+    reason: str  # off | window | manual | preset_home | preset_away | follow | home | night | household_away | household_vacation | absent
     auto: float  # the automatic target (without a manual target / preset)
     base: float  # the target while present (before the setback)
 
@@ -353,9 +373,21 @@ class RoomControl:
         self.enabled = True
         self.presence_state = PRESENT
         self._auto_key: tuple | None = None
+        self.window_since: datetime | None = None  # 0.46.0: a window of the room open since
+        self.window_open = False  # open for at least the window delay
+
+    def update_window(self, now: datetime, is_open: bool, delay_s: float) -> bool:
+        """0.46.0: a window of the room counts once it has been open for `delay_s`; closed: at once."""
+        if not is_open:
+            self.window_since, self.window_open = None, False
+        else:
+            if self.window_since is None:
+                self.window_since = now
+            self.window_open = (now - self.window_since).total_seconds() >= delay_s
+        return self.window_open
 
     def target(self, spec: RoomSpec, now: datetime, house: float, household: str, frost: float,
-               vacation: float, commit: bool = True) -> RoomTarget:
+               vacation: float, commit: bool = True, window: bool = False) -> RoomTarget:
         """household: home | away | vacation (the host's active preset / household presence). commit=False: only
         look (a manual target that the change would end is left out, but not forgotten)."""
         if spec.mode == OWN:
@@ -382,6 +414,8 @@ class RoomControl:
             self._auto_key = key
         if not self.enabled:
             return RoomTarget(frost, "off", auto, base)
+        if window:  # 0.46.0: a window of the room is open – its heads hold the frost target
+            return RoomTarget(frost, "window", auto, base)
         if manual is not None:
             return RoomTarget(max(frost, manual), "manual", auto, base)
         if preset == "home":

@@ -258,6 +258,20 @@ def room_specs_for(hass, conf: dict, sensor_groups: dict | None = None, trv_grou
 
 
 PRESENCE_CLASSES = ("motion", "occupancy", "presence")
+WINDOW_CLASSES = ("window", "door", "opening", "garage_door")
+
+
+def areas_of_other_instances(hass, entry_id: str | None = None) -> dict[str, str]:
+    """0.46.0: area -> the title of the other HC instance that has a room there."""
+    from .core.room_model import CONF_ROOM_LIST
+    out: dict[str, str] = {}
+    for entry in _hc_entries(hass):
+        if entry.entry_id == entry_id:
+            continue
+        for r in {**entry.data, **entry.options}.get(CONF_ROOM_LIST) or []:
+            if isinstance(r, dict) and isinstance(r.get("area"), str) and r["area"]:
+                out.setdefault(r["area"], entry.title)
+    return out
 HEAD_WORDS = ("trv", "fej", "valve", "szelep", "local_temperature", "local temperature")
 
 
@@ -277,7 +291,8 @@ def rooms_candidates(hass) -> dict:
     areas = {a.id: a.name for a in ar.async_get(hass).async_list_areas()}
     names = {n.casefold() for n in areas.values()} | {k.casefold() for k in areas}
     ent_reg = er.async_get(hass)
-    by_area: dict[str, dict] = {k: {"area": k, "name": n, "sensors": [], "trvs": [], "presence": []} for k, n in areas.items()}
+    by_area: dict[str, dict] = {k: {"area": k, "name": n, "sensors": [], "trvs": [], "presence": [], "windows": []}
+                                for k, n in areas.items()}
     tracking, temps, climates = [], [], []
     for st in hass.states.async_all():
         e = ent_reg.async_get(st.entity_id)
@@ -298,6 +313,9 @@ def rooms_candidates(hass) -> dict:
             climates.append(item)
             if area in by_area:
                 by_area[area]["trvs"].append(item)
+        elif dom == "binary_sensor" and a.get("device_class") in WINDOW_CLASSES:  # 0.46.0: the room's contacts
+            if area in by_area:
+                by_area[area]["windows"].append(item)
         elif dom in ("binary_sensor", "input_boolean") and (a.get("device_class") in PRESENCE_CLASSES or dom == "input_boolean"):
             if area in by_area:
                 by_area[area]["presence"].append(item)
@@ -313,7 +331,7 @@ def rooms_candidates(hass) -> dict:
                              or any(w in f"{x['id']} {x['name']}".lower() for w in HEAD_WORDS))
         v["sensors"].sort(key=lambda x: (x["head"], *key(x)))
     for v in by_area.values():
-        for k in ("trvs", "presence"):
+        for k in ("trvs", "presence", "windows"):
             v[k].sort(key=key)
     # 0.44.2: outdoor areas, real heads and heads another HC instance already drives
     taken = climates_of_other_instances(hass)  # 0.45.0: their managed thermostats too

@@ -93,6 +93,7 @@ def test_a_window_contact_that_is_gone_is_reported():
     keys = coordinator
     me.conf = {keys.CONF_INDOOR: "sensor.bent", keys.CONF_OUTDOOR: "sensor.kint",
                keys.CONF_WINDOWS: ["binary_sensor.konyha_ajto"]}
+    me._window_ids = lambda: keys.HcCoordinator._window_ids(me)  # 0.46.0: no rooms here – the instance's list
     keys.HcCoordinator._update_sensor_problems(me, T0)
     keys.HcCoordinator._update_sensor_problems(me, T0 + timedelta(minutes=11))
     assert me.sensor_problems == {"binary_sensor.konyha_ajto": "lost"}
@@ -132,4 +133,4 @@ def test_pid_does_not_integrate_a_stalled_update():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.5", "0.45.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.5", "0.45.0", "0.46.0")

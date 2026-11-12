@@ -319,17 +319,17 @@ def _options_flow(options, data=None):
 def test_options_start_with_a_menu_and_go_live_only_switches_the_mode():
     flow = _options_flow({"mode": "shadow", "target_home": 21.5})
     kind, kw = asyncio.run(flow.async_step_init())
-    assert kind == "menu" and kw["menu_options"] == ["settings", "go_live"]
+    assert kind == "menu" and kw["menu_options"] == ["settings", "rooms", "go_live"]  # 0.46.0: rooms on their own
     kind, kw = asyncio.run(flow.async_step_go_live({"confirm": False}))
     assert kind == "form" and kw["errors"] == {"confirm": "confirm_active"}
     kind, kw = asyncio.run(flow.async_step_go_live({"confirm": True}))
     assert kind == "create" and kw["data"] == {"mode": "active", "target_home": 21.5}
     flow = _options_flow({"mode": "active", "target_home": 21.5})
-    assert asyncio.run(flow.async_step_init())[1]["menu_options"] == ["settings", "go_shadow"]
+    assert asyncio.run(flow.async_step_init())[1]["menu_options"] == ["settings", "rooms", "go_shadow"]
     assert asyncio.run(flow.async_step_go_shadow({}))[1]["data"] == {"mode": "shadow", "target_home": 21.5}
     for lang in ("hu", "en"):
         st = _tr(lang)["options"]["step"]
-        assert set(st["init"]["menu_options"]) == {"settings", "go_live", "go_shadow"} and "settings" in st
+        assert set(st["init"]["menu_options"]) == {"settings", "rooms", "go_live", "go_shadow"} and "settings" in st
 
 
 def test_the_wizard_may_start_a_new_instance_live():
@@ -357,7 +357,7 @@ def test_cop_field_is_no_kwh_and_jargon_is_explained():
         assert "i-Feel" in t["config"]["step"]["control"]["data_description"]["control"]
         dd = t["options"]["step"]["settings"]["data_description"]
         assert {"control", "cycle_s", "pid_kp", "power_idle_w", "extra_factor"} <= set(dd)
-        assert "Bermuda" in t["options"]["step"]["room"]["data_description"]["presence"]
+        assert "Bermuda" in t["options"]["step"]["room_details"]["description"]
 
 
 def test_big_attributes_are_not_recorded():

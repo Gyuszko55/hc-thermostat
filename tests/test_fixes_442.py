@@ -104,7 +104,7 @@ def test_wizard_suggestion(monkeypatch):
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0")
 
 
 # --- PWM: a demand that grows past the minimum run mid-cycle (11-12 morning, Cirkó) ------------------------------

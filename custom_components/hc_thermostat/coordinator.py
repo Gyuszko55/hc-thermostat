@@ -31,7 +31,7 @@ from .core.model import Reason
 from .core.rooms import RoomMonitor, room_text
 from .core.trv import RoomDemand, TrvCalibration, TrvTargets
 from .core.room_model import (
-    PRESENT, SETTLE_S, RoomControl, RoomSpec, group_mean, presence_of,
+    PRESENT, SETTLE_S, RoomControl, RoomSpec, general_windows, group_mean, presence_of,
 )
 from .core.cost import CostAdvice, compare
 from .core.messages import explain
@@ -260,10 +260,19 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             return Presence.HOME
         return Presence.VACATION if any(v in _VACATION for v in values) else Presence.AWAY
 
+    def _window_ids(self) -> list[str]:
+        """0.46.0: the contacts that stop the boiler – the instance's list plus the windows of the leading room and of
+        the rooms without a TRV; a contact of a TRV room closes only that room's heads."""
+        try:
+            specs, leading = self.room_specs()
+        except Exception:  # no rooms (central, tests without a hass)
+            return list(self.conf.get(CONF_WINDOWS) or [])
+        return general_windows(self.conf.get(CONF_WINDOWS), specs, leading)
+
     def _window_open(self) -> bool:
         return any(
             (s := self.hass.states.get(e)) is not None and s.state == "on"
-            for e in self.conf.get(CONF_WINDOWS) or []
+            for e in self._window_ids()
         )
 
     def _cumulative(self, entity_id: str | None) -> float | None:
@@ -398,7 +407,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if self.cfg.demand_contact:
             checks.append((conf.get(CONF_DEMAND), None))
         # 0.44.5 (as Versatile Thermostat #2052): a window / door contact that is gone counts as closed – say so
-        checks += [(e, None) for e in conf.get(CONF_WINDOWS) or []]
+        checks += [(e, None) for e in self._window_ids()]
         current: dict[str, str] = {}
         for entity, plaus in checks:
             if not entity:
@@ -814,6 +823,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         settling = started is not None and (now - started).total_seconds() < SETTLE_S
         for spec in self.other_rooms():
             ctl = self._ctl(spec.key)
+            # 0.46.0: a window of a TRV room closes the room's heads (after the window delay)
+            ctl.update_window(now, bool(spec.trvs) and self._any_on(spec.windows), self.cfg.window_delay_s)
             if not spec.presence or not spec.trvs:
                 ctl.presence_state = PRESENT
                 continue
@@ -822,7 +833,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     @callback
     def async_track_room_presence(self):
         """A presence source changes: decide at once (the 30 s step would follow anyway)."""
-        ids = list(dict.fromkeys(e for s in self.other_rooms() if s.trvs for e in s.presence))
+        ids = list(dict.fromkeys(e for s in self.other_rooms() if s.trvs for e in [*s.presence, *s.windows]))
         if not ids:
             return lambda: None
 
@@ -846,8 +857,27 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _room_target(self, spec: RoomSpec, house: float, now: datetime, commit: bool = True):
         cfg = self.cfg
-        return self._ctl(spec.key).target(spec, now, house, self._household(now), cfg.frost_temp, cfg.target_vacation,
-                                          commit)
+        ctl = self._ctl(spec.key)
+        return ctl.target(spec, now, house, self._household(now), cfg.frost_temp, cfg.target_vacation, commit,
+                          window=ctl.window_open)
+
+    def _any_on(self, ids: list[str]) -> bool:
+        return any((s := self.hass.states.get(e)) is not None and s.state == "on" for e in ids)
+
+    # --- 0.46.0: a room's groups (its own sensor / binary sensors when it has more than one of a kind) ----------------
+    def room_group_value(self, key: str, kind: str):
+        """temperature: the mean of the room's fresh thermometers (the leading room: the house reading); presence:
+        someone is in the room by any source (None: nothing known); window: any contact open."""
+        spec = next((s for s in self.room_specs()[0] if s.key == key), None)
+        if spec is None:
+            return None
+        now = dt_util.now()
+        if kind == "temperature":
+            return self._fresh_value(spec.sensors, now)
+        if kind == "window":
+            return self._any_on(spec.windows)
+        obs = [o for o in self._presence_obs(spec) if o is not None]
+        return any(obs) if obs else None
 
     def _trv_temp(self, head: str) -> float | None:
         state = self.hass.states.get(head)
@@ -919,7 +949,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             a = advice.get(spec.name)
             common = {"key": spec.key, "name": spec.name, "area": spec.area, "leading": is_lead, "trv": spec.has_trv,
                       "temperature": round(temp, 2) if temp is not None else None, "sensors": list(spec.sensors),
-                      "house_target": house, "mode": spec.mode, "offset": spec.offset,
+                      "house_target": house, "mode": spec.mode, "offset": spec.offset, "windows": list(spec.windows),
                       "advice": {"advice": a.advice, "deviation": a.deviation, "hours": a.hours} if a else None}
             if not spec.trvs:
                 states[spec.key] = {**common, "target": house, "reason": "leading" if is_lead else "house",
@@ -974,7 +1004,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                     _LOGGER.warning("Could not set the target of %s", head, exc_info=True)
             ctl = self._ctl(spec.key)
             states[spec.key] = {**common, "target": round(base, 2), "reason": reason, "heating": heating,
-                                "presence": presence, "presence_sources": list(spec.presence),
+                                "presence": presence, "presence_sources": list(spec.presence), "window": ctl.window_open,
                                 "absent_since": ctl.presence.absent_since.isoformat() if ctl.presence.absent_since else None,
                                 "enabled": ctl.enabled, "manual": ctl.manual, "preset": ctl.preset,
                                 "demand_allowed": spec.demand, "asking": spec.name in asking,
