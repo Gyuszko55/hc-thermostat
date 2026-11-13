@@ -17,9 +17,9 @@ both work (0.45.0): readings in °F are converted, and what HC writes to a therm
 
 1. **Install:** HACS → ⋮ → Custom repositories → `https://github.com/Gyuszko55/hc-thermostat`, type *Integration* →
    download **HC Thermostat** → **restart** Home Assistant.
-2. **Add:** Settings → Devices & services → Add integration → **HC Thermostat**. Give it a name, pick the heat
-   source and the system, then the devices. (After the first instance the **HC setup** sidebar panel does the same
-   with worked-out settings and rooms; it is for administrators.)
+2. **Add:** Settings → Devices & services → Add integration → **HC Thermostat** → choose **the setup wizard
+   (recommended)** – a link opens the **HC setup** panel (worked-out settings and rooms; for administrators) – or the
+   manual setup: a name, the heat source and the system, the devices, then the targets and the timing.
 3. **Watch it in shadow mode:** a new instance calculates and logs what it would do, switches nothing. The
    **HC info** panel and the decision sensor show why.
 4. **Go live:** Settings → Devices & services → HC Thermostat → **Configure** → **Go live**, tick the confirmation.
@@ -176,6 +176,20 @@ exists (add the first one under Settings → Devices & services).
 - **With a power signal (0.39.2)** the storage heater counts the hours really charged and takes every block of
   power inside the window until the worked-out hours are full (controlled power comes in blocks; a charge timed to
   the end of the window would lose a block that drops out). Without a signal it is still timed to the end.
+
+## Heat source with its own control, useful heat delay (0.47.0)
+
+- **Heat source with its own control** (new heat source, "zone valve only"): a PLC, a heat pump's own controller or a
+  boiler with its own logic makes the heat and starts the pumps; HC only switches the room's zone valve (TPI / PID +
+  PWM, 30-minute cycle by default, long cycles on a floor). No burner, power draw or boiler health is asked or shown.
+- **Useful heat delay** (`valve_delay_s`, setup and options, TPI / PID): a thermoelectric valve needs ~5 minutes to
+  open, and a pump its own control starts e.g. 5 minutes after the demand – the first 10 minutes of every run give no
+  heat. With the delay set, every run is lengthened by it, the minimum on time counts the useful part, and a demand too
+  small for a useful run is **carried into the next cycles** until it is worth one (no demand clears it). In a
+  simulation (15-minute cycle, 10-minute dead time, 24 h) a quarter to half of the runs ended before any heat arrived
+  without it, none with it, and the room kept about twice as close to its target.
+- **Setup:** "Add integration" first offers the wizard (its panel is served at once, before any instance) or the manual
+  way; the manual way now ends with **basic settings** – targets, night, cycle, minimum on / off time, useful heat delay.
 
 ## District heating and fan coil (0.32.0)
 
@@ -355,7 +369,7 @@ fault sensor turns on, until a decision works again.
 
 **HACS (custom repository):** HACS → ⋮ → Custom repositories → `https://github.com/Gyuszko55/hc-thermostat`,
 type *Integration* → download **HC Thermostat** → restart Home Assistant → Settings → Devices & services → Add
-integration → **HC Thermostat** (or use the **HC setup** sidebar panel after the first instance).
+integration → **HC Thermostat** (the first step offers the **HC setup** wizard, 0.47.0).
 
 **Manual:** copy `custom_components/hc_thermostat` to your configuration's `custom_components` folder and restart.
 

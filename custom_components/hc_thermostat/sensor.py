@@ -25,7 +25,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         return
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if c.cfg.control not in ("external", "ac"):
-        entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c), HcBoilerHealth(c)]
+        entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
+        if c.conf.get("heat_source") != "external_heat":  # 0.47.0: no burner of its own to watch
+            entities.append(HcBoilerHealth(c))
         if c.cfg.control == "curve":
             entities.append(HcFlowSetpoint(c))
         if c.cfg.shadow_regulator:

@@ -1,0 +1,39 @@
+# 0.47.0: checks on every push and pull request – Home Assistant's manifest / translation check (hassfest), the HACS
+# repository check and the test suite with Home Assistant installed (the tests that need it run here too).
+name: Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install Home Assistant and pytest
+        run: pip install "homeassistant==2026.10.0" pytest
+      - name: Tests
+        run: python -m pytest -q tests

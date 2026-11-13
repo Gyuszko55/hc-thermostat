@@ -469,7 +469,8 @@ def test_a_041_store_and_options_load_into_045():
             assert c.cfg.target_home == 21.5 and c.mode == "active" and c.health.levels_known  # levels in the options
             c._started = datetime.now(timezone.utc) - timedelta(hours=1)
             d = await c._async_update_data()
-            assert d.target == 21.5 and d.indoor == 20.4 and d.reason is not None
+            # by day the home target, by night (the wall clock decides) the night one
+            assert d.target in (21.5, c.cfg.target_night) and d.indoor == 20.4 and d.reason is not None
             new = sup.state()
             assert set(old) <= set(new)  # every 0.41.0 key is still known
         finally:

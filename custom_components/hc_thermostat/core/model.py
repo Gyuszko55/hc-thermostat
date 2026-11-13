@@ -133,7 +133,8 @@ class HcConfig:
     pid_kd: float = 0.0
     # 0.44.3: coasting after a burn – no new start while the room still rises towards a near target (the
     # radiators give off the last burn's heat), and no integral growth meanwhile. 0 = off.
-    coast_window_s: float = 2700.0  # this long after a burn ended
+    # 0.47.0: off by default (0) – measured on one house only; turn it on in the options (2700 s was the 0.44.3 value)
+    coast_window_s: float = 0.0  # this long after a burn ended
     coast_band: float = 0.2  # the room at most this far under the target
     coast_rise: float = 0.1  # and it rose at least this much ...
     coast_lookback_s: float = 900.0  # ... over this long
@@ -161,6 +162,14 @@ class HcConfig:
     cycle_s: float = 900.0
     min_on_s: float = 300.0
     min_off_s: float = 300.0
+    # 0.47.0: useful heat delay – a slow thermoelectric valve (~5 min to open) and a pump started late by its own control
+    # (e.g. 5 min after the demand): the first valve_delay_s of every run give no heat. The run is lengthened by it,
+    # min_on_s counts the useful part, and a demand too small for a useful run is carried into the next cycles until
+    # it is worth a run (instead of being dropped every cycle). 0 = off (as before).
+    valve_delay_s: float = 0.0
+    # 0.44.2 mid-cycle start (a demand that grows past the minimum run mid-cycle starts a cycle at once instead of
+    # waiting for the next one); 0.47.0: off by default – measured on one house only, turned on in the options
+    pwm_midcycle_start: bool = False
     keep_alive_s: float = 0.0  # resend "on" this often while heating (relay with its own auto-off timer); 0 = off
     # Safety
     sensor_max_age_s: float = 7200.0

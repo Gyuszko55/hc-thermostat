@@ -19,6 +19,7 @@ const T = {
       electric_heater: ["Elektromos fűtő", "Konvektor, olajradiátor, infrapanel: relén, okosdugaljon vagy wifis saját termosztáttal."],
       pellet_boiler: ["Pellet kazán", "Lassan gyújt és ég ki: hosszú futásokkal kapcsolja; puffertartállyal a puffer szerep tölti."],
       district_heating: ["Távfűtés", "Lakásonkénti zónaszeleppel vagy szelepfejekkel; nincs saját kazán."],
+      external_heat: ["Külső vezérlésű hőtermelő", "A hőtermelőt és a szivattyút a saját vezérlése (PLC, hőszivattyú) indítja; a HC csak a helyiség zónaszelepét kapcsolja."],
       storage_heater: ["Hőtárolós kályha", "Vezérelt (éjszakai) árammal tölt, nappal adja le a hőt; a töltést és a kisütő ventilátort kapcsolja."],
     },
     systems: {
@@ -73,6 +74,7 @@ const T = {
       warn_indoor_trv: "A ház fő hőmérője a(z) {room} szelepfejes helyiségben van: a fej lezár, a kazán pedig a fej szerint áll le – válassz más vezető hőmérőt." },
     keys: {
       cycle_s: "Ciklusidő", min_on_s: "Minimális égés", min_off_s: "Minimális szünet", keep_alive_s: "Bekapcsolt állapot újraküldése",
+      valve_delay_s: "Hasznos fűtés késése (szelepnyitás + szivattyú)",
       power_idle_w: "Kazán alapjárata", power_burn_w: "Kazán égése", boiler_power_kw: "Kazán teljesítménye", energy_factor: "Hő egységnyi mért mennyiségre",
       target_home: "Nappali cél", target_night: "Éjszakai cél", target_away: "Távolléti cél", target_cool: "Hűtési cél",
       night_start: "Éjszaka kezdete", night_end: "Éjszaka vége", curve_slope: "Görbe meredeksége", flow_max: "Előremenő maximum",
@@ -103,6 +105,7 @@ const T = {
       electric_heater: ["Electric heater", "Convector, oil radiator, infrared panel: on a relay, a smart plug or Wi-Fi with its own thermostat."],
       pellet_boiler: ["Pellet boiler", "Ignites and burns out slowly: switched with long runs; with a buffer tank the buffer role charges it."],
       district_heating: ["District heating", "With a zone valve per flat or with TRV heads; no own boiler."],
+      external_heat: ["Heat source with its own control", "The heat source and the pump are started by their own control (PLC, heat pump); HC only switches the room's zone valve."],
       storage_heater: ["Storage heater", "Charges on controlled (night) power, gives the heat off by day; switches the charge and the discharge fan."],
     },
     systems: {
@@ -157,6 +160,7 @@ const T = {
       warn_indoor_trv: "The house's main thermometer is in the TRV room {room}: the head closes and the boiler stops by it – choose another leading thermometer." },
     keys: {
       cycle_s: "Cycle", min_on_s: "Minimum burn", min_off_s: "Minimum pause", keep_alive_s: "Resend on every",
+      valve_delay_s: "Useful heat delay (valve opening + pump)",
       power_idle_w: "Boiler idle", power_burn_w: "Boiler burning", boiler_power_kw: "Boiler output", energy_factor: "Heat per metered unit",
       target_home: "Day target", target_night: "Night target", target_away: "Away target", target_cool: "Cooling target",
       night_start: "Night from", night_end: "Night until", curve_slope: "Curve slope", flow_max: "Flow maximum",
@@ -177,11 +181,11 @@ const T = {
 // 0.45.0: every name, title or server text goes into the HTML through esc()
 const esc = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const SOURCE_ICON = { onoff_boiler: "mdi:fire", modulating_boiler: "mdi:fire-circle", heat_pump: "mdi:heat-pump", electric_boiler: "mdi:water-boiler",
-  air_conditioner: "mdi:air-conditioner", electric_heater: "mdi:radiator", storage_heater: "mdi:heat-wave", district_heating: "mdi:city", pellet_boiler: "mdi:fire" };
+  air_conditioner: "mdi:air-conditioner", electric_heater: "mdi:radiator", storage_heater: "mdi:heat-wave", district_heating: "mdi:city", external_heat: "mdi:valve", pellet_boiler: "mdi:fire" };
 const SETTING_KEYS = ["cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_w", "power_burn_w", "boiler_power_kw", "energy_factor",
   "target_home", "target_night", "target_away", "target_cool", "night_start", "night_end", "curve_slope", "flow_max", "flow_min",
   "room_tolerance", "ac_min_change_s", "floor_max", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis",
-  "floor_temper", "floor_temper_offset", "floor_temper_night", "floor_fallback", "floor_covering", "floor_probe"];
+  "floor_temper", "floor_temper_offset", "floor_temper_night", "floor_fallback", "floor_covering", "floor_probe", "valve_delay_s"];
 const CONTROL_DEVICE = { tpi: "actuator_entity", pid: "actuator_entity", onoff: "actuator_entity", storage: "actuator_entity", external: "external_climate", ac: "external_climate", curve: "flow_setpoint_entity" };
 
 // Small line drawings of the systems (stroke = currentColor)
@@ -747,8 +751,9 @@ class HcWizardPanel extends HTMLElement {
       sc.push({ ...ent("actuator_entity", [f("switch"), f("input_boolean")]), required: true });
       if (["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(s.heat_source))  // only a burner has a flame
         sc.push(ent("flame_entity", [f("binary_sensor", "heat"), f("binary_sensor", "running"), f("binary_sensor", "power"), f("binary_sensor")]));
-      sc.push(ent("boiler_power_entity", f("sensor", "power")),
-        ent("heat_energy_entity", [f("sensor", "gas"), f("sensor", "energy"), f("sensor", "volume")]));
+      if (s.heat_source !== "external_heat")  // 0.47.0: HC does not drive that heat source – no boiler power to watch
+        sc.push(ent("boiler_power_entity", f("sensor", "power")));
+      sc.push(ent("heat_energy_entity", [f("sensor", "gas"), f("sensor", "energy"), f("sensor", "volume")]));
       if (String(s.system || "").startsWith("floor"))
         sc.push({ ...ent("floor_entity", TEMP), required: this._floorNeeded() });
     } else if (c === "external" || c === "ac") {

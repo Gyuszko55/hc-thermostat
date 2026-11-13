@@ -104,7 +104,7 @@ def test_wizard_suggestion(monkeypatch):
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0")
 
 
 # --- PWM: a demand that grows past the minimum run mid-cycle (11-12 morning, Cirkó) ------------------------------
@@ -112,7 +112,7 @@ def test_pwm_starts_a_cycle_when_the_demand_grows_mid_cycle():
     from datetime import datetime, timedelta, timezone
     model = importlib.import_module("hc_thermostat.core.model")
     pwm_mod = importlib.import_module("hc_thermostat.core.pwm")
-    cfg = model.HcConfig(cycle_s=1800.0, min_on_s=300.0, min_off_s=300.0)
+    cfg = model.HcConfig(cycle_s=1800.0, min_on_s=300.0, min_off_s=300.0, pwm_midcycle_start=True)  # 0.47.0: opt-in
     p = pwm_mod.Pwm(cfg)
     t0 = datetime(2026, 11, 12, 7, 17, tzinfo=timezone.utc)
     p.last_change = t0 - timedelta(hours=1)

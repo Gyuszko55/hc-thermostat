@@ -70,7 +70,7 @@ const TXT = {
     vacation: "szabadság", nobody: "senki", shadow: "árnyék", fault: "HIBA", zone: "zóna", buffer: "puffer", pump: "szivattyú",
     follows: "házat követi", door: "ajtó nyitva", unit: "egység", estimated: "becsült",
     kinds: { gas_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán",
-      pellet_boiler: "Pelletkazán", district_heating: "Távhő", buffer: "Puffertartály", air_conditioner: "Klíma",
+      pellet_boiler: "Pelletkazán", district_heating: "Távhő", external_heat: "Külső hőtermelő", buffer: "Puffertartály", air_conditioner: "Klíma",
       electric_heater: "Villanyfűtő", storage_heater: "Hőtárolós kályha" },
   },
   en: {
@@ -80,7 +80,7 @@ const TXT = {
     vacation: "vacation", nobody: "nobody", shadow: "shadow", fault: "FAULT", zone: "zone", buffer: "buffer", pump: "pump",
     follows: "follows house", door: "door open", unit: "unit", estimated: "estimated",
     kinds: { gas_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler",
-      pellet_boiler: "Pellet boiler", district_heating: "District heating", buffer: "Buffer tank", air_conditioner: "Air conditioner",
+      pellet_boiler: "Pellet boiler", district_heating: "District heating", external_heat: "External heat source", buffer: "Buffer tank", air_conditioner: "Air conditioner",
       electric_heater: "Electric heater", storage_heater: "Storage heater" },
   },
 };

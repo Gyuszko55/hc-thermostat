@@ -57,6 +57,8 @@ _VACATION = {"vacation", "szabadság", "szabadsag"}
 HA_STARTED = f"{DOMAIN}_ha_started"
 FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
 FAILSAFE_KEY = "hc_supervisor"  # its entry in sensor_problems (the fault binary sensor)
+EXECUTOR_KEY = "hc_executor"  # 0.47.0: a part of the executor that failed (relay, flow, fan, ...)
+SIDE_KEY = "hc_step"  # 0.47.0: a side step that failed (record, cost, health, rooms, trv)
 
 
 def ha_started(hass) -> datetime | None:
@@ -424,8 +426,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 del self._sensor_bad_since[entity]
         for entity in current:
             self._sensor_bad_since.setdefault(entity, now)
-        self.sensor_problems = {e: why for e, why in current.items()
-                                if (now - self._sensor_bad_since[e]).total_seconds() >= cfg.sensor_problem_after_s}
+        # 0.47.0: HC's own entries (failsafe, executor parts, side steps) are kept – each clears itself when it works
+        own = {k: v for k, v in (getattr(self, "sensor_problems", None) or {}).items() if str(k).startswith("hc_")}
+        self.sensor_problems = {**own, **{e: why for e, why in current.items()
+                                          if (now - self._sensor_bad_since[e]).total_seconds() >= cfg.sensor_problem_after_s}}
 
     def _call(self) -> bool | None:
         """Wired wall thermostat (0.38.0): its contact on / off; None when unknown, unavailable or not configured."""
@@ -706,9 +710,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         now = dt_util.now()
         if self.managed and self.managed_platform is None:
             self._detect_platform()  # the integration may load after HC
-        inputs = self.build_inputs(now)
-        self.last_inputs = inputs  # shown by the info panel
         try:
+            # 0.47.0: reading the inputs is part of the decision – a failure there counts for the failsafe too
+            inputs = self.build_inputs(now)
+            self.last_inputs = inputs  # shown by the info panel
             decision = self._managed_details(self.supervisor.step(inputs))
         except Exception:
             # 0.45.0: a decision that fails again and again must not leave the heat on – the relay (or the managed
@@ -720,16 +725,45 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                 self.step_errors)
             self.step_errors = 0
             self.sensor_problems.pop(FAILSAFE_KEY, None)
-        self._record(decision)
-        self.cost = self._compare_cost(decision)
-        self._update_health(decision, now)
-        self._update_rooms(decision, now)
+        # 0.47.0: the side steps each on their own – none of them may keep the decision from the relay
+        self._side("record", lambda: self._record(decision))
+        self._side("cost", lambda: setattr(self, "cost", self._compare_cost(decision)))
+        self._side("health", lambda: self._update_health(decision, now))
+        self._side("rooms", lambda: self._update_rooms(decision, now))
         await self._executor.apply(decision)
-        await self._apply_trvs(decision)
-        if now - self._last_save >= _SAVE_EVERY:
+        for part in ("cool_mode", "discharge", "fan", "external", "flow", "relay"):
+            key = f"{EXECUTOR_KEY}:{part}"
+            if part in getattr(self._executor, "failed", set()):
+                self.sensor_problems[key] = "internal_error"
+            else:
+                self.sensor_problems.pop(key, None)
+        try:
+            await self._apply_trvs(decision)
+            self.sensor_problems.pop(f"{SIDE_KEY}:trv", None)
+        except Exception:
+            self._side_failed("trv")
+        # 0.47.0: saved at once when the output or a boost changes (a crash or a power cut lost up to 10 minutes of
+        # burns – the boost resume and the flame log rely on it), else every 10 minutes
+        mark = (bool(decision.output), bool(getattr(self.supervisor, "boosting", False)))
+        if now - self._last_save >= _SAVE_EVERY or mark != getattr(self, "_save_mark", mark):
             self._last_save = now
             await self.async_save()
+        self._save_mark = mark
         return decision
+
+    def _side(self, name: str, fn) -> None:
+        try:
+            fn()
+        except Exception:
+            self._side_failed(name)
+        else:
+            self.sensor_problems.pop(f"{SIDE_KEY}:{name}", None)
+
+    def _side_failed(self, name: str) -> None:
+        key = f"{SIDE_KEY}:{name}"
+        if key not in self.sensor_problems:  # once per failure streak
+            _LOGGER.exception("%s: %s failed – the decision goes on", self.config_entry.title, name)
+        self.sensor_problems[key] = "internal_error"
 
     async def _failsafe(self, now: datetime) -> Decision:
         """The supervisor raised: log it; from the FAILSAFE_AFTER-th failure in a row the heat goes off (active mode

@@ -132,6 +132,33 @@
           "buffer_max_charge_s": "Egy töltés legfeljebb (0 = nincs korlát)",
           "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl"
         }
+      },
+      "start": {
+        "title": "HC Thermostat",
+        "description": "Hogyan szeretnéd beállítani?",
+        "menu_options": {
+          "open_wizard": "Beállító varázslóval (ajánlott) – lépésenként, javaslatokkal, a helyiségekkel együtt",
+          "manual": "Kézi beállítás itt, lépésenként"
+        }
+      },
+      "basics": {
+        "title": "Alapbeállítások – {name}",
+        "description": "A célok és az időzítés; később a beállításokban bármikor módosíthatók.",
+        "data": {
+          "target_home": "Otthon (nappali) cél",
+          "target_night": "Éjszakai cél",
+          "target_away": "Távolléti cél",
+          "night_start": "Éjszaka kezdete",
+          "night_end": "Éjszaka vége",
+          "cycle_s": "Ciklusidő (PWM)",
+          "min_on_s": "Minimális bekapcsolási idő",
+          "min_off_s": "Minimális kikapcsolási idő",
+          "valve_delay_s": "Hasznos fűtés késése (szelepnyitás + szivattyú)"
+        },
+        "data_description": {
+          "valve_delay_s": "Ha a zónaszelep lassan nyit (termoelektromos szelep, ~5 perc), vagy a szivattyút a saját vezérlése később indítja: ennyi idő után kezd fűteni. A HC ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, és a túl kicsi igényeket összevonja a következő ciklusokkal. 0 = nincs késés.",
+          "min_on_s": "A legrövidebb hasznos bekapcsolás; ennél kisebb igény késés megadásakor a következő ciklusra gyűlik."
+        }
       }
     },
     "error": {
@@ -142,7 +169,8 @@
       "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna."
     },
     "abort": {
-      "already_configured": "Ilyen nevű példány már van."
+      "already_configured": "Ilyen nevű példány már van.",
+      "use_wizard": "A beállító varázsló elérhető: nyisd meg itt: [HC beállítás]({url}) (az oldalsávban is megjelent). A varázsló végén jön létre a példány."
     }
   },
   "options": {
@@ -278,7 +306,10 @@
           "frozen_after_h": "Beragadt helyiséghőmérő: ennyi óra változatlan érték",
           "frozen_burn_min": "Beragadt helyiséghőmérő: ennyi perc fűtés közben",
           "keep_alive_script": "Relé-őr szkript (minden életjelnél)",
-          "adopt_manual": "A kezelt termosztáton végzett változtatások átvétele"
+          "adopt_manual": "A kezelt termosztáton végzett változtatások átvétele",
+          "valve_delay_s": "Hasznos fűtés késése (szelepnyitás + szivattyú)",
+          "coast_window_s": "Utánfűtés kivárása égés után (0 = ki)",
+          "pwm_midcycle_start": "Ciklus közbeni indítás"
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
@@ -309,7 +340,10 @@
           "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).",
           "power_idle_w": "Ez alatt a kazán készenlétben van. Ha az alapértékeket (20 W / 115 W) érintetlenül hagyod, a kazán-állapot csak tanul – a „nem reagál” / „nem gyújt be” jelzést az áramfelvétel szerint csak a saját kazánod értékeivel adja.",
           "power_burn_w": "E fölött ég az égő (a kettő között csak a szivattyú megy).",
-          "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő)."
+          "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő).",
+          "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.",
+          "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
+          "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve)."
         }
       },
       "presets": {
@@ -428,7 +462,8 @@
         "electric_heater": "Elektromos fűtő (konvektor, olajradiátor, infrapanel)",
         "storage_heater": "Hőtárolós kályha (vezérelt áram)",
         "district_heating": "Távfűtés (zónaszelep vagy szelepfejek)",
-        "pellet_boiler": "Pellet kazán (hosszú futások)"
+        "pellet_boiler": "Pellet kazán (hosszú futások)",
+        "external_heat": "Külső vezérlésű hőtermelő (csak zónaszelep; PLC, hőszivattyú saját vezérléssel)"
       }
     },
     "system": {

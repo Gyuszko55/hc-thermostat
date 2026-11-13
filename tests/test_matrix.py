@@ -3,7 +3,7 @@ from core.matrix import MATRIX, SOURCES, SYSTEMS, Status, cell, default_timing, 
 
 def test_every_cell_is_filled_in_both_languages():
     from core.matrix import ROOM_SOURCES
-    water = [s for s in SOURCES if s not in ROOM_SOURCES and s not in ("district_heating", "pellet_boiler")]
+    water = [s for s in SOURCES if s not in ROOM_SOURCES and s not in ("district_heating", "pellet_boiler", "external_heat")]
     # the room units, district heating (0.32.0) and the fan coil come from cell(), not the table
     assert len(MATRIX) == len(water) * (len(SYSTEMS) - 2)
     for system in SYSTEMS:

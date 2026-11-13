@@ -71,22 +71,29 @@ class Executor:
         self._fan = fan  # fan coil: its fan, by percentage  # air conditioner: heat and cool are both real modes, set exactly
         self.adapter: GenericAdapter = adapter_for(None)  # 0.42.0: the managed thermostat's integration (coordinator)
         self.paused = False  # 0.42.0: "HC supervision paused" – nothing is written to the managed thermostat
+        self.failed: set[str] = set()  # 0.47.0: the parts whose last call failed (relay, flow, fan, ...)
 
     async def apply(self, decision: Decision) -> None:
         if self.mode != MODE_ACTIVE or self.paused:
             return
-        try:
-            await self._apply_cool_mode(decision)
-            await self._apply_discharge(decision)
-            await self._apply_fan(decision)
-            if decision.external is not None:
-                await self._apply_external(decision)
-            elif self._flow:
-                await self._apply_flow(decision)
-            else:
-                await self._apply_relay(decision)
-        except Exception:  # A failed call must not stop the next decision.
-            _LOGGER.exception("Could not apply the decision")
+        # 0.47.0: every part on its own – a failing cooling switch, discharge fan or fan coil fan no longer takes the
+        # relay / flow / managed thermostat write of the same step with it; what failed is kept for the fault sensor
+        parts = [("cool_mode", self._apply_cool_mode), ("discharge", self._apply_discharge), ("fan", self._apply_fan)]
+        if decision.external is not None:
+            parts.append(("external", self._apply_external))
+        elif self._flow:
+            parts.append(("flow", self._apply_flow))
+        else:
+            parts.append(("relay", self._apply_relay))
+        failed: set[str] = set()
+        for name, part in parts:
+            try:
+                await part(decision)
+            except Exception:  # A failed call must not stop the next decision, nor the other parts.
+                failed.add(name)
+                if name not in self.failed:  # once per failure streak, not every 30 s
+                    _LOGGER.exception("Could not apply the decision (%s)", name)
+        self.failed = failed
 
     async def _apply_relay(self, decision: Decision) -> None:
         if not self._actuator:

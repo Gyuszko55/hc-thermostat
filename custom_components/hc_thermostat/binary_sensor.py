@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCentralBoiler(c), HcCentralPump(c)])
         return
     entities = [HcDemand(c), HcFault(c)]
-    if c.cfg.control not in ("external", "ac"):
+    if c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat":
         entities.append(HcBoilerProblem(c))
     # 0.46.0: a room with two or more presence sources / window contacts gets its group
     groups = [RoomBinaryGroup(c, s, k) for s, k in groups_of(c, ("presence", "window"))]

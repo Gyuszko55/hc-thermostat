@@ -17,7 +17,7 @@ LOCAL = timezone(timedelta(hours=1))
 T0 = datetime(2026, 11, 12, 7, 59, tzinfo=LOCAL)  # the first burn ended
 CFG = HcConfig(control="pid", pid_kp=0.5, pid_ki_per_hour=0.2, target_home=22.5, night_start="00:00",
                night_end="00:00", cycle_s=1800, min_on_s=300, min_off_s=300, season_enabled=False,
-               boost_enabled=False, learning_enabled=False)
+               boost_enabled=False, learning_enabled=False, coast_window_s=2700.0)  # 0.47.0: opt-in
 
 
 def _sup(integral=0.0):
@@ -94,4 +94,4 @@ def test_coasting_ends_after_the_window():
 
 def test_version():
     root = Path(__file__).resolve().parents[1] / "custom_components" / "hc_thermostat"
-    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0")
+    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0")

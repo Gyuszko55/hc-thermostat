@@ -15,15 +15,35 @@ class Pwm:
         self.last_change: datetime | None = None
         self.cycle_start: datetime | None = None
         self._deferred = False  # refused by the load limit: the cycle starts again when the room is granted
+        # 0.47.0 (valve_delay_s > 0): useful seconds a cycle wanted but was too small to run – carried forward
+        self.carry_s = 0.0
+        self._last_raw = 0.0
 
     def _on_time(self, demand: float) -> float:
         cfg = self._cfg
         on_time = max(0.0, min(1.0, demand)) * cfg.cycle_s
+        delay = max(0.0, cfg.valve_delay_s)
+        if delay > 0 and on_time > 0:
+            on_time = min(cfg.cycle_s, on_time + self.carry_s)  # small demands of earlier cycles add up
         if on_time < cfg.min_on_s:
             return 0.0
+        on_time += delay  # the valve opens and the pump starts first: the useful heat comes after the delay
         if cfg.cycle_s - on_time < cfg.min_off_s:
             return cfg.cycle_s
         return on_time
+
+    def _carry(self, demand: float, new_cycle: bool) -> None:
+        """0.47.0: at a new cycle, a past cycle that wanted heat but was too small to run hands its useful seconds on;
+        a cycle that ran, or no demand at all, clears what was carried."""
+        cfg = self._cfg
+        if cfg.valve_delay_s <= 0 or demand <= 0:
+            self.carry_s = 0.0
+        elif new_cycle and self.cycle_start is not None:
+            if self._burned_this_cycle():
+                self.carry_s = 0.0
+            elif self._last_raw > 0:
+                self.carry_s = min(cfg.cycle_s, self.carry_s + self._last_raw)
+        self._last_raw = max(0.0, min(1.0, demand)) * cfg.cycle_s
 
     def step(self, now: datetime, demand: float,
              allow_on: Callable[[bool], bool] | None = None) -> tuple[bool, str | None]:
@@ -31,10 +51,12 @@ class Pwm:
         into a new cycle (renew=True); refused, the cycle starts again later and the relay stays (or goes) off."""
         cfg = self._cfg
         new_cycle = self.cycle_start is None or (now - self.cycle_start).total_seconds() >= cfg.cycle_s
+        self._carry(demand, new_cycle)
         if new_cycle:
             self.cycle_start = now
         want = (now - self.cycle_start).total_seconds() < self._on_time(demand)
-        if not want and not self.output and not new_cycle and not self._deferred and self._on_time(demand) > 0 \
+        if cfg.pwm_midcycle_start and not want and not self.output and not new_cycle and not self._deferred \
+                and self._on_time(demand) > 0 \
                 and not self._burned_this_cycle() and self._off_long_enough(now):
             # 0.44.2: a demand that grows past the minimum run only mid-cycle (the cycle began below it) used to wait
             # for the next cycle – up to a whole cycle (30 min) with the room under its target. Start a cycle now.
@@ -80,9 +102,14 @@ class Pwm:
             "output": self.output,
             "last_change": self.last_change.isoformat() if self.last_change else None,
             "cycle_start": self.cycle_start.isoformat() if self.cycle_start else None,
+            "carry_s": round(self.carry_s, 1),
         }
 
     def restore(self, data: dict) -> None:
         self.output = bool(data.get("output", False))
         self.last_change = datetime.fromisoformat(data["last_change"]) if data.get("last_change") else None
         self.cycle_start = datetime.fromisoformat(data["cycle_start"]) if data.get("cycle_start") else None
+        try:
+            self.carry_s = max(0.0, float(data.get("carry_s") or 0.0))
+        except (TypeError, ValueError):
+            self.carry_s = 0.0

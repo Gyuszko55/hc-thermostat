@@ -301,6 +301,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         return name
 
     async def async_step_user(self, user_input=None):
+        if user_input is None and not getattr(self, "_manual", False):
+            return await self.async_step_start()
         errors = {}
         if user_input is not None and self._name_taken(user_input[CONF_NAME]):
             errors[CONF_NAME] = "name_taken"  # 0.45.0: a field error; before, the flow aborted and the input was lost
@@ -320,6 +322,49 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_SYSTEM, default=last.get(CONF_SYSTEM, "radiator_single")): _select(SYSTEMS, "system"),
         })
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+    async def async_step_start(self, user_input=None):
+        """0.47.0: the wizard (recommended) or the step-by-step setup (a menu step needs its own method)."""
+        return self.async_show_menu(step_id="start", menu_options=["open_wizard", "manual"])
+
+    async def async_step_open_wizard(self, user_input=None):
+        """0.47.0: the setup wizard from "Add integration" – its panel is served now (before, only after the first
+        instance), and the flow ends with a link to it."""
+        from .wizard import PANEL_URL, async_setup_wizard
+        try:
+            await async_setup_wizard(self.hass)
+        except Exception:  # noqa: BLE001 – no panel: the manual setup still works
+            return await self.async_step_manual()
+        return self.async_abort(reason="use_wizard", description_placeholders={"url": f"/{PANEL_URL}"})
+
+    async def async_step_manual(self, user_input=None):
+        self._manual = True
+        return await self.async_step_user()
+
+    async def async_step_basics(self, user_input=None):
+        """0.47.0: the targets, the night and – for a relay – the cycle, the minimum run and pause and the useful heat
+        delay, before the instance is created (they were only in the options before)."""
+        data = self._data
+        ctl, source, system = data[CONF_CONTROL], data[CONF_HEAT_SOURCE], data[CONF_SYSTEM]
+        if user_input is not None:
+            return self.async_create_entry(title=data[CONF_NAME], data={**data, **user_input})
+        cfg = HcConfig.from_mapping(data)
+        temp = _number(5, 30, 0.5, "°C")
+        fields = {
+            vol.Required("target_home", default=cfg.target_home): temp,
+            vol.Required("target_night", default=cfg.target_night): temp,
+            vol.Required("target_away", default=cfg.target_away): temp,
+            vol.Required("night_start", default=cfg.night_start): TimeSelector(),
+            vol.Required("night_end", default=cfg.night_end): TimeSelector(),
+        }
+        if ctl in _RELAY:
+            fields[vol.Required("cycle_s", default=cfg.cycle_s)] = _number(300, 7200, 60, "s")
+            fields[vol.Required("min_on_s", default=cfg.min_on_s)] = _number(0, 3600, 30, "s")
+            fields[vol.Required("min_off_s", default=cfg.min_off_s)] = _number(0, 3600, 30, "s")
+        if ctl in ("tpi", "pid") and system != "room_unit":
+            fields[vol.Required("valve_delay_s", default=cfg.valve_delay_s)] = _number(0, 1800, 30, "s")
+        return self.async_show_form(step_id="basics", data_schema=vol.Schema(fields),
+                                    description_placeholders={"name": data[CONF_NAME]})
 
     async def async_step_wizard(self, data):
         """An instance put together in the setup wizard (already validated there); starts in shadow mode, or live
@@ -392,7 +437,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             }
             if data.get(CONF_ROLE) == "zone" and data[CONF_CONTROL] in ("tpi", "pid"):
                 data["valve_exercise"] = True  # summer valve exercise of the zone's own actuator
-            return self.async_create_entry(title=self._data[CONF_NAME], data=data)
+            self._data = data
+            return await self.async_step_basics()  # 0.47.0: the targets and the timing already at the first setup
         # a relay control may take its demand from a wired wall thermostat (0.38.0): then no room thermometer is needed
         fields: dict = {(vol.Optional(CONF_INDOOR) if relay else vol.Required(CONF_INDOOR)): _ent(CONF_INDOOR, "sensor")}
         if relay:
@@ -415,7 +461,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         fields[vol.Optional(CONF_ENERGY_FACTOR, default=8.55)] = _number(0.01, 100, 0.01, "kWh")
         fields[vol.Optional(CONF_EXTRA_HEAT)] = _ent(CONF_EXTRA_HEAT, "sensor")
         fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "×")
-        fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
+        if self._data[CONF_HEAT_SOURCE] != "external_heat":  # 0.47.0: HC does not drive that heat source
+            fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
         fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
         fields[vol.Optional(CONF_PRESENCE)] = _ent(CONF_PRESENCE, "person", "sensor", "binary_sensor", "input_select", multiple=True)
         # 0.45.0: the adjoining room (a second heat source behind a door) is rare – it is set in the options
@@ -503,6 +550,12 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("cycle_s", default=cfg.cycle_s): _number(300, 7200, 60, "s"),
             vol.Required("min_on_s", default=cfg.min_on_s): _number(0, 3600, 30, "s"),
             vol.Required("min_off_s", default=cfg.min_off_s): _number(0, 3600, 30, "s"),
+            **({vol.Required("valve_delay_s", default=cfg.valve_delay_s): _number(0, 1800, 30, "s")}
+               if cfg.control in ("tpi", "pid") and current.get(CONF_SYSTEM) != "room_unit" else {}),
+            # 0.47.0: the coasting after a burn (0.44.3) and the mid-cycle start (0.44.2) – off unless turned on here
+            **({vol.Required("coast_window_s", default=cfg.coast_window_s): _number(0, 7200, 300, "s"),
+                vol.Required("pwm_midcycle_start", default=cfg.pwm_midcycle_start): BooleanSelector()}
+               if cfg.control in ("tpi", "pid") else {}),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
             vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),
             **({vol.Required("frozen_after_h", default=cfg.frozen_after_h): _number(0, 24, 0.5, "h"),
@@ -525,11 +578,13 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("pid_ki_per_hour", default=cfg.pid_ki_per_hour if cfg.pid_ki_per_hour is not None else round(cfg.pid_ki * 3600, 3)): _number(0, 5, 0.01),
             vol.Required("pid_kd", default=cfg.pid_kd): _number(0, 100000, 1),
             vol.Required("pid_d_filter_s", default=cfg.pid_d_filter_s): _number(0, 3600, 30, "s"),
-            vol.Optional(CONF_FLAME, description={"suggested_value": current.get(CONF_FLAME)}): _ent(CONF_FLAME, "binary_sensor"),
-            vol.Optional(CONF_BOILER_POWER, description={"suggested_value": current.get(CONF_BOILER_POWER)}): _ent(CONF_BOILER_POWER, "sensor"),
-            vol.Required("power_idle_w", default=cfg.power_idle_w): _number(0, 500, 1, "W"),
-            vol.Required("power_burn_w", default=cfg.power_burn_w): _number(0, 5000, 1, "W"),
-            vol.Required("boiler_power_kw", default=cfg.boiler_power_kw): _number(0, 100, 0.1, "kW"),
+            # 0.47.0: a heat source with its own control has no burner, power draw or output HC could use
+            **({vol.Optional(CONF_FLAME, description={"suggested_value": current.get(CONF_FLAME)}): _ent(CONF_FLAME, "binary_sensor"),
+                vol.Optional(CONF_BOILER_POWER, description={"suggested_value": current.get(CONF_BOILER_POWER)}): _ent(CONF_BOILER_POWER, "sensor"),
+                vol.Required("power_idle_w", default=cfg.power_idle_w): _number(0, 500, 1, "W"),
+                vol.Required("power_burn_w", default=cfg.power_burn_w): _number(0, 5000, 1, "W"),
+                vol.Required("boiler_power_kw", default=cfg.boiler_power_kw): _number(0, 100, 0.1, "kW")}
+               if current.get(CONF_HEAT_SOURCE) != "external_heat" else {}),
             # electric zones sharing a power budget (0.28.0): the same limit on every zone, its own power above
             **({vol.Required("load_limit_kw", default=cfg.load_limit_kw): _number(0, 100, 0.1, "kW")}
                if current.get(CONF_HEAT_SOURCE) in ELECTRIC_SOURCES and cfg.control in ("tpi", "pid") else {}),

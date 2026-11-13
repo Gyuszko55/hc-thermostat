@@ -132,6 +132,33 @@
           "buffer_max_charge_s": "Longest charge (0 = no limit)",
           "buffer_frost": "Frost: charge when the top falls below"
         }
+      },
+      "start": {
+        "title": "HC Thermostat",
+        "description": "How do you want to set it up?",
+        "menu_options": {
+          "open_wizard": "With the setup wizard (recommended) – step by step, with suggestions, rooms included",
+          "manual": "Manual setup here, step by step"
+        }
+      },
+      "basics": {
+        "title": "Basic settings – {name}",
+        "description": "Targets and timing; they can be changed in the options any time.",
+        "data": {
+          "target_home": "Home (day) target",
+          "target_night": "Night target",
+          "target_away": "Away target",
+          "night_start": "Night starts",
+          "night_end": "Night ends",
+          "cycle_s": "Cycle (PWM)",
+          "min_on_s": "Minimum on time",
+          "min_off_s": "Minimum off time",
+          "valve_delay_s": "Useful heat delay (valve opening + pump)"
+        },
+        "data_description": {
+          "valve_delay_s": "When the zone valve opens slowly (thermoelectric, ~5 minutes) or the pump is started late by its own control: heat starts this long after switching on. HC lengthens the run by it, the minimum on time counts the useful part, and demands too small for a run are carried into the next cycles. 0 = no delay.",
+          "min_on_s": "The shortest useful run; with a delay set, a smaller demand is carried into the next cycle."
+        }
       }
     },
     "error": {
@@ -142,7 +169,8 @@
       "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it."
     },
     "abort": {
-      "already_configured": "An instance with this name already exists."
+      "already_configured": "An instance with this name already exists.",
+      "use_wizard": "The setup wizard is ready: open it here: [HC setup]({url}) (it is in the sidebar too). The instance is created at the end of the wizard."
     }
   },
   "options": {
@@ -278,7 +306,10 @@
           "frozen_after_h": "Frozen room thermometer: hours with an unchanged value",
           "frozen_burn_min": "Frozen room thermometer: minutes of heat meanwhile",
           "keep_alive_script": "Relay watchdog script (at every keep-alive)",
-          "adopt_manual": "Adopt changes made on the managed thermostat"
+          "adopt_manual": "Adopt changes made on the managed thermostat",
+          "valve_delay_s": "Useful heat delay (valve opening + pump)",
+          "coast_window_s": "Wait for the after-heat after a burn (0 = off)",
+          "pwm_midcycle_start": "Mid-cycle start"
         },
         "data_description": {
           "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
@@ -309,7 +340,10 @@
           "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).",
           "power_idle_w": "Below this the boiler stands by. Leave the defaults (20 W / 115 W) untouched and the boiler health only learns – it judges \"no response\" / \"no flame\" by the power draw once you give your boiler's own values.",
           "power_burn_w": "At or above this the burner burns (between the two: only the pump runs).",
-          "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat)."
+          "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat).",
+          "valve_delay_s": "A slow thermoelectric valve (~5 min) or a pump started late: the run is lengthened by it, the minimum on time counts the useful part, small demands add up. 0 = none.",
+          "coast_window_s": "For this long after a burn no new start while the room, just under the target, still rises (the radiators give their heat). Suggested: 2700 s. Off by default (measured on one house).",
+          "pwm_midcycle_start": "When the demand grows past the minimum run in the middle of a cycle, a new cycle starts at once (no wait for the next). Off by default (measured on one house)."
         }
       },
       "presets": {
@@ -428,7 +462,8 @@
         "electric_heater": "Electric heater (convector, oil radiator, infrared panel)",
         "storage_heater": "Storage heater (off-peak power)",
         "district_heating": "District heating (zone valve or TRV heads)",
-        "pellet_boiler": "Pellet boiler (long runs)"
+        "pellet_boiler": "Pellet boiler (long runs)",
+        "external_heat": "Heat source with its own control (zone valve only; PLC, heat pump's own controller)"
       }
     },
     "system": {

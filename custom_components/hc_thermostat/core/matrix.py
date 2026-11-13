@@ -17,7 +17,9 @@ class Status(StrEnum):
 
 
 SOURCES = ("onoff_boiler", "modulating_boiler", "heat_pump", "electric_boiler", "air_conditioner", "electric_heater",
-           "storage_heater", "district_heating", "pellet_boiler")
+           "storage_heater", "district_heating", "pellet_boiler", "external_heat")
+# 0.47.0: a heat source HC does not drive (a PLC, a heat pump's own controller, a boiler with its own logic): HC only
+# switches the rooms' zone valves – it need not know what makes the heat
 ROOM_SOURCES = ("air_conditioner", "electric_heater", "storage_heater")
 ELECTRIC_SOURCES = ("electric_heater", "electric_boiler", "storage_heater")  # may run on controlled power  # units in the room itself, no water loop
 SYSTEMS = (
@@ -96,6 +98,10 @@ _DISTRICT = {
 }
 _DISTRICT_OTHER = Cell(P, "Távfűtés vegyes rendszeren: zónaszelep TPI-vel, a keverést a hőközpont végzi",
                        "District heating on a mixed system: zone valve with TPI, the substation mixes")
+_EXTERNAL = Cell(R, "Külső vezérlésű hőtermelő: a HC csak a helyiség zónaszelepét kapcsolja (TPI vagy PID + PWM); a hőtermelőt és a "
+                    "szivattyút a saját vezérlése indítja. Lassú termoszelepnél és késleltetett szivattyúnál add meg a hasznos fűtés késését.",
+                 "Heat source with its own control: HC only switches the room's zone valve (TPI or PID + PWM); the heat source and "
+                 "the pump are started by their own control. With a slow thermoelectric valve or a delayed pump set the useful heat delay.")
 _PELLET = Cell(R, "Pellet kazán: on-off vezérlés hosszú futásokkal (legalább 45 perc, 20 perc szünet); puffertartállyal a "
                   "puffer szerep tölti, a körök zónaként fűtenek",
                "Pellet boiler: on/off with long runs (45 minutes at least, 20 minutes pause); with a buffer tank the buffer "
@@ -129,6 +135,8 @@ def cell(system: str, source: str) -> Cell:
         return _FANCOIL
     if source == "district_heating":
         return _DISTRICT.get(system, _DISTRICT_OTHER)
+    if source == "external_heat":
+        return _EXTERNAL
     if source == "pellet_boiler":
         return _PELLET_FLOOR if system in _FLOOR else _PELLET
     if source == "air_conditioner":
@@ -143,7 +151,8 @@ def cell(system: str, source: str) -> Cell:
 def own_control_supported(source: str) -> bool:
     """Own control (TPI/PID + PWM) switches a relay: on/off gas boiler, electric boiler, electric heater – and a
     modulating boiler on its room-thermostat contacts (relay mode; it modulates by itself while on)."""
-    return source in ("onoff_boiler", "modulating_boiler", "electric_boiler", "electric_heater", "district_heating")
+    return source in ("onoff_boiler", "modulating_boiler", "electric_boiler", "electric_heater", "district_heating",
+                      "external_heat")
 
 
 def controls(source: str, system: str | None = None) -> list[str]:
@@ -187,7 +196,7 @@ def default_timing(system: str, source: str | None = None) -> dict[str, float]:
         return {"cycle_s": 3600.0, "min_on_s": 2700.0, "min_off_s": 1200.0}
     if system == "fan_coil":  # a motorised valve and a fan: quick, but the valve deserves some rest
         return {"cycle_s": 900.0, "min_on_s": 180.0, "min_off_s": 180.0}
-    if source == "district_heating" and system not in _FLOOR:  # zone valve: long, calm cycles
+    if source in ("district_heating", "external_heat") and system not in _FLOOR:  # zone valve: long, calm cycles
         return {"cycle_s": 1800.0, "min_on_s": 600.0, "min_off_s": 300.0}
     if system == "room_unit":  # an electric heater warms up in seconds; a relay or plug still deserves some rest
         return {"cycle_s": 600.0, "min_on_s": 120.0, "min_off_s": 120.0}

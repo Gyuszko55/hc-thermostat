@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.47.0 – 2026-11-12
+From an outside tester's first try on their own system (heat pump and pumps run by a PLC, rooms on thermoelectric
+valves through relays; points 2–5 – point 6 came in 0.46.0).
+- **Heat source with its own control** (`external_heat`, "zone valve only"): HC only switches the room's zone valve,
+  TPI / PID + PWM, 30-minute cycle (floor: 60); no flame, boiler power, power levels, boiler output, boiler health or
+  boiler problem entities. Before, such a system had to pretend to be district heating.
+- **Useful heat delay** (`valve_delay_s`, 0 = off, as before): every run is lengthened by it (slow valve + late pump),
+  `min_on_s` counts the useful part, and a demand too small for a useful run is carried into the next cycles
+  (`carry_s` in the PWM state, survives a restart; cleared by a run or by no demand). Simulation (PID, 15-minute cycle,
+  10-minute dead time, 24 h, 5 / 12 °C outside): runs that ended before any heat 25 / 37 → 0, mean deviation 0.10 /
+  0.12 → 0.04 / 0.06 °C. In the wizard's derived settings with its reason, in the setup's basics and in the options.
+- **Add integration:** a first menu – the setup wizard (recommended; its panel and commands are set up at once, so it
+  works before the first instance, and the flow ends with a link to it) or the manual setup.
+- **Basic settings at the first setup:** after the devices, the manual setup asks the targets (home, night, away), the
+  night window and – for a relay – the cycle, the minimum on / off time and the useful heat delay (before only in the
+  options or the wizard).
+- Wizard, HC info, house drawing: the new heat source's name and icon; no boiler power picker for it.
+- **Failsafe over the whole step** (a review of the same evening): reading the inputs now counts for the failsafe as
+  the decision does (three failures in a row switch the heat off); the side steps (decision log, cost advice, boiler
+  health, room advice, TRV heads) run each on their own – a failing one is logged once, shown on the fault sensor
+  (`hc_step:<name>`) and no longer keeps the decision from the relay.
+- **Executor parts on their own:** the cooling switch, the discharge fan, the fan coil's fan and the relay / flow /
+  managed thermostat are applied separately – a failing fan no longer takes the relay write of the same step with it;
+  the failed part is shown on the fault sensor (`hc_executor:<part>`) and logged once per streak. HC's own fault
+  entries survive the sensor check of the next step and clear themselves when the part works again.
+- **State saved at once** when the output switches or a boost starts / ends (before: every 10 minutes and at a clean
+  stop – a crash or a power cut could lose up to 10 minutes of burns the boost resume and the flame log rely on).
+- **Off by default (measured on one house only):** the coasting after a burn (0.44.3, `coast_window_s`, now 0) and
+  the mid-cycle start (0.44.2, new `pwm_midcycle_start`, False) – both in the options (TPI / PID) with a suggested
+  value; an instance keeps them on only where its options say so. The burner-start cycle fix of 0.44.5 stays (it is a
+  correction, not a tuning).
+- **CI:** `.github/workflows/validate.yml` – hassfest, the HACS check and the tests with Home Assistant 2026.10.0.
+- Tests: tests/test_external_470.py (12); the E2E takes the manual way and the basics step.
+
 ## 0.46.0 – 2026-11-12
 Rooms set up from the home's areas, in fewer and shorter steps (and point 6 of an outside tester's feedback: only the
 ticked areas are rooms – no server room or control cabinet as a heating zone).

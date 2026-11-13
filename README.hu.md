@@ -17,9 +17,10 @@ működik (0.45.0): a °F-os mérést átszámolja, és amit egy termosztátra �
 
 1. **Telepítés:** HACS → ⋮ → Egyéni tárolók → `https://github.com/Gyuszko55/hc-thermostat`, típus *Integráció* →
    **HC Thermostat** letöltése → a Home Assistant **újraindítása**.
-2. **Felvétel:** Beállítások → Eszközök és szolgáltatások → Integráció hozzáadása → **HC Thermostat**. Név, hőforrás
-   és rendszer, aztán az eszközök. (Az első példány után a **HC beállítás** oldalsávi panel ugyanezt teszi kiszámolt
-   beállításokkal és helyiségekkel; rendszergazdáknak.)
+2. **Felvétel:** Beállítások → Eszközök és szolgáltatások → Integráció hozzáadása → **HC Thermostat** → válaszd a
+   **beállító varázslót (ajánlott)** – egy hivatkozás megnyitja a **HC beállítás** panelt (kiszámolt beállítások és
+   helyiségek; rendszergazdáknak) –, vagy a kézi beállítást: név, hőforrás és rendszer, eszközök, végül a célok és az
+   időzítés.
 3. **Figyeld árnyék módban:** az új példány számol és naplózza, mit tenne, de nem kapcsol. A **HC info** panel és a
    döntés-szenzor megmondja, miért.
 4. **Élesítés:** Beállítások → Eszközök és szolgáltatások → HC Thermostat → **Konfigurálás** → **Élesítés**, a
@@ -177,6 +178,21 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 - **Áramjel mellett (0.39.2)** a hőtárolós kályha a ténylegesen töltött órákat számolja, és az ablakon belül minden
   áramos blokkot kihasznál, amíg a kiszámolt óraszám össze nem jön (a vezérelt áram több blokkban jön; az ablak
   végére időzített töltés egy kieső blokkal elveszne). Áramjel nélkül marad az ablak végére időzítés.
+
+## Külső vezérlésű hőtermelő, hasznos fűtés késése (0.47.0)
+
+- **Külső vezérlésű hőtermelő** (új hőforrás, „csak zónaszelep”): a hőt egy PLC, a hőszivattyú saját vezérlése vagy egy
+  saját logikájú kazán adja, ez indítja a szivattyúkat is; a HC csak a helyiség zónaszelepét kapcsolja (TPI / PID + PWM,
+  alapból 30 perces ciklus, padlón hosszú ciklus). Égésjelzőt, áramfelvételt, kazán-állapotot nem kér és nem mutat.
+- **Hasznos fűtés késése** (`valve_delay_s`, a felvételkor és a beállításokban, TPI / PID): a termoelektromos szelep kb.
+  5 perc alatt nyit, a szivattyút a saját vezérlése pl. 5 perccel az igény után indítja – minden nyitás első 10 perce
+  nem fűt. Ha megadod, minden nyitás ennyivel hosszabb, a minimális bekapcsolási idő a hasznos részre vonatkozik, és a
+  túl kicsi igény **a következő ciklusokra gyűlik**, amíg megér egy nyitást (igény nélkül törlődik). Szimulációban (15
+  perces ciklus, 10 perc holtidő, 24 óra) nélküle a nyitások negyede–fele véget ért, mielőtt hő érkezett volna, vele
+  egy sem, és a helyiség kb. kétszer közelebb maradt a céljához.
+- **Felvétel:** az „Integráció hozzáadása” előbb a varázslót (a panelje rögtön elérhető, példány nélkül is) vagy a kézi
+  utat kínálja; a kézi út végén új **Alapbeállítások** lépés: célok, éjszaka, ciklus, minimális be- / kikapcsolási idő,
+  hasznos fűtés késése.
 
 ## Távfűtés és fan-coil (0.32.0)
 
@@ -359,7 +375,7 @@ bekapcsol, amíg egy döntés újra sikerül.
 
 **HACS (egyéni tároló):** HACS → ⋮ → Egyéni tárolók → `https://github.com/Gyuszko55/hc-thermostat`, típus
 *Integráció* → **HC Thermostat** letöltése → a Home Assistant újraindítása → Beállítások → Eszközök és
-szolgáltatások → Integráció hozzáadása → **HC Thermostat** (az első példány után a **HC setup** oldalsávi panel is).
+szolgáltatások → Integráció hozzáadása → **HC Thermostat** (az első lépés felajánlja a **HC beállítás** varázslót, 0.47.0).
 
 **Kézzel:** másold a `custom_components/hc_thermostat` mappát a konfiguráció `custom_components` mappájába, és
 indítsd újra.

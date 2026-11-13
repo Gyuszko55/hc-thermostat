@@ -59,7 +59,7 @@ SETTING_KEYS = ("cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_
                 CONF_ENERGY_FACTOR, "target_home", "target_night", "target_away", "target_cool", "night_start",
                 "night_end", "curve_slope", "flow_max", "flow_min", "room_tolerance", "ac_min_change_s", "floor_max",
                 "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "floor_temper", "floor_temper_offset", "floor_temper_night",
-                "floor_fallback", "floor_covering", "floor_probe")
+                "floor_fallback", "floor_covering", "floor_probe", "valve_delay_s")
 
 
 async def async_setup_wizard(hass: HomeAssistant) -> None:
@@ -385,6 +385,12 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
         add("cycle_s", t["cycle_s"], why, "s")
         add("min_on_s", t["min_on_s"], why, "s")
         add("min_off_s", t["min_off_s"], why, "s")
+        if not room:  # 0.47.0: a slow thermoelectric valve / a pump its own control starts late
+            add("valve_delay_s", 0.0,
+                T("ha a szelep lassan nyit (termoszelep ~5 perc) vagy a szivattyút a saját vezérlése később indítja: ennyivel "
+                  "később kezdődik a hasznos fűtés; a HC ennyivel megtoldja a nyitást, és a kis igényeket összevonja; 0 = nincs",
+                  "when the valve opens slowly (thermoelectric ~5 min) or the pump is started late by its own control: the "
+                  "useful heat starts this much later; HC lengthens the run by it and merges small demands; 0 = none"), "s")
     if system.startswith("floor") and control in ("tpi", "pid", "onoff", "curve"):
         # floor limit (0.37.0): 0 = by the covering and where the sensor sits
         add("floor_max", 0.0,

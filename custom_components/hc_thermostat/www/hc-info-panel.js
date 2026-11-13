@@ -82,10 +82,10 @@ const REASON = {
 const SOURCE = {
   hu: { onoff_boiler: "On-off gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú",
     electric_boiler: "Elektromos kazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő",
-    storage_heater: "Hőtárolós kályha", district_heating: "Távfűtés", pellet_boiler: "Pellet kazán" },
+    storage_heater: "Hőtárolós kályha", district_heating: "Távfűtés", pellet_boiler: "Pellet kazán", external_heat: "Külső vezérlésű hőtermelő" },
   en: { onoff_boiler: "On/off gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump",
     electric_boiler: "Electric boiler", air_conditioner: "Air conditioner", electric_heater: "Electric heater",
-    storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler" },
+    storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler", external_heat: "Heat source with its own control" },
 };
 const SYSTEM = {
   hu: { radiator_single: "Radiátoros, egy zóna", radiator_trv: "Radiátoros, szelepfejekkel", radiator_zones: "Radiátoros, zónák",
