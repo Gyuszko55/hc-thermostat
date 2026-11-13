@@ -19,8 +19,8 @@ működik (0.45.0): a °F-os mérést átszámolja, és amit egy termosztátra �
    **HC Thermostat** letöltése → a Home Assistant **újraindítása**.
 2. **Felvétel:** Beállítások → Eszközök és szolgáltatások → Integráció hozzáadása → **HC Thermostat** → válaszd a
    **beállító varázslót (ajánlott)** – egy hivatkozás megnyitja a **HC beállítás** panelt (kiszámolt beállítások és
-   helyiségek; rendszergazdáknak) –, vagy a kézi beállítást: név, hőforrás és rendszer, eszközök, végül a célok és az
-   időzítés.
+   helyiségek; rendszergazdáknak) –, vagy a kézi beállítást: név, hőforrás és rendszer, eszközök (ahol lehet, előre
+   kitöltve, a többi lenyitható), végül a célok és az időzítés.
 3. **Figyeld árnyék módban:** az új példány számol és naplózza, mit tenne, de nem kapcsol. A **HC info** panel és a
    döntés-szenzor megmondja, miért.
 4. **Élesítés:** Beállítások → Eszközök és szolgáltatások → HC Thermostat → **Konfigurálás** → **Élesítés**, a
@@ -201,7 +201,7 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 
 ## Mérések (0.48.0)
 
-Nem kötelező plusz adatok a **Beállítások → Mérések** részben (csak az adott hőforrásé). Tájékoztató jellegűek: a HC
+Nem kötelező plusz adatok a **Beállítások → Mérések** részben (az utolsó lenyitható rész) (csak az adott hőforrásé). Tájékoztató jellegűek: a HC
 info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési döntést nem változtatják meg.
 - **Hőforrás:** víznyomás, valós előremenő / visszatérő (ΔT), moduláció vagy kompresszor %, hibakód, melegvíz-jelző
   (kombi kazánnál is), füstgáz és tüzelőanyag-szint (pellet), maghőmérséklet (hőtárolós), a külső vezérlésű hőtermelő
@@ -214,6 +214,24 @@ info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési dönté
 - **Jelzések** a „Kazán probléma” szenzoron: alacsony / magas víznyomás, kevés tüzelőanyag, túl sűrű kapcsolgatás,
   hibakód, túl sokáig hideg radiátor (a határok ugyanitt).
 - **Szenzorok:** Indítások ma, Üzemidő ma, COP ma, ΔT, Penész-kockázat (helyiségenként is).
+
+## Egyszerűbb beállítás (0.49.0)
+
+- **Kézi beállítás, eszközök lépés:** fent csak az van, ami az első beállításhoz kell – helyiséghőmérő (vagy fali
+  termosztát érintkezője), amit a HC kapcsol vagy állít, kinti hőmérő, ablakok, jelenlét. A mérők, a másik hőforrás,
+  a padló, a hőszivattyú és a célhő forrása a **Továbbiak (nem kötelező)** részben nyitható le. Ahol a Home Assistant
+  elég adatot ad, a választók előre ki vannak töltve: kinti hőmérő (a neve vagy a helye szerint kinti, különben
+  időjárás-entitás), a nappali hőmérője (vagy az egyetlen szóba jövő), minden személy a jelenléthez, a gázóra, ha
+  pontosan egy van (gázkazánnál). Relét vagy termosztátot sosem tölt ki.
+- **Beállítások:** fent az üzemmód, a célok és az éjszaka; a többi témánként lenyitható – *Szabályozás és időzítés*,
+  *Funkciók*, *Védelmek*, *Padló*, *A hőtermelő jelei és teljesítménye*, *Energia és költség*, *Csatlakozó tér*,
+  *Mérések*. A tárolás a régi (egy szinten), meglévő példánynál semmi nem változik.
+- **Vezérlés módosítása** (beállítások menü): pl. egy relés példány **külső termosztátra** állítása új példány
+  nélkül – ugyanaz a lista, mint a felvételnél, utána az, amit az új vezérlés kapcsol vagy állít. A példány árnyék
+  módba kerül, minden más beállítás marad. A helyiségek csak TPI / PID vezérléssel működnek: előbb vedd ki őket.
+- **Tüzelőanyag szám helyett:** a `heat_fuel` (automatikus, földgáz m³, PB-gáz kg, fűtőolaj l, pellet kg, villany
+  kWh, egyéni) és a `heat_efficiency` (%) kiszámolja az energiatényezőt; az automatikus a mérő mértékegységét nézi
+  (m³, kWh, MJ, GJ), mérő nélkül a hőtermelőt. A korábban mentett példány megtartja a számát (egyéni).
 
 ## Távfűtés és fan-coil (0.32.0)
 

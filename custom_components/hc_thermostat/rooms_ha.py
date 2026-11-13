@@ -357,3 +357,59 @@ def rooms_candidates(hass) -> dict:
     return {"areas": sorted(by_area.values(), key=lambda x: str(x["name"]).casefold()),
             "tracking": sorted(tracking, key=key), "temperature": sorted(temps, key=key),
             "climates": sorted(climates, key=key)}
+
+
+# --- 0.49.0: first suggestions of the step-by-step setup -----------------------------------------------------------
+LIVING_WORDS = ("nappali", "living")
+
+
+def _area_safe(hass, entity_id: str) -> str | None:
+    try:
+        return area_id_of(hass, entity_id)
+    except Exception:  # no registries (tests, a broken registry): no area
+        return None
+
+
+def _area_name_safe(hass, area_id: str | None) -> str | None:
+    try:
+        return area_name(hass, area_id)
+    except Exception:
+        return None
+
+
+def suggest_entities(hass) -> dict:
+    """Pre-filled pickers of the manual setup: the outdoor thermometer (a sensor named or placed outside, else a
+    weather entity), the room thermometer (the living room's, or the only plausible one), every person for presence,
+    and the gas meter when there is exactly one. Only a suggestion – nothing is guessed for a relay or a thermostat."""
+    out: dict = {}
+    taken = hc_outdoor_sensors(hass)
+    outdoor, weather, indoor, gas = [], [], [], []
+    for st in hass.states.async_all():
+        dom, a = st.domain, st.attributes
+        if dom == "weather":
+            weather.append(st.entity_id)
+        elif dom == "sensor" and a.get("device_class") == "temperature":
+            area = _area_safe(hass, st.entity_id)
+            text = _words(st.entity_id, a.get("friendly_name"), area, _area_name_safe(hass, area))
+            if any(w in text for w in OUTDOOR_WORDS) or (area and is_outdoor_area(hass, area)):
+                outdoor.append(st.entity_id)
+            elif not any(w in text for w in SKIP_WORDS + BATHROOM_WORDS):
+                value = state_value_c(st)
+                if value is not None and PLAUSIBLE[0] <= value <= PLAUSIBLE[1]:
+                    indoor.append((any(w in text for w in LIVING_WORDS), st.entity_id))
+        elif dom == "sensor" and a.get("device_class") == "gas":
+            gas.append(st.entity_id)
+    outdoor = sorted(outdoor, key=lambda e: (e not in taken, e))  # another instance's outdoor sensor is a safe pick
+    if outdoor or weather:
+        out[CONF_OUTDOOR] = (outdoor or sorted(weather))[0]
+    living = sorted(e for liv, e in indoor if liv)
+    if living:
+        out[CONF_INDOOR] = living[0]
+    elif len(indoor) == 1:
+        out[CONF_INDOOR] = indoor[0][1]
+    people = sorted(st.entity_id for st in hass.states.async_all("person"))
+    if people:
+        out["presence_entities"] = people
+    if len(gas) == 1:
+        out["heat_energy_entity"] = gas[0]
+    return out

@@ -20,7 +20,7 @@ from .const import (
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
-    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME,
+    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
 )
 from .core.matrix import (
     fit_cycle, min_cycle_s,
@@ -34,8 +34,10 @@ from .core.buffer import BufferConfig
 from .core.room_model import OWN, rooms_options
 from . import room_form as rf
 from .core import measures as ms
+from .core import fuel as fl
 from .rooms_ha import (
     area_id_of, areas_of_other_instances, excluded_climates, heads_of_other_instances, room_specs_for, rooms_candidates,
+    suggest_entities,
 )
 
 # 0.46.0: what the rooms menu item saves – the settings path keeps these as they are
@@ -337,6 +339,114 @@ def _cool_fields(system: str | None, source: str | None, control: str | None, cu
     return out
 
 
+
+# --- 0.49.0: fold-out sections, the fuel picker, first suggestions --------------------------------------------------
+ENTITY_MORE = "more"  # the entities step: everything beyond the few a first setup needs
+_ENTITY_TOP = (CONF_INDOOR, CONF_DEMAND, CONF_EXTERNAL, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ACTUATOR, CONF_OUTDOOR,
+               CONF_WINDOWS, CONF_PRESENCE)
+# the settings: the targets and the night stay on top, the rest folds out by topic (the measurements as in 0.48.0)
+SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
+    "regulation": (CONF_CONTROL, "cycle_s", "min_on_s", "min_off_s", "valve_delay_s", "coast_window_s",
+                   "pwm_midcycle_start", "pwm_carry", "pre_change_s", "yield_margin", "pid_kp", "pid_ki_per_hour",
+                   "pid_kd", "pid_d_filter_s", "curve_slope", "curve_shift", "flow_min", "flow_max", "room_kp",
+                   "room_ki_per_hour", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "ac_ki_per_hour",
+                   "ac_min_change_s", CONF_ASSIST, "storage_window_start", "storage_window_end", "storage_charge_h",
+                   "storage_bias", "storage_discharge_hyst", "fan_min_pct", "fan_overrun_s", "fan_min_coil",
+                   "keep_alive_s", CONF_KEEP_ALIVE_SCRIPT),
+    "functions": ("season_enabled", "boost_enabled", "learning_enabled", "shadow_regulator", "adopt_manual",
+                  CONF_TARGET_SOURCE, CONF_DEMAND),
+    "protection": (CONF_WINDOWS, CONF_WINDOW_DROP, "window_drop_rate", "frozen_after_h", "frozen_burn_min",
+                   CONF_VALVE_FEEDBACK, "zone_own_mixer", "valve_exercise", "exercise_weekday", "exercise_time",
+                   "exercise_s", CONF_RETURN, "return_max", "return_hysteresis"),
+    "floor": (CONF_FLOOR, "floor_max", "floor_covering", "floor_probe", "floor_hysteresis", "floor_temper",
+              "floor_temper_offset", "floor_temper_night", "floor_temper_hysteresis", "floor_temper_room_margin",
+              "floor_fallback", "floor_cooling", CONF_HUMIDITY, CONF_COOL_MODE, "dew_margin", "floor_min_cool",
+              CONF_COOL_FLOW, "cool_flow", "cool_flow_max"),
+    "devices": (CONF_FLAME, CONF_BOILER_POWER, "power_idle_w", "power_burn_w", "boiler_power_kw", "load_limit_kw",
+                CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL),
+    "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
+               CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
+               CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
+    "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF),
+}
+_SETTINGS_SECTION_OF = {k: name for name, keys in SETTINGS_SECTIONS.items() for k in keys}
+
+
+def _must_fill(marker) -> bool:
+    return isinstance(marker, vol.Required) and marker.default is vol.UNDEFINED
+
+
+def _grouped(fields: dict, section_of: dict[str, str], order) -> dict:
+    """The fields with a section on top stay on top; the others go into fold-out sections in `order`. A section
+    that holds a field still to be filled opens by itself."""
+    top: dict = {}
+    groups: dict[str, dict] = {}
+    for marker, selector in fields.items():
+        name = section_of.get(str(marker))
+        if name is None:
+            top[marker] = selector
+        else:
+            groups.setdefault(name, {})[marker] = selector
+    for name in order:
+        if name in groups:
+            top[vol.Required(name)] = section(vol.Schema(groups[name]),
+                                              {"collapsed": not any(_must_fill(m) for m in groups[name])})
+    return top
+
+
+def _flat(user_input: dict, names) -> dict:
+    """A form's answer with its sections opened out: every field on one level, as the settings are stored."""
+    out = dict(user_input)
+    for name in names:
+        out.update(out.pop(name, None) or {})
+    return out
+
+
+def _field_error(key: str, code: str, section_of: dict[str, str]) -> dict:
+    """An error of a field inside a fold-out section is shown above the form (a section shows no field error)."""
+    return {"base" if key in section_of else key: code}
+
+
+def _fuel_fields(current: dict) -> dict:
+    """0.49.0: the fuel and the efficiency work the energy factor out; the number itself is kept for "custom"."""
+    return {
+        vol.Required(CONF_HEAT_FUEL, default=fl.default_fuel(current)): _select(fl.FUELS, "heat_fuel"),
+        vol.Required(CONF_HEAT_EFFICIENCY, default=float(current.get(CONF_HEAT_EFFICIENCY, fl.DEFAULT_EFFICIENCY))):
+            _number(30, 120, 1, "%"),
+        vol.Required(CONF_ENERGY_FACTOR, default=float(current.get(CONF_ENERGY_FACTOR, fl.DEFAULT_FACTOR))):
+            _number(0.01, 100, 0.01, "kWh"),
+    }
+
+
+def _with_fuel(hass, values: dict, source: str | None) -> dict:
+    """The answer with the energy factor worked out of the fuel (the meter's unit for "auto")."""
+    if CONF_HEAT_FUEL not in values:
+        return values
+    unit = None
+    if (meter := values.get(CONF_HEAT_ENERGY)) and hass is not None:
+        try:
+            st = hass.states.get(meter)
+            unit = st.attributes.get("unit_of_measurement") if st is not None else None
+        except AttributeError:
+            unit = None
+    return {**values, CONF_ENERGY_FACTOR: fl.energy_factor(values.get(CONF_HEAT_FUEL), values.get(CONF_HEAT_EFFICIENCY),
+                                                           unit, source, values.get(CONF_ENERGY_FACTOR))}
+
+
+def _suggested(hass) -> dict:
+    """First suggestions of the manual setup (rooms_ha.suggest_entities); none without a running Home Assistant."""
+    try:
+        return suggest_entities(hass) if hass is not None else {}
+    except Exception:  # noqa: BLE001 – a suggestion must never break the setup
+        return {}
+
+
+def _key(required: bool, key: str, suggestion=None):
+    desc = {"suggested_value": suggestion} if suggestion not in (None, [], "") else None
+    cls = vol.Required if required else vol.Optional
+    return cls(key, description=desc) if desc else cls(key)
+
+
 class HcConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -484,23 +594,31 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         external = self._data[CONF_CONTROL] in ("external", "ac")
         curve = self._data[CONF_CONTROL] == "curve"
         relay = self._data[CONF_CONTROL] in _RELAY
+        source = self._data[CONF_HEAT_SOURCE]
         errors = {}
+        if user_input is not None:
+            user_input = _flat(user_input, (ENTITY_MORE,))  # 0.49.0: the fold-out part
         if user_input is not None and not user_input.get(CONF_INDOOR) and not user_input.get(CONF_DEMAND):
             errors[CONF_INDOOR] = "indoor_required"  # a room thermometer, or a wall thermostat's contact (0.38.0)
         elif user_input is not None and user_input.get(CONF_EXTERNAL) in excluded_climates(self.hass):
             errors[CONF_EXTERNAL] = "climate_taken"  # 0.45.0: an HC thermostat or another instance's device
         elif user_input is not None:
+            user_input = _with_fuel(getattr(self, "hass", None), user_input, source)  # 0.49.0
             data = {
-                **self._data, **user_input, **default_timing(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE]),
-                **(default_curve(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE]) if curve else {}),
+                **self._data, **user_input, **default_timing(self._data[CONF_SYSTEM], source),
+                **(default_curve(self._data[CONF_SYSTEM], source) if curve else {}),
                 CONF_MODE: MODE_SHADOW,  # Going live is always a separate, explicit step.
             }
             if data.get(CONF_ROLE) == "zone" and data[CONF_CONTROL] in ("tpi", "pid"):
                 data["valve_exercise"] = True  # summer valve exercise of the zone's own actuator
             self._data = data
             return await self.async_step_basics()  # 0.47.0: the targets and the timing already at the first setup
+        # 0.49.0: the pickers come pre-filled where Home Assistant tells enough (never the relay or a thermostat)
+        sug = _suggested(getattr(self, "hass", None))
+        if source not in ("onoff_boiler", "modulating_boiler"):
+            sug.pop(CONF_HEAT_ENERGY, None)  # a gas meter belongs to a gas boiler only
         # a relay control may take its demand from a wired wall thermostat (0.38.0): then no room thermometer is needed
-        fields: dict = {(vol.Optional(CONF_INDOOR) if relay else vol.Required(CONF_INDOOR)): _ent(CONF_INDOOR, "sensor")}
+        fields: dict = {_key(not relay, CONF_INDOOR, sug.get(CONF_INDOOR)): _ent(CONF_INDOOR, "sensor")}
         if relay:
             fields[vol.Optional(CONF_DEMAND)] = _ent(CONF_DEMAND, "binary_sensor", "input_boolean", "switch")
         if external:
@@ -512,28 +630,29 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             fields[vol.Optional(CONF_HEAT_ENABLE)] = _entity("switch", "input_boolean")
         else:
             fields[vol.Required(CONF_ACTUATOR)] = _entity("switch", "input_boolean")
-        if curve:
-            fields[vol.Required(CONF_OUTDOOR)] = _ent(CONF_OUTDOOR, "sensor", "weather")  # the curve needs it
-        else:
-            fields[vol.Optional(CONF_OUTDOOR)] = _ent(CONF_OUTDOOR, "sensor", "weather")
+        fields[_key(curve, CONF_OUTDOOR, sug.get(CONF_OUTDOOR))] = _ent(CONF_OUTDOOR, "sensor", "weather")  # the curve needs it
+        fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
+        fields[_key(False, CONF_PRESENCE, sug.get(CONF_PRESENCE))] = \
+            _ent(CONF_PRESENCE, "person", "sensor", "binary_sensor", "input_select", multiple=True)
+        # 0.49.0: everything below folds out ("more") – a first setup does not need it
         fields[vol.Optional(CONF_REFERENCE)] = _entity("binary_sensor", "switch", "climate", "input_boolean")
-        fields[vol.Optional(CONF_HEAT_ENERGY)] = _ent(CONF_HEAT_ENERGY, "sensor")
-        fields[vol.Optional(CONF_ENERGY_FACTOR, default=8.55)] = _number(0.01, 100, 0.01, "kWh")
+        fields[_key(False, CONF_HEAT_ENERGY, sug.get(CONF_HEAT_ENERGY))] = _ent(CONF_HEAT_ENERGY, "sensor")
+        fields.update(_fuel_fields({}))
         fields[vol.Optional(CONF_EXTRA_HEAT)] = _ent(CONF_EXTRA_HEAT, "sensor")
         fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "×")
-        if self._data[CONF_HEAT_SOURCE] != "external_heat":  # 0.47.0: HC does not drive that heat source
+        if source != "external_heat":  # 0.47.0: HC does not drive that heat source
             fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
-        fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
-        fields[vol.Optional(CONF_PRESENCE)] = _ent(CONF_PRESENCE, "person", "sensor", "binary_sensor", "input_select", multiple=True)
         # 0.45.0: the adjoining room (a second heat source behind a door) is rare – it is set in the options
         if self._data.get(CONF_ROLE) == "zone":
             fields[vol.Optional(CONF_VALVE_FEEDBACK)] = _entity(*_FEEDBACK_DOMAINS)
-        fields.update(_floor_fields(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE], self._data[CONF_CONTROL], {}))
-        fields.update(_hp_fields(self._data[CONF_HEAT_SOURCE], self._data[CONF_CONTROL], {}, settings=False))
-        fields.update(_power_fields(self._data[CONF_HEAT_SOURCE], {}, settings=False))
-        fields.update(_water_fields(self._data[CONF_SYSTEM], self._data[CONF_HEAT_SOURCE], {}, settings=False))
+        fields.update(_floor_fields(self._data[CONF_SYSTEM], source, self._data[CONF_CONTROL], {}))
+        fields.update(_hp_fields(source, self._data[CONF_CONTROL], {}, settings=False))
+        fields.update(_power_fields(source, {}, settings=False))
+        fields.update(_water_fields(self._data[CONF_SYSTEM], source, {}, settings=False))
         fields[vol.Optional(CONF_TARGET_SOURCE)] = _entity("climate", "number", "input_number")
-        return self.async_show_form(step_id="entities", data_schema=vol.Schema(fields), errors=errors)
+        more = {str(m): ENTITY_MORE for m in fields if str(m) not in _ENTITY_TOP and not _must_fill(m)}
+        return self.async_show_form(step_id="entities", data_schema=vol.Schema(_grouped(fields, more, (ENTITY_MORE,))),
+                                    errors=errors)
 
     @staticmethod
     @callback
@@ -553,6 +672,7 @@ class HcOptionsFlow(OptionsFlow):
         menu = ["settings"]
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
             menu.append("rooms")  # 0.46.0: straight to the rooms, saved on their own
+        menu.append("change_control")  # 0.49.0: another control without a new instance
         return self.async_show_menu(step_id="init", menu_options=[*menu, "go_shadow" if live else "go_live"])
 
     async def async_step_go_live(self, user_input=None):
@@ -574,22 +694,94 @@ class HcOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="go_shadow", data_schema=vol.Schema({}),
                                     description_placeholders={"name": self.config_entry.title})
 
+    # --- 0.49.0: another control (e.g. an external thermostat) without a new instance ------------------------------
+    async def async_step_change_control(self, user_input=None):
+        """Step 1: the control, from the same list as at the first setup (the matrix of the heat source)."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        source, system = current.get(CONF_HEAT_SOURCE), current.get(CONF_SYSTEM)
+        risky = cell(system, source).status == Status.NOT_RECOMMENDED
+        options = controls(source, system)
+        now = current.get(CONF_CONTROL, "tpi")
+        errors = {}
+        if user_input is not None:
+            new = user_input[CONF_CONTROL]
+            rooms = isinstance(current.get("rooms"), list) and bool(current.get("rooms"))
+            if risky and not user_input.get(CONF_CONFIRM):
+                errors[CONF_CONFIRM] = "confirm_required"
+            elif rooms and not _rooms_ok(current, new):
+                errors[CONF_CONTROL] = "rooms_need_valves"  # the rooms work with TPI / PID only
+            else:
+                self._new_control = new
+                return await self.async_step_change_entities()
+        fields: dict = {vol.Required(CONF_CONTROL, default=now if now in options else options[0]): _select(options, "control")}
+        if risky:
+            fields[vol.Required(CONF_CONFIRM, default=False)] = BooleanSelector()
+        return self.async_show_form(step_id="change_control", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"name": self.config_entry.title})
+
+    def _taken(self) -> list[str]:
+        """The thermostats this instance must not drive: HC's own, and those of another instance (not its own)."""
+        try:
+            return excluded_climates(self.hass, self.config_entry.entry_id)
+        except Exception:  # noqa: BLE001 – no registries (tests): nothing to leave out
+            return []
+
+    async def async_step_change_entities(self, user_input=None):
+        """Step 2: what the new control drives; saved in shadow mode, every other setting stays."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        new = self._new_control
+        relay, external, curve = new in _RELAY, new in ("external", "ac"), new == "curve"
+        errors = {}
+        if user_input is not None:
+            if not user_input.get(CONF_INDOOR) and not (relay and user_input.get(CONF_DEMAND)):
+                errors[CONF_INDOOR] = "indoor_required"
+            elif external and user_input.get(CONF_EXTERNAL) in self._taken():
+                errors[CONF_EXTERNAL] = "climate_taken"
+            else:
+                data = {**self.config_entry.options, **user_input, CONF_CONTROL: new, CONF_MODE: MODE_SHADOW}
+                if not relay:
+                    data.pop(CONF_DEMAND, None)  # a wall thermostat's contact drives a relay only
+                if curve and current.get(CONF_CONTROL) != "curve":
+                    data = {**default_curve(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **data}
+                return self.async_create_entry(data=data)
+
+        def pick(required: bool, key: str, selector):
+            fields[_key(required, key, current.get(key))] = selector
+
+        fields: dict = {}
+        pick(not relay, CONF_INDOOR, _ent(CONF_INDOOR, "sensor"))
+        if relay:
+            pick(False, CONF_DEMAND, _ent(CONF_DEMAND, "binary_sensor", "input_boolean", "switch"))
+        if external:
+            pick(True, CONF_EXTERNAL, EntitySelector(EntitySelectorConfig(domain="climate",
+                                                                          exclude_entities=self._taken())))
+        elif curve:
+            pick(True, CONF_FLOW, _entity("number", "input_number"))
+            pick(False, CONF_HEAT_ENABLE, _entity("switch", "input_boolean"))
+        else:  # TPI, PID, on-off and the storage heater switch a relay
+            pick(True, CONF_ACTUATOR, _entity("switch", "input_boolean"))
+        pick(curve, CONF_OUTDOOR, _ent(CONF_OUTDOOR, "sensor", "weather"))
+        return self.async_show_form(step_id="change_entities", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"name": self.config_entry.title})
+
     async def async_step_settings(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}
         errors = {}
         if user_input is not None:
+            # 0.48.0 / 0.49.0: the fold-out sections' fields are settings like the others
+            user_input = _flat(user_input, (*SETTINGS_SECTIONS, MEASURES))
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
             elif _cycle_too_short(user_input):
-                errors["cycle_s"] = "cycle_too_short"  # 0.48.1
+                errors = _field_error("cycle_s", "cycle_too_short", _SETTINGS_SECTION_OF)  # 0.48.1
             elif user_input.get("floor_cooling") and not user_input.get(CONF_HUMIDITY):
-                errors[CONF_HUMIDITY] = "humidity_required"  # no dew point, no cooling
+                errors = _field_error(CONF_HUMIDITY, "humidity_required", _SETTINGS_SECTION_OF)  # no dew point, no cooling
             elif (current.get(CONF_CONTROL) in _RELAY and not current.get(CONF_INDOOR)
                   and not user_input.get(CONF_DEMAND)):
-                errors[CONF_DEMAND] = "demand_required"  # no room thermometer: the wall thermostat gives the demand
+                # no room thermometer: the wall thermostat gives the demand
+                errors = _field_error(CONF_DEMAND, "demand_required", _SETTINGS_SECTION_OF)
             else:
-                user_input = {**user_input}
-                user_input.update(user_input.pop(MEASURES, None) or {})  # 0.48.0: the section's fields are settings
+                user_input = _with_fuel(getattr(self, "hass", None), user_input, current.get(CONF_HEAT_SOURCE))  # 0.49.0
                 self._settings = {k: v for k, v in user_input.items() if k != CONF_CONFIRM}
                 # 0.45.0: the boiler's power levels count as given only when someone set them – the untouched
                 # defaults (one boiler's values) are not saved, so the health check keeps learning
@@ -657,7 +849,7 @@ class HcOptionsFlow(OptionsFlow):
             **({vol.Required("load_limit_kw", default=cfg.load_limit_kw): _number(0, 100, 0.1, "kW")}
                if current.get(CONF_HEAT_SOURCE) in ELECTRIC_SOURCES and cfg.control in ("tpi", "pid") else {}),
             vol.Optional(CONF_HEAT_ENERGY, description={"suggested_value": current.get(CONF_HEAT_ENERGY)}): _ent(CONF_HEAT_ENERGY, "sensor"),
-            vol.Required(CONF_ENERGY_FACTOR, default=current.get(CONF_ENERGY_FACTOR, 8.55)): _number(0.01, 100, 0.01, "kWh"),
+            **_fuel_fields(current),  # 0.49.0: the fuel works the energy factor out
             vol.Required(CONF_EXTRA_FACTOR, default=current.get(CONF_EXTRA_FACTOR, 3.0)): _number(0.1, 10, 0.1, "×"),
             vol.Optional(CONF_WINDOWS, description={"suggested_value": current.get(CONF_WINDOWS)}): _ent(CONF_WINDOWS, "binary_sensor", multiple=True),
             vol.Optional(CONF_WINDOW_DROP, description={"suggested_value": current.get(CONF_WINDOW_DROP)}): _ent(CONF_WINDOW_DROP, "sensor", multiple=True),
@@ -682,8 +874,8 @@ class HcOptionsFlow(OptionsFlow):
         fields.update(_water_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), current, settings=True))
         fields[vol.Optional(CONF_TARGET_SOURCE, description={"suggested_value": current.get(CONF_TARGET_SOURCE)})] = \
             _entity("climate", "number", "input_number")
-        fields.update(_measure_section(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current,
-                                       isinstance(current.get("rooms"), list) and bool(current.get("rooms"))))
+        measures = _measure_section(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current,
+                                    isinstance(current.get("rooms"), list) and bool(current.get("rooms")))
         if cfg.control == "external":  # 0.42.0: take over a target / off set on the managed thermostat itself
             fields[vol.Required("adopt_manual", default=cfg.adopt_manual)] = BooleanSelector()
         if cfg.control in _RELAY:  # a wired wall thermostat's contact as the demand (0.38.0)
@@ -702,6 +894,8 @@ class HcOptionsFlow(OptionsFlow):
             fields[vol.Required("flow_max", default=cfg.flow_max)] = _number(25, 90, 1, "°C")
             fields[vol.Required("room_kp", default=cfg.room_kp)] = _number(0, 20, 0.5)
             fields[vol.Required("room_ki_per_hour", default=cfg.room_ki_per_hour)] = _number(0, 10, 0.1)
+        # 0.49.0: the targets on top, the rest in fold-out sections by topic, the measurements last
+        fields = {**_grouped(fields, _SETTINGS_SECTION_OF, SETTINGS_SECTIONS), **measures}
         return self.async_show_form(step_id="settings", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_buffer(self, user_input=None):

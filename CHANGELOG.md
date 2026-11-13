@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.49.0 – 2026-11-13
+A simpler setup.
+- **Devices step of the manual setup:** on top only what a first setup needs (room thermometer or wall thermostat
+  contact, what HC switches or sets, outdoor thermometer, windows, presence); the rest folds out under *More
+  (optional)*. A field still to be filled (an electric floor's sensor) stays on top.
+- **Pre-filled pickers** in the manual setup (`rooms_ha.suggest_entities`): the outdoor thermometer (named or placed
+  outside, else a weather entity), the living room's thermometer or the only plausible one, every person for
+  presence, the only gas meter (gas boilers). Never a relay or a thermostat.
+- **Settings in fold-out sections:** the mode, the targets and the night on top; *Control and timing*, *Features*,
+  *Protections*, *Floor*, *Heat source signals and power*, *Energy and cost*, *Adjoining room* and *Measurements*
+  fold out. Stored on one level as before; an error of a field inside a section is shown above the form.
+- **Change the control** (new options menu item): another control (e.g. a relay instance to an external thermostat)
+  without a new instance – the matrix's list, then what the new control drives (pre-filled with the current
+  entities). Saved in shadow mode, every other setting stays; a curve gets its default curve; refused while rooms are
+  set and the new control is not TPI / PID.
+- **Energy factor from a fuel:** `heat_fuel` (auto, natural gas m³, LPG kg, heating oil l, pellet kg, electricity kWh,
+  custom) and `heat_efficiency` (%, default 90) work `energy_factor` out (`core/fuel.py`); auto reads the meter's unit
+  (m³, Wh/kWh/MWh, MJ, GJ; no efficiency for a heat meter or electric heat), without a meter the heat source; a heat
+  pump keeps the typed number. An instance saved before keeps its number ("custom").
+- Tests: tests/test_setup_490.py (11); four tests follow the new structure (sections, menu).
+
 ## 0.48.3 – 2026-11-13
 - **Decision chain on GitHub:** `DECISION_CHAIN.md` (English) and `DECISION_CHAIN.hu.md` (Hungarian) – one heating step
   on three levels (heat source → execution → emitter and room) as Mermaid diagrams, the one-step decision order, a

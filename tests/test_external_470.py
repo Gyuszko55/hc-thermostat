@@ -163,10 +163,11 @@ def test_texts():
         assert set(tr["config"]["step"]["start"]["menu_options"]) == {"open_wizard", "manual"}
         assert "{url}" in tr["config"]["abort"]["use_wizard"]
         assert tr["config"]["step"]["basics"]["data"]["valve_delay_s"]
-        assert tr["options"]["step"]["settings"]["data"]["valve_delay_s"]
+        st = tr["options"]["step"]["settings"]  # 0.49.0: in the "regulation" section
+        assert st["sections"]["regulation"]["data"]["valve_delay_s"]
     js = (ROOT / "www" / "hc-wizard-panel.js").read_text()
     assert 'external_heat: ["Külső vezérlésű hőtermelő"' in js and '"valve_delay_s"]' in js
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.47.0", "0.48.0", "0.48.1", "0.48.2", "0.48.3")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.47.0", "0.48.0", "0.48.1", "0.48.2", "0.48.3", "0.49.0")
 
 
 # --- review of 11-12 evening: the failsafe covers the whole step, the executor's parts are separate, saves at once ---
@@ -284,5 +285,5 @@ def test_coasting_and_mid_cycle_start_are_off_unless_turned_on():
     out, _ = p.step(T0 + timedelta(minutes=10), 0.26)  # grew past it mid-cycle, after its own on-time
     assert out is False  # waits for the next cycle, as before 0.44.2
     for lang in ("hu", "en"):
-        data = json.loads((ROOT / "translations" / f"{lang}.json").read_text())["options"]["step"]["settings"]["data"]
+        data = json.loads((ROOT / "translations" / f"{lang}.json").read_text())["options"]["step"]["settings"]["sections"]["regulation"]["data"]
         assert data["coast_window_s"] and data["pwm_midcycle_start"]

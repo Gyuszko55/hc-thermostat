@@ -19,7 +19,8 @@ both work (0.45.0): readings in °F are converted, and what HC writes to a therm
    download **HC Thermostat** → **restart** Home Assistant.
 2. **Add:** Settings → Devices & services → Add integration → **HC Thermostat** → choose **the setup wizard
    (recommended)** – a link opens the **HC setup** panel (worked-out settings and rooms; for administrators) – or the
-   manual setup: a name, the heat source and the system, the devices, then the targets and the timing.
+   manual setup: a name, the heat source and the system, the devices (pre-filled where possible, the rest folds
+   out), then the targets and the timing.
 3. **Watch it in shadow mode:** a new instance calculates and logs what it would do, switches nothing. The
    **HC info** panel and the decision sensor show why.
 4. **Go live:** Settings → Devices & services → HC Thermostat → **Configure** → **Go live**, tick the confirmation.
@@ -198,7 +199,7 @@ exists (add the first one under Settings → Devices & services).
 
 ## Measurements (0.48.0)
 
-Optional readings, in **Options → Settings → Measurements** (only those of the instance's heat source). They are
+Optional readings, in **Options → Settings → Measurements** (the last fold-out part) (only those of the instance's heat source). They are
 information: the HC info panel shows them (*Measurements*, and per room), and none of them changes a decision.
 - **Heat source:** water pressure, real flow / return (ΔT), modulation or compressor %, fault code, hot water signal
   (combi boilers too), flue gas and fuel level (pellet), core temperature (storage heater), the state of a heat source
@@ -211,6 +212,24 @@ information: the HC info panel shows them (*Measurements*, and per room), and no
 - **Alerts** on the boiler problem sensor: low / high pressure, little fuel, too many starts an hour, a fault code, a
   radiator cold too long (limits in the same part).
 - **Sensors:** Starts today, Run time today, COP today, ΔT, Mould risk (per room).
+
+## Simpler setup (0.49.0)
+
+- **Manual setup, devices step:** only what a first setup needs is on top – room thermometer (or a wall
+  thermostat's contact), what HC switches or sets, outdoor thermometer, windows, presence. Meters, a second heat
+  source, floor, heat pump and target source fold out under **More (optional)**. Where Home Assistant tells enough,
+  the pickers come pre-filled: the outdoor thermometer (named or placed outside, else a weather entity), the living
+  room's thermometer (or the only plausible one), every person for presence, the gas meter when there is exactly one
+  (gas boilers). Never a relay or a thermostat.
+- **Settings:** the mode, the targets and the night on top; the rest folds out by topic – *Control and timing*,
+  *Features*, *Protections*, *Floor*, *Heat source signals and power*, *Energy and cost*, *Adjoining room*,
+  *Measurements*. Stored as before (one level), nothing changes for an existing instance.
+- **Change the control** (options menu): e.g. a relay instance to an **external thermostat** without a new instance –
+  the same list as at the setup, then what the new control drives. The instance goes back to shadow mode, every other
+  setting stays. Rooms work with TPI / PID only: remove them first.
+- **Fuel instead of a number:** `heat_fuel` (automatic, natural gas m³, LPG kg, heating oil l, pellet kg,
+  electricity kWh, custom) and `heat_efficiency` (%) work the energy factor out; automatic reads the meter's unit (m³,
+  kWh, MJ, GJ), without a meter the heat source. An instance saved before keeps its number (custom).
 
 ## District heating and fan coil (0.32.0)
 
