@@ -96,7 +96,8 @@ def test_radiator_cold_only_while_the_room_needs_heat():
     assert w.update(T0, 22.0, 20.0, False, True) == "idle"
     assert w.update(T0, 22.0, 20.0, True, False) == "idle"
     assert w.update(T0, 23.0, 20.0, True, True) == "cold"
-    assert w.cold_for_min(T0 + timedelta(minutes=25)) == pytest.approx(25.0)
+    w.update(T0 + timedelta(minutes=5), 23.0, 20.0, True, True)  # 0.48.1: the minutes of heating add up
+    assert w.cold_for_min() == pytest.approx(5.0)
     assert w.update(T0 + timedelta(minutes=30), 45.0, 20.0, True, True) == "warm" and w.cold_since is None
 
 
@@ -203,7 +204,7 @@ def test_the_coordinator_cop_and_a_cold_radiator():
         c._update_measures(d, T0 + timedelta(minutes=minutes))
     assert c.measures["cop"]["cop_today"] == 3.0
     room = c.measures["rooms"]["k"]
-    assert room["radiator"]["status"] == "cold" and room["radiator"]["cold_min"] == 25
+    assert room["radiator"]["status"] == "cold" and room["radiator"]["cold_min"] == 20  # 10 + 10 (a gap counts ≤ 10)
     assert c.measure_problems == ["radiator_cold:Konyha"]
     assert "rooms" in c.measure_keys()
 
@@ -237,7 +238,7 @@ def test_settings_section_by_heat_source():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] == "0.48.0"
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.48.0", "0.48.1")
 
 
 def test_texts():

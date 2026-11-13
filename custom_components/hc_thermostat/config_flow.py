@@ -23,6 +23,7 @@ from .const import (
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME,
 )
 from .core.matrix import (
+    fit_cycle, min_cycle_s,
     ELECTRIC_SOURCES, SOURCES, SYSTEMS, Status, cell, controls, curve_supported, default_curve, default_timing, electric_floor,
     own_control_supported, source_defaults,
 )
@@ -260,6 +261,16 @@ def _water_fields(system: str | None, source: str | None, current: dict, setting
     return out
 
 
+def _cycle_too_short(values: dict) -> bool:
+    """0.48.1: with a valve delay, the cycle must hold the delay, the minimum run and the minimum pause."""
+    try:
+        delay = float(values.get("valve_delay_s") or 0.0)
+        return delay > 0 and float(values.get("cycle_s", 0)) < min_cycle_s(
+            delay, float(values.get("min_on_s", 0)), float(values.get("min_off_s", 0)))
+    except (TypeError, ValueError):
+        return False
+
+
 MEASURES = "measures"  # 0.48.0: the settings' fold-out section of the measurements
 
 
@@ -286,6 +297,9 @@ def _measure_section(system: str | None, source: str | None, control: str | None
     if "pressure_entity" in ms.fields_for(source):
         fields[vol.Required("pressure_min", default=lim.pressure_min)] = _number(0, 5, 0.1, "bar")
         fields[vol.Required("pressure_max", default=lim.pressure_max)] = _number(0.5, 10, 0.1, "bar")
+    if "fault_code_entity" in ms.fields_for(source):  # 0.48.1: the source's own "no fault" values
+        fields[vol.Optional("fault_ok_values", description={"suggested_value": current.get("fault_ok_values")})] = \
+            TextSelector()
     if "fuel_level_entity" in ms.fields_for(source):
         fields[vol.Required("fuel_min", default=lim.fuel_min)] = _number(0, 100, 1, "%")
     if control not in ("external", "ac"):
@@ -388,8 +402,12 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         delay, before the instance is created (they were only in the options before)."""
         data = self._data
         ctl, source, system = data[CONF_CONTROL], data[CONF_HEAT_SOURCE], data[CONF_SYSTEM]
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title=data[CONF_NAME], data={**data, **user_input})
+            if _cycle_too_short(user_input):
+                errors["cycle_s"] = "cycle_too_short"  # 0.48.1: no useful heat left after the valve delay
+            else:
+                return self.async_create_entry(title=data[CONF_NAME], data={**data, **user_input})
         cfg = HcConfig.from_mapping(data)
         temp = _number(5, 30, 0.5, "°C")
         fields = {
@@ -405,7 +423,7 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             fields[vol.Required("min_off_s", default=cfg.min_off_s)] = _number(0, 3600, 30, "s")
         if ctl in ("tpi", "pid") and system != "room_unit":
             fields[vol.Required("valve_delay_s", default=cfg.valve_delay_s)] = _number(0, 1800, 30, "s")
-        return self.async_show_form(step_id="basics", data_schema=vol.Schema(fields),
+        return self.async_show_form(step_id="basics", data_schema=vol.Schema(fields), errors=errors,
                                     description_placeholders={"name": data[CONF_NAME]})
 
     async def async_step_wizard(self, data):
@@ -562,6 +580,8 @@ class HcOptionsFlow(OptionsFlow):
         if user_input is not None:
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
+            elif _cycle_too_short(user_input):
+                errors["cycle_s"] = "cycle_too_short"  # 0.48.1
             elif user_input.get("floor_cooling") and not user_input.get(CONF_HUMIDITY):
                 errors[CONF_HUMIDITY] = "humidity_required"  # no dew point, no cooling
             elif (current.get(CONF_CONTROL) in _RELAY and not current.get(CONF_INDOOR)
@@ -598,7 +618,8 @@ class HcOptionsFlow(OptionsFlow):
                if cfg.control in ("tpi", "pid") and current.get(CONF_SYSTEM) != "room_unit" else {}),
             # 0.47.0: the coasting after a burn (0.44.3) and the mid-cycle start (0.44.2) – off unless turned on here
             **({vol.Required("coast_window_s", default=cfg.coast_window_s): _number(0, 7200, 300, "s"),
-                vol.Required("pwm_midcycle_start", default=cfg.pwm_midcycle_start): BooleanSelector()}
+                vol.Required("pwm_midcycle_start", default=cfg.pwm_midcycle_start): BooleanSelector(),
+                vol.Required("pwm_carry", default=cfg.pwm_carry): BooleanSelector()}
                if cfg.control in ("tpi", "pid") else {}),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
             vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),

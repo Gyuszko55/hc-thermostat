@@ -20,6 +20,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 import math
+import re
 
 WATER_SOURCES = ("onoff_boiler", "modulating_boiler", "heat_pump", "electric_boiler", "district_heating",
                  "pellet_boiler", "external_heat")
@@ -75,8 +76,15 @@ def dew_point(temp: float | None, humidity: float | None) -> float | None:
     return round(b * g / (a - g), 1)
 
 
-def fault_active(state: str | None) -> bool:
-    return state is not None and str(state).strip().lower() not in _NO_FAULT
+def fault_active(state: str | None, ok_values: tuple[str, ...] = ()) -> bool:
+    """0.48.1: "00", "F.00", "0x00", "E-0" are no fault either (only zeros after a letter prefix), and the values
+    the options give as "no fault"."""
+    if state is None:
+        return False
+    text = str(state).strip().lower()
+    if text in _NO_FAULT or text in {v.strip().lower() for v in ok_values if str(v).strip()}:
+        return False
+    return not re.fullmatch(r"(0x|[a-z]{1,3}[.\-_ ]?)?0+(\.0+)?", text)
 
 
 def season_start(day: date) -> date:
@@ -90,6 +98,7 @@ class Limits:
     fuel_min: float = DEFAULTS["fuel_min"]
     starts_per_hour_max: float = DEFAULTS["starts_per_hour_max"]
     radiator_cold_min: float = DEFAULTS["radiator_cold_min"]
+    fault_ok: tuple[str, ...] = ()  # 0.48.1: the source's own "no fault" values
 
     @classmethod
     def from_conf(cls, conf: dict) -> "Limits":
@@ -99,6 +108,7 @@ class Limits:
                 setattr(out, k, float(conf.get(k, v)))
             except (TypeError, ValueError):
                 setattr(out, k, v)
+        out.fault_ok = tuple(x.strip() for x in str(conf.get("fault_ok_values") or "").split(",") if x.strip())
         return out
 
 
@@ -237,30 +247,49 @@ class Humidity:
 
 
 class RadiatorWatch:
-    """A radiator that stays cold while its room needs heat and the heat source runs."""
+    """A radiator that stays cold while its room needs heat and the heat source runs.
+
+    0.48.1 (outside review): the minutes of heating are added up – a PWM burn of 5–12 minutes never reached the
+    20-minute limit when every pause started the count again. It starts again only when the radiator got warm or the
+    room needs no more heat. "Warm": above the room by 40 % of the flow's lead over it when the flow is measured
+    (at least 3 °C), else 5 °C and 30 °C – a heat pump's lukewarm water 3 °C and 25 °C."""
 
     def __init__(self) -> None:
-        self.cold_since: datetime | None = None
+        self.cold_s = 0.0
+        self.last: datetime | None = None
+
+    @property
+    def cold_since(self):  # kept for the info panel and the old tests: "cold" while minutes are counted
+        return self.last if self.cold_s > 0 else None
+
+    @staticmethod
+    def warm(radiator: float, room: float | None, flow: float | None = None, low_temp: bool = False) -> bool:
+        base = room if room is not None else 20.0
+        if flow is not None and flow > base:
+            return radiator >= base + max(3.0, 0.4 * (flow - base))
+        if low_temp:
+            return radiator >= max(25.0, base + 3.0)
+        return radiator >= max(_RADIATOR_WARM_MIN, base + _RADIATOR_WARM)
 
     def update(self, now: datetime, radiator: float | None, room: float | None, heating: bool,
-               needs_heat: bool) -> str | None:
-        """'warm', 'cold' (for longer than the limit, the caller decides), 'idle' or None (no reading)."""
+               needs_heat: bool, flow: float | None = None, low_temp: bool = False) -> str | None:
+        """'warm', 'cold' (minutes of heating counted, the caller compares them to the limit), 'idle' or None."""
+        last, self.last = self.last, now
         if radiator is None:
-            self.cold_since = None
+            self.cold_s = 0.0
             return None
-        warm = radiator >= max(_RADIATOR_WARM_MIN, (room if room is not None else 20.0) + _RADIATOR_WARM)
-        if warm:
-            self.cold_since = None
+        if self.warm(radiator, room, flow, low_temp):
+            self.cold_s = 0.0
             return "warm"
-        if not (heating and needs_heat):
-            self.cold_since = None
+        if not needs_heat:
+            self.cold_s = 0.0
             return "idle"
-        if self.cold_since is None:
-            self.cold_since = now
-        return "cold"
+        if heating and last is not None:
+            self.cold_s += max(0.0, min((now - last).total_seconds(), 600.0))
+        return "cold" if self.cold_s > 0 or heating else "idle"
 
-    def cold_for_min(self, now: datetime) -> float:
-        return (now - self.cold_since).total_seconds() / 60 if self.cold_since is not None else 0.0
+    def cold_for_min(self, now: datetime | None = None) -> float:
+        return self.cold_s / 60
 
 
 def source_problems(values: dict, limits: Limits, starts_last_hour: int, counted: bool) -> list[str]:
@@ -277,6 +306,6 @@ def source_problems(values: dict, limits: Limits, starts_last_hour: int, counted
         out.append("fuel_low")
     if counted and limits.starts_per_hour_max > 0 and starts_last_hour > limits.starts_per_hour_max:
         out.append("short_cycling")
-    if fault_active(values.get("fault_code")):
+    if fault_active(values.get("fault_code"), limits.fault_ok):
         out.append("fault_code")
     return out

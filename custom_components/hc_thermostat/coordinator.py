@@ -785,13 +785,19 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     async def _failsafe(self, now: datetime) -> Decision:
         """The supervisor raised: log it; from the FAILSAFE_AFTER-th failure in a row the heat goes off (active mode
-        through the executor's usual path) until a step works again. Before that – or without a decision to base
-        the off command on – the error is raised as before (the entities go unavailable for the step)."""
+        through the executor's usual path) until a step works again – 0.48.1: also without an earlier decision (an
+        off decision of its own). Before that the error is raised as before (the entities go unavailable)."""
         self.step_errors = getattr(self, "step_errors", 0) + 1
         _LOGGER.exception("%s: the decision failed (%d in a row)", self.config_entry.title, self.step_errors)
         last = self.data
-        if self.step_errors < FAILSAFE_AFTER or last is None:
+        if self.step_errors < FAILSAFE_AFTER:
             raise
+        if last is None:
+            # 0.48.1 (outside review): failing from the first step after a start, there is no decision to base the
+            # off command on – the relay (or the managed thermostat) stayed as it was. An off decision of its own.
+            frost = float(getattr(self.cfg, "frost_temp", 7.0))
+            last = Decision(now, Reason.SENSOR_LOST, frost, None, None,
+                            external=ExternalCommand("off", frost) if getattr(self, "managed", False) else None)
         if self.step_errors == FAILSAFE_AFTER:
             _LOGGER.warning("%s: %d failed decisions in a row – the heat output is switched off for safety",
                             self.config_entry.title, self.step_errors)
@@ -1144,7 +1150,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         p, unit, _ = self._plain(CONF_PRESSURE)
         if p is not None:
             u = str(unit or "bar").lower()
-            values["pressure"] = round(p / {"psi": 14.5038, "kpa": 100.0, "mbar": 1000.0, "pa": 100000.0}.get(u, 1.0), 2)
+            values["pressure"] = round(p / {"psi": 14.5038, "kpa": 100.0, "hpa": 1000.0, "mbar": 1000.0,
+                                            "pa": 100000.0}.get(u, 1.0), 2)  # 0.48.1: hPa too
         flow, ret = self._temp(conf.get(CONF_FLOW_TEMP), now), self._temp(conf.get(CONF_RETURN), now)
         if flow is not None:
             values["flow_temp"] = round(flow, 1)
@@ -1203,7 +1210,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 temps = [t for e in spec.radiators if (t := self._temp(e, now)) is not None]
                 watch = self._radiators.setdefault(spec.key, ms.RadiatorWatch())
                 needs = room_t is not None and target is not None and room_t < float(target) - 0.3
-                status = watch.update(now, max(temps) if temps else None, room_t, bool(heating), needs)
+                status = watch.update(now, max(temps) if temps else None, room_t, bool(heating), needs,
+                                      values.get("flow_temp"), conf.get(CONF_HEAT_SOURCE) == "heat_pump")
                 cold = watch.cold_for_min(now)
                 out["radiator"] = {"temp": round(max(temps), 1) if temps else None, "status": status,
                                    "cold_min": round(cold) if status == "cold" else 0}

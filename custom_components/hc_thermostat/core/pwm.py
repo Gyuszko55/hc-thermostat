@@ -15,35 +15,45 @@ class Pwm:
         self.last_change: datetime | None = None
         self.cycle_start: datetime | None = None
         self._deferred = False  # refused by the load limit: the cycle starts again when the room is granted
-        # 0.47.0 (valve_delay_s > 0): useful seconds a cycle wanted but was too small to run – carried forward
+        # useful seconds a cycle wanted but did not get (0.47.0: with a valve delay; 0.48.1: for every relay, and also
+        # what a shortened run left over) – carried into the next cycles, so small demands add up to a real run
         self.carry_s = 0.0
-        self._last_raw = 0.0
+        self._small = 0.0  # useful seconds too few for the minimum run (carried whole)
+        self._short = 0.0  # useful seconds a run capped by the minimum pause could not give (carried)
+        self._delay = max(0.0, cfg.valve_delay_s)  # the delay of this cycle: none when the relay stays on into it
 
     def _on_time(self, demand: float) -> float:
+        """The run of this cycle in seconds. 0.48.1 (an outside review, measured): a full cycle only when the useful
+        demand itself reaches it – before, the valve delay was added first and a 40 % demand already ran without a
+        break (15-minute cycle, 10-minute delay: 17 % or 97 %, nothing between). A run cut by the minimum off time
+        leaves its missing useful seconds to the carry."""
         cfg = self._cfg
-        on_time = max(0.0, min(1.0, demand)) * cfg.cycle_s
-        delay = max(0.0, cfg.valve_delay_s)
-        if delay > 0 and on_time > 0:
-            on_time = min(cfg.cycle_s, on_time + self.carry_s)  # small demands of earlier cycles add up
-        if on_time < cfg.min_on_s:
-            return 0.0
-        on_time += delay  # the valve opens and the pump starts first: the useful heat comes after the delay
-        if cfg.cycle_s - on_time < cfg.min_off_s:
-            return cfg.cycle_s
-        return on_time
+        useful = max(0.0, min(1.0, demand)) * cfg.cycle_s
+        if useful > 0:
+            useful = min(cfg.cycle_s, useful + self.carry_s)  # small demands of earlier cycles add up
+        full_at = cfg.cycle_s - cfg.min_off_s
+        if useful < cfg.min_on_s:
+            on = 0.0
+        elif useful >= full_at:
+            on = cfg.cycle_s
+        else:
+            on = min(useful + self._delay, full_at)  # the valve opens and the pump starts first
+        self._small = useful if on == 0.0 else 0.0
+        self._short = max(0.0, useful - (on - self._delay)) if 0.0 < on < cfg.cycle_s else 0.0
+        return on
 
     def _carry(self, demand: float, new_cycle: bool) -> None:
-        """0.47.0: at a new cycle, a past cycle that wanted heat but was too small to run hands its useful seconds on;
-        a cycle that ran, or no demand at all, clears what was carried."""
+        """At a new cycle the past cycle hands on a demand too small for the minimum run, or the useful seconds its
+        run lost to the minimum pause (bounded by one cycle). A run missed for another reason (the minimum pause, a
+        load limit, a demand that fell) is not carried: the regulator asks again. No demand clears it."""
         cfg = self._cfg
-        if cfg.valve_delay_s <= 0 or demand <= 0:
+        if demand <= 0 or (cfg.valve_delay_s <= 0 and not cfg.pwm_carry):
             self.carry_s = 0.0
         elif new_cycle and self.cycle_start is not None:
-            if self._burned_this_cycle():
-                self.carry_s = 0.0
-            elif self._last_raw > 0:
-                self.carry_s = min(cfg.cycle_s, self.carry_s + self._last_raw)
-        self._last_raw = max(0.0, min(1.0, demand)) * cfg.cycle_s
+            ran = self._burned_this_cycle()
+            self.carry_s = max(0.0, min(cfg.cycle_s, self._short if ran else self._small))
+        if new_cycle:
+            self._delay = 0.0 if self.output else max(0.0, cfg.valve_delay_s)  # still on: the water is already warm
 
     def step(self, now: datetime, demand: float,
              allow_on: Callable[[bool], bool] | None = None) -> tuple[bool, str | None]:

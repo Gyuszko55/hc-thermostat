@@ -69,9 +69,9 @@ def test_carry_survives_a_restart():
     assert q.carry_s == 240.0
 
 
-def _sim(delay, outdoor, dead=600):
+def _sim(delay, outdoor, dead=600, cycle=900):
     cfg = HcConfig(control="pid", pid_kp=0.5, pid_ki_per_hour=0.2, target_home=21.0, night_start="00:00",
-                   night_end="00:00", cycle_s=900, min_on_s=300, min_off_s=300, season_enabled=False,
+                   night_end="00:00", cycle_s=cycle, min_on_s=300, min_off_s=300, season_enabled=False,
                    boost_enabled=False, learning_enabled=False, valve_delay_s=delay)
     sup = Supervisor(cfg)
     room, since, useless, errs = 20.6, None, 0, []
@@ -95,7 +95,8 @@ def test_simulation_slow_valve_and_late_pump():
     runs end before any heat arrives; with it none do and the room keeps closer to its target."""
     for outdoor in (5.0, 12.0):
         old_useless, old_err = _sim(0, outdoor)
-        new_useless, new_err = _sim(600, outdoor)
+        # 0.48.1: a 15-minute cycle cannot hold a 10-minute delay with 5 + 5 minutes (the options refuse it): 30
+        new_useless, new_err = _sim(600, outdoor, cycle=1800)
         assert old_useless >= 20 and new_useless == 0
         assert new_err < old_err * 0.7
 
@@ -145,6 +146,10 @@ def test_the_first_setup_asks_the_targets_and_the_timing():
     kind, kw = asyncio.run(flow.async_step_basics({"target_home": 22.0, "target_night": 20.0, "target_away": 17.0,
                                                    "night_start": "22:00", "night_end": "06:00", "cycle_s": 900,
                                                    "min_on_s": 300, "min_off_s": 300, "valve_delay_s": 600}))
+    assert kind == "form" and kw["errors"] == {"cycle_s": "cycle_too_short"}  # 0.48.1: 10 + 5 + 5 > 15 minutes
+    kind, kw = asyncio.run(flow.async_step_basics({"target_home": 22.0, "target_night": 20.0, "target_away": 17.0,
+                                                   "night_start": "22:00", "night_end": "06:00", "cycle_s": 1800,
+                                                   "min_on_s": 300, "min_off_s": 300, "valve_delay_s": 600}))
     assert kind == "create" and kw["data"]["valve_delay_s"] == 600 and kw["data"]["target_home"] == 22.0
     assert kw["data"]["actuator_entity"] == "switch.zona" and kw["data"]["mode"] == "shadow"
     flow._data = {**flow._data, "control": "external", "heat_source": "heat_pump"}
@@ -161,7 +166,7 @@ def test_texts():
         assert tr["options"]["step"]["settings"]["data"]["valve_delay_s"]
     js = (ROOT / "www" / "hc-wizard-panel.js").read_text()
     assert 'external_heat: ["Külső vezérlésű hőtermelő"' in js and '"valve_delay_s"]' in js
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.47.0", "0.48.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.47.0", "0.48.0", "0.48.1")
 
 
 # --- review of 11-12 evening: the failsafe covers the whole step, the executor's parts are separate, saves at once ---

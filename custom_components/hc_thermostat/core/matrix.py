@@ -186,6 +186,20 @@ def default_curve(system: str, source: str) -> dict:
             "flow_min": 22.0 if floor else 25.0, "heat_pump": source == "heat_pump"}
 
 
+def min_cycle_s(valve_delay_s: float, min_on_s: float, min_off_s: float) -> float:
+    """0.48.1: the shortest cycle a run with a valve delay can give useful heat in (a shorter one gives none or
+    only full cycles)."""
+    return max(0.0, valve_delay_s) + max(0.0, min_on_s) + max(0.0, min_off_s)
+
+
+def fit_cycle(cycle_s: float, valve_delay_s: float, min_on_s: float, min_off_s: float) -> float:
+    """0.48.1: a cycle too short for its valve delay is lengthened to 1.5 × the shortest, in whole 5 minutes."""
+    if valve_delay_s <= 0 or cycle_s >= min_cycle_s(valve_delay_s, min_on_s, min_off_s):
+        return cycle_s
+    need = 1.5 * min_cycle_s(valve_delay_s, min_on_s, min_off_s)
+    return float(-(-need // 300) * 300)
+
+
 def default_timing(system: str, source: str | None = None) -> dict[str, float]:
     """Editable starting values; slow floors get long cycles."""
     if electric_floor(system, source):  # a mat warms faster than a water floor, but a screed still evens out slowly

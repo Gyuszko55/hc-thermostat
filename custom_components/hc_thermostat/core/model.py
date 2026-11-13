@@ -170,6 +170,9 @@ class HcConfig:
     # 0.44.2 mid-cycle start (a demand that grows past the minimum run mid-cycle starts a cycle at once instead of
     # waiting for the next one); 0.47.0: off by default – measured on one house only, turned on in the options
     pwm_midcycle_start: bool = False
+    # 0.48.1 small demands carried on without a valve delay (with one they always are); off by default – it raised
+    # the overshoot after a boost in the simulation (the after-heat learning)
+    pwm_carry: bool = False
     keep_alive_s: float = 0.0  # resend "on" this often while heating (relay with its own auto-off timer); 0 = off
     # Safety
     sensor_max_age_s: float = 7200.0

@@ -166,7 +166,8 @@
       "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
       "indoor_required": "Adj meg helyiséghőmérőt vagy fali termosztát érintkezőt.",
       "name_taken": "Már van ilyen nevű példány – adj másik nevet.",
-      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna."
+      "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna.",
+      "cycle_too_short": "A ciklus túl rövid a hasznos fűtés késéséhez: legalább a késés + minimális be- + minimális kikapcsolási idő legyen (pl. 10 perc késésnél 5 + 5 perccel legalább 20 perc)."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
@@ -309,7 +310,8 @@
           "adopt_manual": "A kezelt termosztáton végzett változtatások átvétele",
           "valve_delay_s": "Hasznos fűtés késése (szelepnyitás + szivattyú)",
           "coast_window_s": "Utánfűtés kivárása égés után (0 = ki)",
-          "pwm_midcycle_start": "Ciklus közbeni indítás"
+          "pwm_midcycle_start": "Ciklus közbeni indítás",
+          "pwm_carry": "Kis igények gyűjtése"
         },
         "data_description": {
           "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
@@ -343,7 +345,8 @@
           "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő).",
           "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.",
           "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
-          "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve)."
+          "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve).",
+          "pwm_carry": "A minimális égésnél kisebb igények összegyűlnek egy rendes égéssé (szelep-késésnél mindig így van). Alapból ki: szimulációban a felfűtés utáni túllövést növelte."
         },
         "sections": {
           "measures": {
@@ -366,7 +369,8 @@
               "pressure_max": "Magas víznyomás felette",
               "fuel_min": "Kevés tüzelőanyag alatta",
               "starts_per_hour_max": "Túl sűrű kapcsolgatás: óránként ennyinél több indítás",
-              "radiator_cold_min": "Hideg radiátor jelzése ennyi perc után"
+              "radiator_cold_min": "Hideg radiátor jelzése ennyi perc után",
+              "fault_ok_values": "„Nincs hiba” értékek"
             },
             "data_description": {
               "heat_output_entity": "A COP a leadott hő és a példány energiamérőjének (villany) napi növekedéséből számol: ma, 7 nap, szezon (szeptember 1-től).",
@@ -374,7 +378,8 @@
               "fault_code_entity": "0, üres, „ok”, „none” = nincs hiba; minden más hibának számít.",
               "humidity_entity": "Harmatpont és penész-kockázat a példány helyiségében. Több helyiségnél a helyiségek űrlapján add meg helyiségenként.",
               "starts_per_hour_max": "0 = nem figyeli.",
-              "radiator_cold_min": "Ha fűtés közben a radiátor-hőmérő ennyi ideig nem melegszik fel, miközben a helyiség a célja alatt van."
+              "radiator_cold_min": "Ha fűtés közben a radiátor-hőmérő ennyi ideig nem melegszik fel, miközben a helyiség a célja alatt van.",
+              "fault_ok_values": "Vesszővel elválasztva, pl. „OK, Normál, 255”. A csupa nulla (00, F.00, 0x00) magától sem hiba."
             }
           }
         }
@@ -481,7 +486,8 @@
       "buffer_order": "A leállási hőfoknak az indítási fölött kell lennie.",
       "demand_required": "Ennek a példánynak nincs helyiséghőmérője: a fali termosztát érintkezője kötelező.",
       "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna.",
-      "room_problem": "{problem}"
+      "room_problem": "{problem}",
+      "cycle_too_short": "A ciklus túl rövid a hasznos fűtés késéséhez: legalább a késés + minimális be- + minimális kikapcsolási idő legyen (pl. 10 perc késésnél 5 + 5 perccel legalább 20 perc)."
     }
   },
   "selector": {

@@ -511,6 +511,13 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
         return
     ents = {k: v for k, v in msg["entities"].items() if k in ENTITY_KEYS and v not in (None, "", [])}
     sets = {k: v for k, v in msg["settings"].items() if k in SETTING_KEYS and v not in (None, "")}
+    try:  # 0.48.1: a cycle too short for the valve delay is lengthened (no useful heat left otherwise)
+        from .core.matrix import fit_cycle
+        if float(sets.get("valve_delay_s") or 0) > 0 and "cycle_s" in sets:
+            sets["cycle_s"] = fit_cycle(float(sets["cycle_s"]), float(sets["valve_delay_s"]),
+                                        float(sets.get("min_on_s", 300)), float(sets.get("min_off_s", 300)))
+    except (TypeError, ValueError):
+        pass
     if not ents.get(CONF_INDOOR) and not (control in ("tpi", "pid", "onoff") and ents.get(CONF_DEMAND)):
         # 0.38.0: a relay control may take its demand from a wired wall thermostat instead
         connection.send_error(msg["id"], "missing_indoor", "an indoor thermometer (or a wall thermostat contact) is required")

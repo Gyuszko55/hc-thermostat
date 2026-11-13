@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.48.1 – 2026-11-13
+From an outside review of 0.47.0–0.48.0 (with a measured PWM simulation).
+- **Valve delay PWM:** a full cycle only when the useful demand itself reaches the cycle minus the minimum pause;
+  below it the run is the useful time + the delay, capped at that limit, and the useful seconds the cap cut off are
+  carried on. Before, the delay was added first: with a 15-minute cycle and a 10-minute delay only 17 % or 97 %
+  existed, and with 30 / 5 minutes a 70 % demand ran without a break. Now (30 / 5): 20 / 30 / 40 / 60 / 70 % give the
+  same share of useful heat. A relay still on at a new cycle does not wait for the delay again.
+- **A cycle too short for the delay** is refused in the setup's basics and the options (at least delay + minimum on
+  + minimum off); the wizard lengthens it to 1.5 × that, in whole 5 minutes.
+- **Small demands without a delay** (`pwm_carry`, new option, off by default): demands below the minimum run add up
+  to a real run. Off because the simulation showed more overshoot after a boost with it (the after-heat learning).
+  With a valve delay they are always collected.
+- **Failsafe right after a start:** when the decision fails from the first step (no earlier decision), the heat is
+  switched off after three failures too (before: the error was only raised, the relay stayed as it was).
+- **Cold radiator:** the minutes of heating are added up over the PWM pauses (before every pause started the count
+  again, so the 20-minute limit was reached only in a boost); it starts again when the radiator got warm or the room
+  needs no more heat. "Warm" follows the flow when it is measured; lower for a heat pump.
+- **Fault codes:** all zeros after a letter prefix ("00", "F.00", "0x00") are no fault; own "no fault" values in the
+  measurements (`fault_ok_values`). **Pressure** in hPa is converted.
+- **CI:** the hassfest and HACS actions pinned to a commit.
+- Tests: tests/test_review_481.py (15); 0.47.0 tests use a cycle that holds the delay.
+
 ## 0.48.0 – 2026-11-13
 Measurements: optional readings of the heat source and the rooms, shown in the HC info panel (a new *Measurements*
 part, and per room), a few worked-out values as sensors, and their limits on the boiler problem sensor. None of them
