@@ -133,4 +133,4 @@ def test_pid_does_not_integrate_a_stalled_update():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2")

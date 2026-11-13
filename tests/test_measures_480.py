@@ -238,7 +238,7 @@ def test_settings_section_by_heat_source():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.48.0", "0.48.1")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.48.0", "0.48.1", "0.48.2")
 
 
 def test_texts():

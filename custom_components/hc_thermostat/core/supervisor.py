@@ -672,6 +672,9 @@ class Supervisor:
         if inputs.uptime_s < cfg.restart_grace_s and indoor >= target - cfg.restart_margin:
             return Reason.RESTART_HOLD, 0.0
         if indoor >= target + cfg.overshoot_stop:
+            # 0.48.2: the after-heat watch goes on above the target too – the boost's lesson used to wait until the
+            # house fell back to regulating (and a restart in between lost it)
+            self._quiet(inputs.now, target, indoor)
             return Reason.AT_TARGET, 0.0
         if self._boost(inputs, target, indoor):
             return Reason.BOOST, 1.0

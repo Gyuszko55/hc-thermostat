@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.48.2 – 2026-11-13
+The boost by the outdoor temperature (a morning boost at 14 °C overshot 0.3 °C: the warm band had nothing learned).
+- **Nearest learned band:** a band without its own lesson takes the nearest learned one (before: the defaults).
+- **Outdoor correction:** every 10 °C warmer outside a boost needs 20 % less burning and its after-heat lifts the
+  house 20 % more (bounded to 0.7–1.4), against the outdoor temperature each band was learned at (`outdoor_ref`; a
+  band learned before takes its centre: −5 / 5 / 15 °C). A lesson is brought to its band's reference before it is
+  kept. Simulation (four boosts at 5 °C, then one at 12 / 14 / 16 °C): overshoot 0.28 / 0.32 / 0.36 → −0.04 /
+  −0.06 / −0.08 °C (it stops just below, the regulation takes over).
+- **The lesson is no longer lost:** the after-heat watch also runs while the house is above the target (before it
+  waited for the regulation to come back), and the boost record is saved – a restart in the after-heat kept nothing
+  of it (this morning's restart at 07:09).
+- Tests: tests/test_boost_482.py (6).
+
 ## 0.48.1 – 2026-11-13
 From an outside review of 0.47.0–0.48.0 (with a measured PWM simulation).
 - **Valve delay PWM:** a full cycle only when the useful demand itself reaches the cycle minus the minimum pause;

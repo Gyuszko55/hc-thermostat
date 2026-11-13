@@ -94,4 +94,4 @@ def test_coasting_ends_after_the_window():
 
 def test_version():
     root = Path(__file__).resolve().parents[1] / "custom_components" / "hc_thermostat"
-    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1")
+    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2")

@@ -17,6 +17,10 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
 BANDS = ("cold", "mild", "warm")  # outdoor below 0 °C, 0..10 °C, above 10 °C
+BAND_CENTRE = {"cold": -5.0, "mild": 5.0, "warm": 15.0}  # the reference of a band learned before 0.48.2
+# 0.48.2: within (and across) the bands, every 10 °C warmer outside a boost needs this much less burning and its
+# after-heat lifts the house this much more (a house that loses less heat); bounded to 0.7–1.4
+OUTDOOR_SLOPE = 0.2
 
 
 def band(outdoor: float | None) -> str:
@@ -53,6 +57,14 @@ class Learned:
     boosts: int = 0
     days: int = 0
     last_boost: dict | None = None
+    outdoor_ref: dict = field(default_factory=dict)  # 0.48.2: band -> the outdoor temperature it was learned at
+
+
+def outdoor_factor(outdoor: float | None, ref: float | None) -> float:
+    """How much more burning a boost needs at `outdoor` than at `ref` (after-heat: the inverse)."""
+    if outdoor is None or ref is None:
+        return 1.0
+    return max(0.7, min(1.4, 1.0 + OUTDOOR_SLOPE * (ref - outdoor) / 10.0))
 
 
 class Learner:
@@ -71,13 +83,29 @@ class Learner:
     def _on(self) -> bool:
         return bool(self.cfg.learning_enabled)
 
+    def _learned_at(self, table: dict, outdoor: float | None) -> tuple[float | None, float | None]:
+        """0.48.2: the value of the outdoor's band, else of the nearest band learned (before: the default), with the
+        outdoor temperature it was learned at."""
+        if not self._on or not table:
+            return None, None
+        own = band(outdoor)
+        order = sorted(BANDS, key=lambda b: abs(BANDS.index(b) - BANDS.index(own)))
+        for b in order:
+            if b in table:
+                return table[b], self.learned.outdoor_ref.get(b, BAND_CENTRE[b])
+        return None, None
+
     def afterheat(self, outdoor: float | None) -> float:
-        default = self.cfg.boost_afterheat
-        return self.learned.afterheat.get(band(outdoor), default) if self._on else default
+        value, ref = self._learned_at(self.learned.afterheat, outdoor)
+        if value is None:
+            return self.cfg.boost_afterheat
+        return round(max(0.2, min(2.0, value / outdoor_factor(outdoor, ref))), 3)  # warmer: more of a lift
 
     def minutes_per_degree(self, outdoor: float | None) -> float:
-        default = self.cfg.boost_minutes_per_degree
-        return self.learned.minutes_per_degree.get(band(outdoor), default) if self._on else default
+        value, ref = self._learned_at(self.learned.minutes_per_degree, outdoor)
+        if value is None:
+            return self.cfg.boost_minutes_per_degree
+        return round(max(5.0, min(60.0, value * outdoor_factor(outdoor, ref))), 3)  # warmer: fewer minutes
 
     @property
     def trim(self) -> float:
@@ -124,11 +152,20 @@ class Learner:
         cfg, key = self.cfg, band(rec.outdoor)
         f = rec.flame_min / (rec.flame_min + cfg.boost_afterheat_ref_min)
         measured_u = max(rec.peak - rec.indoor_stop, 0.0) / f
-        self.learned.afterheat[key] = _step_towards(self.afterheat(rec.outdoor), measured_u, 0.5, 0.2, 0.2, 2.0)
+        # 0.48.2: the band's value is kept at its reference outdoor temperature – the measurement is brought there.
+        # A band learned before 0.48.2 has its centre as the reference; a new band takes this boost's outdoor.
+        ref = self.learned.outdoor_ref.get(key)
+        if ref is None:
+            ref = BAND_CENTRE[key] if key in self.learned.afterheat or rec.outdoor is None else round(rec.outdoor, 1)
+            self.learned.outdoor_ref[key] = ref
+        to_ref = outdoor_factor(rec.outdoor, ref)  # < 1: this boost was warmer outside than the reference
+        start_u = self.learned.afterheat.get(key, self.afterheat(ref))
+        self.learned.afterheat[key] = _step_towards(start_u, measured_u * to_ref, 0.5, 0.2, 0.2, 2.0)
         rise = rec.peak - rec.indoor_start
         if rise >= 0.3:
-            self.learned.minutes_per_degree[key] = _step_towards(
-                self.minutes_per_degree(rec.outdoor), rec.flame_min / rise, 0.5, 3.0, 5.0, 60.0)
+            start_m = self.learned.minutes_per_degree.get(key, self.minutes_per_degree(ref))
+            self.learned.minutes_per_degree[key] = _step_towards(start_m, rec.flame_min / rise / to_ref,
+                                                                 0.5, 3.0, 5.0, 60.0)
         self.learned.trim = _step_towards(self.trim, self.trim + (rec.peak - rec.target), 0.25, 0.1, -0.3, 0.5)
         self.learned.boosts += 1
         summary["used"] = True
@@ -171,8 +208,11 @@ class Learner:
         self.boost = None
 
     def state(self) -> dict:
+        boost = None
+        if self.boost is not None:  # 0.48.2: a restart during the after-heat no longer loses the boost's lesson
+            boost = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in asdict(self.boost).items()}
         return {"learned": asdict(self.learned), "day": self._day, "reg_s": self._reg_s, "err_s": self._err_s,
-                "under_s": self._under_s, "over_s": self._over_s}
+                "under_s": self._under_s, "over_s": self._over_s, "boost": boost}
 
     def restore(self, data: dict) -> None:
         learned = data.get("learned") or {}
@@ -183,3 +223,12 @@ class Learner:
         self._err_s = float(data.get("err_s", 0.0))
         self._under_s = float(data.get("under_s", 0.0))
         self._over_s = float(data.get("over_s", 0.0))
+        raw = data.get("boost")
+        if isinstance(raw, dict):
+            try:
+                known_b = set(BoostRecord.__dataclass_fields__)
+                vals = {k: v for k, v in raw.items() if k in known_b}
+                vals["start"] = datetime.fromisoformat(vals["start"])
+                self.boost = BoostRecord(**vals)
+            except (KeyError, TypeError, ValueError):
+                self.boost = None

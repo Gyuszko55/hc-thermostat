@@ -283,4 +283,4 @@ def test_texts_and_wizard_and_house_title():
     assert "s.home_name = (e && e.home_name)" in js and "\"home_name\": conf.get(CONF_HOME_NAME)" in (PKG / "wizard.py").read_text()
     assert "conf.home_name || info.title" in (PKG / "www" / "hc-house-view.js").read_text()
     assert "role_watch" in (PKG / "www" / "hc-info-panel.js").read_text()
-    assert json.loads((PKG / "manifest.json").read_text())["version"] in ("0.46.0", "0.47.0", "0.48.0", "0.48.1")
+    assert json.loads((PKG / "manifest.json").read_text())["version"] in ("0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2")
