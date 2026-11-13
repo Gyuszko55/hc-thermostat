@@ -460,12 +460,19 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
             add(CONF_ENERGY_FACTOR, round(GAS_KWH_PER_M3 * BOILER_EFFICIENCY, 2),
                 T(f"gáz m³-ben: {str(GAS_KWH_PER_M3).replace('.', ',')} kWh/m³ fűtőérték × {int(BOILER_EFFICIENCY * 100)} % hatásfok",
                   f"gas in m³: {GAS_KWH_PER_M3} kWh/m³ × {int(BOILER_EFFICIENCY * 100)} % efficiency"), "kWh/m³")
+        elif source == "district_heating" and unit in ("kwh", "mwh", "mj", "gj"):
+            # 0.48.0: a heat meter measures the heat that reached the flat – no burner, no efficiency
+            f = {"kwh": 1.0, "mwh": 1000.0, "mj": round(1 / 3.6, 4), "gj": round(1000 / 3.6, 2)}[unit]
+            add(CONF_ENERGY_FACTOR, f, T(f"hőmennyiségmérő ({unit}): kWh-ra váltva, hatásfok nélkül",
+                                         f"heat meter ({unit}): in kWh, no efficiency"), "kWh")
         elif "kwh" in unit and source.startswith("electric"):
             add(CONF_ENERGY_FACTOR, 1.0, T("elektromos fűtés: 1 kWh villany = 1 kWh hő", "electric heating: 1 kWh of power = 1 kWh of heat"))
         elif "kwh" in unit:
             add(CONF_ENERGY_FACTOR, BOILER_EFFICIENCY, T("energia kWh-ban: a hatásfokkal", "energy in kWh: times the efficiency"))
         elif "mj" in unit:
             add(CONF_ENERGY_FACTOR, round(BOILER_EFFICIENCY / 3.6, 3), T("energia MJ-ban: ÷ 3,6 × hatásfok", "energy in MJ: ÷ 3.6 × efficiency"))
+        elif unit == "gj":
+            add(CONF_ENERGY_FACTOR, round(BOILER_EFFICIENCY * 1000 / 3.6, 1), T("energia GJ-ban: × 277,8 × hatásfok", "energy in GJ: × 277.8 × efficiency"))
     if control in ("tpi", "pid", "curve") and source in ("onoff_boiler", "modulating_boiler", "heat_pump", "electric_boiler"):
         # a whole-house source: its output turns the learned heat need into a base demand (a room heater has none)
         add("boiler_power_kw", base.boiler_power_kw or 0.0, T("a kazán hasznos teljesítménye (adattábla); 0 = a hőigényből számolt alapigény ki",

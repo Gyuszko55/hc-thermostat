@@ -39,6 +39,7 @@ const T = {
     win_own: "csak a helyiség szelepfejeit zárja le", win_boiler: "nyitáskor a kazán leáll",
     follow: "a ház célját követi", own: "saját menetrend", asking_now: "most kér",
     pump_ex: "Szivattyú-átmozgatás", pump_next: "Következő átmozgatás", pump_last: "Szivattyú utoljára ment",
+    measures: "Mérések", r_radiator: "Radiátor", r_humidity: "Páratartalom",
   },
   en: {
     title: "HC info", pick: "Instance", live: "live", shadow: "shadow", refresh: "refreshes every 5 s", none: "–",
@@ -63,6 +64,7 @@ const T = {
     win_own: "closes only the room's TRV heads", win_boiler: "opened: the boiler stops",
     follow: "follows the house target", own: "own schedule", asking_now: "asking now",
     pump_ex: "Pump exercise", pump_next: "Next pump exercise", pump_last: "Pump last ran",
+    measures: "Measurements", r_radiator: "Radiator", r_humidity: "Humidity",
   },
 };
 
@@ -183,6 +185,33 @@ const ROOM_REASON = {
   en: { follow: "house target + offset", home: "own: home", night: "own: night", household_away: "household away", household_vacation: "household on vacation",
     absent: "nobody in the room: set back", manual: "manual target (until the next change)", preset_home: "preset: present", preset_away: "preset: away", off: "off (frost protection)", window: "window open: the heads on frost protection",
     house: "house target (heated through the boiler only)", leading: "leading room: the house target" },
+};
+// 0.48.0: measurements
+const MEASURE = {
+  hu: {
+    pressure: ["Víznyomás", "bar"], flow_temp: ["Előremenő", "°C"], return_temp: ["Visszatérő", "°C"], delta_t: ["ΔT (előremenő − visszatérő)", "°C"],
+    modulation: ["Moduláció / kompresszor", "%"], fault_code: ["Hibakód", ""], hot_water: ["Melegvizet készít", ""],
+    flue_temp: ["Füstgáz", "°C"], fuel_level: ["Tüzelőanyag", "%"], core_temp: ["Maghőmérséklet", "°C"], source_state: ["A hőtermelő állapota", ""],
+    starts: "Indítások", hours: "Üzemidő", today: "ma", week: "7 nap", season: "szezon", last_hour: "az elmúlt órában",
+    cop: "COP (leadott hő ÷ villany)", heat: "leadott hő", powerin: "villany",
+    humidity: "Páratartalom", dew: "harmatpont", risk: { low: "alacsony penész-kockázat", moderate: "közepes penész-kockázat", high: "magas penész-kockázat" },
+    warm: "kap meleget", cold: "hideg, pedig a helyiség fűtést kér", idle: "nem kell most fűtenie",
+    problems: "Mérési jelzések", none: "Nincs mérés megadva. A beállítások „Mérések” részében adható meg.",
+    p: { pressure_low: "alacsony víznyomás", pressure_high: "magas víznyomás", fuel_low: "kevés tüzelőanyag", short_cycling: "túl sűrű kapcsolgatás",
+         fault_code: "a hőforrás hibakódot jelez", radiator_cold: "hideg radiátor" },
+  },
+  en: {
+    pressure: ["Water pressure", "bar"], flow_temp: ["Flow", "°C"], return_temp: ["Return", "°C"], delta_t: ["ΔT (flow − return)", "°C"],
+    modulation: ["Modulation / compressor", "%"], fault_code: ["Fault code", ""], hot_water: ["Making hot water", ""],
+    flue_temp: ["Flue gas", "°C"], fuel_level: ["Fuel", "%"], core_temp: ["Core temperature", "°C"], source_state: ["Heat source state", ""],
+    starts: "Starts", hours: "Run time", today: "today", week: "7 days", season: "season", last_hour: "in the last hour",
+    cop: "COP (heat given off ÷ power)", heat: "heat", powerin: "power",
+    humidity: "Humidity", dew: "dew point", risk: { low: "low mould risk", moderate: "moderate mould risk", high: "high mould risk" },
+    warm: "gets heat", cold: "cold while the room asks for heat", idle: "no heat needed now",
+    problems: "Measurement alerts", none: "No measurement set. Add them in the settings' Measurements part.",
+    p: { pressure_low: "low water pressure", pressure_high: "high water pressure", fuel_low: "little fuel left", short_cycling: "switching too often",
+         fault_code: "the heat source reports a fault code", radiator_cold: "cold radiator" },
+  },
 };
 const PRESENCE = { hu: { present: "jelen van", leaving: "épp kiment (vár)", absent: "távol" }, en: { present: "present", leaving: "just left (waiting)", absent: "absent" } };
 const WATER = (c) => !["air_conditioner", "electric_heater", "storage_heater"].includes(c.src) || (c.src === "electric_heater" && c.sys.startsWith("floor"));
@@ -458,6 +487,11 @@ class HcInfoPanel extends HTMLElement {
       const v = (r.heads || {})[h] || {};
       return `<div>${esc(n(h))}: ${esc(this._deg(v.head_temp))} → ${esc(this._deg(v.head_target))} · ${this._hu ? "kalibrálás" : "calibration"} ${esc(sgn(v.calibration))} (${esc(v.sensor === "head" ? (this._hu ? "saját" : "own") : Array.isArray(v.sensor) ? v.sensor.map(n).join(" + ") : (v.sensor_name || v.sensor || ""))})${v.plan ? ` · ${esc(v.plan)}` : ""}</div>`;
     }).join(""));
+    const rm = r.measures || {}, M = MEASURE[L];
+    if (rm.radiator) add(t.r_radiator, `${esc(this._deg(rm.radiator.temp))} · ${esc(M[rm.radiator.status] || rm.radiator.status || "")}${rm.radiator.cold_min ? ` (${esc(rm.radiator.cold_min)} ${esc(t.min)})` : ""}
+      <div class="eid">${esc((r.radiators || []).map(n).join(", "))}</div>`);
+    if (rm.humidity) add(t.r_humidity, `${esc(this._num(rm.humidity.value))} % · ${esc(M.dew)} ${esc(this._deg(rm.humidity.dew_point))}${rm.humidity.risk ? ` · <b>${esc(M.risk[rm.humidity.risk])}</b>` : ""}
+      <div class="eid">${esc((r.humidity || []).map(n).join(", "))}</div>`);
     if (r.advice) add(t.r_advice, esc(r.advice.deviation == null ? `${r.advice.advice} (${r.advice.hours} h)`
       : `${r.advice.advice} (${sgn(r.advice.deviation)} °C, ${r.advice.hours} h)`));
     if (r.trv && !r.leading) add(t.r_demand, esc((r.demand_allowed ? t.yes : t.no) + (r.asking ? ` · ${t.asking_now}` : "")));
@@ -513,6 +547,43 @@ class HcInfoPanel extends HTMLElement {
       ${e.current_temperature != null ? ` · ${esc(this._deg(e.current_temperature))}` : ""}${e.temperature != null ? ` → ${esc(this._deg(e.temperature))}` : ""}
       ${e.hvac_action ? ` · ${esc(e.hvac_action)}` : ""}${e.percentage != null ? ` · ${esc(e.percentage)} %` : ""}
       <div class="eid">${esc(e.name)} · ${esc(e.entity_id)}</div></td></tr>`).join("")).join("")}</table>`;
+  }
+
+  // 0.48.0: what the measurements give
+  _measures() {
+    const d = this._d, m = d.measures || {}, L = this._hu ? "hu" : "en", M = MEASURE[L], t = this._t;
+    const rows = [];
+    const add = (k, v) => rows.push(`<tr><td class="k">${esc(k)}</td><td class="v">${v}</td></tr>`);
+    for (const key of ["pressure", "flow_temp", "return_temp", "delta_t", "modulation", "flue_temp", "fuel_level", "core_temp", "fault_code", "source_state", "hot_water"]) {
+      if (!(key in m)) continue;
+      const [label, unit] = M[key], v = m[key];
+      add(label, esc(typeof v === "boolean" ? (v ? t.yes : t.no) : typeof v === "number" ? `${this._num(v)}${unit ? " " + unit : ""}` : (v ?? t.none)));
+    }
+    if (m.runs) {
+      const r = m.runs;
+      add(M.starts, esc(`${M.today} ${r.starts_today} · ${M.week} ${r.starts_week} · ${M.season} ${r.starts_season} · ${M.last_hour} ${r.starts_last_hour}`));
+      add(M.hours, esc(`${M.today} ${this._num(r.hours_today, 2)} h · ${M.week} ${this._num(r.hours_week)} h · ${M.season} ${this._num(r.hours_season)} h`));
+    }
+    if (m.cop) {
+      const c = m.cop;
+      add(M.cop, `<b>${esc(this._num(c.cop_today, 2))}</b> ${esc(M.today)} · ${esc(this._num(c.cop_week, 2))} ${esc(M.week)} · ${esc(this._num(c.cop_season, 2))} ${esc(M.season)}
+        <div class="eid">${esc(M.today)}: ${esc(M.heat)} ${esc(this._num(c.heat_today_kwh))} kWh, ${esc(M.powerin)} ${esc(this._num(c.power_today_kwh))} kWh</div>`);
+    }
+    if (m.humidity) add(M.humidity, `${esc(this._num(m.humidity.value))} % · ${esc(M.dew)} ${esc(this._deg(m.humidity.dew_point))}${m.humidity.risk ? ` · <b>${esc(M.risk[m.humidity.risk])}</b>` : ""}`);
+    const probs = d.measure_problems || [];
+    if (probs.length) add(M.problems, probs.map((p) => {
+      const [code, room] = p.split(":");
+      return `<b>${esc(M.p[code] || code)}${room ? ` – ${esc(room)}` : ""}</b>`;
+    }).join("<br>"));
+    for (const r of d.room_list || []) {
+      const rm = r.measures;
+      if (!rm) continue;
+      const bits = [];
+      if (rm.radiator) bits.push(`${t.r_radiator} ${this._deg(rm.radiator.temp)} (${M[rm.radiator.status] || rm.radiator.status || "–"})`);
+      if (rm.humidity) bits.push(`${this._num(rm.humidity.value)} %${rm.humidity.risk ? `, ${M.risk[rm.humidity.risk]}` : ""}`);
+      add(r.name, esc(bits.join(" · ")));
+    }
+    return rows.length ? `<table>${rows.join("")}</table>` : `<div class="muted">${esc(M.none)}</div>`;
   }
 
   _inputs() {
@@ -822,6 +893,7 @@ class HcInfoPanel extends HTMLElement {
         d.inputs ? this._section("inputs", t.inputs, this._inputs(), "mdi:import") : "",
         this._section("inner", t.inner, d.state ? this._rows({ ...(d.live || {}), ...d.state }) : this._rows({ state: d.state, zones: d.zones }), "mdi:memory"),
         d.health ? this._section("health", t.health, this._rows(d.health), "mdi:heart-pulse") : "",
+        d.role === "standalone" || d.role === "zone" ? this._section("measures", t.measures, this._measures(), "mdi:gauge") : "",
         (d.room_list || []).length ? this._section("room_list", t.roomList, this._roomTable(), "mdi:home-group") : "",
         d.rooms && (d.rooms.advice?.length || Object.keys(d.rooms.trv || {}).length) ? this._section("rooms", t.rooms, this._rows(d.rooms), "mdi:floor-plan") : "",
         d.zone && Object.keys(d.zone).length ? this._section("zone", t.zone, this._rows(d.zone), "mdi:texture-box") : "",

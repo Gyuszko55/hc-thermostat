@@ -13,6 +13,7 @@ PLAUSIBLE = (10.0, 32.0)  # a living room is in this range; fridges, freezers an
 SKIP_WORDS = ("hűtő", "huto", "fagyaszt", "radiátor", "radiator", "fridge", "freezer", "kazán", "boiler",
               "medence", "pool", "talaj", "soil", "akkumul", "battery", "processz", "cpu")
 BATHROOM_WORDS = ("fürdő", "furdo", "bath")
+RADIATOR_WORDS = ("radiátor", "radiator", "fűtőtest", "futotest", "heizkörper")  # 0.48.0: a radiator's surface
 # 0.44.2: outdoor places are no rooms (their thermometers came in as rooms: Udvar, Kert)
 OUTDOOR_WORDS = ("udvar", "kert", "kültér", "kulter", "kinti", "külső", "kulso", "outdoor", "outside", "garden",
                  "yard", "courtyard", "exterior")
@@ -291,8 +292,8 @@ def rooms_candidates(hass) -> dict:
     areas = {a.id: a.name for a in ar.async_get(hass).async_list_areas()}
     names = {n.casefold() for n in areas.values()} | {k.casefold() for k in areas}
     ent_reg = er.async_get(hass)
-    by_area: dict[str, dict] = {k: {"area": k, "name": n, "sensors": [], "trvs": [], "presence": [], "windows": []}
-                                for k, n in areas.items()}
+    by_area: dict[str, dict] = {k: {"area": k, "name": n, "sensors": [], "trvs": [], "presence": [], "windows": [],
+                                    "radiators": [], "humidity": []} for k, n in areas.items()}
     tracking, temps, climates = [], [], []
     for st in hass.states.async_all():
         e = ent_reg.async_get(st.entity_id)
@@ -304,6 +305,10 @@ def rooms_candidates(hass) -> dict:
                 "unit": a.get("unit_of_measurement"), "area": area, "area_name": areas.get(area)}
         if dom == "sensor" and _is_temperature(st):
             name = f"{st.entity_id} {item['name']}".lower()
+            if any(w in name for w in RADIATOR_WORDS):  # 0.48.0: a radiator thermometer – not the room's
+                if area in by_area:
+                    by_area[area]["radiators"].append(item)
+                continue
             if any(w in name for w in SKIP_WORDS):
                 continue
             temps.append(item)
@@ -313,6 +318,9 @@ def rooms_candidates(hass) -> dict:
             climates.append(item)
             if area in by_area:
                 by_area[area]["trvs"].append(item)
+        elif dom == "sensor" and a.get("device_class") == "humidity":  # 0.48.0: dew point, mould risk
+            if area in by_area:
+                by_area[area]["humidity"].append(item)
         elif dom == "binary_sensor" and a.get("device_class") in WINDOW_CLASSES:  # 0.46.0: the room's contacts
             if area in by_area:
                 by_area[area]["windows"].append(item)
@@ -331,7 +339,7 @@ def rooms_candidates(hass) -> dict:
                              or any(w in f"{x['id']} {x['name']}".lower() for w in HEAD_WORDS))
         v["sensors"].sort(key=lambda x: (x["head"], *key(x)))
     for v in by_area.values():
-        for k in ("trvs", "presence", "windows"):
+        for k in ("trvs", "presence", "windows", "radiators", "humidity"):
             v[k].sort(key=key)
     # 0.44.2: outdoor areas, real heads and heads another HC instance already drives
     taken = climates_of_other_instances(hass)  # 0.45.0: their managed thermostats too

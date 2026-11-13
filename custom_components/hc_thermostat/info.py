@@ -124,6 +124,9 @@ def _instance(hass, entry) -> dict:
         "actual": c.actual,
         "managed": jsonable(c.managed_info()) if hasattr(c, "managed_info") else None,  # 0.42.0
         "log": jsonable(list(c.log)[-60:]),
+        # 0.48.0: the measurements and their problems (core/measures.py)
+        "measures": jsonable({k: v for k, v in (getattr(c, "measures", None) or {}).items() if k != "rooms"}),
+        "measure_problems": list(getattr(c, "measure_problems", None) or []),
         **_house(hass, entry, conf),  # 0.44.0: what the house drawing needs (areas, sun, today's heat energy)
     }
 
@@ -140,12 +143,14 @@ def _room_list(hass, entry) -> list[dict]:
         st = (getattr(c, "room_states", {}) or {}).get(s.key) or {}
         out.append(jsonable({**st, "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
                              "trvs": list(s.trvs), "sensors": list(s.sensors), "presence_sources": list(s.presence),
-                             "windows": list(s.windows),
+                             "windows": list(s.windows), "radiators": list(s.radiators), "humidity": list(s.humidity),
+                             "measures": ((getattr(c, "measures", None) or {}).get("rooms") or {}).get(s.key),
                              "absent_min": s.absent_min, "setback": s.setback, "mode": s.mode, "offset": s.offset,
                              "demand_allowed": s.demand, "entity_id": ids.get(s.key),
                              "own": {"home": s.target_home, "night": s.target_night, "away": s.target_away,
                                      "night_start": s.night_start, "night_end": s.night_end} if s.mode == "own" else None,
-                             "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence, *s.windows]}}))
+                             "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence, *s.windows,
+                                                                   *s.radiators, *s.humidity]}}))
     return out
 
 

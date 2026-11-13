@@ -191,6 +191,22 @@ exists (add the first one under Settings → Devices & services).
 - **Setup:** "Add integration" first offers the wizard (its panel is served at once, before any instance) or the manual
   way; the manual way now ends with **basic settings** – targets, night, cycle, minimum on / off time, useful heat delay.
 
+## Measurements (0.48.0)
+
+Optional readings, in **Options → Settings → Measurements** (only those of the instance's heat source). They are
+information: the HC info panel shows them (*Measurements*, and per room), and none of them changes a decision.
+- **Heat source:** water pressure, real flow / return (ΔT), modulation or compressor %, fault code, hot water signal
+  (combi boilers too), flue gas and fuel level (pellet), core temperature (storage heater), the state of a heat source
+  with its own control.
+- **COP** of a heat pump: give its heat meter (*heat given off*, kWh) next to its energy meter – today, 7 days and the
+  season from the daily increase of both.
+- **Starts and run time** of every relay / flame instance, per day, week and season.
+- **Rooms** (rooms form): radiator thermometers – warm, or cold while the room needs heat – and humidity sensors – dew
+  point and mould risk.
+- **Alerts** on the boiler problem sensor: low / high pressure, little fuel, too many starts an hour, a fault code, a
+  radiator cold too long (limits in the same part).
+- **Sensors:** Starts today, Run time today, COP today, ΔT, Mould risk (per room).
+
 ## District heating and fan coil (0.32.0)
 
 - **District heating** (new heat source): a zone valve per flat with TPI / PID and a long, calm cycle (30 minutes,

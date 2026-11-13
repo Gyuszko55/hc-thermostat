@@ -35,7 +35,8 @@ WORDS = {
            "cal_room": "A helyiség hőmérője – kalibrálás", "cal_head": "A fej saját hőmérője – nincs kalibrálás",
            "head": "fej", "tracker": "helyiség-követő", "no_area": "terület nélkül", "taken": "másik HC-példány: {who}",
            "n_sensors": "hőmérő", "n_trvs": "szelepfej", "n_presence": "jelenlét", "n_windows": "ablak/ajtó",
-           "nothing": "nincs eszköz"},
+           "nothing": "nincs eszköz", "radiators": "Radiátor-hőmérő (kap-e meleget)",
+           "humidity": "Páratartalom (harmatpont, penész-kockázat)"},
     "en": {"name": "Name", "sensors": "Thermometers", "trvs": "TRV heads", "presence": "Presence",
            "windows": "Window / door", "more": "Add another device (from another area)", "mode": "Target",
            "offset": "Offset from the house target", "absent_min": "Absent after minutes (with presence)",
@@ -47,7 +48,8 @@ WORDS = {
            "cal_room": "The room's thermometer – calibrated", "cal_head": "The head's own thermometer – no calibration",
            "head": "head", "tracker": "room tracker", "no_area": "no area", "taken": "other HC instance: {who}",
            "n_sensors": "thermometer(s)", "n_trvs": "TRV head(s)", "n_presence": "presence", "n_windows": "window/door",
-           "nothing": "no devices"},
+           "nothing": "no devices", "radiators": "Radiator thermometer (does it get heat)",
+           "humidity": "Humidity (dew point, mould risk)"},
 }
 PROBLEMS = {
     "hu": {"room_name": "{room}: adj nevet a helyiségnek.", "room_name_taken": "{room}: van már ilyen nevű helyiség.",
@@ -56,6 +58,7 @@ PROBLEMS = {
            "trv_taken": "{room}: a(z) {what} szelepfej egy másik helyiségben is be van jelölve.",
            "trv_other_instance": "{room}: a(z) {what} szelepfejet már egy másik HC-példány vezérli.",
            "sensor_taken": "{room}: a(z) {what} hőmérő egy másik helyiségben is be van jelölve.",
+           "radiator_is_room": "{room}: a(z) {what} nem lehet egyszerre a helyiség hőmérője és radiátor-hőmérő.",
            "leading_trv": "A vezető helyiségben ({room}) szelepfej van: pipáld be a megerősítést (a fejei a ház céljét kapják).",
            "area_taken": "{room}: ezen a területen már egy másik HC-példánynak van helyisége ({what}).",
            "no_rooms": "Jelölj be legalább egy területet, vagy adj meg egy helyiséget terület nélkül."},
@@ -65,6 +68,7 @@ PROBLEMS = {
            "trv_taken": "{room}: the TRV head {what} is ticked in another room too.",
            "trv_other_instance": "{room}: the TRV head {what} is driven by another HC instance.",
            "sensor_taken": "{room}: the thermometer {what} is ticked in another room too.",
+           "radiator_is_room": "{room}: {what} cannot be the room's thermometer and a radiator thermometer at once.",
            "leading_trv": "The leading room ({room}) has a TRV head: tick the confirmation (its heads get the house target).",
            "area_taken": "{room}: another HC instance has a room in this area ({what}).",
            "no_rooms": "Tick at least one area, or give a room without an area."},
@@ -133,7 +137,9 @@ def new_room(area: dict, taken_heads: set[str]) -> dict:
     windows = [w["id"] for w in area.get("windows") or []]
     return {"key": area["area"], "name": area["name"], "area": area["area"], "sensors": sensors, "trvs": heads,
             "mode": FOLLOW, "offset": 0.0, "presence": presence if heads else [], "absent_min": 15.0,
-            "setback": 2.0, "demand": False, "windows": windows, "new": True}
+            "setback": 2.0, "demand": False, "windows": windows, "new": True,
+            "radiators": [r["id"] for r in area.get("radiators") or []],  # 0.48.0
+            "humidity": [h["id"] for h in area.get("humidity") or []]}
 
 
 def pick_rooms(selected: list[str], rooms: list[dict], cand: dict, custom_new: str | None) -> list[dict]:
@@ -197,6 +203,10 @@ def room_candidates(room: dict, area: dict | None, tracking: list[dict], exclude
                  *mine("trvs")],
         "presence": [*[p["id"] for p in area.get("presence") or []], *[x["id"] for x in tracking], *mine("presence")],
         "windows": [*[w["id"] for w in area.get("windows") or []], *mine("windows")],
+        # 0.48.0: radiator thermometers (named so, then the area's other thermometers) and humidity sensors
+        "radiators": [*[r["id"] for r in area.get("radiators") or []],
+                      *[s["id"] for s in area.get("sensors") or [] if not s.get("head")], *mine("radiators")],
+        "humidity": [*[h["id"] for h in area.get("humidity") or []], *mine("humidity")],
         "heads_own": [s["id"] for s in area.get("sensors") or [] if s.get("head")],
         "trackers": [x["id"] for x in tracking],
     }
@@ -230,6 +240,12 @@ def room_section(hass, lang: str, room: dict, cands: dict, leading: str | None, 
             _checks(_options(hass, cands["presence"], track_marks))
     if cands["windows"]:
         fields[vol.Optional(w["windows"], default=list(room.get("windows") or []))] = _checks(_options(hass, cands["windows"]))
+    if cands.get("radiators"):
+        fields[vol.Optional(w["radiators"], default=list(room.get("radiators") or []))] = \
+            _checks(_options(hass, cands["radiators"]))
+    if cands.get("humidity"):
+        fields[vol.Optional(w["humidity"], default=list(room.get("humidity") or []))] = \
+            _checks(_options(hass, cands["humidity"]))
     fields[vol.Optional(w["more"])] = EntitySelector(EntitySelectorConfig(domain=MORE_DOMAINS, multiple=True))
     if trv_room:
         mode = room.get("mode") if room.get("mode") in (FOLLOW, OWN) else FOLLOW
@@ -264,8 +280,12 @@ def classify(hass, entity_id: str) -> str | None:
         from .rooms_ha import WINDOW_CLASSES
         return "windows" if attrs.get("device_class") in WINDOW_CLASSES else "presence"
     if domain == "sensor":
+        if attrs.get("device_class") == "humidity":
+            return "humidity"
         if attrs.get("device_class") == "temperature" or str(attrs.get("unit_of_measurement") or "") in ("°C", "°F"):
-            return "sensors"
+            from .rooms_ha import RADIATOR_WORDS
+            name = f"{entity_id} {attrs.get('friendly_name') or ''}".lower()
+            return "radiators" if any(x in name for x in RADIATOR_WORDS) else "sensors"
         return "presence"  # a room tracker (Bermuda-like) – its state is the area
     if domain in ("person", "device_tracker", "input_select", "input_boolean"):
         return "presence"
@@ -276,7 +296,7 @@ def read_section(hass, lang: str, room: dict, data: dict) -> dict:
     """One section's answer back into a room dict (the fields not shown keep the room's values)."""
     w = WORDS[lang]
     out = {**room, "name": str(data.get(w["name"], room["name"]) or "").strip()}
-    for k in ("sensors", "trvs", "presence", "windows"):
+    for k in ("sensors", "trvs", "presence", "windows", "radiators", "humidity"):
         if w[k] in data:
             out[k] = list(data.get(w[k]) or [])
     for e in data.get(w["more"]) or []:
@@ -335,6 +355,9 @@ def check_rooms(lang: str, rooms: list[dict], leading: str | None, confirm: bool
             if s in sensors:
                 return problem_text(lang, "sensor_taken", label, name_of(s))
             sensors[s] = r["key"]
+        for s in r.get("radiators") or []:
+            if s in (r.get("sensors") or []):
+                return problem_text(lang, "radiator_is_room", label, name_of(s))
     lead = next((r for r in rooms if r["key"] == leading), None)
     if lead is not None and lead.get("trvs") and not confirm:
         return problem_text(lang, "leading_trv", lead["name"])

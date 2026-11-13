@@ -194,6 +194,22 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
   utat kínálja; a kézi út végén új **Alapbeállítások** lépés: célok, éjszaka, ciklus, minimális be- / kikapcsolási idő,
   hasznos fűtés késése.
 
+## Mérések (0.48.0)
+
+Nem kötelező plusz adatok a **Beállítások → Mérések** részben (csak az adott hőforrásé). Tájékoztató jellegűek: a HC
+info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési döntést nem változtatják meg.
+- **Hőforrás:** víznyomás, valós előremenő / visszatérő (ΔT), moduláció vagy kompresszor %, hibakód, melegvíz-jelző
+  (kombi kazánnál is), füstgáz és tüzelőanyag-szint (pellet), maghőmérséklet (hőtárolós), a külső vezérlésű hőtermelő
+  állapota.
+- **COP** hőszivattyúnál: add meg a hőmennyiségmérőjét (*leadott hő*, kWh) az energiamérője mellé – ma, 7 nap és a
+  szezon a két mérő napi növekedéséből.
+- **Indítások és üzemidő** minden relés / lángjelzős példánynál, napra, hétre, szezonra.
+- **Helyiségek** (helyiségek űrlapja): radiátor-hőmérők – kap-e meleget, vagy hideg, miközben a helyiség fűtést kér –
+  és páratartalom-szenzorok – harmatpont és penész-kockázat.
+- **Jelzések** a „Kazán probléma” szenzoron: alacsony / magas víznyomás, kevés tüzelőanyag, túl sűrű kapcsolgatás,
+  hibakód, túl sokáig hideg radiátor (a határok ugyanitt).
+- **Szenzorok:** Indítások ma, Üzemidő ma, COP ma, ΔT, Penész-kockázat (helyiségenként is).
+
 ## Távfűtés és fan-coil (0.32.0)
 
 - **Távfűtés** (új hőforrás): lakásonkénti zónaszelep TPI-vel / PID-del, hosszú, nyugodt ciklussal (30 perc, legalább

@@ -98,6 +98,8 @@ class RoomSpec:
     setback: float = DEFAULT_SETBACK
     demand: bool = False  # a TRV room far below its target may ask the boiler for short burns
     windows: list[str] = field(default_factory=list)  # 0.46.0: window / door contacts of the room
+    radiators: list[str] = field(default_factory=list)  # 0.48.0: radiator surface thermometers (information)
+    humidity: list[str] = field(default_factory=list)  # 0.48.0: relative humidity sensors (dew point, mould risk)
 
     @property
     def has_trv(self) -> bool:
@@ -123,6 +125,10 @@ class RoomSpec:
                "demand": self.demand}
         if self.windows:
             out["windows"] = list(self.windows)
+        if self.radiators:
+            out["radiators"] = list(self.radiators)
+        if self.humidity:
+            out["humidity"] = list(self.humidity)
         if self.head_sensors:
             out["head_sensors"] = dict(self.head_sensors)
         if self.mode == OWN:
@@ -164,6 +170,8 @@ def parse_room(raw: dict, taken: set[str] | None = None) -> RoomSpec | None:
         setback=_num(raw.get("setback"), DEFAULT_SETBACK, 0.0, 10.0),
         demand=bool(raw.get("demand")) and bool(trvs),
         windows=_ids(raw.get("windows"), ("binary_sensor.", "input_boolean.")),
+        radiators=_ids(raw.get("radiators"), ("sensor.",)),
+        humidity=_ids(raw.get("humidity"), ("sensor.",)),
     )
 
 

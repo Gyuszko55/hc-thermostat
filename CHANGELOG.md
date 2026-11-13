@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.48.0 – 2026-11-13
+Measurements: optional readings of the heat source and the rooms, shown in the HC info panel (a new *Measurements*
+part, and per room), a few worked-out values as sensors, and their limits on the boiler problem sensor. None of them
+changes a heating decision.
+- **Options → Settings → Measurements** (a fold-out part, only the fields of the instance's heat source): water
+  pressure (bar; psi / kPa / mbar converted), real flow and return temperature (water sources; district heating keeps
+  its return field), modulation / compressor %, fault code, heat given off (heat meter – the COP), flue gas
+  temperature and fuel level (pellet), core temperature (storage heater), the heat source's state (heat source with
+  its own control), the hot water signal for combi boilers too (it pauses the fault watch, as a heat pump's did), a
+  humidity sensor (any instance; floor cooling keeps its own field), and the limits: low / high pressure (1.0 / 2.5
+  bar), little fuel (15 %), too many starts an hour (6; 0 = not watched), cold radiator after minutes (20).
+- **Worked out:** starts and run time per local day (from the real heating signal; the week and the season from
+  1 September), COP from the daily increase of the heat meter and the energy meter (today, 7 days, season – a meter
+  that resets is not counted), ΔT, per room radiator surface (warm, cold while the room is below its target and the
+  heat source runs, or idle), dew point and a mould risk from the hours of high humidity of the last day.
+- **Sensors:** Starts today, Run time today (relay / flame / reference instances), COP today (with a heat meter and
+  an energy meter), ΔT (flow and return), Mould risk (the instance's humidity sensor; per room on the room's device).
+  Passed-on readings (pressure, modulation…) get no entity of their own – they have one already.
+- **Boiler problem sensor:** also on for low / high pressure, little fuel, too many starts, a fault code or a radiator
+  cold for longer than the limit (`measurements` attribute); an instance with measurements gets it even without a
+  burner of its own (external / AC control, heat source with its own control).
+- **Rooms form:** per room *Radiator thermometer* and *Humidity* check boxes (the area's thermometers named radiator /
+  fűtőtest first – they were never offered as room thermometers – then its other thermometers; its humidity sensors);
+  a sensor cannot be the room's thermometer and its radiator thermometer at once.
+- **Heat energy:** the wizard turns a heat meter in GJ / MJ / MWh / kWh on district heating into kWh without a boiler
+  efficiency (before: kWh × 0.9, GJ unknown); GJ for other sources too.
+- Tests: tests/test_measures_480.py (14).
+
 ## 0.47.0 – 2026-11-12
 From an outside tester's first try on their own system (heat pump and pumps run by a PLC, rooms on thermoelectric
 valves through relays; points 2–5 – point 6 came in 0.46.0).

@@ -20,9 +20,11 @@ from .const import (
     CONF_ASSIST, CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, EVENT_ROOM_ADVICE, MODE_ACTIVE,
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
-    CONF_CONTROL, CONF_DEMAND,
+    CONF_CONTROL, CONF_DEMAND, CONF_PRESSURE, CONF_FLOW_TEMP, CONF_MODULATION, CONF_FAULT_CODE, CONF_HEAT_OUTPUT,
+    CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE,
 )
 from .core.boiler_health import BoilerHealth, health_kind, power_levels_known
+from .core import measures as ms
 from .core.plausibility import Plausibility
 from .core.matrix import ROOM_SOURCES, default_curve, floor_system, source_defaults
 from .core.target_source import ModeWatch, TargetFollower
@@ -163,6 +165,13 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self._specs: tuple[list[RoomSpec], str | None] | None = None
         self.room_ctl: dict[str, RoomControl] = {}
         self.room_states: dict[str, dict] = {}  # room key -> what its climate and the info panel show
+        # 0.48.0: measurements (core/measures.py) – information; their problems turn the boiler problem sensor on
+        self.runs = ms.RunCounter()
+        self.energy_days = ms.EnergyDays()
+        self._humid: dict[str, ms.Humidity] = {}
+        self._radiators: dict[str, ms.RadiatorWatch] = {}
+        self.measures: dict = {}
+        self.measure_problems: list[str] = []
 
     # --- persistence -----------------------------------------------------------
     async def async_load(self) -> None:
@@ -185,6 +194,12 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.trv_cal.restore(data.get("trv_cal") or {}, data.get("trv_cal_src"))
         for key, value in (data.get("room_ctl") or {}).items():
             self._ctl(key).restore(value)
+        m = data.get("measures") or {}
+        self.runs.restore(m.get("runs") or {})
+        self.energy_days.restore(m.get("energy") or {})
+        for key, hours in (m.get("humidity") or {}).items():
+            if isinstance(hours, dict):
+                self._humid.setdefault(key, ms.Humidity()).hours = {k: float(v) for k, v in hours.items()}
         if self.managed:
             self._mode_watch.off_by_hand = bool(data.get("managed_off", False)) and self._two_way
             if "paused" in data:
@@ -240,6 +255,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "trv_cal_src": dict(self.trv_cal.source),
             "room_ctl": {k: c.state() for k, c in self._ctls().items()},
             "last_extra": self._last_extra,
+            "measures": {"runs": self.runs.state(), "energy": self.energy_days.state(),
+                         "humidity": {k: h.hours for k, h in self._humid.items()}},
             **({"managed_off": self.managed_off, "paused": self.paused, "paused_unit": self._paused_unit,
                 "adopted": self.adopted} if self.managed else {}),
         })
@@ -730,6 +747,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self._side("cost", lambda: setattr(self, "cost", self._compare_cost(decision)))
         self._side("health", lambda: self._update_health(decision, now))
         self._side("rooms", lambda: self._update_rooms(decision, now))
+        self._side("measures", lambda: self._update_measures(decision, now))
         await self._executor.apply(decision)
         for part in ("cool_mode", "discharge", "fan", "external", "flow", "relay"):
             key = f"{EXECUTOR_KEY}:{part}"
@@ -1095,6 +1113,132 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         target = None if self.cfg.demand_contact else decision.target
         self.health.update(now, relay_on, power, flame, decision.fault, decision.indoor, target,
                            busy=bool(decision.details.get("hp_mode")))
+
+    # --- 0.48.0: measurements ---------------------------------------------------
+    def _plain(self, key: str) -> tuple[float | None, str | None, str | None]:
+        """(number, unit, raw state) of an option's entity; a stale or missing one gives None."""
+        entity = self.conf.get(key)
+        state = self.hass.states.get(entity) if entity else None
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None, None, None
+        unit = state.attributes.get("unit_of_measurement")
+        try:
+            return float(state.state), unit, state.state
+        except (TypeError, ValueError):
+            return None, unit, state.state
+
+    def _temp(self, entity: str | None, now: datetime) -> float | None:
+        return self._reading(entity, now).fresh(self.cfg.sensor_max_age_s) if entity else None
+
+    def measure_keys(self) -> list[str]:
+        """The measurement inputs this instance has."""
+        keys = [k for k in (*ms.FIELDS, CONF_HUMIDITY) if self.conf.get(k)]
+        rooms = self.conf.get("rooms") if isinstance(self.conf.get("rooms"), list) else []
+        if any(isinstance(r, dict) and (r.get("radiators") or r.get("humidity")) for r in rooms):
+            keys.append("rooms")
+        return keys
+
+    def _update_measures(self, decision: Decision, now: datetime) -> None:
+        conf, limits = self.conf, ms.Limits.from_conf(self.conf)
+        values: dict = {}
+        p, unit, _ = self._plain(CONF_PRESSURE)
+        if p is not None:
+            u = str(unit or "bar").lower()
+            values["pressure"] = round(p / {"psi": 14.5038, "kpa": 100.0, "mbar": 1000.0, "pa": 100000.0}.get(u, 1.0), 2)
+        flow, ret = self._temp(conf.get(CONF_FLOW_TEMP), now), self._temp(conf.get(CONF_RETURN), now)
+        if flow is not None:
+            values["flow_temp"] = round(flow, 1)
+        if ret is not None:
+            values["return_temp"] = round(ret, 1)
+        if flow is not None and ret is not None:
+            values["delta_t"] = round(flow - ret, 1)
+        for key, name in ((CONF_MODULATION, "modulation"), (CONF_FUEL_LEVEL, "fuel_level")):
+            v, _, _ = self._plain(key)
+            if v is not None:
+                values[name] = round(v, 1)
+        for key, name in ((CONF_FLUE_TEMP, "flue_temp"), (CONF_CORE_TEMP, "core_temp")):
+            if (v := self._temp(conf.get(key), now)) is not None:
+                values[name] = round(v, 1)
+        for key, name in ((CONF_FAULT_CODE, "fault_code"), (CONF_SOURCE_STATE, "source_state")):
+            if conf.get(key):
+                values[name] = self._plain(key)[2]
+        if conf.get(CONF_HP_DHW):
+            values["hot_water"] = decision.details.get("hp_mode") == "dhw"
+        # starts and run time: from the real heating signal
+        heating = self.actual if self.actual is not None else (
+            decision.output if self.mode == MODE_ACTIVE and conf.get(CONF_ACTUATOR) else None)
+        counted = heating is not None and self.cfg.control not in ("external", "ac")
+        if counted:
+            self.runs.update(now, bool(heating))
+            values["runs"] = self.runs.summary(now)
+        # COP: heat given off over the power taken
+        if conf.get(CONF_HEAT_OUTPUT) and conf.get(CONF_HEAT_ENERGY):
+            h, hu, _ = self._plain(CONF_HEAT_OUTPUT)
+            e = self.hass.states.get(conf[CONF_HEAT_ENERGY])
+            try:
+                ev = float(e.state) if e is not None else None
+            except (TypeError, ValueError):
+                ev = None
+            self.energy_days.update(now, ms.to_kwh(h, hu),
+                                    ms.to_kwh(ev, e.attributes.get("unit_of_measurement") if e is not None else None))
+            values["cop"] = self.energy_days.summary(now)
+        problems = ms.source_problems(values, limits, self.runs.starts_last_hour(now) if counted else 0, counted)
+        # rooms: radiators and humidity
+        rooms: dict = {}
+        try:
+            specs = self.room_specs()[0] if hasattr(self, "room_specs") else []
+        except Exception:
+            specs = []
+        for spec in specs:
+            if not (spec.radiators or spec.humidity):
+                continue
+            st = self.room_states.get(spec.key) or {}
+            room_t, target = st.get("temperature"), st.get("target")
+            if room_t is None:  # the room step has not run yet (a start): its thermometers, the house's for the leading
+                temps = [t for e in spec.sensors if (t := self._temp(e, now)) is not None]
+                room_t = sum(temps) / len(temps) if temps else (
+                    decision.indoor if spec.key == self.room_specs()[1] else None)
+            out: dict = {}
+            if spec.radiators:
+                temps = [t for e in spec.radiators if (t := self._temp(e, now)) is not None]
+                watch = self._radiators.setdefault(spec.key, ms.RadiatorWatch())
+                needs = room_t is not None and target is not None and room_t < float(target) - 0.3
+                status = watch.update(now, max(temps) if temps else None, room_t, bool(heating), needs)
+                cold = watch.cold_for_min(now)
+                out["radiator"] = {"temp": round(max(temps), 1) if temps else None, "status": status,
+                                   "cold_min": round(cold) if status == "cold" else 0}
+                if status == "cold" and cold >= limits.radiator_cold_min:
+                    problems.append(f"radiator_cold:{spec.name}")
+            if spec.humidity:
+                rh_vals = [v for e in spec.humidity if (v := self._plain_of(e)) is not None and 0 < v <= 100]
+                rh = round(sum(rh_vals) / len(rh_vals), 1) if rh_vals else None
+                hum = self._humid.setdefault(spec.key, ms.Humidity())
+                hum.update(now, rh)
+                out["humidity"] = {"value": rh, "dew_point": ms.dew_point(room_t, rh), "risk": hum.risk(rh)}
+            rooms[spec.key] = {"name": spec.name, **out}
+        if conf.get(CONF_HUMIDITY) and not any("humidity" in r for r in rooms.values()):
+            rh = self._plain_of(conf[CONF_HUMIDITY])
+            rh = rh if rh is not None and 0 < rh <= 100 else None
+            hum = self._humid.setdefault("_house", ms.Humidity())
+            hum.update(now, rh)
+            values["humidity"] = {"value": rh, "dew_point": ms.dew_point(decision.indoor, rh), "risk": hum.risk(rh)}
+        if rooms:
+            values["rooms"] = rooms
+        self.measures = values
+        self.measure_problems = problems
+
+    def _plain_of(self, entity: str) -> float | None:
+        state = self.hass.states.get(entity)
+        try:
+            return float(state.state) if state is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def mould_risk(self, key: str) -> dict | None:
+        """A room's (or "_house") humidity values, for its sensor."""
+        if key == "_house":
+            return self.measures.get("humidity")
+        return ((self.measures.get("rooms") or {}).get(key) or {}).get("humidity")
 
     @property
     def agreement_percent(self) -> float | None:

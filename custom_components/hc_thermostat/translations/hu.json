@@ -344,6 +344,39 @@
           "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.",
           "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
           "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve)."
+        },
+        "sections": {
+          "measures": {
+            "name": "Mérések (nem kötelező)",
+            "description": "Plusz adatok a hőforrásról és a helyiségről. A HC kiírja őket a HC info panelen, és ha egy érték átlépi a határt, a „Kazán probléma” szenzor bekapcsol. A fűtési döntést nem változtatják meg.",
+            "data": {
+              "pressure_entity": "Víznyomás (bar)",
+              "flow_temp_entity": "Valós előremenő hőmérséklet",
+              "return_temp_entity": "Visszatérő hőmérséklet",
+              "modulation_entity": "Moduláció / kompresszor (%)",
+              "fault_code_entity": "Hibakód",
+              "heat_output_entity": "Leadott hő (hőmennyiségmérő, kWh) – a COP-hoz",
+              "flue_temp_entity": "Füstgáz-hőmérséklet",
+              "fuel_level_entity": "Tüzelőanyag szintje (%)",
+              "core_temp_entity": "Maghőmérséklet",
+              "source_state_entity": "A hőtermelő állapota",
+              "hp_dhw_entity": "Melegvíz-készítés jelzője (kombi kazán)",
+              "humidity_entity": "Páratartalom-szenzor",
+              "pressure_min": "Alacsony víznyomás alatta",
+              "pressure_max": "Magas víznyomás felette",
+              "fuel_min": "Kevés tüzelőanyag alatta",
+              "starts_per_hour_max": "Túl sűrű kapcsolgatás: óránként ennyinél több indítás",
+              "radiator_cold_min": "Hideg radiátor jelzése ennyi perc után"
+            },
+            "data_description": {
+              "heat_output_entity": "A COP a leadott hő és a példány energiamérőjének (villany) napi növekedéséből számol: ma, 7 nap, szezon (szeptember 1-től).",
+              "hp_dhw_entity": "Amíg melegvizet készít, a hibafigyelés szünetel, ez nem hiba.",
+              "fault_code_entity": "0, üres, „ok”, „none” = nincs hiba; minden más hibának számít.",
+              "humidity_entity": "Harmatpont és penész-kockázat a példány helyiségében. Több helyiségnél a helyiségek űrlapján add meg helyiségenként.",
+              "starts_per_hour_max": "0 = nem figyeli.",
+              "radiator_cold_min": "Ha fűtés közben a radiátor-hőmérő ennyi ideig nem melegszik fel, miközben a helyiség a célja alatt van."
+            }
+          }
         }
       },
       "presets": {
@@ -661,6 +694,34 @@
           "frost": "Fagyvédelem",
           "no_sensor": "Nincs hőmérő",
           "max_charge": "Túl hosszú töltés"
+        }
+      },
+      "starts_today": {
+        "name": "Indítások ma"
+      },
+      "run_hours_today": {
+        "name": "Üzemidő ma"
+      },
+      "cop": {
+        "name": "COP ma"
+      },
+      "delta_t": {
+        "name": "ΔT (előremenő − visszatérő)"
+      },
+      "mould_risk": {
+        "name": "Penész-kockázat",
+        "state": {
+          "low": "Alacsony",
+          "moderate": "Közepes",
+          "high": "Magas"
+        }
+      },
+      "room_mould_risk": {
+        "name": "Penész-kockázat",
+        "state": {
+          "low": "Alacsony",
+          "moderate": "Közepes",
+          "high": "Magas"
         }
       }
     },

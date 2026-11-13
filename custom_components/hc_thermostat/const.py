@@ -69,6 +69,16 @@ CONF_HP_DHW = "hp_dhw_entity"  # heat pump: on while it makes hot water (optiona
 CONF_TARGET_SOURCE = "target_source_entity"  # a wall thermostat / number whose setpoint this instance takes over
 CONF_DEMAND = "demand_entity"  # a wired (dry-contact) wall thermostat: its contact is the room's demand (0.38.0)
 CONF_HOME_NAME = "home_name"  # 0.46.0: the home's name (the HC info house drawing)
+# 0.48.0: measurements (core/measures.py) – optional, information only
+CONF_PRESSURE = "pressure_entity"  # water pressure (bar)
+CONF_FLOW_TEMP = "flow_temp_entity"  # real flow temperature
+CONF_MODULATION = "modulation_entity"  # modulation / compressor %
+CONF_FAULT_CODE = "fault_code_entity"  # the heat source's fault code
+CONF_HEAT_OUTPUT = "heat_output_entity"  # heat given off (a heat meter, kWh) – the COP with the energy meter
+CONF_FLUE_TEMP = "flue_temp_entity"  # pellet: flue gas temperature
+CONF_FUEL_LEVEL = "fuel_level_entity"  # pellet: fuel left (%)
+CONF_CORE_TEMP = "core_temp_entity"  # storage heater: core temperature
+CONF_SOURCE_STATE = "source_state_entity"  # heat source with its own control: its state
 
 MODE_SHADOW = "shadow"
 MODE_ACTIVE = "active"

@@ -161,7 +161,7 @@ def test_texts():
         assert tr["options"]["step"]["settings"]["data"]["valve_delay_s"]
     js = (ROOT / "www" / "hc-wizard-panel.js").read_text()
     assert 'external_heat: ["Külső vezérlésű hőtermelő"' in js and '"valve_delay_s"]' in js
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] == "0.47.0"
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.47.0", "0.48.0")
 
 
 # --- review of 11-12 evening: the failsafe covers the whole step, the executor's parts are separate, saves at once ---

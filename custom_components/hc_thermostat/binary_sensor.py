@@ -18,7 +18,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCentralBoiler(c), HcCentralPump(c)])
         return
     entities = [HcDemand(c), HcFault(c)]
-    if c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat":
+    # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
+    if (c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
         entities.append(HcBoilerProblem(c))
     # 0.46.0: a room with two or more presence sources / window contacts gets its group
     groups = [RoomBinaryGroup(c, s, k) for s, k in groups_of(c, ("presence", "window"))]
@@ -63,11 +64,11 @@ class HcBoilerProblem(HcEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        return self.coordinator.health.problem
+        return self.coordinator.health.problem or bool(self.coordinator.measure_problems)
 
     @property
     def extra_state_attributes(self) -> dict:
-        return {"health": self.coordinator.health.state}
+        return {"health": self.coordinator.health.state, "measurements": list(self.coordinator.measure_problems)}
 
 
 class HcCentralBoiler(HcEntity, BinarySensorEntity):

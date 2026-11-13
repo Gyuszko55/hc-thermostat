@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
     BooleanSelector, EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig,
@@ -31,6 +32,7 @@ from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
 from .core.room_model import OWN, rooms_options
 from . import room_form as rf
+from .core import measures as ms
 from .rooms_ha import (
     area_id_of, areas_of_other_instances, excluded_climates, heads_of_other_instances, room_specs_for, rooms_candidates,
 )
@@ -56,6 +58,9 @@ _ENTITY_FILTERS: dict[str, list] = {
     CONF_BUFFER_TOP: [_T], CONF_BUFFER_BOTTOM: [_T], CONF_WINDOW_DROP: [_T],
     CONF_OUTDOOR: [_T, ("weather", None)],
     CONF_HUMIDITY: [("sensor", ["humidity"])],
+    # 0.48.0: measurements
+    "flow_temp_entity": [_T], "flue_temp_entity": [_T], "core_temp_entity": [_T],
+    "heat_output_entity": [("sensor", ["energy"])],
     CONF_BOILER_POWER: [("sensor", ["power"])],
     CONF_HEAT_ENERGY: [("sensor", ["gas", "energy", "volume"])],
     CONF_EXTRA_HEAT: [("sensor", ["energy", "power"])],
@@ -253,6 +258,43 @@ def _water_fields(system: str | None, source: str | None, current: dict, setting
                 vol.Required("return_hysteresis", default=cfg.return_hysteresis): _number(1, 10, 0.5, "°C"),
             })
     return out
+
+
+MEASURES = "measures"  # 0.48.0: the settings' fold-out section of the measurements
+
+
+def _measure_section(system: str | None, source: str | None, control: str | None, current: dict,
+                     has_rooms: bool) -> dict:
+    """0.48.0: the optional measurements of this heat source in one fold-out section, with their limits.
+    Fields the form shows elsewhere (district heating's return, floor cooling's humidity) stay where they are."""
+    def opt(key, *domains):
+        return {vol.Optional(key, description={"suggested_value": current.get(key)}): _ent(key, *domains)}
+
+    fields: dict = {}
+    for key in ms.fields_for(source):
+        if key == CONF_RETURN and source == "district_heating":
+            continue
+        domains = ("sensor", "binary_sensor", "input_select", "input_text", "climate") if key in (
+            "fault_code_entity", "source_state_entity") else ("sensor", "input_number")
+        fields.update(opt(key, *domains))
+    if source in ms.DHW_SOURCES and source != "heat_pump":  # a heat pump has it among its own signals
+        fields.update(opt(CONF_HP_DHW, "binary_sensor", "sensor", "switch", "input_boolean"))
+    cooling = source == "heat_pump" and str(system or "").startswith("floor") and control in ("curve", "onoff")
+    if not cooling:
+        fields.update(opt(CONF_HUMIDITY, "sensor"))
+    lim = ms.Limits.from_conf(current)
+    if "pressure_entity" in ms.fields_for(source):
+        fields[vol.Required("pressure_min", default=lim.pressure_min)] = _number(0, 5, 0.1, "bar")
+        fields[vol.Required("pressure_max", default=lim.pressure_max)] = _number(0.5, 10, 0.1, "bar")
+    if "fuel_level_entity" in ms.fields_for(source):
+        fields[vol.Required("fuel_min", default=lim.fuel_min)] = _number(0, 100, 1, "%")
+    if control not in ("external", "ac"):
+        fields[vol.Required("starts_per_hour_max", default=lim.starts_per_hour_max)] = _number(0, 60, 1)
+    if has_rooms:
+        fields[vol.Required("radiator_cold_min", default=lim.radiator_cold_min)] = _number(5, 180, 5, "min")
+    if not fields:
+        return {}
+    return {vol.Required(MEASURES): section(vol.Schema(fields), {"collapsed": True})}
 
 
 def _cool_fields(system: str | None, source: str | None, control: str | None, current: dict) -> dict:
@@ -526,6 +568,8 @@ class HcOptionsFlow(OptionsFlow):
                   and not user_input.get(CONF_DEMAND)):
                 errors[CONF_DEMAND] = "demand_required"  # no room thermometer: the wall thermostat gives the demand
             else:
+                user_input = {**user_input}
+                user_input.update(user_input.pop(MEASURES, None) or {})  # 0.48.0: the section's fields are settings
                 self._settings = {k: v for k, v in user_input.items() if k != CONF_CONFIRM}
                 # 0.45.0: the boiler's power levels count as given only when someone set them – the untouched
                 # defaults (one boiler's values) are not saved, so the health check keeps learning
@@ -614,6 +658,8 @@ class HcOptionsFlow(OptionsFlow):
         fields.update(_water_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), current, settings=True))
         fields[vol.Optional(CONF_TARGET_SOURCE, description={"suggested_value": current.get(CONF_TARGET_SOURCE)})] = \
             _entity("climate", "number", "input_number")
+        fields.update(_measure_section(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current,
+                                       isinstance(current.get("rooms"), list) and bool(current.get("rooms"))))
         if cfg.control == "external":  # 0.42.0: take over a target / off set on the managed thermostat itself
             fields[vol.Required("adopt_manual", default=cfg.adopt_manual)] = BooleanSelector()
         if cfg.control in _RELAY:  # a wired wall thermostat's contact as the demand (0.38.0)

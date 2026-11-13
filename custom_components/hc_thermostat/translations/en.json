@@ -344,6 +344,39 @@
           "valve_delay_s": "A slow thermoelectric valve (~5 min) or a pump started late: the run is lengthened by it, the minimum on time counts the useful part, small demands add up. 0 = none.",
           "coast_window_s": "For this long after a burn no new start while the room, just under the target, still rises (the radiators give their heat). Suggested: 2700 s. Off by default (measured on one house).",
           "pwm_midcycle_start": "When the demand grows past the minimum run in the middle of a cycle, a new cycle starts at once (no wait for the next). Off by default (measured on one house)."
+        },
+        "sections": {
+          "measures": {
+            "name": "Measurements (optional)",
+            "description": "More data about the heat source and the room. HC shows them in the HC info panel, and a value past its limit turns the boiler problem sensor on. They do not change the heating decision.",
+            "data": {
+              "pressure_entity": "Water pressure (bar)",
+              "flow_temp_entity": "Real flow temperature",
+              "return_temp_entity": "Return temperature",
+              "modulation_entity": "Modulation / compressor (%)",
+              "fault_code_entity": "Fault code",
+              "heat_output_entity": "Heat given off (heat meter, kWh) – for the COP",
+              "flue_temp_entity": "Flue gas temperature",
+              "fuel_level_entity": "Fuel level (%)",
+              "core_temp_entity": "Core temperature",
+              "source_state_entity": "Heat source state",
+              "hp_dhw_entity": "Hot water signal (combi boiler)",
+              "humidity_entity": "Humidity sensor",
+              "pressure_min": "Low water pressure below",
+              "pressure_max": "High water pressure above",
+              "fuel_min": "Little fuel below",
+              "starts_per_hour_max": "Switching too often: more starts than this an hour",
+              "radiator_cold_min": "Cold radiator alert after minutes"
+            },
+            "data_description": {
+              "heat_output_entity": "The COP is the daily increase of the heat given off over that of the instance's energy meter (power): today, 7 days, the season (from 1 September).",
+              "hp_dhw_entity": "While it makes hot water the fault watch pauses; this is no fault.",
+              "fault_code_entity": "0, empty, \"ok\", \"none\" = no fault; anything else counts as one.",
+              "humidity_entity": "Dew point and mould risk in the instance's room. With several rooms, set them per room in the rooms form.",
+              "starts_per_hour_max": "0 = not watched.",
+              "radiator_cold_min": "When a radiator thermometer stays cold this long while heating and its room is below its target."
+            }
+          }
         }
       },
       "presets": {
@@ -661,6 +694,34 @@
           "frost": "Frost protection",
           "no_sensor": "No thermometer",
           "max_charge": "Charge took too long"
+        }
+      },
+      "starts_today": {
+        "name": "Starts today"
+      },
+      "run_hours_today": {
+        "name": "Run time today"
+      },
+      "cop": {
+        "name": "COP today"
+      },
+      "delta_t": {
+        "name": "ΔT (flow − return)"
+      },
+      "mould_risk": {
+        "name": "Mould risk",
+        "state": {
+          "low": "Low",
+          "moderate": "Moderate",
+          "high": "High"
+        }
+      },
+      "room_mould_risk": {
+        "name": "Mould risk",
+        "state": {
+          "low": "Low",
+          "moderate": "Moderate",
+          "high": "High"
         }
       }
     },

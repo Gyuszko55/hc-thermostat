@@ -13,6 +13,7 @@ from .core.learning import band
 from .core.model import Reason
 from .entity import HcEntity
 from .room_groups import RoomTemperatureGroup, groups_of, remove_old_groups
+from .measure_entities import measure_sensors
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -37,6 +38,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     # 0.46.0: a room with two or more thermometers gets its group (the mean HC regulates by)
     groups = [RoomTemperatureGroup(c, s) for s, _ in groups_of(c, ("temperature",))]
     remove_old_groups(hass, entry, "sensor", {g.unique_id for g in groups})
+    entities += measure_sensors(hass, entry, c)  # 0.48.0: starts, run time, COP, ΔT, mould risk
     async_add_entities(entities + groups)
 
 
