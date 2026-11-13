@@ -33,6 +33,11 @@ is away. With no presence entity the house is always home.
 and a relay stays as it is. Set them by hand if needed. When the last instance is deleted, the HC panels leave the
 sidebar too (they come back with the next instance).
 
+## Decision chain
+
+What HC reads, decides and works out on three levels – heat source, execution, emitter and room – with the
+heat source × emitter matrix: [DECISION_CHAIN.md](DECISION_CHAIN.md) (generated from the code).
+
 ## Features
 
 **Heat sources and systems**

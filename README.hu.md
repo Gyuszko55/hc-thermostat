@@ -35,6 +35,11 @@ működik (0.45.0): a °F-os mérést átszámolja, és amit egy termosztátra �
 a HC küldött, a relé úgy marad. Szükség esetén állítsd kézzel. Az utolsó példány törlésével a HC panelek is
 eltűnnek az oldalsávról (a következő példánnyal visszajönnek).
 
+## Döntési sor
+
+Mit olvas, hogyan dönt és mit számol ki a HC három szinten – hőforrás, végrehajtás, fűtőkészülék és helyiség –,
+a hőforrás × fűtőkészülék mátrixszal: [DECISION_CHAIN.hu.md](DECISION_CHAIN.hu.md) (a kódból generálva).
+
 ## Funkciók
 
 **Hőforrások és rendszerek**

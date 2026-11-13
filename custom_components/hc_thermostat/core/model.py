@@ -139,6 +139,10 @@ class HcConfig:
     coast_rise: float = 0.1  # and it rose at least this much ...
     coast_lookback_s: float = 900.0  # ... over this long
     coast_max_demand: float = 0.3  # and the regulator asks only a little (a large demand is a real need)
+    # 0.48.3: no new start this long before a scheduled lowering of the target (night start, a preset or manual
+    # target running out) while the room is already at or above the coming target – that burn's heat would arrive
+    # after the change (11-12: a burn at 21:59 for a 22:00 night of 21 °C, the room went 22.4 -> 22.6). 0 = off.
+    pre_change_s: float = 1800.0
     pid_d_filter_s: float = 300.0  # 0.40.0: low-pass time constant of the derivative (stepwise sensors); 0 = off
     pid_ke: float = 0.01
     pid_ki_per_hour: float | None = None  # when set, wins over pid_ki (demand per °C per hour; easier to read)

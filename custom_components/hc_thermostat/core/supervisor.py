@@ -74,6 +74,8 @@ class Supervisor:
         self._contact_backup = False  # the wall thermostat's contact is lost, the room thermometer regulates (0.39.3)
         self._temper_on = False  # floor tempering latch (0.35.0): on below floor target - hysteresis, off at it
         self._temper_run = False  # on/off control: the running gate was started by the tempering
+        self._target_shown = 0.0
+        self._pre_hold: dict | None = None  # 0.48.3: the scheduled lowering that holds a new start (see _pre_change)
         self._window_since: datetime | None = None
         self._boost_until: datetime | None = None  # safety limit of the running boost
         self._boost_armed = True
@@ -267,6 +269,36 @@ class Supervisor:
         if rise < cfg.coast_rise - 1e-9:
             return None
         return {"rise": round(rise, 2), "since_off_min": round(since_off / 60, 1)}
+
+    def _pre_change(self, inputs: Inputs, target: float, indoor: float | None) -> dict | None:
+        """0.48.3: the target goes down soon (night start, a preset or manual target running out) and the room is
+        already at or above the coming target – a burn started now would give its heat after the change. Returns
+        the change (time, coming target, minutes left) or None (start as usual)."""
+        cfg = self.cfg
+        if cfg.pre_change_s <= 0 or indoor is None:
+            return None
+        at = self._next_change(inputs)
+        if at is None:
+            return None
+        left = (at - inputs.now).total_seconds()
+        if left <= 0 or left > cfg.pre_change_s:
+            return None
+        after = self._target_after(inputs, at) - (target - self._target_shown)
+        if after >= target - 1e-9 or indoor < after:
+            return None
+        return {"at": at, "target": round(after, 2), "min_left": round(left / 60, 1)}
+
+    def _target_after(self, inputs: Inputs, at: datetime) -> float:
+        """The target right after the change at `at`: the schedule's (a preset ends there, so does a manual target
+        unless the schedule's value stays the same)."""
+        preset, self.preset = self.preset, None
+        try:
+            base = self._schedule_target(replace(inputs, now=at + timedelta(seconds=1)))
+        finally:
+            self.preset = preset
+        if self.manual_target is not None and base == self._base_target:
+            return self.manual_target
+        return base
 
     def new_cycle(self) -> None:
         """Start a fresh PWM cycle at the next step (after going live or switching on)."""
@@ -616,6 +648,9 @@ class Supervisor:
             if reason == Reason.REGULATING and indoor is not None:
                 # a run the floor tempering started does not keep going as a regulating run
                 want = (self._gate.output and not self._temper_run) or indoor <= target - cfg.onoff_hysteresis
+                if want and not self._gate.output and self._pre_hold is not None:
+                    want = False  # 0.48.3: the target goes down soon, the room is warm enough for it
+                    details = {"pre_change": self._pre_hold}
             else:
                 want = demand > 0  # boost, frost; at target, window, summer, off: no
             min_on, min_off = (cfg.hp_min_on_s, cfg.hp_min_off_s) if cfg.heat_pump else (cfg.min_on_s, cfg.min_off_s)
@@ -630,6 +665,8 @@ class Supervisor:
                 want = (since is not None and since < min_on) if self._gate.output else (since is None or since >= pause)
                 details = {"fallback_run_s": round(min_on), "fallback_pause_s": round(pause)}
             output, limited = self._gate.step(now, want, min_on, min_off)
+            if "pre_change" in details and not output:
+                limited = limited or "pre_change"
         return Decision(now, reason, target, indoor, outdoor, demand=1.0 if output else 0.0, output=output,
                         limited_by=limited, fault=self.fault, loss_kw_per_k=loss, heat_need_kw=need,
                         other_heat_kw=inputs.other_heat_kw, details=details)
@@ -676,7 +713,8 @@ class Supervisor:
             # house fell back to regulating (and a restart in between lost it)
             self._quiet(inputs.now, target, indoor)
             return Reason.AT_TARGET, 0.0
-        if self._boost(inputs, target, indoor):
+        self._pre_hold = self._pre_change(inputs, target, indoor) if not self.boosting else None
+        if self._pre_hold is None and self._boost(inputs, target, indoor):
             return Reason.BOOST, 1.0
         if self._quiet(inputs.now, target, indoor):
             return Reason.AFTERHEAT, 0.0
@@ -825,6 +863,7 @@ class Supervisor:
         self._expire_preset(inputs)
         target = self._target(inputs)
         shown = target  # what the user set; the regulation may run a little lower while a cheaper source leads
+        self._target_shown, self._pre_hold = shown, None
         yielding = inputs.yield_margin > 0 and cfg.control in ("tpi", "pid")
         if yielding:
             target = target - inputs.yield_margin
@@ -955,6 +994,13 @@ class Supervisor:
             if inputs.room_demand and indoor is not None and indoor <= target:
                 # A TRV room far below its target: short burns, but the main thermometer stays in charge.
                 demand = max(demand, min(1.0, (cfg.min_on_s + 60) / cfg.cycle_s))
+            if self._pre_hold is not None and demand > 0 and not self.pwm.output:
+                # 0.48.3: the target goes down soon and the room is already warm enough for it – no new start
+                if integral_before is not None and self.regulator.integral > integral_before:
+                    self.regulator.integral = integral_before
+                demand = 0.0
+            else:
+                self._pre_hold = None
             if tempering is not None and demand < 1.0:
                 reason, demand = Reason.FLOOR_TEMPER, 1.0  # the floor asks for more than the room
         else:
@@ -997,6 +1043,9 @@ class Supervisor:
         if coasting is not None and not output:
             limited = limited or "coast"
             details = {**details, "coast": coasting}
+        if self._pre_hold is not None and reason == Reason.REGULATING and not output:
+            limited = limited or "pre_change"
+            details = {**details, "pre_change": self._pre_hold}
         if cfg.fan_coil:
             pct, why = self.fan.step(now, output, demand, inputs.coil.fresh(cfg.sensor_max_age_s))
             details = {**details, "fan_pct": pct, "fan_why": why}

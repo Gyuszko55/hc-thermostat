@@ -310,6 +310,7 @@
           "adopt_manual": "A kezelt termosztáton végzett változtatások átvétele",
           "valve_delay_s": "Hasznos fűtés késése (szelepnyitás + szivattyú)",
           "coast_window_s": "Utánfűtés kivárása égés után (0 = ki)",
+          "pre_change_s": "Nincs új indítás célcsökkenés előtt (0 = ki)",
           "pwm_midcycle_start": "Ciklus közbeni indítás",
           "pwm_carry": "Kis igények gyűjtése"
         },
@@ -345,6 +346,7 @@
           "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő).",
           "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.",
           "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
+          "pre_change_s": "Az ütemezett célcsökkenés (éjszaka kezdete, előbeállítás vagy kézi cél lejárta) előtt ennyi ideig nem indít új égést, ha a helyiség már most legalább olyan meleg, mint a váltás utáni cél – a hője a váltás után érkezne. A futó égést nem vágja el. Alapból: 1800 s.",
           "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve).",
           "pwm_carry": "A minimális égésnél kisebb igények összegyűlnek egy rendes égéssé (szelep-késésnél mindig így van). Alapból ki: szimulációban a felfűtés utáni túllövést növelte."
         },

@@ -621,6 +621,9 @@ class HcOptionsFlow(OptionsFlow):
                 vol.Required("pwm_midcycle_start", default=cfg.pwm_midcycle_start): BooleanSelector(),
                 vol.Required("pwm_carry", default=cfg.pwm_carry): BooleanSelector()}
                if cfg.control in ("tpi", "pid") else {}),
+            # 0.48.3: no new start just before a scheduled lowering of the target
+            **({vol.Required("pre_change_s", default=cfg.pre_change_s): _number(0, 7200, 300, "s")}
+               if cfg.control in ("tpi", "pid", "onoff") else {}),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
             vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),
             **({vol.Required("frozen_after_h", default=cfg.frozen_after_h): _number(0, 24, 0.5, "h"),

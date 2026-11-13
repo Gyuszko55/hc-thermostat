@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.48.3 – 2026-11-13
+- **Decision chain on GitHub:** `DECISION_CHAIN.md` (English) and `DECISION_CHAIN.hu.md` (Hungarian) – one heating step
+  on three levels (heat source → execution → emitter and room) as Mermaid diagrams, the one-step decision order, a
+  fold-out part per heat source (what HC reads and switches, the optional measurements, what it works out, the
+  controls with the recommended one first, the starting timing per emitter) and per emitter, and the heat source ×
+  emitter matrix. Generated from the code by `tools/decision_chain.py`; a test fails when they are out of date.
+  Linked from both READMEs.
+- **No new start before the target goes down** (TPI, PID, on-off): within `pre_change_s` (default 1800 s, 0 = off)
+  of a scheduled lowering of the target – night start, a preset or a manual target running out – no new burn starts
+  while the room is already at or above the coming target; its heat would only arrive after the change. A boost does
+  not start either; a running burn is not cut; the integral does not grow meanwhile. Shown as `limited_by:
+  pre_change` with the time and the coming target. (11-12: a burn at 21:59:41 at 22.4 °C for a 22:00 night of
+  21 °C ran its 5-min minimum and took the room to 22.6 °C – one start more than needed.)
+- Tests: tests/test_decision_chain_483.py (3), tests/test_pre_change_483.py (10).
+
 ## 0.48.2 – 2026-11-13
 The boost by the outdoor temperature (a morning boost at 14 °C overshot 0.3 °C: the warm band had nothing learned).
 - **Nearest learned band:** a band without its own lesson takes the nearest learned one (before: the defaults).

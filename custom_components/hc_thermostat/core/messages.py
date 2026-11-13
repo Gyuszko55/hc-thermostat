@@ -158,6 +158,14 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
                  "újraindítás helyett kivárom." if lang == "hu"
                  else f" Coasting: the room is still rising (+{rise} °C in 15 min, the boiler stopped {mins} min ago), "
                  "waiting for it instead of starting again.")
+    if decision.limited_by == "pre_change" and "pre_change" in details:
+        c = details["pre_change"]
+        at = c["at"].strftime("%H:%M") if hasattr(c.get("at"), "strftime") else str(c.get("at") or "–")[11:16]
+        aim = _num(c.get("target"), lang)
+        text += (f" {at}-kor a cél {aim} °C-ra csökken, és a helyiség már most ennél melegebb: nem indítok új égést, "
+                 "a hője a váltás után érkezne." if lang == "hu"
+                 else f" At {at} the target goes down to {aim} °C and the room is already warmer: no new start, "
+                 "its heat would arrive after the change.")
     if decision.limited_by == "no_power":
         text += (" A vezérelt áram most nincs bekapcsolva: nem kapcsol." if lang == "hu"
                  else " The controlled power is off now: nothing is switched.")

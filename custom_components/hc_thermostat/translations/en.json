@@ -310,6 +310,7 @@
           "adopt_manual": "Adopt changes made on the managed thermostat",
           "valve_delay_s": "Useful heat delay (valve opening + pump)",
           "coast_window_s": "Wait for the after-heat after a burn (0 = off)",
+          "pre_change_s": "No new start before the target goes down (0 = off)",
           "pwm_midcycle_start": "Mid-cycle start",
           "pwm_carry": "Collect small demands"
         },
@@ -345,6 +346,7 @@
           "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat).",
           "valve_delay_s": "A slow thermoelectric valve (~5 min) or a pump started late: the run is lengthened by it, the minimum on time counts the useful part, small demands add up. 0 = none.",
           "coast_window_s": "For this long after a burn no new start while the room, just under the target, still rises (the radiators give their heat). Suggested: 2700 s. Off by default (measured on one house).",
+          "pre_change_s": "This long before a scheduled lowering of the target (night start, a preset or manual target running out) no new burn starts while the room is already at or above the coming target – its heat would arrive after the change. A running burn is not cut. Default: 1800 s.",
           "pwm_midcycle_start": "When the demand grows past the minimum run in the middle of a cycle, a new cycle starts at once (no wait for the next). Off by default (measured on one house).",
           "pwm_carry": "Demands below the minimum run add up to a real run (always so with a valve delay). Off by default: in the simulation it raised the overshoot after a boost."
         },

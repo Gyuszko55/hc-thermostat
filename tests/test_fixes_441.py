@@ -128,4 +128,4 @@ def test_curve_integral_still_corrects_inside_the_range():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2", "0.48.3")
