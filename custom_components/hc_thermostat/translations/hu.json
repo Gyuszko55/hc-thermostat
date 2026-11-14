@@ -457,6 +457,31 @@
               "radiator_cold_min": "Ha fűtés közben a radiátor-hőmérő ennyi ideig nem melegszik fel, miközben a helyiség a célja alatt van.",
               "fault_ok_values": "Vesszővel elválasztva, pl. „OK, Normál, 255”. A csupa nulla (00, F.00, 0x00) magától sem hiba."
             }
+          },
+          "house": {
+            "name": "Ház-modell",
+            "description": "A ház hővesztesége, szabad hője és hőtehetetlensége (τ), és amire használom: optimális reggeli indítás, kivárás célcsökkenés előtt. A kézzel megadott érték a kiindulás, a tanult fokozatosan belekeveredik.",
+            "data": {
+              "house_loss_w_k": "Hőveszteség-tényező (H, 0 = csak tanult)",
+              "house_gains_kw": "Szabad hő (emberek, gépek, nap)",
+              "house_tau_h": "Időállandó (τ, 0 = csak tanult)",
+              "optimal_start": "Optimális reggeli indítás",
+              "optimal_start_max_min": "Legfeljebb ennyivel korábban",
+              "optimal_start_lag_min": "A radiátorok késése",
+              "pre_change_max_s": "Kivárás célcsökkenés előtt, előrejelzéssel legfeljebb",
+              "pre_change_sag": "Közben a jelenlegi cél alá legfeljebb",
+              "mould_frsi": "Penész: a leghidegebb felület hőmérsékleti tényezője (fRsi)"
+            },
+            "data_description": {
+              "house_loss_w_k": "Ennyi wattot veszít a ház fokonként (bent − kint). A napi hőből és hőmérsékletekből egyenest illesztek; a kézi érték két hétnyi tanult napnak számít.",
+              "house_gains_kw": "Fűtés nélkül is ennyi hő van a házban; a hőigény: H × (cél − kint) − szabad hő.",
+              "house_tau_h": "Fűtés nélkül a helyiség ilyen ütemben közelít a kinti hőmérséklethez (exponenciálisan). Az égés nélküli, legalább 3 órás szakaszokból tanulom.",
+              "optimal_start": "Az éjszaka vége előtt annyival korábban kezdem a nappali célt, hogy addigra elérje a helyiség: a τ-ból becsült lehűlés és a felfűtésekből tanult perc/fok alapján.",
+              "optimal_start_lag_min": "Az égési perceken felül ennyi idő, amíg a radiátor hője a helyiségbe ér.",
+              "pre_change_max_s": "Ismert τ-val az ütemezett célcsökkenés előtt eddig nem indítok új égést, ha a helyiség magára hagyva is a váltás utáni cél felett marad. 0 = csak a fenti fix idő.",
+              "pre_change_sag": "A kivárás alatt a helyiség legfeljebb ennyivel hűlhet a jelenlegi cél alá.",
+              "mould_frsi": "A penészkockázatot a helyiség leghidegebb pontján (sarok, áthidaló, szekrény mögötti fal) számolom: felületi hőmérséklet = kint + fRsi × (bent − kint), és ott 80 % felett nő a penész (EN ISO 13788). Régi, szigeteletlen fal sarka 0,6–0,7; szigetelt 0,75–0,8. A helyiségek páratartalom-érzékelőit a hőmérőik eszközéről magától felveszem."
+            }
           }
         }
       },
@@ -846,6 +871,9 @@
           "moderate": "Közepes",
           "high": "Magas"
         }
+      },
+      "time_constant": {
+        "name": "Időállandó (τ)"
       }
     },
     "binary_sensor": {
@@ -900,6 +928,9 @@
     "button": {
       "reset_learning": {
         "name": "Tanult értékek visszaállítása"
+      },
+      "reset_house_model": {
+        "name": "Ház-modell újratanulása"
       }
     },
     "switch": {

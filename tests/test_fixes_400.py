@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
+from core.heat_need import HeatNeedEstimator
 from core.messages import explain
 from core.model import HcConfig, Inputs, Reading, Reason
 from core.regulators import PidRegulator
@@ -11,12 +12,9 @@ T0 = datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc)
 DAY = dict(night_start="00:00", night_end="00:00", season_enabled=False, learning_enabled=False)
 
 
-class Loss:
-    """A heat-need model that has learned the house: 74.5 W/K."""
-    loss_kw_per_k = 0.0745
-
-    def update(self, *args):
-        pass
+def Loss():
+    """A heat-need model that knows the house: 74.5 W/K (0.50.0: given by hand, no free heat)."""
+    return HeatNeedEstimator(0.0745)
 
 
 def boiler(**kw):

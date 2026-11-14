@@ -16,6 +16,7 @@ from .curve import CurveRegulator, RunGate
 from .exercise import ValveExercise
 from .flatline import FrozenSensor
 from .heat_need import HeatNeedEstimator
+from .thermal import TauEstimator, predict
 from .learning import Learner
 from .window_drop import DropDetector
 from .model import Decision, ExternalCommand, HcConfig, Inputs, Presence, Reason
@@ -59,7 +60,9 @@ class Supervisor:
         self._boost_outdoor: float | None = None
         self._last_target: float | None = None
         self._target_since: datetime | None = None
-        self.heat_need = HeatNeedEstimator()
+        self.heat_need = HeatNeedEstimator(cfg.house_loss_w_k / 1000, cfg.house_gains_kw)
+        self.tau = TauEstimator(cfg.house_tau_h, cfg.tau_min_quiet_h, cfg.tau_settle_min)  # 0.50.0
+        self._early: dict | None = None  # 0.50.0: the optimal start running (until the night end)
         self.manual_target: float | None = None
         self.preset: str | None = None
         self.preset_until: datetime | None = None  # a preset chosen by hand ends here...
@@ -107,6 +110,9 @@ class Supervisor:
             "shadow": {"regulator": self.shadow_regulator.state(), "pwm": self.shadow_pwm.state(),
                        "stats": self.shadow_stats},
             "heat_need": self.heat_need.state(),
+            "tau": self.tau.state(),
+            "early": {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in self._early.items()}
+            if self._early else None,
             "learner": self.learner.state(),
             "curve": self.curve.state(),
             "exercise": self.exercise.state(),
@@ -181,6 +187,11 @@ class Supervisor:
         self.shadow_pwm.restore(shadow.get("pwm", {}))
         self.shadow_stats.update(shadow.get("stats") or {})
         self.heat_need.restore(data.get("heat_need", {}))
+        self.tau.restore(data.get("tau") or {})
+        early = data.get("early")
+        if early and early.get("until"):
+            self._early = {**early, "until": datetime.fromisoformat(early["until"]),
+                           "since": datetime.fromisoformat(early["since"]) if early.get("since") else None}
         self.learner.restore(data.get("learner", {}))
         self.curve.restore(data.get("curve", {}))
         self.exercise.restore(data.get("exercise") or {})
@@ -281,12 +292,83 @@ class Supervisor:
         if at is None:
             return None
         left = (at - inputs.now).total_seconds()
-        if left <= 0 or left > cfg.pre_change_s:
+        tau = self.tau.tau_h
+        outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
+        ahead = tau is not None and outdoor is not None and cfg.pre_change_max_s > cfg.pre_change_s
+        if left <= 0 or left > (cfg.pre_change_max_s if ahead else cfg.pre_change_s):
             return None
         after = self._target_after(inputs, at) - (target - self._target_shown)
         if after >= target - 1e-9 or indoor < after:
             return None
-        return {"at": at, "target": round(after, 2), "min_left": round(left / 60, 1)}
+        hold = {"at": at, "target": round(after, 2), "min_left": round(left / 60, 1)}
+        if ahead:
+            # 0.50.0: left alone, where will the room be at the change? Further out than pre_change_s it must stay at
+            # or above the coming target and within pre_change_sag of the current one.
+            predicted = predict(indoor, self.equilibrium(outdoor), tau, left / 3600)
+            hold["predicted"] = round(predicted, 2)
+            if left > cfg.pre_change_s and (predicted < after or predicted < target - cfg.pre_change_sag):
+                return None
+        return hold
+
+    def equilibrium(self, outdoor: float | None) -> float | None:
+        """0.50.0: where the room settles without heat – the outdoor temperature lifted by the free heat."""
+        if outdoor is None:
+            return None
+        model = self.heat_need.model()
+        if model is None or model[0] <= 0:
+            return outdoor
+        return outdoor + max(model[1], 0.0) / model[0]
+
+    def _night_end_at(self, now: datetime) -> datetime | None:
+        cfg = self.cfg
+        if cfg.night_start == cfg.night_end:
+            return None
+        end = _parse_time(cfg.night_end)
+        at = now.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
+        return at if at > now else at + timedelta(days=1)
+
+    def _optimal_start(self, inputs: Inputs, base: float) -> bool:
+        """0.50.0: the night target would hold until the night end, but the room has to be at the home target by
+        then. With the time constant the room's fall until the night end is predicted; the burn minutes per degree
+        (learned from the boosts) plus the radiators' delay tell how long the rise takes. When that is as long as
+        the time left, the home target starts now (and stays until the night end)."""
+        cfg, now = self.cfg, inputs.now
+        if self._early is not None:
+            if now < self._early["until"] and self._is_night(now) and self.preset is None \
+                    and inputs.presence == Presence.HOME:
+                return True
+            self._early = None
+        if not (cfg.optimal_start and cfg.control in ("tpi", "pid", "onoff")) or self.preset is not None \
+                or self.manual_target is not None or inputs.presence != Presence.HOME or not self._is_night(now) \
+                or cfg.target_home <= base:
+            return False
+        indoor = inputs.indoor.fresh(cfg.sensor_max_age_s)
+        until = self._night_end_at(now)
+        if indoor is None or until is None:
+            return False
+        left_min = (until - now).total_seconds() / 60
+        if left_min > cfg.optimal_start_max_min:
+            return False
+        outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
+        tau = self.tau.tau_h
+        expected = indoor
+        if tau is not None and outdoor is not None:
+            # the regulator holds the night target: the room does not fall much below it
+            expected = max(predict(indoor, self.equilibrium(outdoor), tau, left_min / 60), min(indoor, base))
+        deficit = cfg.target_home - expected
+        if deficit <= 0.1:
+            return False
+        needed = deficit * self.learner.minutes_per_degree(outdoor) + cfg.optimal_start_lag_min
+        if needed < left_min:
+            return False
+        self._early = {"since": now, "until": until, "needed_min": round(needed), "expected": round(expected, 2),
+                       "tau_h": round(tau, 1) if tau else None}
+        return True
+
+    @property
+    def early_start(self) -> dict | None:
+        """The running optimal start (for the decision details and the info panel)."""
+        return self._early
 
     def _target_after(self, inputs: Inputs, at: datetime) -> float:
         """The target right after the change at `at`: the schedule's (a preset ends there, so does a manual target
@@ -363,6 +445,8 @@ class Supervisor:
 
     def _target(self, inputs: Inputs) -> float:
         base = self._schedule_target(inputs)
+        if self._optimal_start(inputs, base):
+            base = self.cfg.target_home
         if self._base_target is not None and base != self._base_target:
             self.manual_target = None  # A manual setting lasts until the next change.
         self._base_target = base
@@ -529,10 +613,9 @@ class Supervisor:
                 live_demand: float, live_output: bool, dt: float, inputs: Inputs) -> dict:
         """The other regulator calculates on the same inputs; only while regulating can it differ."""
         if reason == Reason.REGULATING and indoor is not None:
-            loss = self.heat_need.loss_kw_per_k
+            need = self.heat_need.need_kw(target, outdoor) if outdoor is not None else None
             feedforward = None
-            if loss is not None and outdoor is not None and self.cfg.boiler_power_kw > 0:
-                need = max(loss * (target - outdoor), 0.0)
+            if need is not None and self.cfg.boiler_power_kw > 0:
                 feedforward = max(need - inputs.other_heat_kw, 0.0) / self.cfg.boiler_power_kw
             demand = self.shadow_regulator.update(target, indoor, outdoor, now, feedforward)
         else:
@@ -838,6 +921,9 @@ class Supervisor:
 
     def step(self, inputs: Inputs) -> Decision:
         decision = self._step(inputs)
+        if self._early is not None:
+            early = {k: v for k, v in self._early.items() if k != "since"}
+            decision = replace(decision, details={**decision.details, "optimal_start": early})
         if inputs.hp_mode:
             decision = replace(decision, details={**decision.details, "hp_mode": inputs.hp_mode})
         if self.cfg.control in ("tpi", "pid") and self.exercise.step(inputs.now, decision.reason, decision.output):
@@ -853,6 +939,7 @@ class Supervisor:
         self._last_now = now
         indoor = inputs.indoor.fresh(cfg.sensor_max_age_s)
         frozen = None
+        heating = False
         if cfg.control in ("tpi", "pid", "onoff"):
             heating = inputs.actual_heating if inputs.actual_heating is not None else (self.pwm.output or self._gate.output)
             self._note_flame(now, bool(heating))
@@ -872,9 +959,11 @@ class Supervisor:
             window = True
         self.heat_need.update(now, indoor, outdoor, inputs.heat_energy_kwh)
         loss = self.heat_need.loss_kw_per_k
-        need = None
-        if loss is not None and outdoor is not None:
-            need = max(loss * (shown - outdoor), 0.0)
+        need = self.heat_need.need_kw(shown, outdoor) if outdoor is not None else None
+        if cfg.control in ("tpi", "pid", "onoff"):
+            # 0.50.0: τ from the quiet stretches (no burn, window closed, no other source counted)
+            self.tau.update(now, bool(heating), not window and not inputs.window_open and inputs.other_heat_kw < 0.05
+                            and not self._frost and not inputs.hp_mode, indoor, self.equilibrium(outdoor))
         frost_temp = indoor
         if frost_temp is None and cfg.demand_contact:
             frost_temp = inputs.floor.fresh(cfg.floor_max_age_s)  # no room thermometer: the floor guards against frost

@@ -457,6 +457,31 @@
               "radiator_cold_min": "When a radiator thermometer stays cold this long while heating and its room is below its target.",
               "fault_ok_values": "Comma separated, e.g. \"OK, Normal, 255\". All zeros (00, F.00, 0x00) are no fault anyway."
             }
+          },
+          "house": {
+            "name": "House model",
+            "description": "The house's heat loss, free heat and thermal inertia (τ), and what uses them: the optimal start in the morning and the hold before a lowering. A value given here is the starting point; the learned one is blended in step by step.",
+            "data": {
+              "house_loss_w_k": "Loss factor (H, 0 = learned only)",
+              "house_gains_kw": "Free heat (people, appliances, sun)",
+              "house_tau_h": "Time constant (τ, 0 = learned only)",
+              "optimal_start": "Optimal start in the morning",
+              "optimal_start_max_min": "At most this much earlier",
+              "optimal_start_lag_min": "Delay of the radiators",
+              "pre_change_max_s": "Hold before a lowering, with the forecast, at most",
+              "pre_change_sag": "Meanwhile at most this far under the current target",
+              "mould_frsi": "Mould: temperature factor of the coldest surface (fRsi)"
+            },
+            "data_description": {
+              "house_loss_w_k": "Watts the house loses per degree (indoor − outdoor). A straight line is fitted through the daily heat and temperatures; a value given here weighs as much as two weeks of learned days.",
+              "house_gains_kw": "Heat the house has without heating; the heat need is H × (target − outdoor) − free heat.",
+              "house_tau_h": "Without heat the room approaches the outdoor temperature at this pace (exponentially). Learned from stretches of at least 3 hours without a burn.",
+              "optimal_start": "The day target starts that much before the night ends that the room reaches it in time – from the fall predicted with τ and the minutes per degree learned from the boosts.",
+              "optimal_start_lag_min": "On top of the burn minutes, the time the radiators need to give their heat to the room.",
+              "pre_change_max_s": "With τ known, no new burn starts this long before a scheduled lowering while the room, left alone, stays above the coming target. 0 = only the fixed time above.",
+              "pre_change_sag": "During the hold the room may fall at most this far under the current target.",
+              "mould_frsi": "The mould risk is worked out at the room's coldest spot (a corner, a lintel, the wall behind a wardrobe): surface temperature = outdoor + fRsi × (indoor − outdoor); mould grows there above 80 % (EN ISO 13788). An old uninsulated wall's corner 0.6–0.7, an insulated one 0.75–0.8. The rooms' humidity sensors are taken from their thermometers' devices automatically."
+            }
           }
         }
       },
@@ -846,6 +871,9 @@
           "moderate": "Moderate",
           "high": "High"
         }
+      },
+      "time_constant": {
+        "name": "Time constant (τ)"
       }
     },
     "binary_sensor": {
@@ -900,6 +928,9 @@
     "button": {
       "reset_learning": {
         "name": "Reset learned values"
+      },
+      "reset_house_model": {
+        "name": "Learn the house model again"
       }
     },
     "switch": {

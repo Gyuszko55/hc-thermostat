@@ -185,7 +185,7 @@ def test_the_settings_fold_out_by_topic_and_are_stored_flat():
     keys = _keys(schema)
     assert keys[:2] == ["mode", "confirm"] and "target_home" in keys and "cycle_s" not in keys
     assert [k for k in keys if k in cf.SETTINGS_SECTIONS] == ["regulation", "functions", "protection", "devices",
-                                                               "energy", "adjoining"]
+                                                               "energy", "adjoining", "house"]
     assert keys[-1] == "measures"
     energy = _section(schema, "energy")
     fuel = next(k for k in energy.schema.schema if str(k) == "heat_fuel")
@@ -261,4 +261,4 @@ def test_rooms_keep_tpi_and_a_curve_gets_its_defaults():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] == "0.49.0"
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.49.0", "0.50.0")

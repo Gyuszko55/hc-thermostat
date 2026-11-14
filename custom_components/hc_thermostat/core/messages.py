@@ -166,6 +166,20 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
                  "a hője a váltás után érkezne." if lang == "hu"
                  else f" At {at} the target goes down to {aim} °C and the room is already warmer: no new start, "
                  "its heat would arrive after the change.")
+        if c.get("predicted") is not None:
+            p = _num(c.get("predicted"), lang)
+            text += (f" Magára hagyva a váltásig kb. {p} °C-ra hűl." if lang == "hu"
+                     else f" Left alone it will be about {p} °C by then.")
+    if "optimal_start" in details and decision.reason in (Reason.REGULATING, Reason.BOOST, Reason.AT_TARGET,
+                                                           Reason.AFTERHEAT):
+        o = details["optimal_start"]
+        until = o.get("until")
+        at = until.strftime("%H:%M") if hasattr(until, "strftime") else str(until or "–")[11:16]
+        need = _num(o.get("needed_min"), lang)
+        text += (f" Optimális indítás: a nappali célt már most tartom, hogy {at}-ra, az éjszaka végére meglegyen "
+                 f"(kb. {need} perc kell hozzá)." if lang == "hu"
+                 else f" Optimal start: the day target already holds so that the room reaches it by {at}, the end "
+                 f"of the night (about {need} min needed).")
     if decision.limited_by == "no_power":
         text += (" A vezérelt áram most nincs bekapcsolva: nem kapcsol." if lang == "hu"
                  else " The controlled power is off now: nothing is switched.")

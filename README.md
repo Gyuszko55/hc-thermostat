@@ -231,6 +231,35 @@ information: the HC info panel shows them (*Measurements*, and per room), and no
   electricity kWh, custom) and `heat_efficiency` (%) work the energy factor out; automatic reads the meter's unit (m³,
   kWh, MJ, GJ), without a meter the heat source. An instance saved before keeps its number (custom).
 
+## House model: loss factor, free heat, time constant (0.50.0)
+
+- **Loss factor and free heat:** a straight line through the learned days (daily heat against the mean indoor −
+  outdoor difference). Its slope is the loss factor **H** (W/K), its intercept the **free heat** (people,
+  appliances, sun; kW): the heat need is H × (target − outdoor) − free heat. Before, the plain ratio folded the free
+  heat into the loss: right in the weather it was learned in, about half the need in a cold spell. The line needs
+  ten days at least 4 K apart; until then the ratio stays. Sensor *Heat loss factor* with the source (`fit`,
+  `manual`, `ratio`), the free heat, the balance point (outdoor temperature above which no heat is needed), the fitted
+  line and the plain ratio.
+- **Time constant τ** (sensor *Time constant (τ)*, hours): without heat the room approaches its equilibrium
+  (outdoor + free heat / H) exponentially. Learned from stretches of at least 3 hours without a burn, starting an hour
+  after the last one, window closed (median of the last 21). With H: the heat stored per degree (τ × H).
+- **Values by hand** (Settings → *House model*): `house_loss_w_k`, `house_gains_kw`, `house_tau_h` – e.g. from a
+  year of gas readings. They are the starting point: a hand-given H weighs as much as 14 learned days, τ as much as 5
+  stretches. Button **Learn the house model again** after insulation or new windows: the days and stretches are
+  dropped, and the statistics before that day are not used again.
+- **Optimal start** (`optimal_start`, off by default; TPI, PID, on-off): before the night ends the day target starts
+  that much earlier that the room reaches it in time – the fall until the night end predicted with τ, the burn
+  minutes per degree learned from the boosts, plus `optimal_start_lag_min` for the radiators; at most
+  `optimal_start_max_min` (120 min) earlier. Once started it holds until the night end (also over a restart).
+- **Hold before a lowering looks ahead:** with τ known, up to `pre_change_max_s` (2 h) before a scheduled lowering no
+  new burn starts while the room, left alone, stays above the coming target and at most `pre_change_sag` (0.5 °C)
+  under the current one. Within `pre_change_s` the rule of 0.48.3 holds as before.
+- **Mould risk** at the room's coldest spot (a corner, a lintel): surface temperature = outdoor + `mould_frsi` ×
+  (indoor − outdoor) (0.7 an old wall, 0.75–0.8 an insulated one); mould grows above 80 % there. The sensor shows the
+  surface temperature and humidity and the highest room humidity without mould. The rooms' humidity sensors are taken
+  from their thermometers' devices once, automatically (untick them in the rooms form if not wanted).
+- **HC info panel:** a *House model* section with all of the above.
+
 ## District heating and fan coil (0.32.0)
 
 - **District heating** (new heat source): a zone valve per flat with TPI / PID and a long, calm cycle (30 minutes,

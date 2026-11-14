@@ -233,6 +233,35 @@ info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési dönté
   kWh, egyéni) és a `heat_efficiency` (%) kiszámolja az energiatényezőt; az automatikus a mérő mértékegységét nézi
   (m³, kWh, MJ, GJ), mérő nélkül a hőtermelőt. A korábban mentett példány megtartja a számát (egyéni).
 
+## Ház-modell: hőveszteség, szabad hő, időállandó (0.50.0)
+
+- **Hőveszteség-tényező és szabad hő:** egyenes a tanult napokon át (a napi hő a bent − kint átlagos különbség
+  függvényében). A meredeksége a **H** hőveszteség-tényező (W/K), a tengelymetszete a **szabad hő** (emberek, gépek,
+  nap; kW): a hőigény H × (cél − kint) − szabad hő. Eddig az egyszerű arány a szabad hőt a veszteségbe olvasztotta:
+  abban az időben jó volt, amikor tanulta, hidegben viszont nagyjából a felét adta a valós igénynek. Az egyeneshez
+  legalább tíz nap kell, legalább 4 K különbséggel; addig az arány marad. *Hőveszteség-tényező* szenzor: forrás
+  (`fit`, `manual`, `ratio`), szabad hő, egyensúlyi pont (e fölötti kinti hőmérsékletnél nem kell fűteni), az
+  illesztett egyenes és az egyszerű arány.
+- **Időállandó, τ** (*Időállandó (τ)* szenzor, óra): fűtés nélkül a helyiség exponenciálisan közelít az egyensúlyi
+  hőmérséklethez (kint + szabad hő / H). Legalább 3 órás, égés nélküli szakaszokból tanulja (az utolsó égés után egy
+  órával kezdve, zárt ablaknál; az utolsó 21 mediánja). H-val együtt: fokonként tárolt hő (τ × H).
+- **Kézi értékek** (Beállítások → *Ház-modell*): `house_loss_w_k`, `house_gains_kw`, `house_tau_h` – pl. egy év
+  gázleolvasásaiból. Ezek a kiindulás: a kézi H 14 tanult napnak, a τ 5 szakasznak számít. **Ház-modell
+  újratanulása** gomb szigetelés vagy ablakcsere után: a napok és a szakaszok törlődnek, és az aznapi előtti
+  statisztikát sem használja újra.
+- **Optimális indítás** (`optimal_start`, alapból ki; TPI, PID, on-off): az éjszaka vége előtt annyival korábban kezdi
+  a nappali célt, hogy addigra elérje a helyiség – a τ-val becsült lehűlés az éjszaka végéig, a felfűtésekből tanult
+  égési perc/fok és az `optimal_start_lag_min` a radiátoroknak; legfeljebb `optimal_start_max_min` (120 perc)
+  korábban. Ha elindult, az éjszaka végéig tart (újraindításon át is).
+- **Kivárás célcsökkenés előtt, előrejelzéssel:** ismert τ-val az ütemezett célcsökkenés előtt legfeljebb
+  `pre_change_max_s` (2 óra) ideig nem indít új égést, ha a helyiség magára hagyva is a váltás utáni cél felett és a
+  mostani cél alatt legfeljebb `pre_change_sag` (0,5 °C) marad. A `pre_change_s`-en belül a 0.48.3-as szabály változatlan.
+- **Penészkockázat** a helyiség leghidegebb pontján (sarok, áthidaló): felületi hőmérséklet = kint + `mould_frsi` ×
+  (bent − kint) (régi fal 0,7, szigetelt 0,75–0,8); ott 80 % felett nő a penész. A szenzor mutatja a felület
+  hőmérsékletét és páratartalmát, és a legnagyobb penészmentes páratartalmat a helyiségben. A helyiségek
+  páratartalom-érzékelőit a hőmérőik eszközéről egyszer, magától felveszi (a helyiségek űrlapján kivehetők).
+- **HC info panel:** új *Ház-modell* rész mindezzel.
+
 ## Távfűtés és fan-coil (0.32.0)
 
 - **Távfűtés** (új hőforrás): lakásonkénti zónaszelep TPI-vel / PID-del, hosszú, nyugodt ciklussal (30 perc, legalább

@@ -199,7 +199,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.energy_days.restore(m.get("energy") or {})
         for key, hours in (m.get("humidity") or {}).items():
             if isinstance(hours, dict):
-                self._humid.setdefault(key, ms.Humidity()).hours = {k: float(v) for k, v in hours.items()}
+                self._humid.setdefault(key, ms.Humidity()).restore(hours)
         if self.managed:
             self._mode_watch.off_by_hand = bool(data.get("managed_off", False)) and self._two_way
             if "paused" in data:
@@ -256,7 +256,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "room_ctl": {k: c.state() for k, c in self._ctls().items()},
             "last_extra": self._last_extra,
             "measures": {"runs": self.runs.state(), "energy": self.energy_days.state(),
-                         "humidity": {k: h.hours for k, h in self._humid.items()}},
+                         "humidity": {k: h.state() for k, h in self._humid.items()}},
             **({"managed_off": self.managed_off, "paused": self.paused, "paused_unit": self._paused_unit,
                 "adopted": self.adopted} if self.managed else {}),
         })
@@ -1221,15 +1221,21 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 rh_vals = [v for e in spec.humidity if (v := self._plain_of(e)) is not None and 0 < v <= 100]
                 rh = round(sum(rh_vals) / len(rh_vals), 1) if rh_vals else None
                 hum = self._humid.setdefault(spec.key, ms.Humidity())
-                hum.update(now, rh)
-                out["humidity"] = {"value": rh, "dew_point": ms.dew_point(room_t, rh), "risk": hum.risk(rh)}
+                surf = ms.surface(room_t, rh, decision.outdoor, self.cfg.mould_frsi) or {}
+                hum.update(now, rh, surf.get("surface_rh"))
+                out["humidity"] = {"value": rh, "dew_point": ms.dew_point(room_t, rh),
+                                   "risk": hum.risk(rh, surf.get("surface_rh")), **surf,
+                                   "frsi": self.cfg.mould_frsi if surf else None}
             rooms[spec.key] = {"name": spec.name, **out}
         if conf.get(CONF_HUMIDITY) and not any("humidity" in r for r in rooms.values()):
             rh = self._plain_of(conf[CONF_HUMIDITY])
             rh = rh if rh is not None and 0 < rh <= 100 else None
             hum = self._humid.setdefault("_house", ms.Humidity())
-            hum.update(now, rh)
-            values["humidity"] = {"value": rh, "dew_point": ms.dew_point(decision.indoor, rh), "risk": hum.risk(rh)}
+            surf = ms.surface(decision.indoor, rh, decision.outdoor, self.cfg.mould_frsi) or {}
+            hum.update(now, rh, surf.get("surface_rh"))
+            values["humidity"] = {"value": rh, "dew_point": ms.dew_point(decision.indoor, rh),
+                                  "risk": hum.risk(rh, surf.get("surface_rh")), **surf,
+                                  "frsi": self.cfg.mould_frsi if surf else None}
         if rooms:
             values["rooms"] = rooms
         self.measures = values

@@ -195,6 +195,7 @@ const MEASURE = {
     starts: "Indítások", hours: "Üzemidő", today: "ma", week: "7 nap", season: "szezon", last_hour: "az elmúlt órában",
     cop: "COP (leadott hő ÷ villany)", heat: "leadott hő", powerin: "villany",
     humidity: "Páratartalom", dew: "harmatpont", risk: { low: "alacsony penész-kockázat", moderate: "közepes penész-kockázat", high: "magas penész-kockázat" },
+    surface: "leghidegebb felület", limit: "penészmentes legfeljebb",
     warm: "kap meleget", cold: "hideg, pedig a helyiség fűtést kér", idle: "nem kell most fűtenie",
     problems: "Mérési jelzések", none: "Nincs mérés megadva. A beállítások „Mérések” részében adható meg.",
     p: { pressure_low: "alacsony víznyomás", pressure_high: "magas víznyomás", fuel_low: "kevés tüzelőanyag", short_cycling: "túl sűrű kapcsolgatás",
@@ -207,6 +208,7 @@ const MEASURE = {
     starts: "Starts", hours: "Run time", today: "today", week: "7 days", season: "season", last_hour: "in the last hour",
     cop: "COP (heat given off ÷ power)", heat: "heat", powerin: "power",
     humidity: "Humidity", dew: "dew point", risk: { low: "low mould risk", moderate: "moderate mould risk", high: "high mould risk" },
+    surface: "coldest surface", limit: "mould-free up to",
     warm: "gets heat", cold: "cold while the room asks for heat", idle: "no heat needed now",
     problems: "Measurement alerts", none: "No measurement set. Add them in the settings' Measurements part.",
     p: { pressure_low: "low water pressure", pressure_high: "high water pressure", fuel_low: "little fuel left", short_cycling: "switching too often",
@@ -490,7 +492,7 @@ class HcInfoPanel extends HTMLElement {
     const rm = r.measures || {}, M = MEASURE[L];
     if (rm.radiator) add(t.r_radiator, `${esc(this._deg(rm.radiator.temp))} · ${esc(M[rm.radiator.status] || rm.radiator.status || "")}${rm.radiator.cold_min ? ` (${esc(rm.radiator.cold_min)} ${esc(t.min)})` : ""}
       <div class="eid">${esc((r.radiators || []).map(n).join(", "))}</div>`);
-    if (rm.humidity) add(t.r_humidity, `${esc(this._num(rm.humidity.value))} % · ${esc(M.dew)} ${esc(this._deg(rm.humidity.dew_point))}${rm.humidity.risk ? ` · <b>${esc(M.risk[rm.humidity.risk])}</b>` : ""}
+    if (rm.humidity) add(t.r_humidity, `${this._hum(rm.humidity, M)}
       <div class="eid">${esc((r.humidity || []).map(n).join(", "))}</div>`);
     if (r.advice) add(t.r_advice, esc(r.advice.deviation == null ? `${r.advice.advice} (${r.advice.hours} h)`
       : `${r.advice.advice} (${sgn(r.advice.deviation)} °C, ${r.advice.hours} h)`));
@@ -569,7 +571,7 @@ class HcInfoPanel extends HTMLElement {
       add(M.cop, `<b>${esc(this._num(c.cop_today, 2))}</b> ${esc(M.today)} · ${esc(this._num(c.cop_week, 2))} ${esc(M.week)} · ${esc(this._num(c.cop_season, 2))} ${esc(M.season)}
         <div class="eid">${esc(M.today)}: ${esc(M.heat)} ${esc(this._num(c.heat_today_kwh))} kWh, ${esc(M.powerin)} ${esc(this._num(c.power_today_kwh))} kWh</div>`);
     }
-    if (m.humidity) add(M.humidity, `${esc(this._num(m.humidity.value))} % · ${esc(M.dew)} ${esc(this._deg(m.humidity.dew_point))}${m.humidity.risk ? ` · <b>${esc(M.risk[m.humidity.risk])}</b>` : ""}`);
+    if (m.humidity) add(M.humidity, this._hum(m.humidity, M));
     const probs = d.measure_problems || [];
     if (probs.length) add(M.problems, probs.map((p) => {
       const [code, room] = p.split(":");
@@ -580,10 +582,56 @@ class HcInfoPanel extends HTMLElement {
       if (!rm) continue;
       const bits = [];
       if (rm.radiator) bits.push(`${t.r_radiator} ${this._deg(rm.radiator.temp)} (${M[rm.radiator.status] || rm.radiator.status || "–"})`);
-      if (rm.humidity) bits.push(`${this._num(rm.humidity.value)} %${rm.humidity.risk ? `, ${M.risk[rm.humidity.risk]}` : ""}`);
+      if (rm.humidity) bits.push(`${this._num(rm.humidity.value)} %${rm.humidity.surface_rh != null ? ` (${M.surface} ${this._num(rm.humidity.surface_rh)} %)` : ""}${rm.humidity.risk ? `, ${M.risk[rm.humidity.risk]}` : ""}`);
       add(r.name, esc(bits.join(" · ")));
     }
     return rows.length ? `<table>${rows.join("")}</table>` : `<div class="muted">${esc(M.none)}</div>`;
+  }
+
+  // 0.50.0: humidity, dew point, the coldest surface and the mould risk
+  _hum(h, M) {
+    const surf = h.surface_rh != null
+      ? ` · ${esc(M.surface)} ${esc(this._deg(h.surface_temp))} / ${esc(this._num(h.surface_rh))} % · ${esc(M.limit)} ${esc(this._num(h.rh_limit))} %`
+      : "";
+    return `${esc(this._num(h.value))} % · ${esc(M.dew)} ${esc(this._deg(h.dew_point))}${surf}${h.risk ? ` · <b>${esc(M.risk[h.risk])}</b>` : ""}`;
+  }
+
+  // 0.50.0: the house model – loss factor, free heat, time constant and what uses them
+  _houseModel() {
+    const d = this._d || {}, h = d.live?.house, c = d.config || {}, hu = this._hu;
+    if (!h) return `<div class="muted">${esc(this._t.none)}</div>`;
+    const T = hu
+      ? { loss: "Hőveszteség-tényező (H)", gains: "Szabad hő", balance: "Egyensúlyi pont", fit: "Illesztett egyenes", tau: "Időállandó (τ)",
+          cap: "Tárolt hő fokonként (τ × H)", opt: "Optimális indítás", hold: "Kivárás célcsökkenés előtt", frsi: "Penész: fRsi",
+          src: { fit: "tanult egyenes", manual: "kézi", ratio: "egyszerű arány (még kevés vagy egyforma nap)", learned: "tanult" },
+          days: "nap", stretches: "szakasz", on: "be", off: "ki", running: "fut", until: "eddig", need: "kell", up: "legfeljebb", before: "korábban",
+          noBal: "kint e fölött nem kell fűteni", ahead: "előrejelzéssel legfeljebb", sag: "a cél alá legfeljebb", fixed: "csak a fix idő (τ nélkül)" }
+      : { loss: "Loss factor (H)", gains: "Free heat", balance: "Balance point", fit: "Fitted line", tau: "Time constant (τ)",
+          cap: "Heat stored per degree (τ × H)", opt: "Optimal start", hold: "Hold before a lowering", frsi: "Mould: fRsi",
+          src: { fit: "learned line", manual: "by hand", ratio: "plain ratio (few or similar days yet)", learned: "learned" },
+          days: "days", stretches: "stretches", on: "on", off: "off", running: "running", until: "until", need: "needs", up: "at most", before: "earlier",
+          noBal: "no heat needed above this outdoor temperature", ahead: "with the forecast at most", sag: "under the target at most", fixed: "the fixed time only (no τ)" };
+    const rows = [];
+    const add = (k, v) => rows.push(`<tr><td class="k">${esc(k)}</td><td class="v">${v}</td></tr>`);
+    const home = d.presets?.targets?.target_home;
+    add(T.loss, h.loss_w_k == null ? esc(this._t.none) : `<b>${esc(this._num(h.loss_w_k))} W/K</b> <span class="muted">(${esc(T.src[h.source] || h.source || "")})</span>`);
+    if (h.loss_w_k != null) {
+      add(T.gains, esc(`${this._num(h.gains_kw, 2)} kW`));
+      if (home != null && h.loss_w_k > 0)
+        add(T.balance, `${esc(this._deg(home - (h.gains_kw * 1000) / h.loss_w_k))} <span class="muted">(${esc(T.noBal)})</span>`);
+    }
+    if (h.fit) add(T.fit, esc(`H ${this._num(h.fit.loss * 1000)} W/K · ${this._num(h.fit.gains, 2)} kW · r ${this._num(h.fit.r, 2)} · ${h.fit.days} ${T.days}`));
+    add(T.tau, h.tau_h == null ? esc(this._t.none)
+      : `<b>${esc(this._num(h.tau_h))} h</b> <span class="muted">(${esc(T.src[h.tau_source] || h.tau_source || "")}, ${esc(h.tau_stretches)} ${esc(T.stretches)})</span>`);
+    if (h.tau_h != null && h.loss_w_k != null) add(T.cap, esc(`${this._num((h.tau_h * h.loss_w_k) / 1000, 1)} kWh/K`));
+    const o = h.optimal_start;
+    add(T.opt, o ? `<b>${esc(T.running)}</b> · ${esc(T.until)} ${esc(this._val(o.until))} · ${esc(T.need)} ${esc(o.needed_min)} min`
+      : esc(`${c.optimal_start ? T.on : T.off} · ${T.up} ${this._num(c.optimal_start_max_min)} min ${T.before}`));
+    if (c.pre_change_s) add(T.hold, esc(h.tau_h != null && c.pre_change_max_s > c.pre_change_s
+      ? `${T.ahead} ${this._num(c.pre_change_max_s / 60)} min · ${T.sag} ${this._num(c.pre_change_sag)} °C`
+      : `${this._num(c.pre_change_s / 60)} min · ${T.fixed}`));
+    if (c.mould_frsi != null) add(T.frsi, esc(this._num(c.mould_frsi, 2)));
+    return `<table>${rows.join("")}</table>`;
   }
 
   _inputs() {
@@ -894,6 +942,7 @@ class HcInfoPanel extends HTMLElement {
         this._section("inner", t.inner, d.state ? this._rows({ ...(d.live || {}), ...d.state }) : this._rows({ state: d.state, zones: d.zones }), "mdi:memory"),
         d.health ? this._section("health", t.health, this._rows(d.health), "mdi:heart-pulse") : "",
         d.role === "standalone" || d.role === "zone" ? this._section("measures", t.measures, this._measures(), "mdi:gauge") : "",
+        d.live?.house ? this._section("house_model", this._hu ? "Ház-modell" : "House model", this._houseModel(), "mdi:home-thermometer-outline") : "",
         (d.room_list || []).length ? this._section("room_list", t.roomList, this._roomTable(), "mdi:home-group") : "",
         d.rooms && (d.rooms.advice?.length || Object.keys(d.rooms.trv || {}).length) ? this._section("rooms", t.rooms, this._rows(d.rooms), "mdi:floor-plan") : "",
         d.zone && Object.keys(d.zone).length ? this._section("zone", t.zone, this._rows(d.zone), "mdi:texture-box") : "",

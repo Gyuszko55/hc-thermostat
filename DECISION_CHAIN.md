@@ -20,7 +20,7 @@ flowchart TD
   N2["2. Paused? Shadow or live"] --> N3
   N3["3. Season (summer rest)"] --> N4
   N4["4. Window open → frost protection"] --> N5
-  N5["5. Target: schedule, presence, manual, boost"] --> N6
+  N5["5. Target: schedule, presence, manual, optimal start, boost"] --> N6
   N6["6. Limits: floor, return, dew point, off-peak power"] --> N7
   N7["7. Regulator: demand % / flow setpoint / setpoint shift"] --> N8
   N8["8. Execution: PWM, flow setpoint, TRV targets, fan"] --> N9

@@ -368,6 +368,9 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
                CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
     "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF),
+    # 0.50.0
+    "house": ("house_loss_w_k", "house_gains_kw", "house_tau_h", "optimal_start", "optimal_start_max_min",
+              "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi"),
 }
 _SETTINGS_SECTION_OF = {k: name for name, keys in SETTINGS_SECTIONS.items() for k in keys}
 
@@ -815,6 +818,18 @@ class HcOptionsFlow(OptionsFlow):
                if cfg.control in ("tpi", "pid") else {}),
             # 0.48.3: no new start just before a scheduled lowering of the target
             **({vol.Required("pre_change_s", default=cfg.pre_change_s): _number(0, 7200, 300, "s")}
+               if cfg.control in ("tpi", "pid", "onoff") else {}),
+            # 0.50.0: the house model (loss factor, free heat, time constant) and what uses it
+            **({vol.Required("house_loss_w_k", default=cfg.house_loss_w_k): _number(0, 2000, 1, "W/K"),
+                vol.Required("house_gains_kw", default=cfg.house_gains_kw): _number(0, 5, 0.05, "kW"),
+                vol.Required("house_tau_h", default=cfg.house_tau_h): _number(0, 500, 1, "h")}
+               if cfg.control not in ("external", "ac") else {}),
+            vol.Required("mould_frsi", default=cfg.mould_frsi): _number(0.4, 0.95, 0.05),
+            **({vol.Required("optimal_start", default=cfg.optimal_start): BooleanSelector(),
+                vol.Required("optimal_start_max_min", default=cfg.optimal_start_max_min): _number(15, 360, 15, "min"),
+                vol.Required("optimal_start_lag_min", default=cfg.optimal_start_lag_min): _number(0, 120, 5, "min"),
+                vol.Required("pre_change_max_s", default=cfg.pre_change_max_s): _number(0, 14400, 300, "s"),
+                vol.Required("pre_change_sag", default=cfg.pre_change_sag): _number(0, 2, 0.1, "°C")}
                if cfg.control in ("tpi", "pid", "onoff") else {}),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
             vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
@@ -12,7 +14,11 @@ from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
 from .const import CENTRAL_PLATFORMS, CONF_ROLE, DOMAIN, PLATFORMS
 from .coordinator import HcCoordinator, note_ha_start
+from .rooms_ha import auto_humidity
 from .wizard import async_register_panels, async_remove_panels, async_setup_wizard
+
+_LOGGER = logging.getLogger(__name__)
+AUTO_HUMIDITY_DONE = "humidity_auto"  # 0.50.0
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -43,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(entry, CENTRAL_PLATFORMS)
         entry.async_on_unload(entry.add_update_listener(_async_reload))
         return True
+    _auto_humidity(hass, entry)
     coordinator = HcCoordinator(hass, entry)
     await coordinator.async_load()
     await coordinator.async_backfill()
@@ -60,6 +67,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _save))
     return True
+
+
+def _auto_humidity(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """0.50.0: once per instance, the humidity sensors of the rooms' thermometers go into the settings (the user can
+    untick them in the rooms form; they are not added back)."""
+    if entry.options.get(AUTO_HUMIDITY_DONE):
+        return
+    try:
+        found = auto_humidity(hass, {**entry.data, **entry.options}, entry.entry_id) or {}
+    except Exception:  # a convenience: the instance starts without it
+        _LOGGER.debug("No humidity sensors found for the rooms", exc_info=True)
+        found = {}
+    # before the update listener is set: no reload
+    hass.config_entries.async_update_entry(entry, options={**entry.options, **found, AUTO_HUMIDITY_DONE: True})
+    if found:
+        _LOGGER.info("%s: humidity sensors of the rooms added to the settings", entry.title)
 
 
 async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:

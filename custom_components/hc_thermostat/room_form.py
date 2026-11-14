@@ -243,8 +243,13 @@ def room_section(hass, lang: str, room: dict, cands: dict, leading: str | None, 
     if cands.get("radiators"):
         fields[vol.Optional(w["radiators"], default=list(room.get("radiators") or []))] = \
             _checks(_options(hass, cands["radiators"]))
+    # 0.50.0: a room without one gets the humidity sensors of its thermometers' devices ticked
+    from .rooms_ha import humidity_of
+    auto_rh = [] if room.get("humidity") else humidity_of(hass, room.get("sensors") or [])
+    if auto_rh:
+        cands["humidity"] = [*cands.get("humidity", []), *[h for h in auto_rh if h not in cands.get("humidity", [])]]
     if cands.get("humidity"):
-        fields[vol.Optional(w["humidity"], default=list(room.get("humidity") or []))] = \
+        fields[vol.Optional(w["humidity"], default=list(room.get("humidity") or auto_rh))] = \
             _checks(_options(hass, cands["humidity"]))
     fields[vol.Optional(w["more"])] = EntitySelector(EntitySelectorConfig(domain=MORE_DOMAINS, multiple=True))
     if trv_room:

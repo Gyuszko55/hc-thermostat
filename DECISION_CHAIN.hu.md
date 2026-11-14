@@ -20,7 +20,7 @@ flowchart TD
   N2["2. Szünetel? Árnyék vagy éles"] --> N3
   N3["3. Szezon (nyári pihenő)"] --> N4
   N4["4. Ablak nyitva → fagyvédelem"] --> N5
-  N5["5. Cél: program, jelenlét, kézi, felfűtés"] --> N6
+  N5["5. Cél: program, jelenlét, kézi, optimális indítás, felfűtés"] --> N6
   N6["6. Korlátok: padló, visszatérő, harmatpont, vezérelt áram"] --> N7
   N7["7. Szabályozó: igény % / előremenő cél / céleltolás"] --> N8
   N8["8. Végrehajtás: PWM, előremenő cél, TRV-célok, ventilátor"] --> N9

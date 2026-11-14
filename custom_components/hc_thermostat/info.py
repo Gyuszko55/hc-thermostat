@@ -113,6 +113,13 @@ def _instance(hass, entry) -> dict:
                              "minutes_per_degree": jsonable(sup.learner.minutes_per_degree(d.outdoor)) if d else None,
                              "tpi_coef_int": jsonable(sup.learner.tpi_coef_int), "tpi_offset": jsonable(sup.learner.tpi_offset)},
                  "loss_kw_per_k": jsonable(sup.heat_need.loss_kw_per_k),
+                 # 0.50.0: the house model
+                 "house": {"loss_w_k": jsonable(None if sup.heat_need.loss_kw_per_k is None
+                                                else round(sup.heat_need.loss_kw_per_k * 1000, 1)),
+                           "gains_kw": round(sup.heat_need.gains_kw, 2), "source": sup.heat_need.source,
+                           "fit": jsonable(sup.heat_need.fit()), "tau_h": jsonable(sup.tau.tau_h),
+                           "tau_source": sup.tau.source, "tau_stretches": len(sup.tau.samples),
+                           "optimal_start": jsonable(sup.early_start)},
                  "load": jsonable(sup.load.details(d.now)) if sup.load is not None and d else None},
         "health": {"state": c.health.state, **jsonable(c.health.attributes())} if getattr(c, "health", None) else None,
         "climate": _climate(hass, entry),

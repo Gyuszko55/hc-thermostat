@@ -143,6 +143,24 @@ class HcConfig:
     # target running out) while the room is already at or above the coming target – that burn's heat would arrive
     # after the change (11-12: a burn at 21:59 for a 22:00 night of 21 °C, the room went 22.4 -> 22.6). 0 = off.
     pre_change_s: float = 1800.0
+    # 0.50.0: with the time constant known the hold looks ahead: up to pre_change_max_s before the change, while the
+    # room, left alone, stays at or above the coming target and at most pre_change_sag under the current one
+    pre_change_max_s: float = 7200.0
+    pre_change_sag: float = 0.5
+    # 0.50.0 house model (core/heat_need.py, core/thermal.py): values given by hand (0 = learned only); the learned
+    # ones are blended in as days / quiet stretches pile up
+    house_loss_w_k: float = 0.0  # loss factor H, W/K
+    house_gains_kw: float = 0.0  # free heat G (people, appliances, sun), kW
+    house_tau_h: float = 0.0  # time constant τ, hours
+    tau_min_quiet_h: float = 3.0  # a stretch without a burn this long teaches τ
+    tau_settle_min: float = 60.0  # ... counted from this long after the last burn
+    # 0.50.0 optimal start: the home target starts this much before the night ends that the room reaches it in time
+    optimal_start: bool = False
+    optimal_start_max_min: float = 120.0
+    optimal_start_lag_min: float = 20.0  # the radiators' delay on top of the burn minutes
+    # 0.50.0 mould risk at the coldest surface: its temperature factor (EN ISO 13788: 0.7 an old wall's corner,
+    # 0.75–0.8 an insulated one)
+    mould_frsi: float = 0.7
     pid_d_filter_s: float = 300.0  # 0.40.0: low-pass time constant of the derivative (stepwise sensors); 0 = off
     pid_ke: float = 0.01
     pid_ki_per_hour: float | None = None  # when set, wins over pid_ki (demand per °C per hour; easier to read)

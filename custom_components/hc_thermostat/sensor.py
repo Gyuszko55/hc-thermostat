@@ -27,6 +27,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if c.cfg.control not in ("external", "ac"):
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
+        if c.cfg.control in ("tpi", "pid", "onoff"):
+            entities.append(HcTimeConstant(c))  # 0.50.0
         if c.conf.get("heat_source") != "external_heat":  # 0.47.0: no burner of its own to watch
             entities.append(HcBoilerHealth(c))
         if c.cfg.control == "curve":
@@ -118,7 +120,46 @@ class HcHeatLoss(HcEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        return {"days_learned": len(self.coordinator.supervisor.heat_need.samples)}
+        need, cfg = self.coordinator.supervisor.heat_need, self.coordinator.cfg
+        fit = need.fit()
+        ratio = need.ratio_kw_per_k
+        balance = need.balance_point(cfg.target_home)
+        return {"days_learned": len(need.samples),
+                # 0.50.0: the house model – loss factor (slope) and free heat; where the value comes from
+                "source": need.source, "free_heat_kw": round(need.gains_kw, 2),
+                "balance_point": None if balance is None else round(balance, 1),
+                "fit_w_k": None if fit is None else round(fit["loss"] * 1000, 1),
+                "fit_free_heat_kw": None if fit is None else round(fit["gains"], 2),
+                "fit_r": None if fit is None else round(fit["r"], 2),
+                "ratio_w_k": None if ratio is None else round(ratio * 1000, 1),
+                "manual_w_k": round(need.manual_loss * 1000, 1) if need.manual_loss else None,
+                "since": need.since}
+
+
+class HcTimeConstant(HcEntity, SensorEntity):
+    """0.50.0: the time constant of the house (thermal inertia), hours."""
+
+    _attr_native_unit_of_measurement = "h"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:home-clock-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "time_constant")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.supervisor.tau.tau_h
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        sup = self.coordinator.supervisor
+        tau, loss = sup.tau.tau_h, sup.heat_need.loss_kw_per_k
+        return {"source": sup.tau.source, "stretches": len(sup.tau.samples),
+                "learned_h": sup.tau.learned_h, "manual_h": sup.tau.manual or None,
+                # heat stored per degree: τ × H
+                "capacity_kwh_per_k": None if tau is None or loss is None else round(tau * loss, 1),
+                "optimal_start": sup.early_start is not None}
 
 
 class HcSourceAdvice(HcEntity, SensorEntity):

@@ -182,7 +182,7 @@ FLOOR_DERIVES = [(DONE, T("Floor tempering, floor fallback, limit by covering an
 STEPS = [
     T("Inputs fresh?", "Bemenetek frissek?"), T("Paused? Shadow or live", "Szünetel? Árnyék vagy éles"),
     T("Season (summer rest)", "Szezon (nyári pihenő)"), T("Window open → frost protection", "Ablak nyitva → fagyvédelem"),
-    T("Target: schedule, presence, manual, boost", "Cél: program, jelenlét, kézi, felfűtés"),
+    T("Target: schedule, presence, manual, optimal start, boost", "Cél: program, jelenlét, kézi, optimális indítás, felfűtés"),
     T("Limits: floor, return, dew point, off-peak power", "Korlátok: padló, visszatérő, harmatpont, vezérelt áram"),
     T("Regulator: demand % / flow setpoint / setpoint shift", "Szabályozó: igény % / előremenő cél / céleltolás"),
     T("Execution: PWM, flow setpoint, TRV targets, fan", "Végrehajtás: PWM, előremenő cél, TRV-célok, ventilátor"),

@@ -220,24 +220,73 @@ class EnergyDays:
             self.last = {k: float(v) for k, v in data["last"].items() if isinstance(v, (int, float))}
 
 
+SURFACE_CRITICAL = 80.0  # % at the coldest surface: mould grows (EN ISO 13788)
+_SURFACE_SEVERE = 90.0  # % at the surface: condensation is near
+
+
+def _psat(temp: float) -> float:
+    """Saturation vapour pressure, hPa (Magnus)."""
+    return 6.112 * math.exp(17.62 * temp / (243.12 + temp))
+
+
+def surface(temp: float | None, rh: float | None, outdoor: float | None, frsi: float) -> dict | None:
+    """0.50.0: the coldest surface of the room (a thermal bridge: a corner, a lintel behind a wardrobe). Its
+    temperature by the temperature factor fRsi (EN ISO 13788: 0 = as cold as outside, 1 = as warm as the room),
+    the relative humidity the room's vapour gives there, and the highest room humidity that keeps it under 80 %."""
+    if temp is None or rh is None or outdoor is None or not 0 < rh <= 100 or not 0 < frsi <= 1 or outdoor >= temp:
+        return None
+    ts = outdoor + frsi * (temp - outdoor)
+    srh = min(100.0, rh * _psat(temp) / _psat(ts))
+    limit = min(100.0, SURFACE_CRITICAL * _psat(ts) / _psat(temp))
+    return {"surface_temp": round(ts, 1), "surface_rh": round(srh, 1), "rh_limit": round(limit, 1)}
+
+
 class Humidity:
-    """Hourly humidity samples of one room (the last day): the mould risk."""
+    """Hourly humidity samples of one room (the last day): the mould risk.
+
+    0.50.0: with the outdoor temperature the risk is judged at the coldest surface (see `surface`): high after
+    `_HIGH_HOURS` hours of 80 % there in the last day (or 90 % now), moderate after any such hour or 70 % now. Without
+    it, by the room's own humidity as before (70 % / 60 %)."""
 
     def __init__(self) -> None:
         self.hours: dict[str, float] = {}  # "YYYY-MM-DDTHH" -> highest relative humidity of that hour
+        self.surface: dict[str, float] = {}  # 0.50.0: the same hour's highest humidity at the coldest surface
 
-    def update(self, now: datetime, rh: float | None) -> None:
+    def update(self, now: datetime, rh: float | None, surface_rh: float | None = None) -> None:
         if rh is None or not 0 < rh <= 100:
             return
         key = now.strftime("%Y-%m-%dT%H")
         self.hours[key] = max(rh, self.hours.get(key, 0.0))
+        if surface_rh is not None:
+            self.surface[key] = max(surface_rh, self.surface.get(key, 0.0))
         cut = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H")
-        for k in [k for k in self.hours if k <= cut]:
-            del self.hours[k]
+        for table in (self.hours, self.surface):
+            for k in [k for k in table if k <= cut]:
+                del table[k]
 
-    def risk(self, rh: float | None) -> str | None:
+    def state(self) -> dict:
+        return {"hours": dict(self.hours), "surface": dict(self.surface)}
+
+    def restore(self, data: dict) -> None:
+        """Before 0.50.0 the stored value was the hours table itself."""
+        if not isinstance(data, dict):
+            return
+        if isinstance(data.get("hours"), dict):
+            self.hours = {k: float(v) for k, v in data["hours"].items()}
+            self.surface = {k: float(v) for k, v in (data.get("surface") or {}).items()}
+        else:
+            self.hours = {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
+
+    def risk(self, rh: float | None, surface_rh: float | None = None) -> str | None:
         if rh is None and not self.hours:
             return None
+        if surface_rh is not None or self.surface:
+            high = sum(1 for v in self.surface.values() if v >= SURFACE_CRITICAL)
+            if high >= _HIGH_HOURS or (surface_rh is not None and surface_rh >= _SURFACE_SEVERE):
+                return "high"
+            if high or (surface_rh is not None and surface_rh >= 70.0):
+                return "moderate"
+            return "low"
         high = sum(1 for v in self.hours.values() if v >= _HUMID_HIGH)
         if high >= _HIGH_HOURS:
             return "high"

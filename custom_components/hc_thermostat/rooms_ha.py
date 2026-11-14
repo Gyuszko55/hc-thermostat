@@ -120,6 +120,74 @@ def area_id_of(hass, entity_id: str) -> str | None:
     return None
 
 
+def humidity_of(hass, thermometers) -> list[str]:
+    """0.50.0: the humidity sensors on the same devices as these thermometers (a TH sensor reports both)."""
+    out: list[str] = []
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception:  # no registry (a test, a stripped-down hass): nothing to suggest
+        return out
+    for entity_id in thermometers or []:
+        entry = ent_reg.async_get(entity_id)
+        if entry is None or not entry.device_id:
+            continue
+        for x in er.async_entries_for_device(ent_reg, entry.device_id):
+            cls = x.device_class or x.original_device_class
+            if x.domain == "sensor" and cls == "humidity" and not x.disabled_by and x.entity_id not in out:
+                out.append(x.entity_id)
+    return out
+
+
+def _humidity_of_entry(entry) -> set[str]:
+    conf = {**entry.data, **entry.options}
+    out = {conf["humidity_entity"]} if conf.get("humidity_entity") else set()
+    for r in conf.get("rooms") or []:
+        if isinstance(r, dict):
+            out |= set(r.get("humidity") or [])
+    return out
+
+
+def humidity_owner(hass, entry_id: str, sensors) -> str | None:
+    """0.50.0: the title of an earlier HC instance that has these humidity sensors too – it shows the room's mould
+    risk, this one does not (one room, one sensor)."""
+    wanted = set(sensors or [])
+    for entry in _hc_entries(hass):
+        if entry.entry_id == entry_id:
+            return None
+        if wanted & _humidity_of_entry(entry):
+            return entry.title
+    return None
+
+
+def auto_humidity(hass, conf: dict, entry_id: str | None = None) -> dict | None:
+    """0.50.0: once per instance, every room without a humidity sensor gets the ones on its thermometers' devices
+    (the leading room's: the house thermometer's too). Returns the options to add, or None when nothing was found.
+    The rooms are written as the rooms form writes them (`rooms_options`); an instance without rooms gets the house
+    thermometer's humidity sensor as `humidity_entity` (if it has none)."""
+    from .core.room_model import rooms_options
+    indoor = conf.get(CONF_INDOOR)
+    specs, leading = room_specs_for(hass, conf)
+    changed = False
+    taken: set[str] = set()  # another instance has them already: one room, one sensor
+    for entry in _hc_entries(hass):
+        if entry.entry_id != entry_id:
+            taken |= _humidity_of_entry(entry)
+    for spec in specs:
+        if spec.humidity:
+            continue
+        sources = list(spec.sensors) + ([indoor] if spec.key == leading and indoor and indoor not in spec.sensors else [])
+        found = [h for h in humidity_of(hass, sources) if h not in taken]
+        if found:
+            spec.humidity, changed = found, True
+    if specs and changed:
+        return rooms_options([s.as_dict() for s in specs], leading, indoor)
+    if not specs and indoor and not conf.get("humidity_entity"):
+        found = [h for h in humidity_of(hass, [indoor]) if h not in taken]
+        if found:
+            return {"humidity_entity": found[0]}
+    return None
+
+
 def area_name(hass, area_id: str | None) -> str | None:
     area = ar.async_get(hass).async_get_area(area_id) if area_id else None
     return area.name if area else None

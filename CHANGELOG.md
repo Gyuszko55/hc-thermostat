@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.50.0 – 2026-11-14
+The house model: loss factor, free heat and time constant, and what uses them.
+- **Loss factor from a line** (`core/heat_need.py`): daily heat against the mean indoor − outdoor difference; slope =
+  H, intercept = free heat; need = H × (target − outdoor) − free heat (the blind demand, the feed-forward, the shadow
+  regulator, the cost advice). At least 10 days 4 K apart, r ≥ 0.7 and a free heat of 0 or more (a negative one is hot water in the meter or a poor line); else the plain ratio as before. Sensor
+  attributes `source`, `free_heat_kw`, `balance_point`, `fit_w_k`, `fit_free_heat_kw`, `fit_r`, `ratio_w_k`,
+  `manual_w_k`, `since`.
+- **Time constant τ** (`core/thermal.py`, new sensor *Time constant (τ)*): learned from stretches of ≥ 3 h without a
+  burn (from 60 min after the last one; window closed, no other source counted), τ = hours / ln(ΔT0 / ΔT1) against the
+  equilibrium outdoor + free heat / H; median of the last 21. Attributes: source, stretches, capacity (τ × H).
+- **Hand-given values** `house_loss_w_k`, `house_gains_kw`, `house_tau_h` (new settings section *House model*); the
+  learned values are blended in (H: 14 days, τ: 5 stretches). New button **Learn the house model again**
+  (`heat_need.since`: the statistics before it are not seeded again).
+- **Optimal start** (`optimal_start`, `optimal_start_max_min` 120, `optimal_start_lag_min` 20; off by default): the
+  day target starts before the night end so that the room reaches it in time; held until the night end, restored
+  after a restart; details `optimal_start`, decision text.
+- **Forecast hold before a lowering:** with τ, up to `pre_change_max_s` (7200 s) while the predicted room stays at or
+  above the coming target and within `pre_change_sag` (0.5 °C) of the current one; details `pre_change.predicted`.
+- **Mould risk at the coldest surface** (`core/measures.surface`): surface temperature = outdoor + `mould_frsi` ×
+  (indoor − outdoor) (EN ISO 13788, default 0.7), the humidity the room's vapour gives there, and the highest room
+  humidity that keeps it under 80 %. Risk: high after 6 hours of 80 % at the surface in the last day (or 90 % now),
+  moderate after any such hour (or 70 % now), low otherwise; without an outdoor reading by the room's own humidity as
+  before. Mould risk sensors: `surface_temp`, `surface_rh`, `rh_limit`, `frsi`.
+- **Humidity sensors from the thermometers:** once per instance (`humidity_auto`) every room without one gets the
+  humidity sensors on its thermometers' devices (the leading room: the house thermometer's too) – written into the
+  settings like the rooms form does; an instance without rooms gets `humidity_entity`. The rooms form ticks them for a
+  room without one.
+- **HC info panel:** new *House model* section (loss factor and its source, free heat, balance point, fitted line, τ,
+  heat stored per degree, optimal start, the hold before a lowering, fRsi); the humidity rows show the coldest surface
+  and the mould-free limit.
+- Numbers of a real gas-heated house: before a wall insulation 163 W/K and 0.7 kW free heat (the ratio
+  said 125 W/K), after it about 100 W/K; τ about 90 h.
+- Tests: tests/test_house_model_500.py (22); test_fixes_400 and test_setup_490 follow the new model and section.
+
 ## 0.49.0 – 2026-11-13
 A simpler setup.
 - **Devices step of the manual setup:** on top only what a first setup needs (room thermometer or wall thermostat

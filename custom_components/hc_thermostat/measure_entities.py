@@ -41,7 +41,10 @@ def measure_sensors(hass, entry, c) -> list:
     except Exception:
         specs, leading = [], None
     if isinstance(c.conf.get("rooms"), list) and c.conf.get("rooms"):
-        risks = [RoomMouldRisk(c, s, s.key == leading) for s in specs if s.humidity]
+        from .rooms_ha import humidity_owner
+        # 0.50.0: a room whose sensors an earlier instance has too shows its risk there only
+        risks = [RoomMouldRisk(c, s, s.key == leading) for s in specs
+                 if s.humidity and humidity_owner(hass, entry.entry_id, s.humidity) is None]
     if c.conf.get(CONF_HUMIDITY) and not risks:
         out.append(HcMouldRisk(c))
     prefix = f"{entry.entry_id}_mould_"
@@ -153,7 +156,7 @@ class HcMouldRisk(HcEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         h = self.coordinator.mould_risk("_house") or {}
-        return {"humidity": h.get("value"), "dew_point": h.get("dew_point")}
+        return {"humidity": h.get("value"), "dew_point": h.get("dew_point"), **_surface_attrs(h)}
 
 
 class RoomMouldRisk(CoordinatorEntity, SensorEntity):
@@ -191,4 +194,9 @@ class RoomMouldRisk(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         h = self.coordinator.mould_risk(self._key) or {}
-        return {"humidity": h.get("value"), "dew_point": h.get("dew_point"), "hc_room": self._key}
+        return {"humidity": h.get("value"), "dew_point": h.get("dew_point"), **_surface_attrs(h), "hc_room": self._key}
+
+
+def _surface_attrs(h: dict) -> dict:
+    """0.50.0: the coldest surface – its temperature and humidity, and the highest room humidity without mould."""
+    return {k: h.get(k) for k in ("surface_temp", "surface_rh", "rh_limit", "frsi")}
