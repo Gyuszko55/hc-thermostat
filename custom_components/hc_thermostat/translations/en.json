@@ -137,7 +137,7 @@
       },
       "buffer": {
         "title": "Buffer tank",
-        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode.",
+        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode. Up to four thermometers (top, upper, lower, bottom) and the volume give the stored heat, the charge and the trend – information only, the charging still goes by the top and the bottom.",
         "data": {
           "buffer_top_entity": "Tank top thermometer",
           "buffer_bottom_entity": "Tank bottom thermometer (optional)",
@@ -148,7 +148,16 @@
           "buffer_off": "Charge stops when the bottom (or the top) reaches",
           "buffer_min_off_s": "At least between two charges",
           "buffer_max_charge_s": "Longest charge (0 = no limit)",
-          "buffer_frost": "Frost: charge when the top falls below"
+          "buffer_frost": "Frost: charge when the top falls below",
+          "buffer_upper_entity": "Tank upper-middle thermometer (optional)",
+          "buffer_lower_entity": "Tank lower-middle thermometer (optional)",
+          "buffer_volume_l": "Tank volume (0 = unknown: no kWh)",
+          "buffer_base_temp": "Base: water below this heats nothing",
+          "buffer_share_top": "Share of the top layer (0 = even)",
+          "buffer_share_upper": "Share of the upper-middle layer (0 = even)",
+          "buffer_share_lower": "Share of the lower-middle layer (0 = even)",
+          "buffer_share_bottom": "Share of the bottom layer (0 = even)",
+          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)"
         }
       },
       "start": {
@@ -177,6 +186,36 @@
           "valve_delay_s": "When the zone valve opens slowly (thermoelectric, ~5 minutes) or the pump is started late by its own control: heat starts this long after switching on. HC lengthens the run by it, the minimum on time counts the useful part, and demands too small for a run are carried into the next cycles. 0 = no delay.",
           "min_on_s": "The shortest useful run; with a delay set, a smaller demand is carried into the next cycle."
         }
+      },
+      "circuit": {
+        "title": "Mixing circuit (shadow)",
+        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Shadow only: it writes nothing, the PLC / mixer keeps its own control and safety limits.",
+        "data": {
+          "circuit_kind": "Circuit type",
+          "zone_entities": "Zones of the circuit (HC)",
+          "outdoor_entity": "Outdoor thermometer",
+          "circuit_buffer": "Buffer tank instance it draws from"
+        }
+      },
+      "circuit_settings": {
+        "title": "Mixing circuit – curve and hold",
+        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.",
+        "data": {
+          "circuit_slope": "Curve slope",
+          "circuit_shift": "Curve shift",
+          "circuit_room": "Room temperature when no zone asks",
+          "circuit_flow_min": "Lowest flow target",
+          "circuit_flow_max": "Highest flow target",
+          "circuit_kp": "Room correction (°C of water per °C of room deficit)",
+          "circuit_dt": "Flow − return at design (for the usable heat of the tank)",
+          "circuit_margin": "Tank top above the flow target at least",
+          "circuit_hold_s": "A zone that asked within this has a lasting demand",
+          "circuit_deadband": "New target only for a difference of at least",
+          "circuit_confirm_s": "The difference must last",
+          "circuit_min_interval_s": "At least between two changes",
+          "circuit_max_rise": "Rise at most per change (0 = no limit)",
+          "circuit_urgent": "Urgent difference: no waiting (0 = never)"
+        }
       }
     },
     "error": {
@@ -185,7 +224,8 @@
       "indoor_required": "Give a room thermometer or a wall thermostat contact.",
       "name_taken": "An instance with this name exists already – choose another name.",
       "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it.",
-      "cycle_too_short": "The cycle is too short for the useful heat delay: at least the delay + the minimum on + the minimum off time (e.g. 20 minutes for a 10-minute delay with 5 + 5)."
+      "cycle_too_short": "The cycle is too short for the useful heat delay: at least the delay + the minimum on + the minimum off time (e.g. 20 minutes for a 10-minute delay with 5 + 5).",
+      "circuit_order": "The highest flow target must be above the lowest."
     },
     "abort": {
       "already_configured": "An instance with this name already exists.",
@@ -569,7 +609,7 @@
       },
       "buffer": {
         "title": "Buffer tank",
-        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode.",
+        "description": "Switches the heat source (pellet, heat pump, electric element) by the tank thermometers: the top below the lower limit starts it, the tank charges up to the upper limit. With zones given a new charge only starts while a zone asks for heat. Starts in shadow mode. Up to four thermometers (top, upper, lower, bottom) and the volume give the stored heat, the charge and the trend – information only, the charging still goes by the top and the bottom.",
         "data": {
           "buffer_top_entity": "Tank top thermometer",
           "buffer_bottom_entity": "Tank bottom thermometer (optional)",
@@ -582,7 +622,16 @@
           "buffer_max_charge_s": "Longest charge (0 = no limit)",
           "buffer_frost": "Frost: charge when the top falls below",
           "mode": "Mode",
-          "confirm": "I understand: in live mode it switches a real device"
+          "confirm": "I understand: in live mode it switches a real device",
+          "buffer_upper_entity": "Tank upper-middle thermometer (optional)",
+          "buffer_lower_entity": "Tank lower-middle thermometer (optional)",
+          "buffer_volume_l": "Tank volume (0 = unknown: no kWh)",
+          "buffer_base_temp": "Base: water below this heats nothing",
+          "buffer_share_top": "Share of the top layer (0 = even)",
+          "buffer_share_upper": "Share of the upper-middle layer (0 = even)",
+          "buffer_share_lower": "Share of the lower-middle layer (0 = even)",
+          "buffer_share_bottom": "Share of the bottom layer (0 = even)",
+          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)"
         }
       },
       "rooms": {
@@ -636,6 +685,36 @@
         "data_description": {
           "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat; then the room thermometer is optional. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
         }
+      },
+      "circuit": {
+        "title": "Mixing circuit (shadow)",
+        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Shadow only: it writes nothing, the PLC / mixer keeps its own control and safety limits.",
+        "data": {
+          "circuit_kind": "Circuit type",
+          "zone_entities": "Zones of the circuit (HC)",
+          "outdoor_entity": "Outdoor thermometer",
+          "circuit_buffer": "Buffer tank instance it draws from"
+        }
+      },
+      "circuit_settings": {
+        "title": "Mixing circuit – curve and hold",
+        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.",
+        "data": {
+          "circuit_slope": "Curve slope",
+          "circuit_shift": "Curve shift",
+          "circuit_room": "Room temperature when no zone asks",
+          "circuit_flow_min": "Lowest flow target",
+          "circuit_flow_max": "Highest flow target",
+          "circuit_kp": "Room correction (°C of water per °C of room deficit)",
+          "circuit_dt": "Flow − return at design (for the usable heat of the tank)",
+          "circuit_margin": "Tank top above the flow target at least",
+          "circuit_hold_s": "A zone that asked within this has a lasting demand",
+          "circuit_deadband": "New target only for a difference of at least",
+          "circuit_confirm_s": "The difference must last",
+          "circuit_min_interval_s": "At least between two changes",
+          "circuit_max_rise": "Rise at most per change (0 = no limit)",
+          "circuit_urgent": "Urgent difference: no waiting (0 = never)"
+        }
       }
     },
     "error": {
@@ -650,7 +729,8 @@
       "indoor_required": "Give a room thermometer or a wall thermostat contact.",
       "rooms_need_valves": "Rooms work with TPI or PID only. Remove them in the Rooms menu first, then change the control.",
       "season_order": "The heating season's start (the \"starts below\" value) must be lower than its end.",
-      "plaus_frost": "The lowest believable room temperature can be at most the frost target minus 2 °C."
+      "plaus_frost": "The lowest believable room temperature can be at most the frost target minus 2 °C.",
+      "circuit_order": "The highest flow target must be above the lowest."
     }
   },
   "selector": {
@@ -723,7 +803,8 @@
         "standalone": "Standalone (one thermostat, own boiler or relay)",
         "zone": "Zone (switches only its own valve or TRV)",
         "central": "Central boiler (by the zones' demand)",
-        "buffer": "Buffer tank (charges from the heat source)"
+        "buffer": "Buffer tank (charges from the heat source)",
+        "circuit": "Mixing circuit from a buffer (shadow: flow target only)"
       }
     },
     "weekday": {
@@ -769,6 +850,12 @@
         "pellet_kg": "Pellet (kg)",
         "electric_kwh": "Electricity (kWh)",
         "custom": "Custom number"
+      }
+    },
+    "circuit_kind": {
+      "options": {
+        "radiator": "Radiators",
+        "floor": "Floor heating"
       }
     }
   },
@@ -909,6 +996,26 @@
       },
       "energy_rating": {
         "name": "Energy rating (estimate)"
+      },
+      "buffer_charge": {
+        "name": "Buffer charge"
+      },
+      "buffer_stored": {
+        "name": "Buffer stored heat"
+      },
+      "buffer_trend": {
+        "name": "Buffer trend",
+        "state": {
+          "charging": "Charging",
+          "emptying": "Emptying",
+          "steady": "Steady"
+        }
+      },
+      "circuit_target": {
+        "name": "Circuit flow target"
+      },
+      "circuit_raw": {
+        "name": "Circuit flow target (raw)"
       }
     },
     "binary_sensor": {
@@ -929,6 +1036,9 @@
       },
       "buffer_source": {
         "name": "Heat source request"
+      },
+      "circuit_demand": {
+        "name": "Circuit lasting demand"
       }
     },
     "climate": {

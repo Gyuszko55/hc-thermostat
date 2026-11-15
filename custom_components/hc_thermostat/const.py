@@ -41,9 +41,13 @@ CONF_FLOW = "flow_setpoint_entity"  # heating curve (EXPERIMENTAL): where the fl
 CONF_HEAT_ENABLE = "heat_enable_entity"
 # Several zones (stage 3): the role of an instance; a central boiler reads its zone thermostats
 CONF_ROLE = "role"
-ROLES = ["standalone", "zone", "central", "buffer"]
+ROLES = ["standalone", "zone", "central", "buffer", "circuit"]
 CONF_BUFFER_TOP = "buffer_top_entity"  # buffer tank: temperature at the top (required)
 CONF_BUFFER_BOTTOM = "buffer_bottom_entity"  # buffer tank: temperature at the bottom (optional)
+CONF_BUFFER_UPPER = "buffer_upper_entity"  # 0.54.0: temperature in the upper middle (optional)
+CONF_BUFFER_LOWER = "buffer_lower_entity"  # 0.54.0: temperature in the lower middle (optional)
+CONF_BUFFER_CHARGE = "buffer_charge_entity"  # 0.54.0: an existing charge percentage, taken over unchanged (optional)
+CONF_CIRCUIT_BUFFER = "circuit_buffer"  # 0.54.0: mixing circuit -> the buffer instance (entry id) it draws from
 CONF_ZONES = "zone_entities"
 CONF_ASSIST = "assist_climate"  # air conditioner: the house HC whose cost advice and door it follows
 CONF_ROOMS = "room_sensors"  # single zone: thermometers of the other rooms (advice only)

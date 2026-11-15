@@ -18,7 +18,7 @@ from .entity import HcEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    if entry.data.get(CONF_ROLE) in ("central", "buffer"):
+    if entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit"):
         return
     c = entry.runtime_data
     if getattr(c, "managed", False):

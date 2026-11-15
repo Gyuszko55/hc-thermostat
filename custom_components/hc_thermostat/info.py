@@ -74,6 +74,10 @@ def _instance(hass, entry) -> dict:
     base = {"entry_id": entry.entry_id, "title": entry.title, "role": role, "mode": c.mode,
             "heat_source": conf.get("heat_source"), "system": conf.get("system"), "control": conf.get("control"),
             "entities": _entities(hass, conf), "conf": jsonable(conf)}
+    if role == "circuit":  # 0.54.0, shadow only
+        return {**base, "mode": "shadow", "decision": jsonable(c.data), "zones": jsonable(c.zones),
+                "config": jsonable(c.circuit.cfg), "buffer": jsonable(c.usable),
+                "state": jsonable(c.circuit.state(c.data.now)) if c.data else {}}
     if role in ("central", "buffer"):
         d = c.data
         extra = {"decision": jsonable(d)}
@@ -87,6 +91,10 @@ def _instance(hass, entry) -> dict:
         else:
             extra["config"] = jsonable(c.buffer.cfg)
             extra["state"] = c.buffer.state()
+            extra["stock"] = jsonable(c.stock)  # 0.54.0: the stratified tank
+            extra["trend"] = jsonable(c.trend)
+            extra["circuits"] = [{"entry_id": e.entry_id, "title": e.title, "target": cc.data.target if cc.data else None,
+                                  **jsonable(cc.usable or {})} for e, cc in c.circuits()]
         return {**base, **extra}
     sup, d = c.supervisor, c.data
     preset_modes = [p for p in PRESETS if p == "auto" or p in set(c.cfg.presets_enabled)]

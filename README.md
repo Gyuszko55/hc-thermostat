@@ -60,7 +60,7 @@ heat source × emitter matrix: [DECISION_CHAIN.md](DECISION_CHAIN.md) (generated
 
 **Heat sources and systems**
 - Gas boiler (on/off), modulating boiler with heating curve, electric heater, electric floor, heat pump, air conditioner, storage heater, district heating, pellet boiler.
-- Radiators, water or electric floor (one room or zones), fan coil, room units; a central boiler with zones and a buffer tank role.
+- Radiators, water or electric floor (one room or zones), fan coil, room units; a central boiler with zones, a buffer tank role (stratified, up to four thermometers) and mixing circuits fed from the buffer (shadow).
 
 **Control**
 - Own regulator: TPI or PID with PWM, on/off with long runs, weather-compensated heating curve, or an external thermostat / air conditioner driven by its setpoint.
@@ -480,6 +480,30 @@ every source in it, instead of a one-room house per instance.
 - Display only: every instance regulates its own source as before. Two sources on the **same** water circuit
   switching over (a heat pump with a backup boiler) are not switched by this; the existing *other heat source*
   (cheaper source, `yield_margin`) still lets a boiler step back while an AC heats.
+
+## Stratified buffer and mixing circuits (0.54.0, shadow)
+
+For a house with one or more heat sources (a wood boiler, a heat pump through a coil) charging a common buffer tank,
+and separate circuits (radiators, floor) each with its own pump and mixing valve. The rooms keep their own HC zones;
+the PLC / mixer keeps driving its valve, pump and safety limits. **0.54.0 writes nothing** – it works out and shows.
+
+- **Buffer tank, stratified:** up to four thermometers (top, upper middle, lower middle, bottom) with their share of
+  the volume (0 = even), the volume and a base temperature (25 °C) give *Buffer stored heat* (kWh), *Buffer charge*
+  (%) and *Buffer trend* (charging / emptying / steady). An existing charge sensor of the tank is taken over unchanged
+  (the `method` attribute says so). Four points give an estimate, more so while the tank charges or empties fast.
+- **Mixing circuit** (role *Mixing circuit from a buffer*): its zones, the outdoor thermometer, the buffer instance it
+  draws from, and the circuit type – radiators (slope 1.2, 30–55 °C) or floor (slope 0.5, 22–36 °C). The raw flow
+  target is the curve at the highest target of the zones with a **lasting** demand (asked within the last 30 minutes,
+  so a TPI pause does not drop it) plus a room correction (kp × the largest deficit, at most 3 °C of deficit), within
+  the circuit's limits. The floor maximum is the water's flow limit, not the floor surface limit.
+- **The given-out target changes rarely:** at least 1.5 °C away, lasting 10 minutes, 25 minutes after the last change,
+  a rise at most 3 °C at a time (lowering unlimited); a lowered maximum applies at once; a difference of 5 °C lasting
+  2 minutes skips the wait. No outdoor reading: the target stays. All settable. *Circuit flow target* shows the
+  given-out value with the raw target, the reason a change is held back and the next allowed change.
+- **The tank for a circuit:** whether the top is at least target + 2 °C, and the usable heat of the warm enough
+  layers down to the circuit's return.
+- Not yet: writing the targets to the PLC, the heat pump's target, on/off and offset, wood-fire priority, the
+  cold-weather ON and the long no-demand stop – these come in the next versions, each in shadow first.
 
 ## Safety
 

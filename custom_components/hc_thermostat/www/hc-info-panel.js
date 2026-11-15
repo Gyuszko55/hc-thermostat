@@ -77,7 +77,11 @@ const REASON = {
     storage_charge: "Hőtároló tölt", storage_wait: "Hőtároló vár", floor_temper: "Padlótemperálás", thermostat_call: "Fali termosztát kér", thermostat_idle: "Fali termosztát nem kér", managed_off: "Kézzel kikapcsolva",
     no_demand: "Nincs igény", waiting_valves: "Szelepekre vár", heating: "Fűt", min_on: "Minimális futás",
     min_off: "Minimális szünet", valves_closed: "Szelepek zárva", charging: "Tölt", full: "Tele", ready: "Elég meleg",
-    waiting_demand: "Igényre vár", no_sensor: "Nincs hőmérő" },
+    waiting_demand: "Igényre vár", no_sensor: "Nincs hőmérő",
+    // 0.54.0: the hold of a mixing circuit's target, the tank's trend
+    start: "Első cél", changed: "Új cél kiadva", ramp: "Emelés lépésben", urgent: "Sürgős módosítás", limit: "Határra igazítva",
+    deadband: "Kis eltérés: marad", confirming: "Tartósságra vár", min_interval: "Két módosítás közti idő", no_input: "Nincs bemenet: marad",
+    emptying: "Merül", steady: "Állandó" },
   en: {},
 };
 
@@ -779,6 +783,7 @@ class HcInfoPanel extends HTMLElement {
     if (!d) return { svg: "", cards: "" };
     if (d.role === "central") return this._drawCentral();
     if (d.role === "buffer") return this._drawBuffer();
+    if (d.role === "circuit") return this._drawCircuit();
     // 0.44.0: the house view draws it (see _houseView); the data cards stay, each one the target of a hotspot
     this._houseMode = true;
     const t = this._t, src = d.heat_source, sys = d.system || "", L = this._hu ? "hu" : "en";
@@ -953,6 +958,71 @@ class HcInfoPanel extends HTMLElement {
       ["frost", this._deg(cfg.buffer_frost)], ["demand-led", cfg.buffer_demand_led ? t.yes : t.no]]));
     this._nextMark = [918, 152];
     cards.push(this._card(780, 20, t.zones, (this._ent("zone_entities")).map((z) => [z.name, `${z.hvac_action || z.state}${z.current_temperature != null ? " · " + this._deg(z.current_temperature) : ""}`, z.hvac_action === "heating"])));
+    // 0.54.0: the stratified tank – the layers in the tank, the stock and what each circuit can use
+    const s = d.stock, hu = this._hu;
+    if (s && (s.layers || []).length) {
+      const n = s.layers.length;
+      s.layers.forEach((l, i) => {
+        const y = 140 + (i + 0.5) * (360 / n);
+        svg.push(`<text x="500" y="${y + 6}" text-anchor="middle" class="lbl">${esc(l.temp == null ? "–" : this._deg(l.temp))}${l.measured ? "" : " *"}</text>`);
+      });
+      const L = { top: hu ? "felső" : "top", upper: hu ? "felső-középső" : "upper", lower: hu ? "alsó-középső" : "lower", bottom: hu ? "alsó" : "bottom" };
+      this._nextMark = [418, 128];
+      cards.push(this._card(20, 300, hu ? "Rétegek" : "Layers", [
+        ...s.layers.map((l) => [`${L[l.name] || l.name} (${this._num(l.share * 100, 0)} %)`, `${l.temp == null ? t.none : this._deg(l.temp)}${l.measured ? "" : (hu ? " (becsült)" : " (estimated)")}`]),
+        [hu ? "Tárolt hő" : "Stored heat", s.stored_kwh != null ? `${this._num(s.stored_kwh, 1)} kWh / ${this._num(s.capacity_kwh, 1)} kWh` : null, true],
+        [hu ? "Töltöttség" : "Charge", s.charge != null ? `${this._num(s.charge, 1)} % (${s.charge_method === "external" ? (hu ? "átvett" : "taken over") : (hu ? "rétegekből" : "from the layers")})` : null],
+        [hu ? "Trend" : "Trend", d.trend?.state ? `${this._reason(d.trend.state === "charging" ? "charging" : d.trend.state)}${d.trend.c_per_h != null ? ` · ${this._num(d.trend.c_per_h, 1)} °C/h` : ""}${d.trend.kwh_per_h != null ? ` · ${this._num(d.trend.kwh_per_h, 1)} kWh/h` : ""}` : null],
+      ]));
+    }
+    if ((d.circuits || []).length) {
+      cards.push(this._card(780, 380, hu ? "Keverőkörök" : "Mixing circuits", d.circuits.map((c) => [c.title,
+        `${c.target != null ? this._deg(c.target) : t.none}${c.satisfied == null ? "" : c.satisfied ? (hu ? " · elég meleg" : " · warm enough") : (hu ? " · NEM elég meleg" : " · NOT warm enough")}${c.usable_kwh != null ? ` · ${this._num(c.usable_kwh, 1)} kWh` : ""}`,
+        c.satisfied === false])));
+    }
+    return { svg: svg.join(""), cards: cards.join("") };
+  }
+
+  // 0.54.0: a mixing circuit from a buffer tank (shadow): the raw and the given-out flow target, the hold, its zones
+  _drawCircuit() {
+    this._n = 0; this._marks = [];
+    const d = this._d, t = this._t, dec = d.decision || {}, cfg = d.config || {}, hu = this._hu, buf = d.buffer || {};
+    const det = dec.details || {};
+    const svg = [], cards = [];
+    svg.push(`<g class="dev"><rect x="60" y="200" width="140" height="300" rx="60"/></g>
+      <path class="cso" stroke="#e53935" d="M200,260 H360"/><path class="cso" stroke="#1e88e5" d="M360,440 H200"/>
+      <g class="dev ${dec.demand ? "on" : ""}"><rect x="355" y="305" width="90" height="90" rx="45"/></g>
+      <path class="cso" stroke="#e53935" d="M440,330 H640"/><path class="cso" stroke="#1e88e5" d="M640,370 H440"/>
+      <text x="400" y="356" text-anchor="middle" class="lbl">${esc(dec.target != null ? this._deg(dec.target) : "–")}</text>`);
+    const zones = d.zones || [], n = Math.max(zones.length, 1);
+    zones.forEach((z, i) => {
+      const y = 120 + (i * 420) / n;
+      svg.push(`<path class="cso" stroke="#e53935" d="M640,330 L640,${y + 30} L700,${y + 30}"/><g class="dev ${z.asking ? "on" : ""}"><rect x="700" y="${y}" width="120" height="56" rx="8"/></g>`);
+    });
+    this._nextMark = [362, 312];
+    const kind = cfg.circuit_kind === "floor" ? (hu ? "padlófűtés" : "floor heating") : (hu ? "radiátoros" : "radiators");
+    cards.push(this._card(20, 20, `${hu ? "Keverőkör" : "Mixing circuit"} (${kind}, ${t.shadow})`, [
+      [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
+      [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
+      [hu ? "Miért" : "Why", this._reason(dec.reason)],
+      [hu ? "Következő módosítás legkorábban" : "Next change at the earliest", det.next_allowed ? this._val(det.next_allowed) : null],
+      [hu ? "Utolsó módosítás" : "Last change", det.last_change ? this._val(det.last_change) : null],
+      [t.outdoor, dec.outdoor != null ? this._deg(dec.outdoor) : (hu ? "nincs – a cél marad" : "none – the target stays")],
+      [hu ? "Görbe" : "Curve", det.curve != null ? `${this._deg(det.curve)} (${this._num(cfg.circuit_slope, 2)} × , ${this._deg(dec.t_room)})` : null],
+      [hu ? "Helyiség-korrekció" : "Room correction", det.correction ? `+${this._num(det.correction, 1)} °C` : null],
+      [hu ? "Határok" : "Limits", `${this._deg(cfg.circuit_flow_min)} – ${this._deg(cfg.circuit_flow_max)}`],
+      [hu ? "Ritkítás" : "Hold", `±${this._num(cfg.circuit_deadband, 1)} °C · ${this._num((cfg.circuit_confirm_s || 0) / 60, 0)} / ${this._num((cfg.circuit_min_interval_s || 0) / 60, 0)} perc · ≤ +${this._num(cfg.circuit_max_rise, 1)} °C`],
+    ]));
+    if (buf && buf.flow != null) {
+      this._nextMark = [62, 202];
+      cards.push(this._card(20, 520, hu ? "Puffer ennek a körnek" : "Tank for this circuit", [
+        [hu ? "Kell legalább (teteje)" : "Needs at the top", this._deg(buf.need)],
+        [hu ? "Elég meleg" : "Warm enough", buf.satisfied == null ? null : buf.satisfied ? t.yes : t.no, buf.satisfied === false],
+        [hu ? "Használható hő (becslés)" : "Usable heat (estimate)", buf.usable_kwh != null ? `${this._num(buf.usable_kwh, 1)} kWh` : null],
+      ]));
+    }
+    this._nextMark = [822, 122];
+    cards.push(this._card(840, 20, t.zones, zones.map((z) => [z.name, `${z.asking ? (hu ? "kér" : "asks") : (dec.lasting || []).includes(z.name) ? (hu ? "tartós igény" : "lasting demand") : "–"}${z.indoor != null ? " · " + this._deg(z.indoor) : ""}${z.target != null ? " → " + this._deg(z.target) : ""}${z.fault ? " · fault" : ""}`, z.asking])));
     return { svg: svg.join(""), cards: cards.join("") };
   }
 
@@ -1038,6 +1108,7 @@ class HcInfoPanel extends HTMLElement {
 const CSS = `
 :host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color); font-family:"HC Info Roboto", Roboto, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 svg text { font-family:"HC Info Roboto", Roboto, Arial, sans-serif; }
+svg text.lbl { fill:var(--primary-text-color); font-size:20px; font-weight:600; }
 table.mx td { font-size:12px; } table.mx th { text-align:left; font-weight:500; padding:3px 4px; border-bottom:2px solid var(--divider-color); }
 table.mx tr.off td { opacity:.38; }
 .tag { display:inline-block; border-radius:6px; padding:0 5px; margin:1px 2px 1px 0; font-size:11px; background:color-mix(in srgb, var(--primary-color) 15%, transparent); }

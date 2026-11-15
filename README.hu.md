@@ -61,7 +61,7 @@ a hőforrás × fűtőkészülék mátrixszal: [DECISION_CHAIN.hu.md](DECISION_C
 
 **Hőforrások és rendszerek**
 - Gázkazán (be-ki), moduláló kazán fűtési görbével, elektromos fűtő, elektromos padlófűtés, hőszivattyú, klíma, hőtárolós kályha, távfűtés, pellet kazán.
-- Radiátor, vizes vagy elektromos padló (egy helyiség vagy zónák), fan-coil, helyiségben álló egység; központi kazán zónákkal és puffertartály szerep.
+- Radiátor, vizes vagy elektromos padló (egy helyiség vagy zónák), fan-coil, helyiségben álló egység; központi kazán zónákkal, puffertartály szerep (rétegzett, legfeljebb négy hőmérő) és pufferből fűtő keverőkörök (árnyék).
 
 **Szabályozás**
 - Saját szabályozó: TPI vagy PID PWM-mel, on-off vezérlés hosszú futásokkal, időjáráskövető fűtési görbe, vagy külső termosztát / klíma vezérlése a célértékén át.
@@ -487,6 +487,31 @@ példányonként külön egyhelyiséges ház helyett.
 - Csak a megjelenítést érinti: minden példány a saját hőforrását szabályozza, mint eddig. Két, **ugyanazon** a
   vízkörön lévő hőforrás közti átváltást (hőszivattyú tartalék kazánnal) ez nem kapcsolja; a meglévő *más hőforrás*
   (olcsóbb forrás, `yield_margin`) továbbra is visszaléptetheti a kazánt, amíg a klíma fűt.
+
+## Rétegzett puffer és keverőkörök (0.54.0, árnyék)
+
+Olyan házhoz, ahol egy vagy több hőforrás (fatüzelésű kazán, csőkígyón át töltő hőszivattyú) közös puffertartályt tölt,
+és abból külön körök fűtenek (radiátor, padló), mindegyik saját szivattyúval és keverőszeleppel. A helyiségek
+megtartják a saját HC-zónáikat; a PLC / keverő vezérli tovább a szelepet, a szivattyút és a védelmeket. **A 0.54.0
+semmit nem ír** – kiszámol és megmutat.
+
+- **Rétegzett puffertartály:** legfeljebb négy hőmérő (felső, felső-középső, alsó-középső, alsó) a térfogatarányával
+  (0 = egyenlő), a térfogat és egy alaphőfok (25 °C) alapján *Puffer tárolt hő* (kWh), *Puffer töltöttség* (%) és
+  *Puffer trend* (töltődik / merül / állandó). A tartály meglévő töltöttség-szenzorát változtatás nélkül átveszi (a
+  `method` attribútum jelzi). Négy pontból ez becslés, gyors töltés vagy merülés közben különösen.
+- **Keverőkör** (szerep: *Keverőkör pufferből*): a zónái, a kinti hőmérő, a puffer-példány, amelyből fűt, és a kör
+  típusa – radiátoros (meredekség 1,2, 30–55 °C) vagy padlófűtés (meredekség 0,5, 22–36 °C). A nyers előremenő cél a
+  görbe a **tartós** igényű zónák legmagasabb céljánál (az utóbbi 30 percben kértek, így egy TPI-szünet nem ejti ki)
+  plusz helyiség-korrekció (kp × a legnagyobb hiány, legfeljebb 3 °C hiányig), a kör határain belül. A padló maximuma a
+  víz előremenő-korlátja, nem a padló felületi korlátja.
+- **A kiadott cél ritkán változik:** legalább 1,5 °C eltérés, 10 percig tartósan, az előző módosítás után legalább 25
+  perccel, egy lépésben legfeljebb 3 °C emelés (csökkentés korlát nélkül); a lecsökkentett maximum azonnal érvényes;
+  2 percig tartó 5 °C-os eltérés nem vár. Kinti mérés nélkül a cél marad. Minden érték állítható. A *Kör előremenő
+  cél* a kiadott értéket mutatja, mellette a nyers célt, a visszatartás okát és a legkorábbi következő módosítást.
+- **A puffer egy körnek:** a teteje eléri-e a cél + 2 °C-ot, és mennyi a használható hő az elég meleg rétegekben a
+  kör visszatérőjéig.
+- Még nincs: a célok kiírása a PLC-be, a hőszivattyú célja, ON/OFF-ja és korrekciója, a fatüzelés elsőbbsége, a
+  hidegben-ON és a hosszú igénymentes leállítás – ezek a következő verziókban jönnek, mindegyik előbb árnyékban.
 
 ## Biztonság
 

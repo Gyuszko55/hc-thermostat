@@ -137,7 +137,7 @@
       },
       "buffer": {
         "title": "Puffertartály",
-        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul.",
+        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul. Legfeljebb négy hőmérő (felső, felső-középső, alsó-középső, alsó) és a térfogat alapján tárolt hőt, töltöttséget és trendet számol – csak tájékoztat, a töltés továbbra is a felső és az alsó hőfok szerint megy.",
         "data": {
           "buffer_top_entity": "Tartály felső hőmérője",
           "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
@@ -148,7 +148,16 @@
           "buffer_off": "Töltés leáll, ha az alja (vagy a teteje) eléri",
           "buffer_min_off_s": "Két töltés között legalább",
           "buffer_max_charge_s": "Egy töltés legfeljebb (0 = nincs korlát)",
-          "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl"
+          "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl",
+          "buffer_upper_entity": "Tartály felső-középső hőmérője (nem kötelező)",
+          "buffer_lower_entity": "Tartály alsó-középső hőmérője (nem kötelező)",
+          "buffer_volume_l": "Tartály térfogata (0 = ismeretlen: nincs kWh)",
+          "buffer_base_temp": "Alap: ennél hidegebb víz már nem fűt",
+          "buffer_share_top": "Felső réteg aránya (0 = egyenlő)",
+          "buffer_share_upper": "Felső-középső réteg aránya (0 = egyenlő)",
+          "buffer_share_lower": "Alsó-középső réteg aránya (0 = egyenlő)",
+          "buffer_share_bottom": "Alsó réteg aránya (0 = egyenlő)",
+          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)"
         }
       },
       "start": {
@@ -177,6 +186,36 @@
           "valve_delay_s": "Ha a zónaszelep lassan nyit (termoelektromos szelep, ~5 perc), vagy a szivattyút a saját vezérlése később indítja: ennyi idő után kezd fűteni. A HC ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, és a túl kicsi igényeket összevonja a következő ciklusokkal. 0 = nincs késés.",
           "min_on_s": "A legrövidebb hasznos bekapcsolás; ennél kisebb igény késés megadásakor a következő ciklusra gyűlik."
         }
+      },
+      "circuit": {
+        "title": "Keverőkör (árnyék)",
+        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Csak árnyék: semmit nem ír, a PLC / keverő saját szabályozása és védelmei maradnak.",
+        "data": {
+          "circuit_kind": "A kör típusa",
+          "zone_entities": "A kör zónái (HC)",
+          "outdoor_entity": "Kinti hőmérő",
+          "circuit_buffer": "Puffer-példány, amelyből a kör fűt"
+        }
+      },
+      "circuit_settings": {
+        "title": "Keverőkör – görbe és ritkítás",
+        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.",
+        "data": {
+          "circuit_slope": "Görbe meredeksége",
+          "circuit_shift": "Görbe eltolása",
+          "circuit_room": "Helyiség-hőfok, ha egy zóna sem kér",
+          "circuit_flow_min": "Legalacsonyabb előremenő cél",
+          "circuit_flow_max": "Legmagasabb előremenő cél",
+          "circuit_kp": "Helyiség-korrekció (°C víz / °C hiány)",
+          "circuit_dt": "Előremenő − visszatérő méretezéskor (a puffer használható hőjéhez)",
+          "circuit_margin": "A tartály teteje legalább ennyivel a cél fölött",
+          "circuit_hold_s": "Tartós igény: ennyi időn belül kért a zóna",
+          "circuit_deadband": "Új cél csak legalább ekkora eltérésnél",
+          "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+          "circuit_min_interval_s": "Két módosítás között legalább",
+          "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+        }
       }
     },
     "error": {
@@ -185,7 +224,8 @@
       "indoor_required": "Adj meg helyiséghőmérőt vagy fali termosztát érintkezőt.",
       "name_taken": "Már van ilyen nevű példány – adj másik nevet.",
       "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna.",
-      "cycle_too_short": "A ciklus túl rövid a hasznos fűtés késéséhez: legalább a késés + minimális be- + minimális kikapcsolási idő legyen (pl. 10 perc késésnél 5 + 5 perccel legalább 20 perc)."
+      "cycle_too_short": "A ciklus túl rövid a hasznos fűtés késéséhez: legalább a késés + minimális be- + minimális kikapcsolási idő legyen (pl. 10 perc késésnél 5 + 5 perccel legalább 20 perc).",
+      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
@@ -569,7 +609,7 @@
       },
       "buffer": {
         "title": "Puffertartály",
-        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul.",
+        "description": "A tartály hőmérői szerint kapcsolja a hőforrást (pellet, hőszivattyú, elektromos patron): a felső hőfok az alsó határ alatt indítja, a tartály a felső határig tölt. Megadott zónáknál csak akkor kezd új töltést, ha egy zóna fűteni kér. Árnyék módban indul. Legfeljebb négy hőmérő (felső, felső-középső, alsó-középső, alsó) és a térfogat alapján tárolt hőt, töltöttséget és trendet számol – csak tájékoztat, a töltés továbbra is a felső és az alsó hőfok szerint megy.",
         "data": {
           "buffer_top_entity": "Tartály felső hőmérője",
           "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
@@ -582,7 +622,16 @@
           "buffer_max_charge_s": "Egy töltés legfeljebb (0 = nincs korlát)",
           "buffer_frost": "Fagyvédelem: tölt, ha a teteje ennyi alá hűl",
           "mode": "Üzemmód",
-          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol"
+          "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
+          "buffer_upper_entity": "Tartály felső-középső hőmérője (nem kötelező)",
+          "buffer_lower_entity": "Tartály alsó-középső hőmérője (nem kötelező)",
+          "buffer_volume_l": "Tartály térfogata (0 = ismeretlen: nincs kWh)",
+          "buffer_base_temp": "Alap: ennél hidegebb víz már nem fűt",
+          "buffer_share_top": "Felső réteg aránya (0 = egyenlő)",
+          "buffer_share_upper": "Felső-középső réteg aránya (0 = egyenlő)",
+          "buffer_share_lower": "Alsó-középső réteg aránya (0 = egyenlő)",
+          "buffer_share_bottom": "Alsó réteg aránya (0 = egyenlő)",
+          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)"
         }
       },
       "rooms": {
@@ -636,6 +685,36 @@
         "data_description": {
           "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt; ekkor a helyiséghőmérő elhagyható. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme."
         }
+      },
+      "circuit": {
+        "title": "Keverőkör (árnyék)",
+        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Csak árnyék: semmit nem ír, a PLC / keverő saját szabályozása és védelmei maradnak.",
+        "data": {
+          "circuit_kind": "A kör típusa",
+          "zone_entities": "A kör zónái (HC)",
+          "outdoor_entity": "Kinti hőmérő",
+          "circuit_buffer": "Puffer-példány, amelyből a kör fűt"
+        }
+      },
+      "circuit_settings": {
+        "title": "Keverőkör – görbe és ritkítás",
+        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.",
+        "data": {
+          "circuit_slope": "Görbe meredeksége",
+          "circuit_shift": "Görbe eltolása",
+          "circuit_room": "Helyiség-hőfok, ha egy zóna sem kér",
+          "circuit_flow_min": "Legalacsonyabb előremenő cél",
+          "circuit_flow_max": "Legmagasabb előremenő cél",
+          "circuit_kp": "Helyiség-korrekció (°C víz / °C hiány)",
+          "circuit_dt": "Előremenő − visszatérő méretezéskor (a puffer használható hőjéhez)",
+          "circuit_margin": "A tartály teteje legalább ennyivel a cél fölött",
+          "circuit_hold_s": "Tartós igény: ennyi időn belül kért a zóna",
+          "circuit_deadband": "Új cél csak legalább ekkora eltérésnél",
+          "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+          "circuit_min_interval_s": "Két módosítás között legalább",
+          "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+        }
       }
     },
     "error": {
@@ -650,7 +729,8 @@
       "indoor_required": "Adj meg helyiséghőmérőt vagy fali termosztát érintkezőt.",
       "rooms_need_valves": "A helyiségek csak TPI vagy PID vezérléssel működnek. Előbb a Helyiségek menüben vedd ki őket, utána válts.",
       "season_order": "A fűtési idény kezdete (a „kezdete e alatt” érték) kisebb kell legyen, mint a vége.",
-      "plaus_frost": "A legalacsonyabb hihető helyiséghőmérséklet legfeljebb a fagyvédelmi cél mínusz 2 °C lehet."
+      "plaus_frost": "A legalacsonyabb hihető helyiséghőmérséklet legfeljebb a fagyvédelmi cél mínusz 2 °C lehet.",
+      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie."
     }
   },
   "selector": {
@@ -723,7 +803,8 @@
         "standalone": "Önálló (egy termosztát, saját kazán vagy relé)",
         "zone": "Zóna (csak a saját szelepét vagy TRV-jét kapcsolja)",
         "central": "Központi kazán (a zónák igénye szerint)",
-        "buffer": "Puffertartály (a hőforrást tölti)"
+        "buffer": "Puffertartály (a hőforrást tölti)",
+        "circuit": "Keverőkör pufferből (árnyék: csak előremenő cél)"
       }
     },
     "weekday": {
@@ -769,6 +850,12 @@
         "pellet_kg": "Pellet (kg)",
         "electric_kwh": "Villany (kWh)",
         "custom": "Egyéni szám"
+      }
+    },
+    "circuit_kind": {
+      "options": {
+        "radiator": "Radiátoros",
+        "floor": "Padlófűtés"
       }
     }
   },
@@ -909,6 +996,26 @@
       },
       "energy_rating": {
         "name": "Energetikai besorolás (becslés)"
+      },
+      "buffer_charge": {
+        "name": "Puffer töltöttség"
+      },
+      "buffer_stored": {
+        "name": "Puffer tárolt hő"
+      },
+      "buffer_trend": {
+        "name": "Puffer trend",
+        "state": {
+          "charging": "Töltődik",
+          "emptying": "Merül",
+          "steady": "Állandó"
+        }
+      },
+      "circuit_target": {
+        "name": "Kör előremenő cél"
+      },
+      "circuit_raw": {
+        "name": "Kör előremenő cél (nyers)"
       }
     },
     "binary_sensor": {
@@ -929,6 +1036,9 @@
       },
       "buffer_source": {
         "name": "Hőforrás kérés"
+      },
+      "circuit_demand": {
+        "name": "Kör tartós igény"
       }
     },
     "climate": {

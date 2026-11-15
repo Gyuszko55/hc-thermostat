@@ -154,4 +154,4 @@ def test_texts_and_version():
         assert t["config"]["step"]["entities"]["sections"]["more"]["data"]["gas_heating_value"]
         rating = t["options"]["step"]["settings"]["sections"]["house"]["data_description"]["house_area_m2"]
         assert ("Magyar skála" if lang == "hu" else "Hungarian scale") in rating
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.52.0", "0.52.1", "0.53.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.52.0", "0.52.1", "0.53.0", "0.54.0")

@@ -13,6 +13,7 @@ from homeassistant.helpers.storage import Store
 
 from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
+from .circuit_coordinator import CircuitCoordinator
 from .const import CENTRAL_PLATFORMS, CONF_ROLE, DOMAIN, PLATFORMS
 from .coordinator import HcCoordinator, note_ha_start
 from .rename import async_track_renames
@@ -33,8 +34,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 def _central(entry: ConfigEntry) -> bool:
-    """A central boiler or a buffer tank: no thermostat of its own, only its decision entities."""
-    return entry.data.get(CONF_ROLE) in ("central", "buffer")
+    """A central boiler, a buffer tank or a mixing circuit: no thermostat of its own, only its decision entities."""
+    return entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -43,6 +44,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.data.get(CONF_ROLE) == "buffer":
             central = BufferCoordinator(hass, entry)
             await central.async_load()
+        elif entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0, shadow only
+            central = CircuitCoordinator(hass, entry)
+            await central.async_load()
+
+            async def _save_circuit(_event) -> None:
+                await central.async_save()
+
+            entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _save_circuit))
         else:
             central = CentralCoordinator(hass, entry)
             await central.async_load()  # when the pump last ran (pump exercise, 0.39.0)
@@ -106,7 +115,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if _central(entry):
-        if entry.data.get(CONF_ROLE) == "central":
+        if entry.data.get(CONF_ROLE) in ("central", "circuit"):
             await entry.runtime_data.async_save()
         return await hass.config_entries.async_unload_platforms(entry, CENTRAL_PLATFORMS)
     await entry.runtime_data.async_save()

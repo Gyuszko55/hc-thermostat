@@ -22,7 +22,13 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCentralDecision(c)])
         return
     if entry.data.get(CONF_ROLE) == "buffer":
-        async_add_entities([HcBufferDecision(c)])
+        extra = [HcBufferCharge(c), HcBufferTrend(c)]  # 0.54.0
+        if float(c.conf.get("buffer_volume_l") or 0) > 0:
+            extra.append(HcBufferStored(c))
+        async_add_entities([HcBufferDecision(c), *extra])
+        return
+    if entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0
+        async_add_entities([HcCircuitTarget(c), HcCircuitRaw(c)])
         return
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if c.cfg.control not in ("external", "ac"):
@@ -372,6 +378,138 @@ class HcBufferDecision(HcEntity, SensorEntity):
         d = self.coordinator.data
         return {"mode": self.coordinator.mode, "source": d.output, "top": d.top, "bottom": d.bottom,
                 "asking": list(d.asking), **d.details}
+
+
+def _layers(c) -> dict:
+    s = c.stock
+    if s is None:
+        return {}
+    return {"layers": {l.name: {"temp": l.temp, "share": round(100 * l.share, 1), "measured": l.measured} for l in s.layers},
+            "estimated": s.estimated, "mean": s.mean, "base_temp": s.base, "full_temp": s.full}
+
+
+def _circuits(c) -> dict:
+    out = {}
+    for e, cc in c.circuits():
+        d = cc.data
+        out[e.title] = {"target": d.target if d else None, **{k: v for k, v in (cc.usable or {}).items() if k != "flow"}}
+    return {"circuits": out} if out else {}
+
+
+class HcBufferCharge(HcEntity, SensorEntity):
+    """0.54.0: the tank's charge (%) – an existing percentage sensor taken over unchanged, else worked out from the
+    layers; the method says which. Also the layers and what each linked circuit can use."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:storage-tank-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "buffer_charge")
+
+    @property
+    def native_value(self) -> float | None:
+        s = self.coordinator.stock
+        return s.charge if s is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        s = self.coordinator.stock
+        if s is None:
+            return {}
+        return {"method": s.charge_method, "charge_layers": s.charge_layers, **_layers(self.coordinator),
+                **_circuits(self.coordinator)}
+
+
+class HcBufferStored(HcEntity, SensorEntity):
+    """0.54.0: heat stored in the tank above the base temperature (kWh, estimated from the layers)."""
+
+    _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "buffer_stored")
+
+    @property
+    def native_value(self) -> float | None:
+        s = self.coordinator.stock
+        return s.stored_kwh if s is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        s = self.coordinator.stock
+        if s is None:
+            return {}
+        return {"capacity_kwh": s.capacity_kwh, "volume_l": s.volume_l, "base_temp": s.base, "estimate": True,
+                **_circuits(self.coordinator)}
+
+
+class HcBufferTrend(HcEntity, SensorEntity):
+    """0.54.0: charging, emptying or steady over the last half hour."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["charging", "emptying", "steady"]
+    _attr_icon = "mdi:chart-line"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "buffer_trend")
+
+    @property
+    def native_value(self) -> str | None:
+        return self.coordinator.trend.get("state")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        t = self.coordinator.trend
+        return {"kwh_per_h": t.get("kwh_per_h"), "c_per_h": t.get("c_per_h")}
+
+
+class HcCircuitTarget(HcEntity, SensorEntity):
+    """Mixing circuit (0.54.0, shadow): the flow target given out – it changes only now and then; the raw target, why a
+    change is held back and when the next one may come are in the attributes."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer-water"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "circuit_target")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.data.target
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c, d = self.coordinator, self.coordinator.data
+        cfg = c.circuit.cfg
+        return {"mode": "shadow", "kind": cfg.circuit_kind, "raw": d.raw, "reason": d.reason,
+                "next_allowed": d.details.get("next_allowed"), "last_change": d.details.get("last_change"),
+                "outdoor": d.outdoor, "room_target": d.t_room, "deficit": d.deficit,
+                "curve": d.details.get("curve"), "correction": d.details.get("correction"),
+                "flow_min": cfg.circuit_flow_min, "flow_max": cfg.circuit_flow_max,
+                "demand": d.demand, "lasting": list(d.lasting),
+                **({"buffer": c.usable} if c.usable else {})}
+
+
+class HcCircuitRaw(HcEntity, SensorEntity):
+    """Mixing circuit (0.54.0): the raw worked-out flow target (within the limits), every 30 seconds."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer-lines"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "circuit_raw")
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw
+        return None if raw is None else round(raw, 1)
 
 
 class HcCentralDecision(HcEntity, SensorEntity):

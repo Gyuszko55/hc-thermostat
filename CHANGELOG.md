@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.54.0 – 2026-11-15
+A stratified buffer tank and mixing circuits fed from it – shadow only, information only (nothing new is switched or
+written). The first step towards several heat sources on one buffer with separately controlled circuits.
+- **Stratified buffer** (`core/stratified.py`): up to four tank thermometers – top, upper middle (new), lower middle
+  (new), bottom – each with its share of the volume (`buffer_share_*`, 0 = even), the tank volume (`buffer_volume_l`)
+  and a base temperature (`buffer_base_temp`, 25 °C). New entities on the buffer instance: *Buffer charge* (%) – an
+  existing charge sensor of the tank (`buffer_charge_entity`) is taken over unchanged, else worked out from the
+  layers, the `method` attribute says which –, *Buffer stored heat* (kWh above the base, with a volume; 1 m³ · 1 K ≈
+  1.163 kWh) and *Buffer trend* (charging / emptying / steady over half an hour, °C/h and kWh/h). A thermometer with no
+  fresh reading takes its neighbour's value, marked as estimated. The charging decision is unchanged (top and bottom).
+- **Mixing circuit role** (new role `circuit`, shadow only): a radiator or floor circuit with its own pump and mixing
+  valve, fed from a buffer. Its rooms stay ordinary HC zones on their valves; the circuit reads them and the outdoor
+  thermometer and works out the flow target: the curve at the highest target of the zones with a *lasting* demand
+  (asked within `circuit_hold_s`, 30 min – a TPI pause does not drop it) plus a room correction for the largest
+  deficit, within its own limits (radiators 30–55 °C, slope 1.2; floor 22–36 °C, slope 0.5 – all settable; the floor's
+  maximum is the water's limit, not the floor surface limit, which stays with the hydraulics / PLC).
+- **The given-out target changes only now and then** (`core/setpoint_hold.py`): a new target only for a difference of
+  at least `circuit_deadband` (1.5 °C) that lasted `circuit_confirm_s` (10 min), at least `circuit_min_interval_s`
+  (25 min) after the last change, a rise at most `circuit_max_rise` (3 °C) at a time, lowering unlimited; a lowered
+  limit applies at once; an urgent difference (`circuit_urgent`, 5 °C) that lasted 2 minutes skips the wait (not the
+  rise limit). No outdoor reading: the target stays. Over a restart the given-out target and its time are kept (not
+  after 6 hours down). Entities: *Circuit flow target* (given out; the raw target, the reason it is held, the next
+  allowed change, the curve and the correction as attributes), *Circuit flow target (raw)*, *Circuit lasting demand*.
+- **What the tank can give a circuit:** with a buffer instance linked (`circuit_buffer`), the circuit shows whether the
+  top is warm enough (target + `circuit_margin`, 2 °C) and the usable heat (the layers warm enough, down to the
+  circuit's return); the buffer lists its circuits. An estimate from four points, more so while the tank charges.
+- **HC info:** the buffer drawing shows the layers, the stored heat, the charge with its method, the trend and the
+  circuits; a new circuit drawing shows the given-out and the raw target, why a change is held back, the limits and the
+  zones.
+- Nothing is written: the circuit has no output entity yet (writing to a PLC number comes after a supervised trial).
+  Tests: tests/test_circuit_540.py.
+
 ## 0.53.0 – 2026-11-15
 One house, several heat sources.
 - **One house in HC info** (`core/house.py`): instances of the same building show as one house – automatically a

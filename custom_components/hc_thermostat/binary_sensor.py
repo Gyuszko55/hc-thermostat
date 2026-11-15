@@ -17,6 +17,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     if entry.data.get(CONF_ROLE) == "central":
         async_add_entities([HcCentralBoiler(c), HcCentralPump(c)])
         return
+    if entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0
+        async_add_entities([HcCircuitDemand(c)])
+        return
     entities = [HcDemand(c), HcFault(c)]
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
     if (c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
@@ -102,3 +105,22 @@ class HcCentralPump(HcEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {"overrun_until": self.coordinator.data.details.get("pump_until")}
+
+
+class HcCircuitDemand(HcEntity, BinarySensorEntity):
+    """Mixing circuit (0.54.0): a lasting demand – a zone asked for heat within the hold time (not one TPI pulse)."""
+
+    _attr_device_class = BinarySensorDeviceClass.HEAT
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "circuit_demand")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.data.demand
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self.coordinator.data
+        return {"lasting": list(d.lasting), "asking_now": list(d.asking),
+                "hold_s": self.coordinator.circuit.cfg.circuit_hold_s}
