@@ -53,7 +53,8 @@ def test_own_write_settling_is_not_a_conflict():
     g = og.OutputGuard()
     g.wrote(at(0), 40.0)
     # the output reports an old value a moment after HC's write (the device has not confirmed yet)
-    assert g.decide(at(0.03), 40.0, 38.0, at(0.02), UP) == (True, "write")
+    # 0.56.1: HC waits for the confirmation instead of writing again at once
+    assert g.decide(at(0.03), 40.0, 38.0, at(0.02), UP) == (False, "confirming")
 
 
 def test_trial_and_active():

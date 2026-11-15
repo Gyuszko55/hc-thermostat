@@ -516,6 +516,8 @@ demand, the ON/OFF request and the flow target.
   a unit that makes 38 °C on a 42 °C command), within its limits; the lowest while there is nothing to make. It changes
   rarely (2 °C, 10 min, 45 min, at most +3 °C at a time).
 - **Wood first:** a wood signal, or the tank warming while the heat pump is known to stand, holds off a start.
+  0.56.1 (`hp_wood_first`, on by default): no start for a low charge either, and a heating that already runs stops;
+  only the buffer frost limit goes before it, the cold-weather ON and the fail-safe ON stay with the lowest target.
 - **Cold-weather ON** (off by default, water-filled monoblock only): ON below +5 °C even with no demand, released after
   a lasting +7 °C; it wins over the **long no-demand stop** (OFF after 24 h without demand, with *keep ON with no
   demand*). It never replaces the unit's own frost protection, the manufacturer's rules or an independent safety.
@@ -532,6 +534,9 @@ with a notification) or to **active**; both need an output entity and a confirma
   keeps its mixers, pumps and safety; the heat pump keeps its own frost protection.
 - **One writer per target:** HC writes only when the value differs; if someone else changes it, HC stops writing it and
   notifies you, until the value is HC's again. Set the PLC so that HC's register is not written by the PLC too.
+- **Confirmation wait** (0.56.1, `write_confirm_s`, 60 s): a slow device (e.g. Tuya) gets time to report the written
+  value; meanwhile HC neither writes again nor calls a late or old echo a conflict. A value the device never takes is
+  written at most 3 more times, then HC stops writing it (*not accepted*) and notifies you.
 - No write in the first 2 minutes after a start; an optional keep-alive re-sends an unchanged value for a PLC with a
   timeout; the *Writing paused* switch stops all writing at once.
 - With Home Assistant down nothing is written: the PLC's own curve and safe fallback must stay in place.

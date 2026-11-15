@@ -523,9 +523,11 @@ célt.
   olyan géphez, amely 42 °C-os parancsra 38 °C-ot ad), a határokon belül; ha nincs mit termelni, a legalacsonyabb.
   Ritkán változik (2 °C, 10 perc, 45 perc, egyszerre legfeljebb +3 °C).
 - **Fa elsőbbsége:** a fatüzelés jele, vagy a puffer melegedése, miközben tudjuk, hogy a hőszivattyú áll, visszatartja
-  az indítást.
+  az indítást. 0.56.1 (`hp_wood_first`, alapból be): alacsony töltöttségnél sem indít, és a már futó felfűtés is leáll;
+  csak a puffer fagyhatára előzi meg, a hidegben-ON és a tartalék ON a legalacsonyabb céllal marad.
 - **Hidegben-ON** (alapból ki, csak vízzel töltött monoblokkhoz): +5 °C alatt ON igény nélkül is, tartós +7 °C után
-  oldódik; ez nyer a **hosszú igénymentes leállítással** szemben (24 óra igény nélkül OFF, ha *igény nélkül is ON*).
+  oldódik; ez nyer a **hosszú igénymentes leállítással** szemben (24 óra igény nélkül OFF, ha *igény nélkül is ON*;
+  „igény nélkül” = se kör- / helyiségigény, se puffer-hőigény, a töltést is beleértve).
   Nem helyettesíti a gép saját fagyvédelmét, a gyártói előírásokat és a független biztonsági megoldást.
 - Kiesett bemenetnél a legutóbbi kérés marad. A gép / a PLC felé írás: 0.56.0, lent.
 
@@ -540,6 +542,9 @@ módra kapcsolható; mindkettőhöz kimeneti entitás és megerősítés kell.
   a védelmek a PLC-nél, a hőszivattyú fagyvédelme a gépnél marad.
 - **Egy célnak egy írója:** a HC csak eltérésnél ír; ha más megváltoztatja az értéket, a HC nem ír bele, és értesít,
   amíg az érték újra az övé nem lesz. A PLC-t úgy kell beállítani, hogy a HC regiszterét ne írja maga is.
+- **Visszaigazolási türelmi idő** (0.56.1, `write_confirm_s`, 60 mp): a lassú eszköz (pl. Tuya) ennyi idő alatt
+  jelezheti vissza a beírt értéket; addig a HC nem ír újra, és a késve érkező vagy régi értéket sem veszi ütközésnek. Ha
+  az eszköz nem veszi át az értéket, legfeljebb még 3-szor írja, utána leáll (*nem fogadta el*) és értesít.
 - Indulás után 2 percig nem ír; a keep-alive időkorlátos PLC-nek változatlan értéket is újraküld; az *Írás
   szüneteltetve* kapcsoló azonnal leállít minden írást.
 - Ha a Home Assistant leáll, nem ír semmit: a PLC saját görbéje és biztonságos tartaléküzeme maradjon meg.

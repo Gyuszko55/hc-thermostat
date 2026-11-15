@@ -16,11 +16,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class OutputWriter:
-    def __init__(self, hass, entity_id: str | None, onoff: bool = False, keepalive_s: float = 0.0) -> None:
+    def __init__(self, hass, entity_id: str | None, onoff: bool = False, keepalive_s: float = 0.0,
+                 confirm_s: float = 60.0) -> None:
         self.hass = hass
         self.entity_id = entity_id or None
         self.onoff = onoff
-        self.guard = OutputGuard(tolerance=0.0 if onoff else 0.25, keepalive_s=keepalive_s)
+        self.guard = OutputGuard(tolerance=0.0 if onoff else 0.25, keepalive_s=keepalive_s, confirm_s=confirm_s)
         self.status = "none" if not self.entity_id else "shadow"
         self.error: str | None = None
 
@@ -158,14 +159,22 @@ class WriteControl:
     def note_conflict(self, writer: "OutputWriter") -> None:
         """One notification when a target gets a second writer; cleared when it gives way."""
         key = writer.entity_id or ""
-        if writer.status == "conflict" and key not in self._conflicts:
+        if writer.status == "not_accepted" and key not in self._conflicts:
+            self._conflicts.add(key)
+            pn.async_create(self.hass, f"{self.entry.title}: {key} did not take HC's value ({writer.guard.last_value}; "
+                            f"it shows {writer.read()[0]}) after {writer.guard.unconfirmed + 1} writes. HC stops writing "
+                            "this value until the value it wants changes – check the device (offline, refused, rounded). / "
+                            "Az eszköz nem fogadta el a HC értékét (többszöri írás után sem): a HC nem írja tovább, amíg "
+                            "az új cél nem változik – nézd meg az eszközt.",
+                            title="HC Thermostat", notification_id=f"hc_conflict_{self.entry.entry_id}_{key}")
+        elif writer.status == "conflict" and key not in self._conflicts:
             self._conflicts.add(key)
             pn.async_create(self.hass, f"{self.entry.title}: {key} was changed by someone else "
                             f"({writer.guard.conflict_value}; HC wrote {writer.guard.last_value}). HC stops writing it until "
                             "the value is HC's again – one target, one writer. / Más is írja ezt a célt: a HC nem ír bele, "
                             "amíg az érték újra az övé nem lesz.",
                             title="HC Thermostat", notification_id=f"hc_conflict_{self.entry.entry_id}_{key}")
-        elif writer.status != "conflict" and key in self._conflicts:
+        elif writer.status not in ("conflict", "not_accepted") and key in self._conflicts:
             self._conflicts.discard(key)
             pn.async_dismiss(self.hass, f"hc_conflict_{self.entry.entry_id}_{key}")
 

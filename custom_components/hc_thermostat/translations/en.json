@@ -252,6 +252,7 @@
           "hp_cold_release_above": "Released above",
           "hp_cold_release_s": "… lasting for",
           "hp_wood_rise": "Tank warming that means another source (°C/h)",
+          "hp_wood_first": "Wood first: also no low-charge start, and a running heating stops (frost protection and cold-weather ON stay)",
           "hp_deadband": "New target only for a difference of at least",
           "hp_confirm_s": "The difference must last",
           "hp_min_interval_s": "At least between two changes",
@@ -744,7 +745,8 @@
           "mode": "Writing",
           "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
           "trial_hours": "Length of the supervised trial",
-          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)"
+          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
+          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells"
         }
       },
       "circuit_settings": {
@@ -781,7 +783,8 @@
           "mode": "Writing",
           "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
           "trial_hours": "Length of the supervised trial",
-          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)"
+          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
+          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells"
         }
       },
       "hp_coord_settings": {
@@ -805,6 +808,7 @@
           "hp_cold_release_above": "Released above",
           "hp_cold_release_s": "… lasting for",
           "hp_wood_rise": "Tank warming that means another source (°C/h)",
+          "hp_wood_first": "Wood first: also no low-charge start, and a running heating stops (frost protection and cold-weather ON stay)",
           "hp_deadband": "New target only for a difference of at least",
           "hp_confirm_s": "The difference must last",
           "hp_min_interval_s": "At least between two changes",

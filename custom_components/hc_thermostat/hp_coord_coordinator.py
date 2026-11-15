@@ -23,7 +23,7 @@ from homeassistant.util import dt as dt_util
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
 from .const import (CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
-                    CONF_WOOD, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN)
+                    CONF_WOOD, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
 from .output_writer import OutputWriter, WriteControl
 
@@ -63,9 +63,11 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         self.write = WriteControl(hass, entry, data)  # 0.56.0
         self.mode = self.write.mode
         keep = float(data.get(CONF_WRITE_KEEPALIVE) or 0)
-        self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep)
-        self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep)
-        self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep)
+        confirm = data.get(CONF_WRITE_CONFIRM)
+        confirm = float(WRITE_CONFIRM_DEFAULT if confirm is None else confirm)
+        self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep, confirm_s=confirm)
+        self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep, confirm_s=confirm)
+        self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self._started = dt_util.now()
         self.hp = HeatPumpCoordinator(HpConfig.from_conf(data))
         self.offset: float | None = None  # the number entity's value (restored by it)

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.56.1 – 2026-11-15
+Two fixes from the reference design's review, before the heat pump is written live.
+- **Wood first, for real** (`hp_wood_first`, on by default, heat pump coordination → settings): with wood `certain`
+  (the wood signal on) or `likely` (the tank warms fast while the heat pump is known to stand) the heat pump does not
+  heat – not even for a low charge (`hp_charge_on`), and a heating that already runs stops. Until now a low charge and
+  a running heating went before wood, and wood only held back a new start. Only the buffer frost limit goes before
+  wood; the cold-weather ON and a fail-safe ON still keep the unit ON, with the target at the lowest (no heating
+  command). Off: the 0.55.0 order.
+- **Confirmation wait for a written target** (`write_confirm_s`, 60 s, both writing roles → first options page): a
+  slow cloud device (e.g. Tuya) may report the written value late or first echo the old one. Until the value there is
+  HC's own, or the wait is over, HC neither writes again nor calls it someone else's (*waiting for the device to
+  confirm*). A value that never comes back as HC's (no echo, refused, rounded by the device) is written again at most
+  3 times in a row; then *not accepted*: HC stops writing that value, a notification says so, and it writes again
+  when the value it wants changes or the device shows HC's value after all. Once confirmed, a later change is someone
+  else's after 5 s, as before. Until now an unconfirmed value was written again every 30 s with no limit.
+- The 24 h no-demand stop is unchanged and now described exactly: it applies with *keep ON with no demand* (without
+  it the request is already OFF whenever there is no demand), and "no demand" means neither a lasting circuit / zone
+  demand nor a heat demand of the tank.
+
 ## 0.56.0 – 2026-11-15
 Writing: a mixing circuit's flow target to the PLC, the heat pump's flow target, ON/OFF and heat demand – after a
 supervised trial, with one writer per target.

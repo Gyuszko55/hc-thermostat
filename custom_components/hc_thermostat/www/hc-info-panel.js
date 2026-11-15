@@ -995,11 +995,12 @@ class HcInfoPanel extends HTMLElement {
       active: hu ? "éles – ír" : "active – writing", paused: hu ? "szüneteltetve – nem ír" : "paused – writes nothing", trial_over: hu ? "a próba lejárt" : "trial over" };
     const OS = { none: hu ? "nincs megadva" : "not set", shadow: hu ? "nem ír" : "not writing", write: hu ? "írt" : "written", keepalive: hu ? "újraküldve" : "re-sent",
       in_sync: hu ? "egyezik" : "in sync", no_value: hu ? "nincs érték" : "no value", unavailable: hu ? "nem elérhető" : "unavailable",
-      grace: hu ? "indulás utáni várakozás" : "waiting after a start", conflict: hu ? "ÜTKÖZÉS – más is írja, a HC nem ír bele" : "CONFLICT – someone else writes it, HC stays out", error: hu ? "HIBA" : "ERROR" };
+      grace: hu ? "indulás utáni várakozás" : "waiting after a start", conflict: hu ? "ÜTKÖZÉS – más is írja, a HC nem ír bele" : "CONFLICT – someone else writes it, HC stays out",
+      confirming: hu ? "visszaigazolásra vár" : "waiting for the device to confirm", not_accepted: hu ? "NEM FOGADTA EL – a HC nem írja tovább" : "NOT ACCEPTED – HC stops writing it", error: hu ? "HIBA" : "ERROR" };
     const rows = [[hu ? "Írás" : "Writing", `${ST[w.write_status] || w.write_status || "–"}${w.trial_end ? ` (${hu ? "vége" : "ends"} ${this._val(w.trial_end)})` : ""}`, w.write_status === "trial" || w.write_status === "active"]];
     for (const [k, o] of Object.entries(outs)) {
       if (!o || !o.entity) continue;
-      rows.push([`${hu ? "Kimenet" : "Output"} (${k})`, `${o.entity} · ${OS[o.status] || o.status}${o.last_value != null ? ` · ${hu ? "utoljára" : "last"} ${this._num(o.last_value, 1)}` : ""}${o.error ? ` · ${o.error}` : ""}`, o.status === "conflict" || o.status === "error"]);
+      rows.push([`${hu ? "Kimenet" : "Output"} (${k})`, `${o.entity} · ${OS[o.status] || o.status}${o.last_value != null ? ` · ${hu ? "utoljára" : "last"} ${this._num(o.last_value, 1)}` : ""}${o.error ? ` · ${o.error}` : ""}`, o.status === "conflict" || o.status === "not_accepted" || o.status === "error"]);
     }
     return rows;
   }

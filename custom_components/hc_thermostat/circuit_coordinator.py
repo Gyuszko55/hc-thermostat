@@ -20,7 +20,8 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_CIRCUIT_BUFFER, CONF_CIRCUIT_OUTPUT, CONF_OUTDOOR, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN
+from .const import (CONF_CIRCUIT_BUFFER, CONF_CIRCUIT_OUTPUT, CONF_OUTDOOR, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES,
+                    DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.circuit import CircuitConfig, CircuitDecision, MixingCircuit, ZoneReading
 from .output_writer import OutputWriter, WriteControl
 from .units import state_value_c
@@ -71,7 +72,9 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         self.conf = data
         self.write = WriteControl(hass, entry, data)  # 0.56.0
         self.mode = self.write.mode
-        self.out = OutputWriter(hass, data.get(CONF_CIRCUIT_OUTPUT), keepalive_s=float(data.get(CONF_WRITE_KEEPALIVE) or 0))
+        confirm = data.get(CONF_WRITE_CONFIRM)
+        self.out = OutputWriter(hass, data.get(CONF_CIRCUIT_OUTPUT), keepalive_s=float(data.get(CONF_WRITE_KEEPALIVE) or 0),
+                                confirm_s=float(WRITE_CONFIRM_DEFAULT if confirm is None else confirm))
         self._started = dt_util.now()
         self.circuit = MixingCircuit(CircuitConfig.from_conf(data))
         self.zones: list[ZoneReading] = []

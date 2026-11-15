@@ -57,6 +57,8 @@ CONF_HP_SWITCH = "hp_switch_entity"  # 0.56.0: the heat pump's ON/OFF (switch / 
 CONF_HP_TARGET_OUT = "hp_target_entity"  # 0.56.0: the heat pump's flow target (number / input_number / climate)
 CONF_HP_DEMAND_OUT = "hp_demand_entity"  # 0.56.0: an optional heat demand signal (switch / input_boolean)
 CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
+CONF_WRITE_CONFIRM = "write_confirm_s"  # 0.56.1: wait this long for the device to confirm a write (slow cloud devices)
+WRITE_CONFIRM_DEFAULT = 60
 CONF_TRIAL_HOURS = "trial_hours"  # 0.56.0: a supervised trial writes this long, then back to shadow
 CONF_CIRCUIT_BUFFER = "circuit_buffer"  # 0.54.0: mixing circuit -> the buffer instance (entry id) it draws from
 CONF_ZONES = "zone_entities"

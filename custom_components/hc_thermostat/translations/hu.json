@@ -252,6 +252,7 @@
           "hp_cold_release_above": "Feloldás e fölött",
           "hp_cold_release_s": "… ennyi ideig tartósan",
           "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+          "hp_wood_first": "Fa elsőbbsége: alacsony töltöttségnél sem indít, a futó felfűtés leáll (fagyvédelem és hidegben-ON marad)",
           "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "hp_min_interval_s": "Két módosítás között legalább",
@@ -744,7 +745,8 @@
           "mode": "Írás",
           "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
           "trial_hours": "A felügyelt próba hossza",
-          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)"
+          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
+          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól"
         }
       },
       "circuit_settings": {
@@ -781,7 +783,8 @@
           "mode": "Írás",
           "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
           "trial_hours": "A felügyelt próba hossza",
-          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)"
+          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
+          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól"
         }
       },
       "hp_coord_settings": {
@@ -805,6 +808,7 @@
           "hp_cold_release_above": "Feloldás e fölött",
           "hp_cold_release_s": "… ennyi ideig tartósan",
           "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+          "hp_wood_first": "Fa elsőbbsége: alacsony töltöttségnél sem indít, a futó felfűtés leáll (fagyvédelem és hidegben-ON marad)",
           "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "hp_min_interval_s": "Két módosítás között legalább",

@@ -16,9 +16,12 @@ Order of priority (the reference design's priority list):
    no-demand stop. It does not replace the unit's own frost protection.
 3. Heat demand by the circuits and the tank's usable heat, wood first: a tank warm enough for the circuits makes no
    demand; while another source is known to charge the tank (wood signal on, or the tank warming while the heat pump
-   is known not to run) no new heating starts.
+   is known not to run) the heat pump does not heat – no new start, no low-charge start, and a running heating
+   stops (`hp_wood_first`, 0.56.1); only the buffer frost limit goes before it.
 4. Long no-demand stop (`hp_idle_off`, on): with `hp_standby` (keep ON with no demand) the request goes OFF after
-   `hp_idle_hours` (24 h) with no circuit demand and no heat demand – unless the cold-weather ON holds.
+   `hp_idle_hours` (24 h) with no circuit demand and no heat demand – unless the cold-weather ON holds. Without
+   `hp_standby` the request is already OFF whenever there is no demand, so there is nothing for this stop to do.
+   "No demand" means neither: no lasting circuit / zone demand and no heat demand of the tank (charging included).
 5. Low water, rare changes: the target is the circuits' need plus the coil reserve and the manual offset, within the
    limits (after the offset), given out through the same hold as the circuits (core/setpoint_hold.py).
 
@@ -28,6 +31,11 @@ Heat demand in detail (all thresholds settable; percentages only when the tank h
   buffer's frost limit;
 - runs on until the top is at least need + `hp_hyst` and, with `hp_charge_off` set, the charge reached it;
 - `hp_min_on_s` / `hp_min_off_s` hold the enable request (not the cold-weather ON and not a fail-safe ON).
+
+Wood first (`hp_wood_first`, on – 0.56.1): with wood `certain` or `likely` the heat pump does not heat, not even
+for a low charge (`hp_charge_on`), and a heating that already runs stops. Only the buffer frost limit is above it;
+the cold-weather ON and a fail-safe ON still keep the unit ON (its target at the lowest – no heating command).
+Off: the 0.55.0 order (a low charge and a running heating go before wood; wood only holds back a new start).
 
 Wood: `certain` with a wood signal entity on; `likely` when the tank mean warms by at least `hp_wood_rise` °C/h while
 the heat pump is known not to run; `possible` when it warms but whether the heat pump runs is not known – shown only,
@@ -61,6 +69,7 @@ class HpConfig:
     hp_cold_release_above: float = 7.0
     hp_cold_release_s: float = 3600.0
     hp_wood_rise: float = 2.0  # °C/h of the tank mean
+    hp_wood_first: bool = True  # 0.56.1: wood also stops a low-charge start and a running heating
     hp_deadband: float = 2.0
     hp_confirm_s: float = 600.0
     hp_min_interval_s: float = 2700.0
@@ -167,6 +176,10 @@ class HeatPumpCoordinator:
         low = cfg.hp_charge_on > 0 and i.charge is not None and i.charge <= cfg.hp_charge_on
         if frost:
             return True, "frost"
+        if cfg.hp_wood_first and wood in ("certain", "likely"):
+            # 0.56.1: wood first – before a low charge and also over a heating that already runs; frost (above),
+            # the cold-weather ON and a fail-safe ON (the enable request, in step) still stand
+            return False, "wood"
         if low:
             return True, "low_charge"
         if self.heating:
