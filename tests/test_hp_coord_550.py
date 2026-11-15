@@ -235,6 +235,7 @@ def test_config_flow_forms_and_no_name_clash():
     keys = {str(k) for k in cf._hpc_settings({})}
     assert keys == set(hpc.HpConfig.__dataclass_fields__)
     assert {str(k) for k in cf._hpc_fields(hass, {})} == {"hp_buffer", "outdoor_entity", "hp_running_entity", "wood_entity",
-                                                         "hp_target_entity", "hp_switch_entity", "hp_demand_entity"}  # 0.56.0
+                                                         "hp_target_entity", "hp_switch_entity", "hp_demand_entity",  # 0.56.0
+                                                         "hp_summer_entity", "hp_exercise_entity"}  # 0.57.0
     assert cf._hpc_errors({"hp_flow_min": 25, "hp_flow_max": 55, "hp_cold_on_below": 5, "hp_cold_release_above": 7,
                            "hp_charge_on": 0, "hp_charge_off": 10}) == {}

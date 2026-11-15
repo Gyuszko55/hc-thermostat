@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.57.0 – 2026-11-15
+Automatic summer / winter mode for the heat pump coordination – from the house's own demand, not from a date
+(suggested by the reference design's owner: there it is how the PLC already switches).
+- **Summer mode** (`hp_auto_summer`, off by default; heat pump coordination → settings): after `hp_summer_after_h`
+  (24 h) with no circuit / zone demand at all, the coordination goes into summer mode. Only the rooms count: a low
+  tank does not keep winter. In summer mode the tank is not kept warm – no low-charge start, no standby ON, a running
+  heating stops, the target goes to the lowest. The buffer frost limit still heats; the cold-weather ON stays
+  separate and keeps the unit ON with no heating command; the unit's own frost protection stays first. With it on,
+  summer mode replaces the 24 h no-demand stop.
+- **Back to winter by itself** when the circuits' demand lasted `hp_winter_after_s` (30 min; 0 = at once) without a
+  break **and** a room still asks at its end: one TPI pulse (which keeps a circuit's lasting demand for 30 min) or a
+  short dip after airing does not end the summer.
+- **Signals for a PLC:** binary sensors *Summer mode* (since when, hours without room demand, how long the demand has
+  held) and *Exercise due*; both can also be written to a switch / input_boolean (`hp_summer_entity`,
+  `hp_exercise_entity`, same writing modes and one-writer rule as the other outputs).
+- **Exercise due** (`hp_exercise`, off): in summer mode, every week on `hp_exercise_weekday` (0 = Monday) from
+  `hp_exercise_hour` for `hp_exercise_min` (10) minutes. HC only signals – the PLC runs its pumps, mixing valves and
+  actuators.
+- The info panel shows the summer / winter state, the hours without room demand, the return countdown and the
+  exercise signal. The state survives a restart.
+
 ## 0.56.1 – 2026-11-15
 Two fixes from the reference design's review, before the heat pump is written live.
 - **Wood first, for real** (`hp_wood_first`, on by default, heat pump coordination → settings): with wood `certain`

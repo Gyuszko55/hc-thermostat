@@ -22,13 +22,14 @@ from homeassistant.util import dt as dt_util
 
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
-from .const import (CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
+from .const import (CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
                     CONF_WOOD, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
 from .output_writer import OutputWriter, WriteControl
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
+_ASK_FRESH_S = 90  # 0.57.0: a zone asked this recently = it asks now (the circuits run every 30 s)
 _SAVE_EVERY = timedelta(minutes=10)
 RUNNING_W = 100.0  # a power reading above this means the heat pump runs
 
@@ -68,6 +69,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep, confirm_s=confirm)
         self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
+        self.out_summer = OutputWriter(hass, data.get(CONF_HP_SUMMER_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
+        self.out_exercise = OutputWriter(hass, data.get(CONF_HP_EXERCISE_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self._started = dt_util.now()
         self.hp = HeatPumpCoordinator(HpConfig.from_conf(data))
         self.offset: float | None = None  # the number entity's value (restored by it)
@@ -79,7 +82,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         return not self.write.writing(dt_util.now())
 
     def outputs(self) -> dict:
-        return {"target": self.out_target.info(), "switch": self.out_switch.info(), "demand": self.out_demand.info()}
+        return {"target": self.out_target.info(), "switch": self.out_switch.info(), "demand": self.out_demand.info(),
+                "summer": self.out_summer.info(), "exercise": self.out_exercise.info()}
 
     async def async_load(self) -> None:
         self.hp.restore(await self._store.async_load() or {}, dt_util.now())
@@ -105,7 +109,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
             for e, cc in buf.circuits():
                 d = cc.data
                 if d is not None:
-                    circuits.append(CircuitNeed(e.title, d.demand, d.target, cc.circuit.cfg.circuit_margin))
+                    asked = [t for t in cc.circuit.last_ask.values() if (now - t).total_seconds() <= _ASK_FRESH_S]
+                    circuits.append(CircuitNeed(e.title, d.demand, d.target, cc.circuit.cfg.circuit_margin, bool(asked)))
             if not circuits:  # no circuit linked: the buffer's own zones say whether heat is wanted
                 zones_asking = bool(asking_zones(self.hass, list(buf.conf.get(CONF_ZONES) or [])))
         return HpInputs(outdoor=read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),
@@ -119,16 +124,17 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
 
     async def _async_update_data(self) -> HpDecision:
         now = dt_util.now()
-        was = (self.hp.enable, self.hp.heating, self.hp.cold_latched)
+        was = (self.hp.enable, self.hp.heating, self.hp.cold_latched, self.hp.summer)
         decision = self.hp.step(now, self.inputs(now))
-        if was != (self.hp.enable, self.hp.heating, self.hp.cold_latched) or decision.details.get("target_changed") \
+        if was != (self.hp.enable, self.hp.heating, self.hp.cold_latched, self.hp.summer) or decision.details.get("target_changed") \
                 or now - self._last_save >= _SAVE_EVERY:
             await self.async_save()
         await self.write.tick(now)
         writing, up = self.write.writing(now), (now - self._started).total_seconds()
         # the target first, so an ON finds the right water asked for; then ON / OFF, then the demand signal
         for out, value in ((self.out_target, decision.target), (self.out_switch, decision.enable),
-                           (self.out_demand, decision.heat_demand)):
+                           (self.out_demand, decision.heat_demand), (self.out_summer, decision.summer),
+                           (self.out_exercise, decision.exercise)):
             await out.apply(now, value, writing, up)
             self.write.note_conflict(out)
         return decision

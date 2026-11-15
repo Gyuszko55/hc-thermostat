@@ -228,7 +228,9 @@
           "wood_entity": "Fatüzelés jele (nem kötelező: be, amíg ég)",
           "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
           "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
-          "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)"
+          "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)",
+          "hp_summer_entity": "Nyári üzem jel a PLC-nek (switch / input_boolean, nem kötelező)",
+          "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)"
         }
       },
       "hp_coord_settings": {
@@ -247,6 +249,13 @@
           "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
           "hp_idle_off": "OFF, ha sokáig nincs igény",
           "hp_idle_hours": "Ennyi ideig nincs igény",
+          "hp_auto_summer": "Automatikus nyári/téli üzem (a ház igénye szerint)",
+          "hp_summer_after_h": "Nyári üzem ennyi igénymentes idő után",
+          "hp_winter_after_s": "Vissza téli üzembe, ha a körök igénye ennyi ideig tart (0 = azonnal)",
+          "hp_exercise": "Megjáratás esedékes jel nyári üzemben (a PLC végzi)",
+          "hp_exercise_weekday": "Megjáratás napja (0 = hétfő … 6 = vasárnap)",
+          "hp_exercise_hour": "Megjáratás kezdete (óra)",
+          "hp_exercise_min": "Megjáratás jel hossza (perc)",
           "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
           "hp_cold_on_below": "ON ez alatt",
           "hp_cold_release_above": "Feloldás e fölött",
@@ -780,6 +789,8 @@
           "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
           "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
           "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)",
+          "hp_summer_entity": "Nyári üzem jel a PLC-nek (switch / input_boolean, nem kötelező)",
+          "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)",
           "mode": "Írás",
           "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
           "trial_hours": "A felügyelt próba hossza",
@@ -803,6 +814,13 @@
           "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
           "hp_idle_off": "OFF, ha sokáig nincs igény",
           "hp_idle_hours": "Ennyi ideig nincs igény",
+          "hp_auto_summer": "Automatikus nyári/téli üzem (a ház igénye szerint)",
+          "hp_summer_after_h": "Nyári üzem ennyi igénymentes idő után",
+          "hp_winter_after_s": "Vissza téli üzembe, ha a körök igénye ennyi ideig tart (0 = azonnal)",
+          "hp_exercise": "Megjáratás esedékes jel nyári üzemben (a PLC végzi)",
+          "hp_exercise_weekday": "Megjáratás napja (0 = hétfő … 6 = vasárnap)",
+          "hp_exercise_hour": "Megjáratás kezdete (óra)",
+          "hp_exercise_min": "Megjáratás jel hossza (perc)",
           "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
           "hp_cold_on_below": "ON ez alatt",
           "hp_cold_release_above": "Feloldás e fölött",
@@ -1141,6 +1159,7 @@
           "heating": "Fűt",
           "charging": "Tölt a leállási szintig",
           "wood": "Más hőforrás tölti a puffert",
+          "summer": "Nyári üzem: nem fűt",
           "idle_off": "OFF: régóta nincs igény",
           "standby": "Készenlét (ON, nem fűt)",
           "off": "Nincs igény",
@@ -1182,6 +1201,12 @@
       },
       "hp_heat_demand": {
         "name": "Hőszivattyú hőigény"
+      },
+      "hp_summer": {
+        "name": "Nyári üzem"
+      },
+      "hp_exercise": {
+        "name": "Megjáratás esedékes"
       }
     },
     "climate": {

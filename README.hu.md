@@ -529,6 +529,11 @@ célt.
   oldódik; ez nyer a **hosszú igénymentes leállítással** szemben (24 óra igény nélkül OFF, ha *igény nélkül is ON*;
   „igény nélkül” = se kör- / helyiségigény, se puffer-hőigény, a töltést is beleértve).
   Nem helyettesíti a gép saját fagyvédelmét, a gyártói előírásokat és a független biztonsági megoldást.
+- **Automatikus nyári/téli üzem** (0.57.0, `hp_auto_summer`, alapból ki): 24 óra helyiség-igény nélkül (körök /
+  zónák – nem a puffer) a puffert már nem tartja melegen (nincs alacsony töltöttség miatti indítás, nincs készenlét,
+  legalacsonyabb cél); a fagyhatár továbbra is fűt, a hidegben-ON ettől független. Vissza téli üzembe, ha a körök
+  igénye 30 percig megszakítás nélkül tart, és a végén egy helyiség még kér. *Nyári üzem* és opcionális heti
+  *Megjáratás esedékes* bináris szenzor (és kimenet) a PLC-nek – a szivattyúkat, szelepeket a PLC járatja meg.
 - Kiesett bemenetnél a legutóbbi kérés marad. A gép / a PLC felé írás: 0.56.0, lent.
 
 ## A célok kiírása: felügyelt próba, egy író (0.56.0)

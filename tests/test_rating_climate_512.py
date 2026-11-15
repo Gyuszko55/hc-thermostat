@@ -43,7 +43,7 @@ def test_a_mild_measured_part_lowers_the_figure():
 
 def test_the_setting_is_offered_and_translated():
     root = Path(__file__).resolve().parents[1] / "custom_components" / "hc_thermostat"
-    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1")
+    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0")
     assert "CONF_RATING_OUTDOOR" in (root / "config_flow.py").read_text()
     assert "rating_outdoor_entity" in (root / "const.py").read_text()
     for lang in ("hu", "en"):

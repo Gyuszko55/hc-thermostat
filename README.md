@@ -521,6 +521,11 @@ demand, the ON/OFF request and the flow target.
 - **Cold-weather ON** (off by default, water-filled monoblock only): ON below +5 °C even with no demand, released after
   a lasting +7 °C; it wins over the **long no-demand stop** (OFF after 24 h without demand, with *keep ON with no
   demand*). It never replaces the unit's own frost protection, the manufacturer's rules or an independent safety.
+- **Automatic summer / winter mode** (0.57.0, `hp_auto_summer`, off): after 24 h with no room demand (circuits /
+  zones – not the tank) the tank is no longer kept warm (no low-charge start, no standby, the lowest target); the
+  frost limit still heats, the cold-weather ON stays separate. Back to winter once the circuits' demand lasted 30 min
+  without a break and a room still asks. *Summer mode* and an optional weekly *Exercise due* binary sensor (and
+  outputs) for a PLC, which runs its pumps and valves itself.
 - Lost inputs keep the last request. Writing to the unit / the PLC: 0.56.0, below.
 
 ## Writing the targets: supervised trial, one writer (0.56.0)

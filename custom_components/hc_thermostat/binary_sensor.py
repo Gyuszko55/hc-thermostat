@@ -21,7 +21,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCircuitDemand(c)])
         return
     if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
-        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c)])
+        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c)])
         return
     entities = [HcDemand(c), HcFault(c)]
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
@@ -164,3 +164,43 @@ class HcHpHeatDemand(HcEntity, BinarySensorEntity):
     def extra_state_attributes(self) -> dict:
         d = self.coordinator.data
         return {"need": d.need, "wood": d.wood, "top": d.details.get("top"), "charge": d.details.get("charge")}
+
+
+class HcHpSummer(HcEntity, BinarySensorEntity):
+    """Heat pump coordination (0.57.0): automatic summer mode – the house has not asked for heat for a long time."""
+
+    _attr_icon = "mdi:weather-sunny"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_summer")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.data.summer
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d, cfg = self.coordinator.data, self.coordinator.hp.cfg
+        return {"enabled": cfg.hp_auto_summer, "summer_since": d.details.get("summer_since"),
+                "room_idle_hours": d.details.get("room_idle_hours"), "summer_after_h": cfg.hp_summer_after_h,
+                "demand_held_s": d.details.get("demand_held_s"), "winter_after_s": cfg.hp_winter_after_s,
+                "written": self.coordinator.out_summer.info()}
+
+
+class HcHpExercise(HcEntity, BinarySensorEntity):
+    """Heat pump coordination (0.57.0): pump / valve exercise due (summer mode, weekly) – the PLC runs it."""
+
+    _attr_icon = "mdi:cog-refresh"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_exercise")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.data.exercise
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        cfg = self.coordinator.hp.cfg
+        return {"enabled": cfg.hp_exercise, "weekday": int(cfg.hp_exercise_weekday), "hour": int(cfg.hp_exercise_hour),
+                "minutes": cfg.hp_exercise_min, "written": self.coordinator.out_exercise.info()}

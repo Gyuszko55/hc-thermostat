@@ -22,6 +22,7 @@ Order of priority (the reference design's priority list):
    `hp_idle_hours` (24 h) with no circuit demand and no heat demand – unless the cold-weather ON holds. Without
    `hp_standby` the request is already OFF whenever there is no demand, so there is nothing for this stop to do.
    "No demand" means neither: no lasting circuit / zone demand and no heat demand of the tank (charging included).
+   With the automatic summer mode on (0.57.0, see below) summer mode takes its place.
 5. Low water, rare changes: the target is the circuits' need plus the coil reserve and the manual offset, within the
    limits (after the offset), given out through the same hold as the circuits (core/setpoint_hold.py).
 
@@ -31,6 +32,17 @@ Heat demand in detail (all thresholds settable; percentages only when the tank h
   buffer's frost limit;
 - runs on until the top is at least need + `hp_hyst` and, with `hp_charge_off` set, the charge reached it;
 - `hp_min_on_s` / `hp_min_off_s` hold the enable request (not the cold-weather ON and not a fail-safe ON).
+
+Automatic summer / winter mode (`hp_auto_summer`, off – 0.57.0): not a date and not only the outdoor temperature, but
+the house's own demand. After `hp_summer_after_h` (24 h) with no circuit / zone demand at all, the coordination goes
+into summer mode: no heating for the tank – no low-charge start, no standby ON, a running heating stops; the target
+goes to the lowest. Only the buffer frost limit still heats, and the cold-weather ON (a separate thing) still keeps the
+unit ON with no heating command. It goes back to winter mode – by itself – once the circuits' demand has lasted
+`hp_winter_after_s` (30 min) without a break and a room still asks for heat at its end: one TPI pulse or a short dip
+after airing does not end the summer. A "summer mode" binary sensor (and, if given, a switch / input_boolean output)
+tells a PLC. Optional "exercise due" signal (`hp_exercise`): in summer mode, every week on `hp_exercise_weekday` from
+`hp_exercise_hour` for `hp_exercise_min` minutes – HC only signals, the PLC runs its pumps and valves. With it on, it
+replaces the 24 h no-demand stop below.
 
 Wood first (`hp_wood_first`, on – 0.56.1): with wood `certain` or `likely` the heat pump does not heat, not even
 for a low charge (`hp_charge_on`), and a heating that already runs stops. Only the buffer frost limit is above it;
@@ -70,6 +82,13 @@ class HpConfig:
     hp_cold_release_s: float = 3600.0
     hp_wood_rise: float = 2.0  # °C/h of the tank mean
     hp_wood_first: bool = True  # 0.56.1: wood also stops a low-charge start and a running heating
+    hp_auto_summer: bool = False  # 0.57.0: summer mode after a long time with no room demand
+    hp_summer_after_h: float = 24.0
+    hp_winter_after_s: float = 1800.0  # back to winter: the circuits' demand lasted this long (0 = at once)
+    hp_exercise: bool = False  # 0.57.0: an "exercise due" signal in summer mode, for the PLC
+    hp_exercise_weekday: int = 0  # 0 = Monday
+    hp_exercise_hour: int = 10
+    hp_exercise_min: float = 10.0
     hp_deadband: float = 2.0
     hp_confirm_s: float = 600.0
     hp_min_interval_s: float = 2700.0
@@ -91,6 +110,7 @@ class CircuitNeed:
     demand: bool  # a lasting demand
     target: float | None  # its given-out flow target
     margin: float = 2.0
+    asking: bool | None = None  # 0.57.0: a zone asks right now (None: as `demand`)
 
 
 @dataclass(frozen=True)
@@ -120,10 +140,12 @@ class HpDecision:
     wood: str = "none"  # none | possible | likely | certain
     cold_on: bool = False
     details: dict = field(default_factory=dict)
+    summer: bool = False  # 0.57.0
+    exercise: bool = False  # 0.57.0: exercise due (summer mode only)
 
 
 REASONS = ["fail_safe_on", "no_outdoor", "no_buffer", "cold_on", "frost", "low_charge", "heat_needed", "heating",
-           "charging", "wood", "idle_off", "standby", "off", "min_on", "min_off"]
+           "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off"]
 
 
 class HeatPumpCoordinator:
@@ -136,6 +158,10 @@ class HeatPumpCoordinator:
         self.cold_latched = False
         self.warm_since: datetime | None = None  # outdoor above the release limit since
         self.last_demand: datetime | None = None  # a circuit demand or a heat demand last seen
+        self.summer = False  # 0.57.0
+        self.summer_since: datetime | None = None
+        self.last_room: datetime | None = None  # a circuit / zone demand last seen (not the tank's)
+        self.ask_since: datetime | None = None  # the circuits' demand without a break since
 
     # --- parts ------------------------------------------------------------------------------------------------
     def _cold(self, now: datetime, outdoor: float | None) -> bool:
@@ -165,6 +191,34 @@ class HeatPumpCoordinator:
         if i.hp_running is False:
             return "likely"
         return "possible" if i.hp_running is None else "none"  # warming while the heat pump runs: its own heat
+
+    def _season(self, now: datetime, lasting: bool, asking: bool) -> str | None:
+        """0.57.0: summer / winter from the house's own demand; returns what changed (or None)."""
+        cfg = self.cfg
+        if lasting or self.last_room is None:
+            self.last_room = now
+        self.ask_since = (self.ask_since or now) if lasting else None
+        if not cfg.hp_auto_summer:
+            changed = "winter" if self.summer else None
+            self.summer, self.summer_since = False, None
+            return changed
+        if self.summer:
+            held = (now - self.ask_since).total_seconds() if self.ask_since else None
+            if held is not None and held >= cfg.hp_winter_after_s and asking:
+                self.summer, self.summer_since = False, None
+                return "winter"
+            return None
+        if (now - self.last_room).total_seconds() >= cfg.hp_summer_after_h * 3600:
+            self.summer, self.summer_since = True, now
+            return "summer"
+        return None
+
+    def _exercise(self, now: datetime) -> bool:
+        cfg = self.cfg
+        if not (cfg.hp_exercise and self.summer):
+            return False
+        start = now.replace(hour=int(cfg.hp_exercise_hour) % 24, minute=0, second=0, microsecond=0)
+        return now.weekday() == int(cfg.hp_exercise_weekday) % 7 and 0 <= (now - start).total_seconds() < cfg.hp_exercise_min * 60
 
     def _need(self, i: HpInputs) -> float | None:
         needs = [c.target + c.margin for c in i.circuits if c.demand and c.target is not None]
@@ -217,11 +271,19 @@ class HeatPumpCoordinator:
         details: dict = {"offset": offset, "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
                          "hp_running": i.hp_running}
         demand_now = any(c.demand for c in i.circuits) or i.zones_asking
+        asking = any(c.demand if c.asking is None else c.asking for c in i.circuits) or i.zones_asking
+        season = self._season(now, demand_now, asking)
         if i.top is None:
             heat, why = self.heating, "no_buffer"
         else:
             heat, why = self._heat(i, need, wood)
+        if self.summer and why != "frost":
+            heat, why = False, "summer"  # 0.57.0: no heating for the tank in summer mode; the frost limit still heats
         self.heating = heat
+        details.update(summer_since=self.summer_since.isoformat() if self.summer_since else None,
+                       room_idle_hours=round((now - self.last_room).total_seconds() / 3600, 2) if self.last_room else None,
+                       demand_held_s=round((now - self.ask_since).total_seconds()) if self.ask_since else None,
+                       season_change=season)
         if demand_now or heat or self.last_demand is None:
             self.last_demand = now  # the idle time counts from the first run, not from never
         idle_h = (now - self.last_demand).total_seconds() / 3600 if self.last_demand else None
@@ -244,6 +306,8 @@ class HeatPumpCoordinator:
             details["idle_overridden"] = idle  # the long no-demand stop would apply, the cold-weather ON wins
         elif heat:
             want, reason = True, why
+        elif self.summer:
+            want, reason = False, "summer"  # 0.57.0: it replaces standby and the 24 h stop
         elif cfg.hp_standby:
             idle = cfg.hp_idle_off and idle_h is not None and idle_h >= cfg.hp_idle_hours
             want, reason = (False, "idle_off") if idle else (True, "standby")
@@ -266,14 +330,17 @@ class HeatPumpCoordinator:
         details.update(next_allowed=res.next_allowed.isoformat() if res.next_allowed else None,
                        last_change=self.last_change.isoformat() if self.last_change else None,
                        target_changed=res.changed, warm_since=self.warm_since.isoformat() if self.warm_since else None)
-        return HpDecision(now, self.enable, heat, reason, res.value, res.raw, res.reason, need, wood, cold, details)
+        return HpDecision(now, self.enable, heat, reason, res.value, res.raw, res.reason, need, wood, cold, details,
+                          self.summer, self._exercise(now))
 
     # --- restart ----------------------------------------------------------------------------------------------
     def state(self, now: datetime) -> dict:
         iso = lambda d: d.isoformat() if d else None  # noqa: E731
         return {"hold": self.hold.state(now), "enable": self.enable, "heating": self.heating,
                 "last_change": iso(self.last_change), "cold_latched": self.cold_latched,
-                "warm_since": iso(self.warm_since), "last_demand": iso(self.last_demand)}
+                "warm_since": iso(self.warm_since), "last_demand": iso(self.last_demand),
+                "summer": self.summer, "summer_since": iso(self.summer_since), "last_room": iso(self.last_room),
+                "ask_since": iso(self.ask_since)}
 
     def restore(self, data: dict, now: datetime) -> None:
         def when(key):
@@ -286,3 +353,6 @@ class HeatPumpCoordinator:
         self.heating = bool(data.get("heating", False))
         self.cold_latched = bool(data.get("cold_latched", False)) and self.cfg.hp_cold_on
         self.last_change, self.warm_since, self.last_demand = when("last_change"), when("warm_since"), when("last_demand")
+        self.summer = bool(data.get("summer", False)) and self.cfg.hp_auto_summer
+        self.summer_since = when("summer_since") if self.summer else None
+        self.last_room, self.ask_since = when("last_room"), when("ask_since")

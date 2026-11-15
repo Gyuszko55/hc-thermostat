@@ -56,6 +56,8 @@ CONF_CIRCUIT_OUTPUT = "circuit_output_entity"  # 0.56.0: where the circuit's flo
 CONF_HP_SWITCH = "hp_switch_entity"  # 0.56.0: the heat pump's ON/OFF (switch / input_boolean / climate)
 CONF_HP_TARGET_OUT = "hp_target_entity"  # 0.56.0: the heat pump's flow target (number / input_number / climate)
 CONF_HP_DEMAND_OUT = "hp_demand_entity"  # 0.56.0: an optional heat demand signal (switch / input_boolean)
+CONF_HP_SUMMER_OUT = "hp_summer_entity"  # 0.57.0: the summer mode signal for a PLC (switch / input_boolean)
+CONF_HP_EXERCISE_OUT = "hp_exercise_entity"  # 0.57.0: the "exercise due" signal for a PLC
 CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
 CONF_WRITE_CONFIRM = "write_confirm_s"  # 0.56.1: wait this long for the device to confirm a write (slow cloud devices)
 WRITE_CONFIRM_DEFAULT = 60

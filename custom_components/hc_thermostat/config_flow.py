@@ -19,7 +19,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -183,6 +183,8 @@ def _outputs(role: str, current: dict) -> dict:
         vol.Optional(CONF_HP_TARGET_OUT, description=sug(CONF_HP_TARGET_OUT)): _entity("number", "input_number", "climate"),
         vol.Optional(CONF_HP_SWITCH, description=sug(CONF_HP_SWITCH)): _entity("switch", "input_boolean", "climate"),
         vol.Optional(CONF_HP_DEMAND_OUT, description=sug(CONF_HP_DEMAND_OUT)): _entity("switch", "input_boolean"),
+        vol.Optional(CONF_HP_SUMMER_OUT, description=sug(CONF_HP_SUMMER_OUT)): _entity("switch", "input_boolean"),
+        vol.Optional(CONF_HP_EXERCISE_OUT, description=sug(CONF_HP_EXERCISE_OUT)): _entity("switch", "input_boolean"),
     }
 
 
@@ -202,7 +204,8 @@ def _write_fields(role: str, current: dict) -> dict:
 def _write_errors(role: str, user_input: dict) -> dict:
     if user_input.get(CONF_MODE, MODE_SHADOW) == MODE_SHADOW:
         return {}
-    outs = [CONF_CIRCUIT_OUTPUT] if role == "circuit" else [CONF_HP_TARGET_OUT, CONF_HP_SWITCH, CONF_HP_DEMAND_OUT]
+    outs = [CONF_CIRCUIT_OUTPUT] if role == "circuit" else [CONF_HP_TARGET_OUT, CONF_HP_SWITCH, CONF_HP_DEMAND_OUT,
+                                                              CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT]
     if not any(user_input.get(k) for k in outs):
         return {CONF_MODE: "no_output"}
     if not user_input.get(CONF_CONFIRM):
@@ -270,6 +273,8 @@ def _hpc_settings(current: dict) -> dict:
         n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"),
         n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
         b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),
+        b("hp_auto_summer"), n("hp_summer_after_h", 1, 168, 1, "h"), n("hp_winter_after_s", 0, 14400, 300, "s"),
+        b("hp_exercise"), n("hp_exercise_weekday", 0, 6, 1), n("hp_exercise_hour", 0, 23, 1, "h"), n("hp_exercise_min", 1, 120, 1, "min"),
         b("hp_cold_on"), n("hp_cold_on_below", -10, 15, 0.5, "°C"), n("hp_cold_release_above", -10, 20, 0.5, "°C"),
         n("hp_cold_release_s", 0, 21600, 300, "s"), n("hp_wood_rise", 0.5, 20, 0.5, "°C/h"), b("hp_wood_first"),
         n("hp_deadband", 0.5, 6, 0.5, "°C"), n("hp_confirm_s", 0, 3600, 60, "s"), n("hp_min_interval_s", 0, 14400, 300, "s"),

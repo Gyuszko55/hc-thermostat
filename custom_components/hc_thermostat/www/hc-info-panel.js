@@ -85,7 +85,7 @@ const REASON = {
     // 0.55.0: heat pump coordination
     fail_safe_on: "ON: nincs kinti mérés (biztonsági)", no_outdoor: "Nincs kinti mérés: változatlan", no_buffer: "Nincs pufferhőfok: változatlan",
     cold_on: "ON: hideg idő", low_charge: "Alacsony puffer-töltöttség", heat_needed: "Hő kell", wood: "Más hőforrás tölti a puffert",
-    idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény" },
+    summer: "Nyári üzem: nem fűt", idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény" },
   en: {},
 };
 
@@ -1031,6 +1031,11 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Fatüzelés" : "Wood", woodTxt[dec.wood] || dec.wood],
       [hu ? "Hidegben-ON" : "Cold-weather ON", cfg.hp_cold_on ? (dec.cold_on ? (hu ? "aktív" : "active") : (hu ? "bekapcsolva, nem aktív" : "enabled, not active")) : (hu ? "kikapcsolva" : "off"), dec.cold_on],
       [hu ? "Igény nélkül (óra)" : "Without demand (h)", det.idle_hours != null ? this._num(det.idle_hours, 1) : null],
+      [hu ? "Nyári/téli üzem" : "Summer / winter mode", !cfg.hp_auto_summer ? (hu ? "kikapcsolva" : "off") : dec.summer
+        ? `${hu ? "NYÁRI – nem fűt" : "SUMMER – no heating"}${det.summer_since ? ` (${this._val(det.summer_since)})` : ""}`
+        : `${hu ? "téli" : "winter"} · ${hu ? "helyiség-igény nélkül" : "no room demand for"} ${this._num(det.room_idle_hours ?? 0, 1)} / ${this._num(cfg.hp_summer_after_h, 0)} h`, dec.summer],
+      ...(cfg.hp_auto_summer && dec.summer && det.demand_held_s != null ? [[hu ? "Visszatérés: igény tart" : "Back to winter: demand held", `${Math.round(det.demand_held_s / 60)} / ${Math.round(cfg.hp_winter_after_s / 60)} ${hu ? "perc" : "min"}`, true]] : []),
+      ...(cfg.hp_exercise ? [[hu ? "Megjáratás jel" : "Exercise signal", dec.exercise ? (hu ? "ESEDÉKES" : "DUE") : `${(hu ? ["H", "K", "Sze", "Cs", "P", "Szo", "V"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])[cfg.hp_exercise_weekday] || "?"} ${cfg.hp_exercise_hour}:00, ${cfg.hp_exercise_min} ${hu ? "perc" : "min"}`, dec.exercise]] : []),
       [hu ? "Felülírt 24 órás leállás" : "Long stop overridden", det.idle_overridden ? (hu ? "igen – a hidegben-ON nyer" : "yes – cold-weather ON wins") : null, true],
     ]));
     this._nextMark = [598, 142];
