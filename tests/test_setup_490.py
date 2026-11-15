@@ -261,4 +261,4 @@ def test_rooms_keep_tpi_and_a_curve_gets_its_defaults():
 
 
 def test_version():
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.49.0", "0.50.0", "0.51.0", "0.51.1", "0.51.2")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.49.0", "0.50.0", "0.51.0", "0.51.1", "0.51.2", "0.52.0")

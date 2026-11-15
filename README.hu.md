@@ -4,8 +4,22 @@
 
 > **Béta.** Egy valódi ház fűtését vezérli, de minden rendszer más: egy új példány mindig **árnyék módban** indul
 > (számol és összevet, nem kapcsol semmit). Csak akkor élesítsd, ha átnézted a döntéseit, és legyen független
-> tartalék termosztát is (lásd Biztonság). A fűtési görbét, a hűtést és az újabb hőforrásokat (hőtárolós kályha,
-> távfűtés, fan-coil, pellet / puffer) eddig csak szimulátorban és próba-példányon teszteltük.
+> tartalék termosztát is (lásd Biztonság). Hogy mit és hogyan teszteltünk, az alábbi táblázat mutatja.
+
+## Mit teszteltünk (0.52.0)
+
+| Hőtermelő / rendszer | Hogyan tesztelve |
+|---|---|
+| On-off gázkazán, radiátorok (TPI / PID reléről) | **Élesben**, egy valódi házban, 2026 ősze óta naponta |
+| Szelepfejek egy helyiségben (Sonoff TRV Gen2, Zigbee2MQTT) | **Élesben**, egy helyiség, 2026-11-11 óta |
+| Klíma (`ac` vezérlés, Gree) | **Élesben**, 2026-11-09 óta |
+| Elektromos fűtőtest reléről (olajradiátor) | Valódi eszköz, többnyire árnyék módban (röviden élesben) |
+| Moduláló / OpenThermes kazán, fűtési görbe | **Próba-példány**: szimulált kazán és ház egy élő Home Assistantban, valós időjárással |
+| Hőszivattyú fan-coillal | **Próba-példány**: szimulált, mint fent |
+| Hőtárolós kályha, távfűtés, pellet / puffer, padlófűtés és -hűtés, elektromos padló, központi zónák | **Csak szimulátor és tesztek** |
+
+Élesítés előtt az árnyék mód és a döntésnapló mutatja meg, hogyan viszonyul a HC a saját vezérlésedhez: az egyezési
+százalék azt mutatja, milyen gyakran döntött volna ugyanúgy.
 
 A HC Thermostat a Home Assistant fűtési **felügyelője**, egyszerű rendszerekhez beépített szabályozóval. Nem akarja leváltani a jó termosztát-integrációkat: föléjük kerül, eldönti, mit csináljon a ház, és megmondja, miért.
 
@@ -29,7 +43,10 @@ működik (0.45.0): a °F-os mérést átszámolja, és amit egy termosztátra �
 
 **Jelenlét** (`presence_entities`): otthon, ha bármelyik `home`, `on`, `otthon` (otthon lévő `person` /
 `device_tracker`, bekapcsolt bináris szenzor); szabadság: `vacation`, `szabadság`, `szabadsag`; minden más (zóna neve,
-`not_home`, `off`) távol. Jelenlét-entitás nélkül a ház mindig otthon van.
+`not_home`, `off`) távol. Jelenlét-entitás nélkül a ház mindig otthon van. 0.52.0: `input_select` vagy `sensor`
+forrásnál a beállítások (*Funkciók*) felkínálják a forrás saját értékeit – kiválasztod, melyik jelent otthont
+(`presence_home_states`) és melyik szabadságot (`presence_vacation_states`); ezek a beépített szavak mellett számítanak.
+Amíg nincs kiválasztva semmi, egy nem ismert érték egyszer figyelmeztetést ír a naplóba (és távollétnek számít).
 
 **Példány törlése:** a HC semmit nem ír vissza – a szelepfej vagy a kezelt termosztát megtartja az utolsó célt, amit
 a HC küldött, a relé úgy marad. Szükség esetén állítsd kézzel. Az utolsó példány törlésével a HC panelek is
@@ -121,7 +138,9 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 - **On-off, hosszú futással** (`onoff` vezérlés): a hőszivattyú termosztát-bemenetét a cél alatt bekapcsolja, a
   cél elérésekor kikapcsolja – nincs szaggatás; a legrövidebb futás és szünet állítható (20 / 10 perc).
 - **Leolvasztás és melegvíz-készítés:** választható jelzők (bináris szenzor, kapcsoló vagy üzemmód-szenzor). Amíg
-  a hőszivattyú leolvaszt vagy melegvizet készít, a hibafigyelés vár, és az egészségfigyelés nem riaszt.
+  a hőszivattyú leolvaszt vagy melegvizet készít, a hibafigyelés vár, és az egészségfigyelés nem riaszt. 0.52.0:
+  üzemmód-szenzornál a beállítások (*Eszközök*) felkínálják az értékeit – kiválasztod, melyik jelent leolvasztást /
+  melegvizet (`hp_busy_states`), a beépített `on`, `defrost`, `dhw`, `hot_water`, `hmv` … mellett.
 
 ## Moduláló kazán zónákkal (0.27.0)
 
@@ -267,6 +286,8 @@ info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési dönté
   `aux_kwh_year`), a primer tényezővel (gáz 1,1, villany 2,3, távhő 1,38, biomassza 0,6; a `primary_factor`
   felülírja). Szenzor és sor a HC info panelen; nem tanúsítvány. 0.51.2: az év egy másik, hosszabb adatsorú kinti
   hőmérőből is jöhet (`rating_outdoor_entity`); azokat a napokat, amelyekre nincs átlag, a szabványos magyar évből pótolja.
+  **A skála, a primer tényezők és a szabványos év magyar**: más országban a besorolás csak tájékoztató (a
+  `primary_factor` ott az adott ország értékére állítandó).
 
 ## Távfűtés és fan-coil (0.32.0)
 
@@ -448,6 +469,17 @@ bekapcsol, amíg egy döntés újra sikerül.
 megjelenik, és magától eltűnik, ha minden rendben; a hiba- és a döntés-szenzor `degraded_since` attribútuma mutatja,
 mióta. A `nan` vagy `inf` állapotú szenzor „nincs adat”. Ha a HC beállításaiban szereplő entitást átnevezed, a HC
 követi az új azonosítóra (és újratölt), nem veszíti el.
+
+## Állítható határok (0.52.0)
+
+- **Fűtési idény** (*Funkciók*): szünetel, ha a napi kinti középhőmérséklet `season_off_above` (15 °C) fölé megy, és
+  újraindul `season_on_below` (13 °C) alatt. Jól szigetelt háznál lehet kevesebb, régi háznál több.
+- **Legalacsonyabb hihető helyiséghőmérséklet** (*Védelem*, `plaus_indoor_min`, 3 °C): ez alatt a helyiség hőmérője
+  hibásnak számít. Sosem lehet magasabb a fagyvédelmi cél mínusz 2 °C-nál, hogy egy valóban hideg helyiségben a
+  fagyvédelem elinduljon; fűtetlen hétvégi háznál lehet alacsonyabb.
+- **Földgáz fűtőértéke** (*Energia*, `gas_heating_value`, 9,61 kWh/m³ = a magyar számlák 34,6 MJ/m³-e): mindenhol ezt
+  használja, ahol a gáz m³-ben számít, az automatikus tüzelőanyagnál is. Más országban a számlán szereplő érték
+  (MJ/m³ ÷ 3,6).
 
 ## Telepítés
 

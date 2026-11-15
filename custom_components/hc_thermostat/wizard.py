@@ -47,7 +47,7 @@ from .rooms_ha import (
 STATIC_URL = "/hc_thermostat_static"
 PANEL_URL = "hc-wizard"
 _OUTDOOR_WORDS = ("kulso", "külső", "kinti", "outdoor", "outside", "udvar", "kert")  # 0.45.0: not "bthome" (indoor ones too)
-GAS_KWH_PER_M3 = 9.61  # typical Hungarian calorific value (MVM bills: 34.6 MJ/m³)
+GAS_KWH_PER_M3 = 9.61  # typical Hungarian calorific value (MVM bills: 34.6 MJ/m³) – core/fuel.GAS_DEFAULT
 BOILER_EFFICIENCY = 0.9
 
 # What the wizard may write: entity and setting keys (anything else in a request is ignored)

@@ -20,13 +20,14 @@ from .const import (
     CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_WINDOWS, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, DOMAIN, MODE_SHADOW,
     CONF_ASSIST, CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, EVENT_ROOM_ADVICE, MODE_ACTIVE,
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
-    CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
+    CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
     CONF_CONTROL, CONF_DEMAND, CONF_PRESSURE, CONF_FLOW_TEMP, CONF_MODULATION, CONF_FAULT_CODE, CONF_HEAT_OUTPUT,
     CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE,
 )
 from .core.boiler_health import BoilerHealth, health_kind, power_levels_known
 from .core import measures as ms
 from .core import energy_rating as er_
+from .core import states as st_
 from .core.plausibility import Plausibility
 from .core.matrix import ROOM_SOURCES, default_curve, floor_system, source_defaults
 from .core.target_source import ModeWatch, TargetFollower
@@ -54,10 +55,6 @@ _SAVE_EVERY = timedelta(minutes=10)
 _LOG_SIZE = 200
 _AGREEMENT_SIZE = 2880  # 24 hours
 _OUTDOOR_EVERY = timedelta(minutes=10)
-_HOME = {"home", "on", "otthon"}
-# a heat pump's defrost / hot-water signal: a binary sensor, a switch, or a mode sensor that names it
-_BUSY_STATES = {"on", "true", "1", "defrost", "defrosting", "dhw", "hot_water", "domestic_hot_water", "leolvasztás", "hmv"}
-_VACATION = {"vacation", "szabadság", "szabadsag"}
 HA_STARTED = f"{DOMAIN}_ha_started"
 FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
 PROBLEM_WORDS_HU = {"lost": "nem elérhető", "stale": "rég nem jelentett", "out_of_range": "hihetetlen érték",
@@ -136,7 +133,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.health = BoilerHealth(self.cfg, health_kind(data.get(CONF_HEAT_SOURCE)),
                                    levels_known=power_levels_known(data))
         cfg = self.cfg
-        self._plaus_indoor = Plausibility(cfg.plaus_indoor_min, cfg.plaus_indoor_max, cfg.plaus_jump, cfg.plaus_confirm_s)
+        # 0.52.0: the lowest believable room temperature never above the frost target minus 2 °C
+        self._plaus_indoor = Plausibility(st_.indoor_floor(cfg.plaus_indoor_min, cfg.frost_temp), cfg.plaus_indoor_max,
+                                          cfg.plaus_jump, cfg.plaus_confirm_s)
+        self._warned_states: set[tuple[str, str]] = set()
         self._plaus_outdoor = Plausibility(cfg.plaus_outdoor_min, cfg.plaus_outdoor_max)
         self._plaus_floor = Plausibility(0.0, 50.0, 6.0, cfg.plaus_confirm_s)  # a floor sensor inside the screed
         self._follower = TargetFollower()
@@ -280,11 +280,23 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         return Reading(value, (now - state.last_reported).total_seconds())
 
     def _presence(self) -> Presence:
-        states = [self.hass.states.get(e) for e in self.conf.get(CONF_PRESENCE) or []]
-        values = [s.state.lower() for s in states if s and s.state not in ("unknown", "unavailable")]
-        if not values or any(v in _HOME for v in values):
-            return Presence.HOME
-        return Presence.VACATION if any(v in _VACATION for v in values) else Presence.AWAY
+        """0.52.0: the values chosen in the settings count besides the built-in words; an unknown value of an
+        input_select / sensor source is logged once (it counts as away, as before)."""
+        pairs = []
+        for entity_id in self.conf.get(CONF_PRESENCE) or []:
+            state = self.hass.states.get(entity_id)
+            if state is not None:
+                pairs.append((entity_id, state.state))
+        result, unknown = st_.presence(pairs, self.conf.get(CONF_PRESENCE_HOME), self.conf.get(CONF_PRESENCE_VACATION))
+        warned = self.__dict__.setdefault("_warned_states", set())
+        for entity_id, value in unknown:
+            if (entity_id, value) not in warned:
+                warned.add((entity_id, value))
+                _LOGGER.warning(
+                    "%s: the presence source %s is \"%s\" – not a known home / vacation / away value, so it counts as "
+                    "away. Choose its home and vacation values in the settings (Functions).",
+                    getattr(getattr(self, "config_entry", None), "title", "HC"), entity_id, value)
+        return result
 
     def _window_ids(self) -> list[str]:
         """0.46.0: the contacts that stop the boiler – the instance's list plus the windows of the leading room and of
@@ -478,7 +490,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         """What the heat pump does besides heating the house, from its optional signals."""
         for key, mode in ((CONF_HP_DEFROST, "defrost"), (CONF_HP_DHW, "dhw")):
             state = self.hass.states.get(self.conf.get(key) or "")
-            if state is not None and str(state.state).lower() in _BUSY_STATES:
+            if state is not None and st_.busy(state.state, self.conf.get(CONF_HP_BUSY)):  # 0.52.0: + chosen values
                 return mode
         return None
 

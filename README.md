@@ -4,8 +4,22 @@
 
 > **Beta.** It runs a real home's heating, but every installation differs: a new instance always starts in
 > **shadow mode** (it calculates and compares, switches nothing). Go live only after you have checked its decisions,
-> and keep an independent backup thermostat (see Safety). The heating curve, cooling and the newer sources
-> (storage heater, district heating, fan coil, pellet / buffer) are tested in a simulator and a test instance only.
+> and keep an independent backup thermostat (see Safety). What has been tested how is in the table below.
+
+## What has been tested (0.52.0)
+
+| Heat source / system | How it was tested |
+|---|---|
+| On-off gas boiler, radiators (TPI / PID on a relay) | **Live**, one real house, daily since autumn 2026 |
+| TRV heads in a room (Sonoff TRV Gen2 on Zigbee2MQTT) | **Live**, one room, since 2026-11-11 |
+| Air conditioner (`ac` control, a Gree unit) | **Live**, since 2026-11-09 |
+| Electric heater on a relay (oil radiator) | Real device, mostly in shadow mode (live briefly) |
+| Modulating / OpenTherm boiler, heating curve | **Test instance**: a simulated boiler and house in a live Home Assistant, real weather |
+| Heat pump with fan coil | **Test instance**: simulated, as above |
+| Storage heater, district heating, pellet / buffer, floor heating and cooling, electric floor, central zones | **Simulator and tests only** |
+
+Shadow mode and the decision log are the way to check HC against your own control before going live: the
+agreement percentage shows how often HC would have decided the same.
 
 HC Thermostat is a heating **supervisor** for Home Assistant, with a built-in regulator for simple systems. It does not try to replace good thermostat integrations. It sits above them and decides what the house should do, and says why.
 
@@ -28,7 +42,10 @@ both work (0.45.0): readings in °F are converted, and what HC writes to a therm
 
 **Presence** (`presence_entities`): home is any of `home`, `on`, `otthon` (a `person` / `device_tracker` at home, a
 binary sensor on); vacation is `vacation`, `szabadság`, `szabadsag`; anything else (a zone name, `not_home`, `off`)
-is away. With no presence entity the house is always home.
+is away. With no presence entity the house is always home. 0.52.0: for an `input_select` or `sensor` source the
+settings (*Functions*) offer its own values – choose which mean home (`presence_home_states`) and which vacation
+(`presence_vacation_states`); they count besides the built-in words. Until something is chosen, a value that is no
+known home / vacation / away word is logged once as a warning (it counts as away).
 
 **Removing an instance:** HC writes nothing back – a TRV head or a managed thermostat keeps the last target HC sent,
 and a relay stays as it is. Set them by hand if needed. When the last instance is deleted, the HC panels leave the
@@ -121,7 +138,9 @@ exists (add the first one under Settings → Devices & services).
 - **On/off with long runs** (`onoff` control): the heat pump's thermostat input is switched on below the target
   and off when the house reached it – no pulses; the shortest run and pause are adjustable (20 / 10 minutes).
 - **Defrost and hot water:** optional signals (a binary sensor, a switch or a mode sensor). While the heat pump
-  defrosts or makes hot water, fault detection waits and the health check does not raise an alarm.
+  defrosts or makes hot water, fault detection waits and the health check does not raise an alarm. 0.52.0: for a
+  mode sensor the settings (*Devices*) offer its values – choose which mean defrost / hot water (`hp_busy_states`),
+  besides the built-in `on`, `defrost`, `dhw`, `hot_water`, `hmv` …
 
 ## Modulating boiler with zones (0.27.0)
 
@@ -265,6 +284,8 @@ information: the HC info panel shows them (*Measurements*, and per room), and no
   primary factor (gas 1.1, electricity 2.3, district heat 1.38, biomass 0.6; `primary_factor` overrides it). A sensor
   and a row in the HC info panel; not a certificate. 0.51.2: the year can come from another outdoor sensor with a
   longer history (`rating_outdoor_entity`); days it has no mean for are taken from the standard Hungarian year.
+  **The scale, the primary factors and the standard year are Hungarian**: in another country the grade is only
+  indicative (set `primary_factor` to your country's value).
 
 ## District heating and fan coil (0.32.0)
 
@@ -443,6 +464,16 @@ fault sensor turns on, until a decision works again.
 *Repairs*, which clears itself when all is well; the fault and decision sensors show `degraded_since`. A sensor
 state of `nan` or `inf` counts as no reading. When an entity in HC's settings is renamed, HC follows it to the new id
 (and reloads) instead of losing it.
+
+## Limits you can set (0.52.0)
+
+- **Heating season** (*Functions*): it pauses when the daily outdoor mean goes above `season_off_above` (15 °C) and
+  starts again below `season_on_below` (13 °C). A well insulated house may want lower values, an old one higher.
+- **Lowest believable room temperature** (*Protection*, `plaus_indoor_min`, 3 °C): a room reading below it counts as
+  a broken sensor. It is never above the frost target minus 2 °C, so a really cold room is believed and the frost
+  protection starts; an unheated holiday home can set it lower.
+- **Natural gas heating value** (*Energy*, `gas_heating_value`, 9.61 kWh/m³ = the Hungarian bills' 34.6 MJ/m³): used
+  whenever gas is counted in m³, also with the automatic fuel. Elsewhere take your bill's value (MJ/m³ ÷ 3.6).
 
 ## Installation
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.52.0 – 2026-11-15
+Fewer guesses that only fit one house.
+- **Presence values to choose** (`core/states.py`): for an `input_select` / `sensor` presence source the settings
+  (*Functions*) offer its own values – which mean home (`presence_home_states`) and which vacation
+  (`presence_vacation_states`); they count besides the built-in words. Before, every value other than `home` / `on`
+  / `otthon` / `vacation` / `szabadság` was silently away (an input_select with "Itthon" was always away). Until
+  something is chosen, an unknown value is logged once as a warning.
+- **Heat pump busy values** (`hp_busy_states`, *Devices*): the same for a defrost / hot-water mode sensor.
+- **Heating season limits** on the settings (*Functions*): `season_off_above` (15 °C) and `season_on_below` (13 °C);
+  the start must be below the end.
+- **Lowest believable room temperature** on the settings (*Protection*, `plaus_indoor_min`, 3 °C), never above the
+  frost target minus 2 °C (checked in the form and applied in the regulation), so a really cold room is believed.
+- **Natural gas heating value** (`gas_heating_value`, *Energy* and the first setup, 9.61 kWh/m³): visible and
+  changeable, used with the automatic fuel too (before, a fixed Hungarian value).
+- The energy rating's description says it is the Hungarian scale (indicative elsewhere); README: a *What has been
+  tested* table per heat source (live / test instance / simulator only) and a *Limits you can set* section.
+- Nothing changes for an existing instance until the new fields are set (all defaults are the old behaviour).
+- Tests: tests/test_choices_520.py (11).
+
 ## 0.51.2 – 2026-11-15
 The energy rating's year.
 - **Its own outdoor sensor** (`rating_outdoor_entity`, *House model*; empty = the outdoor sensor): the year of

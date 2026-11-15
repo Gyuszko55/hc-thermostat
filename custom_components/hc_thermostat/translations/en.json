@@ -79,7 +79,8 @@
               "floor_covering": "Floor covering",
               "floor_probe": "Where the floor sensor sits",
               "heat_fuel": "Fuel (the heat is worked out from it)",
-              "heat_efficiency": "Efficiency"
+              "heat_efficiency": "Efficiency",
+              "gas_heating_value": "Natural gas heating value"
             },
             "data_description": {
               "reference_entity": "Used by fault detection and the shadow comparison. If empty, the relay or thermostat.",
@@ -97,7 +98,8 @@
               "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
               "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
               "heat_fuel": "Automatic: from the meter's unit (m³ gas, kWh, MJ, GJ), without a meter from the heat source. Custom: the number below is kept. For a heat pump, Custom is right.",
-              "heat_efficiency": "Counts for a burner (gas, oil, pellet); not for electric heat or a heat meter."
+              "heat_efficiency": "Counts for a burner (gas, oil, pellet); not for electric heat or a heat meter.",
+              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6)."
             }
           }
         }
@@ -297,12 +299,20 @@
               "shadow_regulator": "Shadow regulator: the other algorithm (PID next to TPI) calculates too, switches nothing",
               "adopt_manual": "Adopt changes made on the managed thermostat",
               "target_source_entity": "Target source (wall thermostat or number)",
-              "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)"
+              "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)",
+              "season_off_above": "Heating season ends above",
+              "season_on_below": "Heating season starts below",
+              "presence_home_states": "Presence: values that mean home",
+              "presence_vacation_states": "Presence: values that mean vacation"
             },
             "data_description": {
               "adopt_manual": "External control: a target set on the managed thermostat itself (not by HC) becomes the manual target until the next scheduled change; if someone switches it off, HC leaves it off (frost protection excepted) until someone switches it on again. Off: HC writes its own target and mode as before.",
               "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
-              "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback."
+              "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
+              "season_off_above": "When the daily outdoor mean goes above this, the heating season pauses. Default 15 °C; lower for a well insulated house, higher for an old one.",
+              "season_on_below": "When the daily outdoor mean goes below this, the heating season starts again. Must be lower than the end (default 13 °C).",
+              "presence_home_states": "Which values of an input_select / sensor presence source mean home (e.g. \"At home\"). They count besides the built-in words (home, on, otthon). With nothing here and under vacation, an unknown value writes one warning to the log.",
+              "presence_vacation_states": "Which values mean vacation (e.g. \"Holiday\"). They count besides the built-in vacation / szabadság. Every other value is away."
             }
           },
           "protection": {
@@ -322,14 +332,16 @@
               "exercise_s": "Valve exercise length",
               "return_temp_entity": "Return water temperature (optional)",
               "return_max": "Return limit (0 = none): the valve stays closed above it",
-              "return_hysteresis": "Return limit releases this far below"
+              "return_hysteresis": "Return limit releases this far below",
+              "plaus_indoor_min": "Lowest believable room temperature"
             },
             "data_description": {
               "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating.",
               "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
               "zone_own_mixer": "Off: the flow of a central modulating boiler never goes above the highest flow of this zone (flow_max, 45 °C for a floor by default) while its circuit can get water – radiator zones heat more weakly then. Switch it on only when the floor circuit really has a mixing valve or a temperature limiter.",
-              "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start."
+              "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start.",
+              "plaus_indoor_min": "Below this the room thermometer's reading counts as wrong (lost). At most the frost target minus 2 °C, so that the frost protection starts in a really cold room. Default 3 °C; lower for an unheated holiday home."
             }
           },
           "floor": {
@@ -382,14 +394,16 @@
               "power_available_entity": "Controlled power signal (optional: on = power available)",
               "discharge_entity": "Discharge fan / damper (optional)",
               "fan_entity": "Fan coil fan (fan entity, optional)",
-              "coil_temp_entity": "Coil / supply temperature (optional)"
+              "coil_temp_entity": "Coil / supply temperature (optional)",
+              "hp_busy_states": "Heat pump: values that mean defrost / hot water"
             },
             "data_description": {
               "power_idle_w": "Below this the boiler stands by. Leave the defaults (20 W / 115 W) untouched and the boiler health only learns – it judges \"no response\" / \"no flame\" by the power draw once you give your boiler's own values.",
               "power_burn_w": "At or above this the burner burns (between the two: only the pump runs).",
               "load_limit_kw": "Give the zone's own power in the boiler power field (for electric heat: the heater's). If switching on would exceed the limit, the zone waits and its cycle starts later – the zones heat staggered. Counts in live mode only.",
               "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
-              "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault."
+              "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
+              "hp_busy_states": "When the defrost or hot-water signal is a mode sensor: which of its values mean the heat pump does its own work. They count besides the built-in words (on, defrost, dhw, hot_water…)."
             }
           },
           "energy": {
@@ -408,12 +422,14 @@
               "boiler_allowance_entity": "Boiler discounted allowance left",
               "other_allowance_entity": "Other source discounted allowance left",
               "cop_high": "COP of the other source at +7 °C",
-              "cop_low": "COP of the other source at -7 °C"
+              "cop_low": "COP of the other source at -7 °C",
+              "gas_heating_value": "Natural gas heating value"
             },
             "data_description": {
               "heat_fuel": "Automatic: from the meter's unit (m³ gas, kWh, MJ, GJ), without a meter from the heat source. Custom: the number below is kept. For a heat pump, Custom is right.",
               "heat_efficiency": "Counts for a burner (gas, oil, pellet); not for electric heat or a heat meter.",
-              "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat)."
+              "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat).",
+              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6)."
             }
           },
           "adjoining": {
@@ -486,7 +502,7 @@
               "pre_change_max_s": "With τ known, no new burn starts this long before a scheduled lowering while the room, left alone, stays above the coming target. 0 = only the fixed time above.",
               "pre_change_sag": "During the hold the room may fall at most this far under the current target.",
               "mould_frsi": "The mould risk is worked out at the room's coldest spot (a corner, a lintel, the wall behind a wardrobe): surface temperature = outdoor + fRsi × (indoor − outdoor); mould grows there above 80 % (EN ISO 13788). An old uninsulated wall's corner 0.6–0.7, an insulated one 0.75–0.8. The rooms' humidity sensors are taken from their thermometers' devices automatically.",
-              "house_area_m2": "When set, HC estimates the building's energy rating on the Hungarian 9/2023 ÉKM scale (A+++ … I) from the learned house model and the outdoor sensor's last year. An estimate, not a certificate. 0 = off.",
+              "house_area_m2": "When set, HC estimates the building's energy rating on the Hungarian 9/2023 ÉKM scale (A+++ … I) from the learned house model and the outdoor sensor's last year. An estimate, not a certificate. 0 = off. Hungarian scale (9/2023 ÉKM, Hungarian primary factors and standard year): only indicative in other countries.",
               "dhw_kwh_year": "Hot water's final energy per year, e.g. for a gas boiler m³ × 9.61 kWh. 0 = not counted.",
               "aux_kwh_year": "The boiler's or heat pump's auxiliary electricity per year (circulation pump, controls); counted with the electricity factor (2.3).",
               "primary_factor": "Non-renewable primary factor: natural gas 1.1, electricity 2.3, district heat 1.38, solid biomass 0.6. 0 = by the heat source.",
@@ -628,7 +644,9 @@
       "cycle_too_short": "The cycle is too short for the useful heat delay: at least the delay + the minimum on + the minimum off time (e.g. 20 minutes for a 10-minute delay with 5 + 5).",
       "confirm_required": "Confirm your choice for a system that is not recommended.",
       "indoor_required": "Give a room thermometer or a wall thermostat contact.",
-      "rooms_need_valves": "Rooms work with TPI or PID only. Remove them in the Rooms menu first, then change the control."
+      "rooms_need_valves": "Rooms work with TPI or PID only. Remove them in the Rooms menu first, then change the control.",
+      "season_order": "The heating season's start (the \"starts below\" value) must be lower than its end.",
+      "plaus_frost": "The lowest believable room temperature can be at most the frost target minus 2 °C."
     }
   },
   "selector": {

@@ -89,3 +89,8 @@ PRESETS = ["auto", "comfort", "home", "sleep", "eco", "away", "vacation", "boost
 TIMED_PRESETS = ["comfort", "home", "sleep", "eco", "away", "vacation"]  # presets with a target and an end
 EXPIRY = ["revoke", "next_change", "home", "hours"]
 CONF_RATING_OUTDOOR = "rating_outdoor_entity"  # 0.51.2: the outdoor sensor whose year the energy rating uses
+# 0.52.0: the values of a presence / heat pump mode source that mean home, vacation, busy (besides the built-in words)
+CONF_PRESENCE_HOME = "presence_home_states"
+CONF_PRESENCE_VACATION = "presence_vacation_states"
+CONF_HP_BUSY = "hp_busy_states"
+CONF_GAS_VALUE = "gas_heating_value"  # 0.52.0: kWh/m³ of the natural gas (lower heating value)

@@ -21,6 +21,7 @@ from .const import (
     CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
+    CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
 )
 from .core.matrix import (
     fit_cycle, min_cycle_s,
@@ -35,6 +36,7 @@ from .core.room_model import OWN, rooms_options
 from . import room_form as rf
 from .core import measures as ms
 from .core import fuel as fl
+from .core import states as st_
 from .rooms_ha import (
     area_id_of, areas_of_other_instances, excluded_climates, heads_of_other_instances, room_specs_for, rooms_candidates,
     suggest_entities,
@@ -164,7 +166,30 @@ def _central_fields(current: dict) -> dict:
     }
 
 
-def _hp_fields(source: str | None, control: str | None, current: dict, settings: bool) -> dict:
+def _word_values(hass, entity_ids, current: dict, keys) -> dict:
+    """0.52.0: a pick of a word source's own values (an input_select's options, an enum sensor's, its value now)
+    for each key – shown only when one of the sources gives words; a value can also be typed in."""
+    ids = [e for e in entity_ids or [] if e and str(e).split(".", 1)[0] in st_.WORD_DOMAINS]
+    if not ids and not any(current.get(k) for k in keys):
+        return {}
+    values: list[str] = []
+    for entity_id in ids:
+        try:
+            state = hass.states.get(entity_id) if hass is not None else None
+        except AttributeError:
+            state = None
+        values += [v for v in st_.source_values(state) if v not in values]
+    out: dict = {}
+    for key in keys:
+        saved = [str(v) for v in current.get(key) or []]
+        picker = SelectSelector(SelectSelectorConfig(options=values + [v for v in saved if v not in values],
+                                                     multiple=True, custom_value=True,
+                                                     mode=SelectSelectorMode.DROPDOWN))
+        out[vol.Optional(key, description={"suggested_value": saved} if saved else None)] = picker
+    return out
+
+
+def _hp_fields(source: str | None, control: str | None, current: dict, settings: bool, hass=None) -> dict:
     """Heat pump: its defrost / hot-water signals (optional) and, in the options, the run times and the hysteresis."""
     if source != "heat_pump":
         return {}
@@ -172,6 +197,9 @@ def _hp_fields(source: str | None, control: str | None, current: dict, settings:
         vol.Optional(CONF_HP_DEFROST, description={"suggested_value": current.get(CONF_HP_DEFROST)}): _entity("binary_sensor", "sensor", "switch", "input_boolean"),
         vol.Optional(CONF_HP_DHW, description={"suggested_value": current.get(CONF_HP_DHW)}): _entity("binary_sensor", "sensor", "switch", "input_boolean"),
     }
+    if settings:
+        out.update(_word_values(hass, (current.get(CONF_HP_DEFROST), current.get(CONF_HP_DHW)), current,
+                                (CONF_HP_BUSY,)))
     if settings and control in ("curve", "onoff"):
         cfg = HcConfig.from_mapping(current)
         out[vol.Required("hp_min_on_s", default=cfg.hp_min_on_s)] = _number(300, 7200, 60, "s")
@@ -353,9 +381,11 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
                    "ac_min_change_s", CONF_ASSIST, "storage_window_start", "storage_window_end", "storage_charge_h",
                    "storage_bias", "storage_discharge_hyst", "fan_min_pct", "fan_overrun_s", "fan_min_coil",
                    "keep_alive_s", CONF_KEEP_ALIVE_SCRIPT),
-    "functions": ("season_enabled", "boost_enabled", "learning_enabled", "shadow_regulator", "adopt_manual",
+    "functions": ("season_enabled", "season_off_above", "season_on_below", CONF_PRESENCE_HOME,
+                  CONF_PRESENCE_VACATION, "boost_enabled", "learning_enabled", "shadow_regulator", "adopt_manual",
                   CONF_TARGET_SOURCE, CONF_DEMAND),
     "protection": (CONF_WINDOWS, CONF_WINDOW_DROP, "window_drop_rate", "frozen_after_h", "frozen_burn_min",
+                   "plaus_indoor_min",
                    CONF_VALVE_FEEDBACK, "zone_own_mixer", "valve_exercise", "exercise_weekday", "exercise_time",
                    "exercise_s", CONF_RETURN, "return_max", "return_hysteresis"),
     "floor": (CONF_FLOOR, "floor_max", "floor_covering", "floor_probe", "floor_hysteresis", "floor_temper",
@@ -363,8 +393,8 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
               "floor_fallback", "floor_cooling", CONF_HUMIDITY, CONF_COOL_MODE, "dew_margin", "floor_min_cool",
               CONF_COOL_FLOW, "cool_flow", "cool_flow_max"),
     "devices": (CONF_FLAME, CONF_BOILER_POWER, "power_idle_w", "power_burn_w", "boiler_power_kw", "load_limit_kw",
-                CONF_HP_DEFROST, CONF_HP_DHW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL),
-    "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
+                CONF_HP_DEFROST, CONF_HP_DHW, CONF_HP_BUSY, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL),
+    "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_GAS_VALUE, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
                CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
     "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF),
@@ -412,11 +442,13 @@ def _field_error(key: str, code: str, section_of: dict[str, str]) -> dict:
 
 
 def _fuel_fields(current: dict) -> dict:
-    """0.49.0: the fuel and the efficiency work the energy factor out; the number itself is kept for "custom"."""
+    """0.49.0: the fuel and the efficiency work the energy factor out; the number itself is kept for "custom".
+    0.52.0: the natural gas's heating value is shown and can be changed (it was a fixed Hungarian 9.61 kWh/m³)."""
     return {
         vol.Required(CONF_HEAT_FUEL, default=fl.default_fuel(current)): _select(fl.FUELS, "heat_fuel"),
         vol.Required(CONF_HEAT_EFFICIENCY, default=float(current.get(CONF_HEAT_EFFICIENCY, fl.DEFAULT_EFFICIENCY))):
             _number(30, 120, 1, "%"),
+        vol.Required(CONF_GAS_VALUE, default=fl.gas_value(current.get(CONF_GAS_VALUE))): _number(5, 15, 0.01, "kWh/m³"),
         vol.Required(CONF_ENERGY_FACTOR, default=float(current.get(CONF_ENERGY_FACTOR, fl.DEFAULT_FACTOR))):
             _number(0.01, 100, 0.01, "kWh"),
     }
@@ -434,7 +466,8 @@ def _with_fuel(hass, values: dict, source: str | None) -> dict:
         except AttributeError:
             unit = None
     return {**values, CONF_ENERGY_FACTOR: fl.energy_factor(values.get(CONF_HEAT_FUEL), values.get(CONF_HEAT_EFFICIENCY),
-                                                           unit, source, values.get(CONF_ENERGY_FACTOR))}
+                                                           unit, source, values.get(CONF_ENERGY_FACTOR),
+                                                           values.get(CONF_GAS_VALUE))}
 
 
 def _suggested(hass) -> dict:
@@ -776,6 +809,10 @@ class HcOptionsFlow(OptionsFlow):
             user_input = _flat(user_input, (*SETTINGS_SECTIONS, MEASURES))
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
+            elif float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
+                errors = _field_error("season_on_below", "season_order", _SETTINGS_SECTION_OF)  # 0.52.0
+            elif float(user_input.get("plaus_indoor_min", 3.0)) > float(user_input.get("frost_temp", 7.0)) - 2.0:
+                errors = _field_error("plaus_indoor_min", "plaus_frost", _SETTINGS_SECTION_OF)  # 0.52.0
             elif _cycle_too_short(user_input):
                 errors = _field_error("cycle_s", "cycle_too_short", _SETTINGS_SECTION_OF)  # 0.48.1
             elif user_input.get("floor_cooling") and not user_input.get(CONF_HUMIDITY):
@@ -847,6 +884,10 @@ class HcOptionsFlow(OptionsFlow):
                 vol.Required("frozen_burn_min", default=cfg.frozen_burn_min): _number(0, 240, 5, "min")}
                if cfg.control in ("tpi", "pid", "onoff") else {}),
             vol.Required("season_enabled", default=cfg.season_enabled): BooleanSelector(),
+            # 0.52.0: the season's limits by the daily outdoor mean, and the lowest believable room temperature
+            vol.Required("season_off_above", default=cfg.season_off_above): _number(5, 25, 0.5, "°C"),
+            vol.Required("season_on_below", default=cfg.season_on_below): _number(0, 24, 0.5, "°C"),
+            vol.Required("plaus_indoor_min", default=cfg.plaus_indoor_min): _number(-10, 10, 0.5, "°C"),
             vol.Required("boost_enabled", default=cfg.boost_enabled): BooleanSelector(),
             vol.Required("learning_enabled", default=cfg.learning_enabled): BooleanSelector(),
             vol.Required("shadow_regulator", default=cfg.shadow_regulator): BooleanSelector(),
@@ -893,7 +934,11 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required(CONF_COP_LOW, default=current.get(CONF_COP_LOW, 2.4)): _number(1, 8, 0.1),
         }
         fields.update(_floor_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current))
-        fields.update(_hp_fields(current.get(CONF_HEAT_SOURCE), cfg.control, current, settings=True))
+        fields.update(_hp_fields(current.get(CONF_HEAT_SOURCE), cfg.control, current, settings=True,
+                                 hass=getattr(self, "hass", None)))
+        # 0.52.0: which values of an input_select / sensor presence source mean home and vacation
+        fields.update(_word_values(getattr(self, "hass", None), current.get(CONF_PRESENCE), current,
+                                   (CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION)))
         fields.update(_cool_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current))
         fields.update(_power_fields(current.get(CONF_HEAT_SOURCE), current, settings=True))
         fields.update(_water_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), current, settings=True))
