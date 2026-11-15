@@ -261,6 +261,12 @@ info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési dönté
   hőmérsékletét és páratartalmát, és a legnagyobb penészmentes páratartalmat a helyiségben. A helyiségek
   páratartalom-érzékelőit a hőmérőik eszközéről egyszer, magától felveszi (a helyiségek űrlapján kivehetők).
 - **HC info panel:** új *Ház-modell* rész mindezzel.
+- **Energetikai besorolás, becslés (0.51.0):** ha megadod az alapterületet (`house_area_m2`), a HC a 9/2023 ÉKM
+  rendelet skáláján (A+++ … I) becsli az épület besorolását a tanult hőveszteségből és szabad hőből, a kinti hőmérő
+  elmúlt évéből, a hőforrás hatásfokából vagy COP-jából, a melegvízből és a segédáramból (`dhw_kwh_year`,
+  `aux_kwh_year`), a primer tényezővel (gáz 1,1, villany 2,3, távhő 1,38, biomassza 0,6; a `primary_factor`
+  felülírja). Szenzor és sor a HC info panelen; nem tanúsítvány. 0.51.2: az év egy másik, hosszabb adatsorú kinti
+  hőmérőből is jöhet (`rating_outdoor_entity`); azokat a napokat, amelyekre nincs átlag, a szabványos magyar évből pótolja.
 
 ## Távfűtés és fan-coil (0.32.0)
 
@@ -438,6 +444,10 @@ A program nem helyettesíti a kazán saját védelmeit. Tarts független tartal�
 Az éles mód külön, megerősített lépés (Konfigurálás → Élesítés). Ilyenkor ugyanazt a kimenetet más nem vezérelheti.
 0.45.0: ha maga a döntés háromszor egymás után hibára fut (belső hiba), a HC lekapcsolja a kimenetét és a hiba-szenzor
 bekapcsol, amíg egy döntés újra sikerül.
+0.51.1: a tartós érzékelőhiba (`sensor_problem_after_s`, 10 perc) a Home Assistant *Javítások* listájában is
+megjelenik, és magától eltűnik, ha minden rendben; a hiba- és a döntés-szenzor `degraded_since` attribútuma mutatja,
+mióta. A `nan` vagy `inf` állapotú szenzor „nincs adat”. Ha a HC beállításaiban szereplő entitást átnevezed, a HC
+követi az új azonosítóra (és újratölt), nem veszíti el.
 
 ## Telepítés
 

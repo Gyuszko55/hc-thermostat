@@ -161,6 +161,11 @@ class HcConfig:
     # 0.50.0 mould risk at the coldest surface: its temperature factor (EN ISO 13788: 0.7 an old wall's corner,
     # 0.75–0.8 an insulated one)
     mould_frsi: float = 0.7
+    # 0.51.0 energy rating estimate (core/energy_rating.py, 9/2023 ÉKM scale): 0 m² = off
+    house_area_m2: float = 0.0
+    dhw_kwh_year: float = 0.0  # hot water, final energy per year (e.g. gas m³ × 9.61)
+    aux_kwh_year: float = 0.0  # auxiliary electricity per year (pumps, controls)
+    primary_factor: float = 0.0  # 0 = by the heat source (gas 1.1, electricity 2.3, district heat 1.38, biomass 0.6)
     pid_d_filter_s: float = 300.0  # 0.40.0: low-pass time constant of the derivative (stepwise sensors); 0 = off
     pid_ke: float = 0.01
     pid_ki_per_hour: float | None = None  # when set, wins over pid_ki (demand per °C per hour; easier to read)

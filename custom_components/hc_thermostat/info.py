@@ -19,7 +19,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN, PRESETS
 from .core.messages import explain
-from .units import state_value_c
+from .units import finite, state_value_c
 
 
 def jsonable(value: Any) -> Any:
@@ -119,7 +119,8 @@ def _instance(hass, entry) -> dict:
                            "gains_kw": round(sup.heat_need.gains_kw, 2), "source": sup.heat_need.source,
                            "fit": jsonable(sup.heat_need.fit()), "tau_h": jsonable(sup.tau.tau_h),
                            "tau_source": sup.tau.source, "tau_stretches": len(sup.tau.samples),
-                           "optimal_start": jsonable(sup.early_start)},
+                           "optimal_start": jsonable(sup.early_start),
+                           "rating": jsonable(c.energy_rating()) if hasattr(c, "energy_rating") else None},
                  "load": jsonable(sup.load.details(d.now)) if sup.load is not None and d else None},
         "health": {"state": c.health.state, **jsonable(c.health.attributes())} if getattr(c, "health", None) else None,
         "climate": _climate(hass, entry),
@@ -301,10 +302,9 @@ def _history_change(hass, entity_id: str, start: datetime, end: datetime) -> flo
                                                  include_start_time_state=True).get(entity_id) or []
     values = []
     for s in states:
-        try:
-            values.append(float(s.state))
-        except (TypeError, ValueError):
-            continue
+        v = finite(s.state)
+        if v is not None:
+            values.append(v)
     if len(values) < 2:
         return 0.0 if values else None
     # a meter that was reset during the day: the sum of the rises

@@ -88,3 +88,4 @@ MODE_ACTIVE = "active"
 PRESETS = ["auto", "comfort", "home", "sleep", "eco", "away", "vacation", "boost"]
 TIMED_PRESETS = ["comfort", "home", "sleep", "eco", "away", "vacation"]  # presets with a target and an end
 EXPIRY = ["revoke", "next_change", "home", "hours"]
+CONF_RATING_OUTDOOR = "rating_outdoor_entity"  # 0.51.2: the outdoor sensor whose year the energy rating uses

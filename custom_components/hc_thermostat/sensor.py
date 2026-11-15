@@ -29,6 +29,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
         if c.cfg.control in ("tpi", "pid", "onoff"):
             entities.append(HcTimeConstant(c))  # 0.50.0
+    if c.cfg.house_area_m2 > 0:
+        entities.append(HcEnergyRating(c))  # 0.51.0
         if c.conf.get("heat_source") != "external_heat":  # 0.47.0: no burner of its own to watch
             entities.append(HcBoilerHealth(c))
         if c.cfg.control == "curve":
@@ -69,6 +71,8 @@ class HcDecision(HcEntity, SensorEntity):
             "limited_by": d.limited_by,
             "actual_heating": c.actual,
             "log": list(c.log)[-20:],
+            # 0.51.1: since when a sensor (or HC itself) has been reported as a problem – None: all is well
+            "degraded_since": c.degraded_since.isoformat() if getattr(c, "degraded_since", None) else None,
             **({"ac": {k: d.details.get(k) for k in ("ac_mode", "aim", "setpoint", "offset", "integral", "unit_temp", "assist")}}
                if d.details and "setpoint" in d.details else {}),
         }
@@ -134,6 +138,32 @@ class HcHeatLoss(HcEntity, SensorEntity):
                 "ratio_w_k": None if ratio is None else round(ratio * 1000, 1),
                 "manual_w_k": round(need.manual_loss * 1000, 1) if need.manual_loss else None,
                 "since": need.since}
+
+
+class HcEnergyRating(HcEntity, SensorEntity):
+    """0.51.0: an estimate of the energy rating by the 9/2023 ÉKM scale, from the learned house model."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["A+++", "A++", "A+", "A", "B", "C", "D", "E", "F", "G", "H", "I"]
+    _attr_icon = "mdi:home-lightning-bolt-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "energy_rating")
+
+    @property
+    def native_value(self):
+        r = self.coordinator.energy_rating()
+        return r["grade"] if r else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        r = self.coordinator.energy_rating() or {}
+        return {"ep_kwh_m2": r.get("ep"), "percent_of_a": r.get("percent"), "ep_low": r.get("ep_low"),
+                "ep_high": r.get("ep_high"), "grade_low": r.get("grade_low"), "grade_high": r.get("grade_high"),
+                "heat_kwh_year": r.get("heat_kwh"), "final_kwh_year": r.get("final_kwh"),
+                "primary_factor": r.get("primary_factor"), "climate": r.get("climate"),
+                "measured_days": r.get("measured_days"), "area_m2": r.get("area_m2"),
+                "estimate": True}
 
 
 class HcTimeConstant(HcEntity, SensorEntity):

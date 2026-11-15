@@ -18,7 +18,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
 )
@@ -370,7 +370,8 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
     "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF),
     # 0.50.0
     "house": ("house_loss_w_k", "house_gains_kw", "house_tau_h", "optimal_start", "optimal_start_max_min",
-              "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi"),
+              "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi", "house_area_m2",
+              "dhw_kwh_year", "aux_kwh_year", "primary_factor", CONF_RATING_OUTDOOR),
 }
 _SETTINGS_SECTION_OF = {k: name for name, keys in SETTINGS_SECTIONS.items() for k in keys}
 
@@ -825,6 +826,15 @@ class HcOptionsFlow(OptionsFlow):
                 vol.Required("house_tau_h", default=cfg.house_tau_h): _number(0, 500, 1, "h")}
                if cfg.control not in ("external", "ac") else {}),
             vol.Required("mould_frsi", default=cfg.mould_frsi): _number(0.4, 0.95, 0.05),
+            # 0.51.0: the energy rating estimate
+            **({vol.Required("house_area_m2", default=cfg.house_area_m2): _number(0, 2000, 1, "m²"),
+                vol.Required("dhw_kwh_year", default=cfg.dhw_kwh_year): _number(0, 20000, 10, "kWh"),
+                vol.Required("aux_kwh_year", default=cfg.aux_kwh_year): _number(0, 5000, 10, "kWh"),
+                vol.Required("primary_factor", default=cfg.primary_factor): _number(0, 5, 0.01),
+                # 0.51.2: the outdoor sensor whose year the rating uses (empty: the outdoor sensor above)
+                vol.Optional(CONF_RATING_OUTDOOR, description={"suggested_value": current.get(CONF_RATING_OUTDOOR)}):
+                    _entity("sensor")}
+               if cfg.control not in ("external", "ac") else {}),
             **({vol.Required("optimal_start", default=cfg.optimal_start): BooleanSelector(),
                 vol.Required("optimal_start_max_min", default=cfg.optimal_start_max_min): _number(15, 360, 15, "min"),
                 vol.Required("optimal_start_lag_min", default=cfg.optimal_start_lag_min): _number(0, 120, 5, "min"),

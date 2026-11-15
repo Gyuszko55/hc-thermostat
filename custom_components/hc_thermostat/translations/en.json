@@ -470,7 +470,12 @@
               "optimal_start_lag_min": "Delay of the radiators",
               "pre_change_max_s": "Hold before a lowering, with the forecast, at most",
               "pre_change_sag": "Meanwhile at most this far under the current target",
-              "mould_frsi": "Mould: temperature factor of the coldest surface (fRsi)"
+              "mould_frsi": "Mould: temperature factor of the coldest surface (fRsi)",
+              "house_area_m2": "Heated (useful) floor area – energy rating",
+              "dhw_kwh_year": "Hot water per year (final energy)",
+              "aux_kwh_year": "Auxiliary electricity per year (pump, controls)",
+              "primary_factor": "Primary energy factor (0 = by the heat source)",
+              "rating_outdoor_entity": "Outdoor sensor for the year (empty = the outdoor sensor above)"
             },
             "data_description": {
               "house_loss_w_k": "Watts the house loses per degree (indoor − outdoor). A straight line is fitted through the daily heat and temperatures; a value given here weighs as much as two weeks of learned days.",
@@ -480,7 +485,12 @@
               "optimal_start_lag_min": "On top of the burn minutes, the time the radiators need to give their heat to the room.",
               "pre_change_max_s": "With τ known, no new burn starts this long before a scheduled lowering while the room, left alone, stays above the coming target. 0 = only the fixed time above.",
               "pre_change_sag": "During the hold the room may fall at most this far under the current target.",
-              "mould_frsi": "The mould risk is worked out at the room's coldest spot (a corner, a lintel, the wall behind a wardrobe): surface temperature = outdoor + fRsi × (indoor − outdoor); mould grows there above 80 % (EN ISO 13788). An old uninsulated wall's corner 0.6–0.7, an insulated one 0.75–0.8. The rooms' humidity sensors are taken from their thermometers' devices automatically."
+              "mould_frsi": "The mould risk is worked out at the room's coldest spot (a corner, a lintel, the wall behind a wardrobe): surface temperature = outdoor + fRsi × (indoor − outdoor); mould grows there above 80 % (EN ISO 13788). An old uninsulated wall's corner 0.6–0.7, an insulated one 0.75–0.8. The rooms' humidity sensors are taken from their thermometers' devices automatically.",
+              "house_area_m2": "When set, HC estimates the building's energy rating on the Hungarian 9/2023 ÉKM scale (A+++ … I) from the learned house model and the outdoor sensor's last year. An estimate, not a certificate. 0 = off.",
+              "dhw_kwh_year": "Hot water's final energy per year, e.g. for a gas boiler m³ × 9.61 kWh. 0 = not counted.",
+              "aux_kwh_year": "The boiler's or heat pump's auxiliary electricity per year (circulation pump, controls); counted with the electricity factor (2.3).",
+              "primary_factor": "Non-renewable primary factor: natural gas 1.1, electricity 2.3, district heat 1.38, solid biomass 0.6. 0 = by the heat source.",
+              "rating_outdoor_entity": "The rating uses this sensor's last year (daily means from the statistics) – pick an outdoor sensor or group with a longer history. Missing days are filled from the standard Hungarian year."
             }
           }
         }
@@ -874,6 +884,9 @@
       },
       "time_constant": {
         "name": "Time constant (τ)"
+      },
+      "energy_rating": {
+        "name": "Energy rating (estimate)"
       }
     },
     "binary_sensor": {
@@ -945,6 +958,12 @@
   "exceptions": {
     "room_no_target": {
       "message": "{room}: no TRV head here, the room is heated only through the boiler – set the target on {host} (the room follows the house target)."
+    }
+  },
+  "issues": {
+    "sensor_problem": {
+      "title": "HC – {name}: a sensor or internal problem",
+      "description": "**{name}** has been running in a fallback mode for a while, because these do not work as they should:\n\n{problems}\n\nCheck the sensor (battery, connection), or HC's settings if you replaced it. This entry clears itself as soon as all is well."
     }
   }
 }

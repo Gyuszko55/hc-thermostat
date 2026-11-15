@@ -259,6 +259,12 @@ information: the HC info panel shows them (*Measurements*, and per room), and no
   surface temperature and humidity and the highest room humidity without mould. The rooms' humidity sensors are taken
   from their thermometers' devices once, automatically (untick them in the rooms form if not wanted).
 - **HC info panel:** a *House model* section with all of the above.
+- **Energy rating, an estimate (0.51.0):** with the floor area set (`house_area_m2`), HC estimates the grade on the
+  Hungarian 9/2023 ÉKM scale (A+++ … I) from the learned loss factor and free heat, the outdoor sensor's last year,
+  the heat source's efficiency or COP, hot water and auxiliary electricity (`dhw_kwh_year`, `aux_kwh_year`) and the
+  primary factor (gas 1.1, electricity 2.3, district heat 1.38, biomass 0.6; `primary_factor` overrides it). A sensor
+  and a row in the HC info panel; not a certificate. 0.51.2: the year can come from another outdoor sensor with a
+  longer history (`rating_outdoor_entity`); days it has no mean for are taken from the standard Hungarian year.
 
 ## District heating and fan coil (0.32.0)
 
@@ -433,6 +439,10 @@ This software does not replace the safety devices of your boiler. Keep an indepe
 Going live is a separate, confirmed step (Configure → Go live). Nothing else may control the same output while active mode is on.
 0.45.0: if the decision itself fails three times in a row (an internal error), HC switches its output off and the
 fault sensor turns on, until a decision works again.
+0.51.1: a sensor problem that lasts (`sensor_problem_after_s`, 10 min) is also an entry in Home Assistant's
+*Repairs*, which clears itself when all is well; the fault and decision sensors show `degraded_since`. A sensor
+state of `nan` or `inf` counts as no reading. When an entity in HC's settings is renamed, HC follows it to the new id
+(and reloads) instead of losing it.
 
 ## Installation
 

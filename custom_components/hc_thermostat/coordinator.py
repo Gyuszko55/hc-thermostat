@@ -9,6 +9,7 @@ import logging
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -16,7 +17,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_BOILER_POWER, CONF_ENERGY_FACTOR, CONF_FLOW, CONF_HEAT_ENABLE, CONF_FLAME, CONF_WINDOW_DROP, CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_INDOOR, CONF_MODE, CONF_OUTDOOR, CONF_PRESENCE,
-    CONF_REFERENCE, CONF_WINDOWS, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, DOMAIN, MODE_SHADOW,
+    CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_WINDOWS, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, DOMAIN, MODE_SHADOW,
     CONF_ASSIST, CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, EVENT_ROOM_ADVICE, MODE_ACTIVE,
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
@@ -25,6 +26,7 @@ from .const import (
 )
 from .core.boiler_health import BoilerHealth, health_kind, power_levels_known
 from .core import measures as ms
+from .core import energy_rating as er_
 from .core.plausibility import Plausibility
 from .core.matrix import ROOM_SOURCES, default_curve, floor_system, source_defaults
 from .core.target_source import ModeWatch, TargetFollower
@@ -44,7 +46,7 @@ from .core.zone import coupled
 from .core.load import LoadClient, LoadManager
 from .executor import Executor, write_log
 from .rooms_ha import area_name, group_by_room, room_specs_for, room_value
-from .units import climate_attrs_c, climate_temp_c, source_value_c, state_value_c, to_system
+from .units import climate_attrs_c, finite, climate_temp_c, source_value_c, state_value_c, to_system
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
@@ -58,6 +60,10 @@ _BUSY_STATES = {"on", "true", "1", "defrost", "defrosting", "dhw", "hot_water", 
 _VACATION = {"vacation", "szabadság", "szabadsag"}
 HA_STARTED = f"{DOMAIN}_ha_started"
 FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
+PROBLEM_WORDS_HU = {"lost": "nem elérhető", "stale": "rég nem jelentett", "out_of_range": "hihetetlen érték",
+                    "jump": "hihetetlen ugrás", "internal_error": "belső hiba"}
+PROBLEM_WORDS_EN = {"lost": "unavailable", "stale": "silent for too long", "out_of_range": "unbelievable value",
+                    "jump": "unbelievable jump", "internal_error": "internal error"}
 FAILSAFE_KEY = "hc_supervisor"  # its entry in sensor_problems (the fault binary sensor)
 EXECUTOR_KEY = "hc_executor"  # 0.47.0: a part of the executor that failed (relay, flow, fan, ...)
 SIDE_KEY = "hc_step"  # 0.47.0: a side step that failed (record, cost, health, rooms, trv)
@@ -149,6 +155,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self._detect_platform()
         self._sensor_bad_since: dict[str, datetime] = {}
         self.sensor_problems: dict[str, str] = {}  # entity → lost | stale | out_of_range | jump (after a while)
+        self.degraded_since: datetime | None = None  # 0.51.1: since when sensor_problems is not empty
         self.step_errors = 0  # 0.45.0: failed decisions in a row (failsafe)
         # one room (a heater, an AC unit, a zone): the texts say "the room" instead of "the house"
         self.room_wording = data.get(CONF_HEAT_SOURCE) in ROOM_SOURCES or data.get(CONF_ROLE) == "zone"
@@ -296,10 +303,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _cumulative(self, entity_id: str | None) -> float | None:
         state = self.hass.states.get(entity_id) if entity_id else None
-        try:
-            return float(state.state) if state else None
-        except ValueError:
-            return None
+        return finite(state.state) if state else None
 
     def _zone_state(self, indoor: Reading, now: datetime) -> tuple[bool, bool]:
         """Door open and coupled; without a zone the other source always counts."""
@@ -723,8 +727,53 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "fault": decision.fault,
         })
 
+    # --- 0.51.0: energy rating estimate ----------------------------------------------------------------------------
+    async def async_refresh_climate(self) -> None:
+        """The outdoor sensor's daily means of the last year (statistics), once a day, for the energy rating."""
+        # 0.51.2: a sensor of its own for the rating's year (one with a longer history), else the outdoor sensor
+        outdoor = self.conf.get(CONF_RATING_OUTDOOR) or self.conf.get(CONF_OUTDOOR)
+        self._climate_day = dt_util.now().date()
+        if not outdoor or self.cfg.house_area_m2 <= 0:
+            return
+        try:
+            from homeassistant.components.recorder import get_instance
+            from homeassistant.components.recorder.statistics import statistics_during_period
+
+            today = dt_util.start_of_local_day()
+            stats = await get_instance(self.hass).async_add_executor_job(
+                statistics_during_period, self.hass, today - timedelta(days=366), today, {outdoor}, "day", None,
+                {"mean"})
+        except Exception:  # a convenience: the standard climate stands in
+            _LOGGER.debug("No outdoor statistics for the energy rating", exc_info=True)
+            return
+        rows = []
+        for row in stats.get(outdoor, []):
+            start = row["start"]
+            ts = start.timestamp() if hasattr(start, "timestamp") else float(start) / (1000 if start > 1e11 else 1)
+            rows.append((dt_util.as_local(dt_util.utc_from_timestamp(ts)).date(), row.get("mean")))
+        self._climate, self._climate_measured = er_.year_of(rows, today.date())  # 0.51.2: gaps → standard climate
+
+    def energy_rating(self) -> dict | None:
+        """The estimate (core/energy_rating.py), or None when no floor area is set."""
+        cfg, conf, need = self.cfg, self.conf, self.supervisor.heat_need
+        try:
+            return er_.rating(need.loss_kw_per_k, need.gains_kw, cfg.house_area_m2,
+                              source=conf.get(CONF_HEAT_SOURCE), fuel=conf.get("heat_fuel"),
+                              efficiency_pct=conf.get("heat_efficiency"),
+                              cop_high=float(conf.get(CONF_COP_HIGH, 4.0)), cop_low=float(conf.get(CONF_COP_LOW, 2.4)),
+                              dhw_kwh=cfg.dhw_kwh_year, aux_kwh=cfg.aux_kwh_year, primary_factor=cfg.primary_factor,
+                              outdoor_days=getattr(self, "_climate", None),
+                              measured_days=getattr(self, "_climate_measured", None))
+        except Exception:
+            _LOGGER.debug("Energy rating failed", exc_info=True)
+            return None
+
     async def _async_update_data(self) -> Decision:
         now = dt_util.now()
+        area = getattr(getattr(self, "cfg", None), "house_area_m2", 0) or 0
+        if area > 0 and getattr(self, "_climate_day", None) != now.date():
+            self._climate_day = now.date()
+            self.hass.async_create_task(self.async_refresh_climate())
         if self.managed and self.managed_platform is None:
             self._detect_platform()  # the integration may load after HC
         try:
@@ -760,6 +809,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self.sensor_problems.pop(f"{SIDE_KEY}:trv", None)
         except Exception:
             self._side_failed("trv")
+        self._sync_repair(now)
         # 0.47.0: saved at once when the output or a boost changes (a crash or a power cut lost up to 10 minutes of
         # burns – the boost resume and the flame log rely on it), else every 10 minutes
         mark = (bool(decision.output), bool(getattr(self.supervisor, "boosting", False)))
@@ -768,6 +818,39 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             await self.async_save()
         self._save_mark = mark
         return decision
+
+    def _sync_repair(self, now: datetime) -> None:
+        """0.51.1 (as Better Thermostat 2.0): a lasting sensor or internal problem (sensor_problems, reported after
+        `sensor_problem_after_s`) is also an entry in Home Assistant's Repairs, which clears itself when it is gone;
+        `degraded_since` says since when."""
+        problems = dict(getattr(self, "sensor_problems", None) or {})
+        if not problems:
+            self.degraded_since = None
+        elif getattr(self, "degraded_since", None) is None:
+            self.degraded_since = now
+        key = tuple(sorted(problems.items()))
+        if key == getattr(self, "_repair_key", ()):
+            return
+        self._repair_key = key
+        try:
+            issue_id = f"sensor_problem_{self.config_entry.entry_id}"
+            if not problems:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                return
+            hu = str(getattr(self.hass.config, "language", "") or "").startswith("hu")
+            words = PROBLEM_WORDS_HU if hu else PROBLEM_WORDS_EN
+            lines = []
+            for entity, why in sorted(problems.items()):
+                state = self.hass.states.get(entity) if "." in entity else None
+                name = state.attributes.get("friendly_name") if state is not None else None
+                label = f"{name} ({entity})" if name else entity
+                lines.append(f"- {label}: {words.get(why, why)}")
+            ir.async_create_issue(
+                self.hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+                severity=ir.IssueSeverity.WARNING, translation_key="sensor_problem",
+                translation_placeholders={"name": self.config_entry.title, "problems": "\n".join(lines)})
+        except Exception:  # the Repairs entry is a report – it must never stop the decision
+            _LOGGER.debug("The Repairs entry could not be updated", exc_info=True)
 
     def _side(self, name: str, fn) -> None:
         try:
@@ -1128,10 +1211,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if state is None or state.state in ("unknown", "unavailable"):
             return None, None, None
         unit = state.attributes.get("unit_of_measurement")
-        try:
-            return float(state.state), unit, state.state
-        except (TypeError, ValueError):
-            return None, unit, state.state
+        return finite(state.state), unit, state.state
 
     def _temp(self, entity: str | None, now: datetime) -> float | None:
         return self._reading(entity, now).fresh(self.cfg.sensor_max_age_s) if entity else None
@@ -1182,10 +1262,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if conf.get(CONF_HEAT_OUTPUT) and conf.get(CONF_HEAT_ENERGY):
             h, hu, _ = self._plain(CONF_HEAT_OUTPUT)
             e = self.hass.states.get(conf[CONF_HEAT_ENERGY])
-            try:
-                ev = float(e.state) if e is not None else None
-            except (TypeError, ValueError):
-                ev = None
+            ev = finite(e.state) if e is not None else None
             self.energy_days.update(now, ms.to_kwh(h, hu),
                                     ms.to_kwh(ev, e.attributes.get("unit_of_measurement") if e is not None else None))
             values["cop"] = self.energy_days.summary(now)
@@ -1243,10 +1320,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _plain_of(self, entity: str) -> float | None:
         state = self.hass.states.get(entity)
-        try:
-            return float(state.state) if state is not None else None
-        except (TypeError, ValueError):
-            return None
+        return finite(state.state) if state is not None else None
 
     def mould_risk(self, key: str) -> dict | None:
         """A room's (or "_house") humidity values, for its sensor."""

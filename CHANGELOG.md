@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.51.2 – 2026-11-15
+The energy rating's year.
+- **Its own outdoor sensor** (`rating_outdoor_entity`, *House model*; empty = the outdoor sensor): the year of
+  daily means can come from an outdoor sensor or group with a longer history than the one HC regulates on.
+- **Missing days are filled** (`energy_rating.year_of`): the 365 days before today, measured where there is a daily
+  mean, else the standard climate's monthly mean. `climate` is `measured` (≥ 300 measured days), `mixed` or
+  `standard`; new attribute `measured_days`; the info panel says how many days were measured.
+- Tests: tests/test_rating_climate_512.py (5).
+
+## 0.51.1 – 2026-11-15
+Lessons from Better Thermostat 2.0 and Smart Thermostat 2026.11.
+- **A renamed entity is followed** (`rename.py`): when an entity in the settings (thermometer, window, head, relay,
+  meter …) is renamed in the entity registry, its id is replaced in the entry's data and options and the instance
+  reloads – before, the old id stayed and the sensor counted as lost.
+- **`nan` / `inf` is no reading** (`units.finite`, also in `to_c`): such a state passed `float()` and every comparison
+  with it was false.
+- **Repairs entry for a lasting problem**: what the fault sensor lists (`sensor_problems`, after
+  `sensor_problem_after_s`) is also a warning in Home Assistant's Repairs, which clears itself when the problem is
+  gone (and with the instance). New attribute `degraded_since` on the fault and decision sensors.
+- The PID integral over a short off (heat → off → heat, a window) was already kept (the regulator is only held); a
+  test now pins it.
+- The *Supervision paused* switch implements `async_entity_id_changed` (HA 2026.11): its own entity id is changed
+  in place on a rename instead of the entity being removed and added again (nothing in it is keyed on the id).
+- Tests: tests/test_fixes_511.py (8).
+
+## 0.51.0 – 2026-11-14
+An estimate of the energy rating.
+- **Energy rating (estimate)** (`core/energy_rating.py`, new sensor and a row in the HC info panel's *House model*):
+  the building's grade on the Hungarian 9/2023. (V. 25.) ÉKM scale (A+++ 0 · A++ 38 · A+ 68 · A 76 · B 98.8 · C 122 ·
+  D 152 · E 190 · F 236 · G 296 · H 380 · I above, kWh/m²·year; "A" = 100 %), from the learned house model: the
+  useful heat of a year at 20 °C (Σ days 24 h × max(0, H × (20 − outdoor) − free heat), the outdoor sensor's daily
+  means of the last year from the statistics, or a standard Hungarian year when it has fewer than 300 days), ÷ the
+  burner's efficiency / ÷ the mean COP of a heat pump or AC / as is for electric and district heat, + hot water and
+  auxiliary electricity, × the non-renewable primary factor (natural gas and other fossil fuels 1.1, electricity 2.3,
+  district heat 1.38, solid biomass 0.6), ÷ the floor area. The band is the loss factor ± 15 %. Not a certificate.
+- New settings in *House model*: `house_area_m2` (0 = off), `dhw_kwh_year`, `aux_kwh_year`, `primary_factor`
+  (0 = by the heat source). Sensor attributes: `ep_kwh_m2`, `percent_of_a`, `ep_low`, `ep_high`, `grade_low`,
+  `grade_high`, `heat_kwh_year`, `final_kwh_year`, `primary_factor`, `climate`, `area_m2`.
+- Tests: tests/test_energy_rating_510.py (6).
+
 ## 0.50.0 – 2026-11-14
 The house model: loss factor, free heat and time constant, and what uses them.
 - **Loss factor from a line** (`core/heat_need.py`): daily heat against the mean indoor − outdoor difference; slope =

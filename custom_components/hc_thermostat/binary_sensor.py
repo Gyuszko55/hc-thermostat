@@ -51,7 +51,9 @@ class HcFault(HcEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        return {"heating_fault": self.coordinator.data.fault, "sensors": dict(self.coordinator.sensor_problems)}
+        since = getattr(self.coordinator, "degraded_since", None)
+        return {"heating_fault": self.coordinator.data.fault, "sensors": dict(self.coordinator.sensor_problems),
+                "degraded_since": since.isoformat() if since else None}  # 0.51.1
 
 
 class HcBoilerProblem(HcEntity, BinarySensorEntity):

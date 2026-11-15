@@ -8,12 +8,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 
 from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
 from .const import CENTRAL_PLATFORMS, CONF_ROLE, DOMAIN, PLATFORMS
 from .coordinator import HcCoordinator, note_ha_start
+from .rename import async_track_renames
 from .rooms_ha import auto_humidity
 from .wizard import async_register_panels, async_remove_panels, async_setup_wizard
 
@@ -48,12 +50,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.runtime_data = central
         await hass.config_entries.async_forward_entry_setups(entry, CENTRAL_PLATFORMS)
         entry.async_on_unload(entry.add_update_listener(_async_reload))
+        entry.async_on_unload(async_track_renames(hass, entry))  # 0.51.1: a renamed entity is followed
         return True
     _auto_humidity(hass, entry)
     coordinator = HcCoordinator(hass, entry)
     await coordinator.async_load()
     await coordinator.async_backfill()
     await coordinator.async_backfill_rooms()
+    await coordinator.async_refresh_climate()  # 0.51.0: the energy rating's year of outdoor means
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(coordinator.async_track_target_source())
@@ -61,6 +65,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(coordinator.async_track_room_presence())  # 0.43.0: room presence sources
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+    entry.async_on_unload(async_track_renames(hass, entry))  # 0.51.1: a renamed entity is followed
+    # 0.51.1: the instance's Repairs entry goes with it (a reload builds it again when the problem is still there)
+    entry.async_on_unload(lambda: ir.async_delete_issue(hass, DOMAIN, f"sensor_problem_{entry.entry_id}"))
 
     async def _save(_event) -> None:
         await coordinator.async_save()

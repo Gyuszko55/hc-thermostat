@@ -470,7 +470,12 @@
               "optimal_start_lag_min": "A radiátorok késése",
               "pre_change_max_s": "Kivárás célcsökkenés előtt, előrejelzéssel legfeljebb",
               "pre_change_sag": "Közben a jelenlegi cél alá legfeljebb",
-              "mould_frsi": "Penész: a leghidegebb felület hőmérsékleti tényezője (fRsi)"
+              "mould_frsi": "Penész: a leghidegebb felület hőmérsékleti tényezője (fRsi)",
+              "house_area_m2": "Fűtött (hasznos) alapterület – energetikai besorolás",
+              "dhw_kwh_year": "Melegvíz évente (végső energia)",
+              "aux_kwh_year": "Segédáram évente (szivattyú, vezérlés)",
+              "primary_factor": "Primerenergia-tényező (0 = a hőforrás szerint)",
+              "rating_outdoor_entity": "Kinti hőmérő az évhez (üres = a fenti kinti hőmérő)"
             },
             "data_description": {
               "house_loss_w_k": "Ennyi wattot veszít a ház fokonként (bent − kint). A napi hőből és hőmérsékletekből egyenest illesztek; a kézi érték két hétnyi tanult napnak számít.",
@@ -480,7 +485,12 @@
               "optimal_start_lag_min": "Az égési perceken felül ennyi idő, amíg a radiátor hője a helyiségbe ér.",
               "pre_change_max_s": "Ismert τ-val az ütemezett célcsökkenés előtt eddig nem indítok új égést, ha a helyiség magára hagyva is a váltás utáni cél felett marad. 0 = csak a fenti fix idő.",
               "pre_change_sag": "A kivárás alatt a helyiség legfeljebb ennyivel hűlhet a jelenlegi cél alá.",
-              "mould_frsi": "A penészkockázatot a helyiség leghidegebb pontján (sarok, áthidaló, szekrény mögötti fal) számolom: felületi hőmérséklet = kint + fRsi × (bent − kint), és ott 80 % felett nő a penész (EN ISO 13788). Régi, szigeteletlen fal sarka 0,6–0,7; szigetelt 0,75–0,8. A helyiségek páratartalom-érzékelőit a hőmérőik eszközéről magától felveszem."
+              "mould_frsi": "A penészkockázatot a helyiség leghidegebb pontján (sarok, áthidaló, szekrény mögötti fal) számolom: felületi hőmérséklet = kint + fRsi × (bent − kint), és ott 80 % felett nő a penész (EN ISO 13788). Régi, szigeteletlen fal sarka 0,6–0,7; szigetelt 0,75–0,8. A helyiségek páratartalom-érzékelőit a hőmérőik eszközéről magától felveszem.",
+              "house_area_m2": "Ha megadod, a HC a tanult ház-modellből és a kinti hőmérő elmúlt évéből becsli az épület energetikai besorolását a 9/2023 ÉKM rendelet skálája szerint (A+++ … I). Becslés, nem tanúsítvány. 0 = ki.",
+              "dhw_kwh_year": "A melegvíz évi végső energiája, pl. gázkazánnál m³ × 9,61 kWh. 0 = nem számolja.",
+              "aux_kwh_year": "A kazán vagy a hőszivattyú segédárama évente (keringető szivattyú, vezérlés); a villany tényezőjével (2,3) számít.",
+              "primary_factor": "Nem megújuló primer tényező: földgáz 1,1, villany 2,3, távhő 1,38, szilárd biomassza 0,6. 0 = a hőforrás szerint.",
+              "rating_outdoor_entity": "A besoroláshoz ennek a szenzornak az elmúlt évét használja (napi átlagok a statisztikából) – adj meg egy régebbi adatsorú kinti hőmérőt vagy csoportot. A hiányzó napokat a szabványos magyar évből pótolja."
             }
           }
         }
@@ -874,6 +884,9 @@
       },
       "time_constant": {
         "name": "Időállandó (τ)"
+      },
+      "energy_rating": {
+        "name": "Energetikai besorolás (becslés)"
       }
     },
     "binary_sensor": {
@@ -945,6 +958,12 @@
   "exceptions": {
     "room_no_target": {
       "message": "{room}: itt nincs szelepfej, a helyiség csak a kazánon át fűthető – a célját a(z) {host} termosztáton állítsd (a ház célját követi)."
+    }
+  },
+  "issues": {
+    "sensor_problem": {
+      "title": "HC – {name}: érzékelő- vagy belső hiba",
+      "description": "A(z) **{name}** fűtésvezérlés egy ideje vészüzemben fut, mert ezek nem működnek rendesen:\n\n{problems}\n\nNézd meg az érzékelőt (elem, kapcsolat), vagy ha lecserélted, a HC beállításait. A bejegyzés magától eltűnik, amint minden rendben van."
     }
   }
 }

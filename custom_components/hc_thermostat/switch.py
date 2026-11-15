@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import callback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_ROLE
@@ -41,6 +42,11 @@ class HcSupervisionPaused(HcEntity, SwitchEntity, RestoreEntity):
             self.coordinator.restore_paused(last.state == "on")
         else:
             self.coordinator.restore_paused(False)
+
+    @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """0.51.1 (HA 2026.11): a renamed entity id is changed in place – nothing here is keyed on it (the restore
+        above only reads the last state), so the switch opts in instead of being removed and added again."""
 
     @property
     def is_on(self) -> bool:

@@ -11,6 +11,7 @@ Anything that is not a temperature unit (%, W, kWh …) passes unchanged.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Mapping
 
 from homeassistant.const import UnitOfTemperature
@@ -36,12 +37,23 @@ def system_unit(hass: Any) -> str:
     return temp_unit(getattr(units, "temperature_unit", None)) or CELSIUS
 
 
+def finite(value: Any) -> float | None:
+    """0.51.1: a state as a number – None when it is no number, or "nan" / "inf"."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
 def to_c(value: Any, unit: Any) -> float | None:
     """A number in `unit` as °C; a value without a temperature unit is returned as a float, unchanged."""
     try:
         v = float(value)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(v):
+        return None  # 0.51.1 (as Better Thermostat 2.0): "nan" / "inf" is no reading – every comparison with it is false
     u = temp_unit(unit)
     if u is None or u == CELSIUS:
         return v

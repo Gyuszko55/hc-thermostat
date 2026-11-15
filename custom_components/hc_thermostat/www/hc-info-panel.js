@@ -631,6 +631,14 @@ class HcInfoPanel extends HTMLElement {
       ? `${T.ahead} ${this._num(c.pre_change_max_s / 60)} min · ${T.sag} ${this._num(c.pre_change_sag)} °C`
       : `${this._num(c.pre_change_s / 60)} min · ${T.fixed}`));
     if (c.mould_frsi != null) add(T.frsi, esc(this._num(c.mould_frsi, 2)));
+    // 0.51.0: the energy rating estimate (9/2023 ÉKM scale)
+    const r = h.rating;
+    if (r) add(hu ? "Energetikai besorolás (becslés)" : "Energy rating (estimate)",
+      `<b>${esc(r.grade)}</b> · ~${esc(this._num(r.ep, 0))} kWh/m²·${hu ? "év" : "year"} (${esc(r.percent)} %)`
+      + ` · ${hu ? "sáv" : "band"} ${esc(r.grade_low)}–${esc(r.grade_high)} (${esc(this._num(r.ep_low, 0))}–${esc(this._num(r.ep_high, 0))})`
+      + `<div class="eid">${esc(hu
+        ? `${r.area_m2} m², primer tényező ${this._num(r.primary_factor, 2)}, ${r.climate === "measured" ? `a kinti hőmérő elmúlt éve (${r.measured_days ?? r.days} mért nap)` : r.climate === "mixed" ? `${r.measured_days} mért nap, a többi szabványos magyar év` : "szabványos magyar év (közelítés)"}; 9/2023 ÉKM skála – nem tanúsítvány`
+        : `${r.area_m2} m², primary factor ${this._num(r.primary_factor, 2)}, ${r.climate === "measured" ? `the outdoor sensor's last year (${r.measured_days ?? r.days} measured days)` : r.climate === "mixed" ? `${r.measured_days} measured days, the rest a standard Hungarian year` : "a standard Hungarian year (approximate)"}; 9/2023 ÉKM scale – not a certificate`)}</div>`);
     return `<table>${rows.join("")}</table>`;
   }
 
