@@ -56,7 +56,7 @@ const T = {
       add: "Helyiség hozzáadása (terület)…", custom: "Egyéni helyiség (terület nélkül)", custom_name: "Új helyiség", empty: "Még nincs helyiség.", name: "Név", no_area: "nincs terület",
       leading: "Vezető helyiség", remove: "Levesz", up: "Előrébb", down: "Hátrébb", sensors: "Hőmérők", trvs: "Szelepfejek", add_sensor: "Másik hőmérő…", add_trv: "Másik szelepfej…",
       lead_hint: "Ennek a hőmérője vezérli a kazánt (a ház célja: menetrend, presetek, háztartás-jelenlét). A HC példány termosztátja ennek a helyiségnek a termosztátja.",
-      trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Megfigyelt helyiség: saját HC termosztát, de csak a kazánon át fűthető – a ház célját követi, radiátorszelep-tanácsot kap.",
+      trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Megfigyelt helyiség: saját HC termosztát, de csak a kazánon át fűthető – a ház célját követi, radiátorszelep-tanácsot kap.", unheated: "Nincs fűtőteste ennek a hőforrásnak – csak mérés", unheated_hint: "Csak mért helyiség: a házrajzon látszik a hőmérséklete, de nem kap célt, saját termosztátot és radiátorszelep-tanácsot (pl. előtér, kamra, vagy egy helyiség, amit egy másik HC-példány fűt).",
       head_hint: "Fejenként: mihez kalibrálja a HC.", head_room: "A helyiség hőmérő(i) – kalibrálás", head_room_none: "A helyiség hőmérője (nincs: a fej saját mérése)", head_own: "A fej saját hőmérője – nincs kalibrálás",
       target: "Cél", follow: "A ház célját követi", own: "Saját menetrend", offset: "Eltérés a ház céljától", target_home: "Otthon", target_night: "Éjszaka", target_away: "Háztartás távol", night: "Éjszaka",
       presence: "Jelenlét", presence_hint: "Helyiség-követő (állapota a helyiség területe, pl. Bermuda) vagy mozgásérzékelő. Senki: a megadott perc után a cél csökken (a fagyhatár alá soha); háztartás távol / szabadság: a háztartás célja.",
@@ -142,7 +142,7 @@ const T = {
       add: "Add a room (area)…", custom: "Custom room (no area)", custom_name: "New room", empty: "No rooms yet.", name: "Name", no_area: "no area",
       leading: "Leading room", remove: "Remove", up: "Move up", down: "Move down", sensors: "Thermometers", trvs: "TRV heads", add_sensor: "Another thermometer…", add_trv: "Another TRV head…",
       lead_hint: "Its thermometer runs the boiler (the house target: schedule, presets, household presence). The HC instance's thermostat is this room's thermostat.",
-      trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Watched room: its own HC thermostat, but heated only through the boiler – follows the house target, gets radiator valve advice.",
+      trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Watched room: its own HC thermostat, but heated only through the boiler – follows the house target, gets radiator valve advice.", unheated: "No heater of this heat source – measured only", unheated_hint: "Measured-only room: its temperature shows in the house drawing, but it gets no target, no thermostat of its own and no radiator valve advice (e.g. a hall, a store room, or a room another HC instance heats).",
       head_hint: "Per head: what HC calibrates it to.", head_room: "The room's thermometer(s) – calibrated", head_room_none: "The room's thermometer (none: the head's own reading)", head_own: "The head's own thermometer – no calibration",
       target: "Target", follow: "Follows the house target", own: "Own schedule", offset: "Offset to the house target", target_home: "Home", target_night: "Night", target_away: "Household away", night: "Night",
       presence: "Presence", presence_hint: "A room tracker (its state is the room's area, e.g. Bermuda) or a motion sensor. Nobody: after the given minutes the target is set back (never below the frost limit); household away / vacation: the household target.",
@@ -385,7 +385,7 @@ class HcWizardPanel extends HTMLElement {
     const num = (room, k, v, min, max, step, unit) => `<div class="val"><span>${t[k]}</span><input type="number" min="${min}" max="${max}" step="${step}" data-rm-num="${esc(room.key)}|${k}" value="${v}"><span>${unit}</span></div>`;
     const cards = list.map((r, i) => {
       const a = this._area(r.area) || { sensors: [], trvs: [], presence: [] };
-      const lead = r.key === s.leading, trv = (r.trvs || []).length > 0;
+      const lead = r.key === s.leading, unheated = !lead && r.heated === false, trv = !unheated && (r.trvs || []).length > 0;
       const headSel = (h) => {
         const cur = (r.head_sensors || {})[h] || "room";
         const opts = [["room", (r.sensors || []).length ? t.head_room : t.head_room_none], ["head", t.head_own],
@@ -401,10 +401,11 @@ class HcWizardPanel extends HTMLElement {
           <label class="chk"><input type="radio" name="leading" data-rm-lead="${esc(r.key)}" ${lead ? "checked" : ""}>${t.leading}</label>
           <span class="order"><button class="btn ghost small" data-rm-move="${esc(r.key)}|-1" ${i ? "" : "disabled"} title="${esc(t.up)}" aria-label="${esc(t.up)}">↑</button><button class="btn ghost small" data-rm-move="${esc(r.key)}|1" ${i < list.length - 1 ? "" : "disabled"} title="${esc(t.down)}" aria-label="${esc(t.down)}">↓</button></span>
           <button class="btn ghost small" data-rm-remove="${esc(r.key)}">${t.remove}</button></div>
-        <div class="muted small">${lead ? t.lead_hint : trv ? t.trv_hint : t.notrv_hint}</div>
+        <div class="muted small">${lead ? t.lead_hint : unheated ? t.unheated_hint : trv ? t.trv_hint : t.notrv_hint}</div>
+        ${lead ? "" : `<label class="chk"><input type="checkbox" data-rm-unheated="${esc(r.key)}" ${unheated ? "checked" : ""}>${t.unheated}</label>`}
         <div class="sub"><b>${t.sensors}</b>${checks(r, "sensors", a.sensors, r.sensors || [])}${adder(r, "sensors", rc.temperature, r.sensors || [], t.add_sensor)}</div>
-        <div class="sub"><b>${t.trvs}</b>${checks(r, "trvs", a.trvs.filter((c) => !this._usedHead(c.id, r.key) && !excl.has(c.id)), r.trvs || [])}${adder(r, "trvs", rc.climates.filter((c) => !excl.has(c.id)), r.trvs || [], t.add_trv)}
-          ${trv ? `<div class="muted small">${t.head_hint}</div>${r.trvs.map(headSel).join("")}` : ""}</div>
+        ${unheated ? "" : `<div class="sub"><b>${t.trvs}</b>${checks(r, "trvs", a.trvs.filter((c) => !this._usedHead(c.id, r.key) && !excl.has(c.id)), r.trvs || [])}${adder(r, "trvs", rc.climates.filter((c) => !excl.has(c.id)), r.trvs || [], t.add_trv)}
+          ${trv ? `<div class="muted small">${t.head_hint}</div>${r.trvs.map(headSel).join("")}` : ""}</div>`}
         ${(a.windows || []).length || (r.windows || []).length ? `<div class="sub"><b>${t.windows}</b>${checks(r, "windows", a.windows || [], r.windows || [])}
           <div class="muted small">${trv && !lead ? t.win_own : t.win_boiler}</div></div>` : ""}
         ${trv && !lead ? `<div class="sub"><b>${t.target}</b>
@@ -488,6 +489,12 @@ class HcWizardPanel extends HTMLElement {
       if (x && Number.isFinite(v)) { x[f] = Math.max(+i.min, Math.min(+i.max, v)); if (f === "absent_min" || f === "setback") return; }
     }));
     r.querySelectorAll("[data-rm-time]").forEach((i) => i.addEventListener("change", () => { const [k, f] = split(i.dataset.rmTime), x = room(k); if (x && i.value) x[f] = i.value; }));
+    r.querySelectorAll("[data-rm-unheated]").forEach((i) => i.addEventListener("change", () => {  // 0.53.0: measured only
+      const x = room(i.dataset.rmUnheated);
+      if (!x) return;
+      if (i.checked) { x.heated = false; x.trvs = []; x.head_sensors = {}; x.demand = false; } else delete x.heated;
+      this._render();
+    }));
     r.querySelectorAll("[data-rm-demand]").forEach((i) => i.addEventListener("change", () => { const x = room(i.dataset.rmDemand); if (x) x.demand = i.checked; }));
   }
   _roomsSummary() {
@@ -501,7 +508,7 @@ class HcWizardPanel extends HTMLElement {
         if (r.key !== s.leading) bits.push(r.mode === "own" ? t.own : `${t.follow}${r.offset ? ` ${r.offset > 0 ? "+" : ""}${r.offset} °C` : ""}`);
         if ((r.presence || []).length && r.key !== s.leading) bits.push(`${t.presence}: ${r.presence.length}`);
         if (r.demand && r.key !== s.leading) bits.push(t.demand_short);
-      } else if (r.key !== s.leading) bits.push(t.watched);
+      } else if (r.key !== s.leading) bits.push(r.heated === false ? t.unheated : t.watched);
       return `${r.name} (${bits.join(", ")})`;  // plain text: line() escapes it
     }).join("; ");
   }

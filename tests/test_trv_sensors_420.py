@@ -238,7 +238,7 @@ def test_info_by_a_trv_head_returns_its_host(monkeypatch):
     monkeypatch.setattr(info, "_instance", lambda hass, entry: {"entry_id": entry.entry_id})
     conn = _Conn()
     info.ws_info(hass, conn, {"id": 1, "type": "hc_thermostat/info", "entity_id": "climate.konyha_trv"})
-    assert conn.result == {"entry_id": "e1", "via_trv": "climate.konyha_trv"}
+    assert {k: v for k, v in conn.result.items() if not k.startswith("house")} == {"entry_id": "e1", "via_trv": "climate.konyha_trv"}
     conn = _Conn()
     info.ws_info(hass, conn, {"id": 2, "type": "hc_thermostat/info", "entity_id": "climate.unknown"})
     assert conn.error == "not_found"

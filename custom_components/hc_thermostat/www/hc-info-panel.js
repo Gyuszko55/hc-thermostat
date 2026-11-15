@@ -31,7 +31,7 @@ const T = {
     fan: "Ventilátor", coil: "Hőcserélő", relay: "Relé", setpoint: "Alapjel", power: "Teljesítmény",
     charge: "Töltés", discharge: "Kisütés", trv: "Szelepfej", trvHead: "Szelepfej – a gazda példány adatai", unit: "Beltéri egység", outdoor_unit: "Kültéri egység",
     noinst: "Még nincs HC példány.", group_other: "Egyéb",
-    room: "Helyiség", roomList: "Helyiségek (egy kazán)", roomTrv: "Helyiség – szelepfejes, saját céllal", roomBoiler: "Helyiség – csak a kazánon át",
+    room: "Helyiség", roomList: "Helyiségek (egy kazán)", roomTrv: "Helyiség – szelepfejes, saját céllal", roomBoiler: "Helyiség – csak a kazánon át", memberOf: "{src} · {host} házában", houseSrc: "Hőforrások a házban", houseHint: "Egy ház, több hőforrás: mindegyik a saját HC-példányával szabályoz, a rajz az egész házat mutatja. Kattints egy sorra a részleteiért.", houseSelf: "ez",
     r_temp: "Hőmérséklet", r_target: "Cél", r_reason: "Miért ez a cél", r_house: "A ház célja", r_mode: "Cél módja", r_presence: "Jelenlét",
     r_sensors: "Hőmérők", r_heads: "Szelepfejek", r_advice: "Tanács", r_demand: "Égést kérhet", r_entity: "Termosztát", r_lead: "Vezető helyiség (a kazánt vezérli)",
     r_role: "Szerepe", role_lead: "vezető helyiség (a hőmérője vezérli a kazánt)", role_trv: "szelepfejes helyiség (saját célja van)",
@@ -56,7 +56,7 @@ const T = {
     fan: "Fan", coil: "Coil", relay: "Relay", setpoint: "Setpoint", power: "Power",
     charge: "Charge", discharge: "Discharge", trv: "TRV head", trvHead: "TRV head – its host instance", unit: "Indoor unit", outdoor_unit: "Outdoor unit",
     noinst: "No HC instance yet.", group_other: "Other",
-    room: "Room", roomList: "Rooms (one boiler)", roomTrv: "Room – TRV heads, own target", roomBoiler: "Room – through the boiler only",
+    room: "Room", roomList: "Rooms (one boiler)", roomTrv: "Room – TRV heads, own target", roomBoiler: "Room – through the boiler only", memberOf: "{src} · in {host}'s house", houseSrc: "Heat sources in the house", houseHint: "One house, several heat sources: each regulates with its own HC instance, the drawing shows the whole house. Click a row for its details.", houseSelf: "this one",
     r_temp: "Temperature", r_target: "Target", r_reason: "Why this target", r_house: "House target", r_mode: "Target mode", r_presence: "Presence",
     r_sensors: "Thermometers", r_heads: "TRV heads", r_advice: "Advice", r_demand: "May ask for burns", r_entity: "Thermostat", r_lead: "Leading room (runs the boiler)",
     r_role: "Role", role_lead: "leading room (its thermometer runs the boiler)", role_trv: "TRV room (its own target)",
@@ -378,7 +378,7 @@ class HcInfoPanel extends HTMLElement {
       this._sel = d.entry_id; this._trv = d.via_trv || null; this._room = d.via_room || null; this._d = d; this._scrollPick = true;
       this._selKey = this._trv ? `trv:${this._trv}` : this._room ? `room:${this._room}` : null;
       if (this._room) this._open.room = true;
-      this._render();
+      await this._load();  // 0.53.0: with its house (host and members)
       return true;
     } catch (e) { return false; }
   }
@@ -417,7 +417,7 @@ class HcInfoPanel extends HTMLElement {
     let saved = null;
     try { saved = localStorage.getItem("hc-info:entry"); } catch (e) { /* private mode */ }
     this._sel = (this._list.find((x) => x.entry_id === saved) || this._list[0])?.entry_id;
-    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true };
+    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true, house_src: true };
     if (await this._fromUrl()) return;
     await this._load();
   }
@@ -425,10 +425,20 @@ class HcInfoPanel extends HTMLElement {
   async _load() {
     if (!this._hass || !this._sel) { this._render(); return; }
     try {
-      this._d = await this._hass.callWS({ type: "hc_thermostat/info", entry_id: this._sel });
+      const d = await this._hass.callWS({ type: "hc_thermostat/info", entry_id: this._sel });
+      // 0.53.0: one house, several heat sources – the drawing is the host's, with every member of the house in it
+      const hostId = d.house || ((d.house_members || []).length ? d.entry_id : null);
+      let hd = null, members = [];
+      if (hostId) {
+        const info = (id) => (id === d.entry_id ? Promise.resolve(d) : this._hass.callWS({ type: "hc_thermostat/info", entry_id: id }).catch(() => null));
+        hd = await info(hostId);
+        members = (await Promise.all((hd?.house_members || []).map(info))).filter(Boolean);
+      }
+      this._d = d; this._hd = hd; this._members = members;
       this._err = null;
     } catch (e) { this._err = String(e?.message || e); }
     this._render();
+    if (this._pendingKey) { const k = this._pendingKey; this._pendingKey = null; this._pickPart(k); }
   }
 
   // ---------------------------------------------------------------- formatting
@@ -823,13 +833,27 @@ class HcInfoPanel extends HTMLElement {
     const floors = (d.floors || []).length ? d.floors : Object.values(this._hass?.floors || {}).map((f) => ({ floor_id: f.floor_id, name: f.name, level: f.level ?? 0 }));
     const lang = this._hu ? "hu" : "en";
     el.setAttribute("lang", lang);
-    el.extras = { areas, floors, entityAreas: this._entityAreas(d), sun: d.sun?.state ?? this._hass?.states?.["sun.sun"]?.state ?? null, lang };
-    el.info = d;
-    el.selected = this._selKey || null;
+    const hd = this._hd || d;  // 0.53.0: the house's host draws, its members join
+    el.extras = { areas, floors, entityAreas: this._entityAreas(hd), sun: hd.sun?.state ?? this._hass?.states?.["sun.sun"]?.state ?? null, lang,
+      members: this._hd ? (this._members || []) : [] };
+    el.info = hd;
+    el.selected = this._selKey || (this._hd && this._hd.entry_id !== d.entry_id ? `member:${d.entry_id}` : null);
   }
   // a click on the drawing: the matching data card (a room or a head: the room's own card), scrolled into view
   _pickPart(key) {
     if (!key || !this._d) return;
+    // 0.53.0: a member of the house: show that instance; a part of the host while a member is shown: the host first
+    if (key.startsWith("member:")) {
+      const id = key.slice(7);
+      if (id && id !== this._sel) this._choose(id);
+      else { this._selKey = key; this._house && (this._house.selected = key); }
+      return;
+    }
+    if (this._hd && this._hd.entry_id !== this._sel && key !== "outdoor") {
+      this._pendingKey = key;
+      this._choose(this._hd.entry_id);
+      return;
+    }
     const d = this._d, list = d.room_list || [];
     let target = null;
     this._selKey = key;
@@ -860,6 +884,27 @@ class HcInfoPanel extends HTMLElement {
       el.classList.add("flash");
       setTimeout(() => el.classList.remove("flash"), 1600);
     }
+  }
+
+  _choose(entry, trv = null, room = null) {
+    this._sel = entry; this._trv = trv || null; this._room = room || null; this._d = null;
+    this._selKey = this._trv ? `trv:${this._trv}` : this._room ? `room:${this._room}` : null;
+    if (this._room || this._trv) this._open.room = true;
+    try { localStorage.setItem("hc-info:entry", this._sel); } catch (e) { /* private mode */ }
+    this._load();
+  }
+
+  // 0.53.0: every heat source of the house, one row each (the instance shown is marked)
+  _houseSources() {
+    const t = this._t, L = this._hu ? "hu" : "en";
+    const all = [this._hd, ...(this._members || [])].filter(Boolean);
+    const rows = all.map((x) => {
+      const dec = x.decision || {}, me = x.entry_id === this._d?.entry_id;
+      const temp = dec.indoor ?? x.inputs?.indoor?.value, tgt = dec.target;
+      const st = `${SOURCE[L][x.heat_source] || x.heat_source || ""} · ${this._reason(dec.reason)}${temp != null ? ` · ${this._deg(temp)}` : ""}${tgt != null ? ` → ${this._deg(tgt)}` : ""}`;
+      return `<button class="hsrc ${me ? "sel" : ""}" data-entry="${esc(x.entry_id)}"><b>${esc(x.title)}${me ? ` (${esc(t.houseSelf)})` : ""}</b><small>${esc(st)}</small></button>`;
+    }).join("");
+    return `<div class="muted" style="margin-bottom:6px">${esc(t.houseHint)}</div>${rows}`;
   }
 
   _drawCentral() {
@@ -917,12 +962,17 @@ class HcInfoPanel extends HTMLElement {
     const t = this._t, d = this._d;
     PANEL_LANG = this._hu ? "hu" : "en";
     const list = this._list || [];
-    const pick = list.map((e) => `<button class="pick ${e.entry_id === this._sel && !this._trv && !this._room ? "sel" : ""}" data-entry="${esc(e.entry_id)}">
+    // 0.53.0: a member of another instance's house is listed right after that house (and its rooms), not on its own
+    const byHost = {};
+    for (const e of list) if (e.house && list.some((h) => h.entry_id === e.house)) (byHost[e.house] = byHost[e.house] || []).push(e);
+    const memberPick = (host) => (byHost[host.entry_id] || []).map((m) => `<button class="pick memberpick ${m.entry_id === this._sel ? "sel" : ""}" data-entry="${esc(m.entry_id)}">
+      <b>${esc(m.title)}</b><small>${esc(t.memberOf.replace("{src}", (SOURCE[this._hu ? "hu" : "en"][m.heat_source] || m.role || "") + (m.mode === "active" ? "" : " · " + t.shadow)).replace("{host}", host.title))}</small></button>`).join("");
+    const pick = list.filter((e) => !(e.house && byHost[e.house]?.includes(e))).map((e) => `<button class="pick ${e.entry_id === this._sel && !this._trv && !this._room ? "sel" : ""}" data-entry="${esc(e.entry_id)}">
       <b>${esc(e.title)}</b><small>${esc((SOURCE[this._hu ? "hu" : "en"][e.heat_source] || e.role || "") + (e.mode === "active" ? " · " + t.live : " · " + t.shadow))}</small></button>`
       + (e.trvs || []).map((h) => `<button class="pick trvpick ${e.entry_id === this._sel && this._trv === h.entity_id ? "sel" : ""}" data-entry="${esc(e.entry_id)}" data-trv="${esc(h.entity_id)}">
       <b>${esc(h.name)} → ${esc(e.title)}</b><small>${esc(t.trvHead)}</small></button>`).join("")
       + (e.rooms || []).map((r) => `<button class="pick roompick ${e.entry_id === this._sel && this._room === r.key && !this._trv ? "sel" : ""}" data-entry="${esc(e.entry_id)}" data-room="${esc(r.key)}">
-      <b>${esc(r.name)} → ${esc(e.title)}</b><small>${esc(r.trv ? t.roomTrv : t.roomBoiler)}</small></button>`).join("")).join("");
+      <b>${esc(r.name)} → ${esc(e.title)}</b><small>${esc(r.trv ? t.roomTrv : t.roomBoiler)}</small></button>`).join("") + memberPick(e)).join("");
     let main = "";
     if (!list.length) main = `<div class="empty">${esc(this._err || t.noinst)}</div>`;
     else if (d) {
@@ -942,6 +992,7 @@ class HcInfoPanel extends HTMLElement {
       const rd = this._roomData();
       const side = [
         rd ? this._section("room", `${t.room}: ${rd.name}`, this._roomRows(rd), "mdi:door-open") : "",
+        this._hd ? this._section("house_src", t.houseSrc, this._houseSources(), "mdi:home-lightning-bolt-outline") : "",
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
         d.presets ? this._section("presets", t.presets, this._presets(), "mdi:calendar-clock") : "",
         this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
@@ -979,13 +1030,7 @@ class HcInfoPanel extends HTMLElement {
       this._scrollPick = false;
       picks.scrollLeft = selPick.offsetLeft - picks.offsetLeft - 8;
     }
-    this.shadowRoot.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => {
-      this._sel = b.dataset.entry; this._trv = b.dataset.trv || null; this._room = b.dataset.room || null; this._d = null;
-      this._selKey = this._trv ? `trv:${this._trv}` : this._room ? `room:${this._room}` : null;
-      if (this._room || this._trv) this._open.room = true;
-      try { localStorage.setItem("hc-info:entry", this._sel); } catch (e) { /* private mode */ }
-      this._load();
-    }));
+    this.shadowRoot.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => this._choose(b.dataset.entry, b.dataset.trv, b.dataset.room)));
     this.shadowRoot.querySelectorAll("details[data-sec]").forEach((el) => el.addEventListener("toggle", () => { this._open[el.dataset.sec] = el.open; }));
   }
 }
@@ -1008,6 +1053,10 @@ table.mx tr.off td { opacity:.38; }
 .pick.sel { background:rgba(255,255,255,.22); border-color:#fff; }
 .pick.trvpick { border-style:dashed; }
 .pick.roompick { border-style:dotted; }
+.pick.memberpick { border-style:double; border-width:3px; }
+.hsrc { display:block; width:100%; text-align:left; background:transparent; color:inherit; border:1px solid var(--divider-color); border-radius:8px; padding:5px 8px; margin:0 0 5px; cursor:pointer; font:inherit; }
+.hsrc small { display:block; opacity:.75; font-size:12px; }
+.hsrc.sel { border-color:var(--primary-color); background:color-mix(in srgb, var(--primary-color) 12%, transparent); }
 .badge.room { background:color-mix(in srgb, var(--primary-color) 22%, transparent); }
 .main { height:calc(100vh - 64px); box-sizing:border-box; padding:10px 14px; display:flex; flex-direction:column; }
 .head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px; }

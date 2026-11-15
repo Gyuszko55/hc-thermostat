@@ -20,7 +20,7 @@ from .const import (
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
-    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
+    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
 )
 from .core.matrix import (
@@ -397,13 +397,48 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
     "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_GAS_VALUE, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
                CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
-    "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF),
+    "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF, CONF_HOUSE_LINK),
     # 0.50.0
     "house": ("house_loss_w_k", "house_gains_kw", "house_tau_h", "optimal_start", "optimal_start_max_min",
               "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi", "house_area_m2",
               "dhw_kwh_year", "aux_kwh_year", "primary_factor", CONF_RATING_OUTDOOR),
 }
 _SETTINGS_SECTION_OF = {k: name for name, keys in SETTINGS_SECTIONS.items() for k in keys}
+
+
+HOUSE_WORDS = {"hu": {"auto": "Automatikus (a helyisége területe szerint)", "own": "Önálló ház",
+                       "of": "{title} házának része"},
+               "en": {"auto": "Automatic (by its room's area)", "own": "A house of its own", "of": "Part of {title}'s house"}}
+
+
+def _house_others(flow) -> list:
+    """0.53.0: the other HC instances this one may belong to."""
+    hass = getattr(flow, "hass", None)
+    entry = getattr(flow, "config_entry", None)
+    if hass is None:
+        return []
+    try:
+        return [e for e in hass.config_entries.async_entries(DOMAIN) if entry is None or e.entry_id != entry.entry_id]
+    except Exception:
+        return []
+
+
+def _house_value(flow, current: dict) -> str:
+    value = str(current.get(CONF_HOUSE_LINK) or "auto")
+    if value in ("auto", "own") or any(e.entry_id == value for e in _house_others(flow)):
+        return value
+    return "auto"  # the chosen host was deleted
+
+
+def _house_select(flow, current: dict) -> SelectSelector:
+    try:
+        lang = flow._lang()
+    except Exception:
+        lang = "en"
+    w = HOUSE_WORDS.get(lang, HOUSE_WORDS["en"])
+    options = [{"value": "auto", "label": w["auto"]}, {"value": "own", "label": w["own"]}]
+    options += [{"value": e.entry_id, "label": w["of"].format(title=e.title)} for e in _house_others(flow)]
+    return SelectSelector(SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN))
 
 
 def _must_fill(marker) -> bool:
@@ -832,7 +867,8 @@ class HcOptionsFlow(OptionsFlow):
                     self._settings.pop("power_idle_w", None)
                     self._settings.pop("power_burn_w", None)
                 return await self.async_step_presets()
-        cfg = HcConfig.from_mapping(current)
+        # 0.52.1: the heat source's defaults (a floor's longer hold before a lowering) shown as they act
+        cfg = HcConfig.from_mapping({**source_defaults(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **current})
         temp = _number(5, 30, 0.5, "°C")
         fields = {
             vol.Required(CONF_MODE, default=current.get(CONF_MODE, MODE_SHADOW)): _select([MODE_SHADOW, MODE_ACTIVE], "mode"),
@@ -933,6 +969,7 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required(CONF_COP_HIGH, default=current.get(CONF_COP_HIGH, 4.0)): _number(1, 8, 0.1),
             vol.Required(CONF_COP_LOW, default=current.get(CONF_COP_LOW, 2.4)): _number(1, 8, 0.1),
         }
+        fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.53.0
         fields.update(_floor_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current))
         fields.update(_hp_fields(current.get(CONF_HEAT_SOURCE), cfg.control, current, settings=True,
                                  hass=getattr(self, "hass", None)))

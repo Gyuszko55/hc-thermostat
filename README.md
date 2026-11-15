@@ -272,7 +272,8 @@ information: the HC info panel shows them (*Measurements*, and per room), and no
   `optimal_start_max_min` (120 min) earlier. Once started it holds until the night end (also over a restart).
 - **Hold before a lowering looks ahead:** with τ known, up to `pre_change_max_s` (2 h) before a scheduled lowering no
   new burn starts while the room, left alone, stays above the coming target and at most `pre_change_sag` (0.5 °C)
-  under the current one. Within `pre_change_s` the rule of 0.48.3 holds as before.
+  under the current one. Within `pre_change_s` the rule of 0.48.3 holds as before; 0.52.1: with τ known, there too
+  the room may sag at most `pre_change_sag` (a light house loses ~1 °C in 30 minutes).
 - **Mould risk** at the room's coldest spot (a corner, a lintel): surface temperature = outdoor + `mould_frsi` ×
   (indoor − outdoor) (0.7 an old wall, 0.75–0.8 an insulated one); mould grows above 80 % there. The sensor shows the
   surface temperature and humidity and the highest room humidity without mould. The rooms' humidity sensors are taken
@@ -415,6 +416,10 @@ the household presence as before. Every other room gets **its own HC thermostat*
   existing room demand), **per room, off by default**, and only while the house is not above its own target.
 - **Room without a TRV:** can only be reached through the boiler: its thermostat shows the house target, a target set
   on it is refused with a clear message, it gets the radiator valve advice, and it never drives the boiler.
+- **Measured-only room (0.53.0):** a room of the house with a thermometer but no heater of this heat source (a hall, a
+  store room, a room another instance heats): tick *No heater of this heat source – measured only*. It is drawn in the
+  house with its reading, but gets no target, no thermostat of its own, no radiator valve advice and no TRV heads. The
+  leading room is always heated.
 - **Room target:** *follow* = house target + offset (night, away, presets and a manual house target follow), or *own*
   = its own home / night / away temperatures and night window (household vacation: the house's vacation target).
 - **Presence per room (optional):** sources whose state is the room's area (phone room trackers such as Bermuda – the
@@ -452,6 +457,29 @@ target and why, presence, heads, calibration, advice). The round [HC Dial Card](
 is a separate HACS frontend repository: its released 1.14.0 opens HC info with the "i" button; the room features
 (a room's thermostat opening HC info with its room, the radiator icon of a TRV room, a read-only room without a TRV)
 come with its next release. A newer copy of the card is kept in this repository's `frontend/` folder for testing.
+
+## One house, several heat sources (0.53.0)
+
+A house may have several heat sources – a wall boiler, a pellet boiler, a heat pump, an air conditioner, an oil
+radiator – each with its own HC instance. HC info shows them as **one house**: the host's drawing with every room and
+every source in it, instead of a one-room house per instance.
+
+- **Which instances are one house:** automatically, a one-room instance (an AC, a heater) whose room's area is a room
+  or the adjoining room of another instance with more rooms – but not its leading room: two instances led from the
+  same room are alternatives (a shadow trial), not two parts. Instances with the same **home name** are one house too
+  (the one with the most rooms draws). A central boiler or a buffer tank goes where most of its zones are. In the
+  settings (*Adjoining room, shared house*) **Part of which house** chooses it by hand: automatic, a house of its own,
+  or another instance's house.
+- **The drawing:** the members' rooms join the host's (a room only a member knows is added); a room the host does not
+  heat (measured only, or its adjoining room) gets the member's emitter – e.g. the terrace's AC with its target, the
+  setpoint HC sent and the unit's own reading; a room the host heats too shows the member's device next to its own
+  (an oil radiator beside the radiator, an AC up on the wall). Every water-heating source stands in the plant room side
+  by side; heat pump and AC outdoor units stack on one side. A click on a member's part opens that instance.
+- **The picker** lists a member under its house (*AC · in Boiler's house*); a member's page shows the whole house with
+  its own room marked, and a *Heat sources in the house* section lists every source with its decision and reading.
+- Display only: every instance regulates its own source as before. Two sources on the **same** water circuit
+  switching over (a heat pump with a backup boiler) are not switched by this; the existing *other heat source*
+  (cheaper source, `yield_margin`) still lets a boiler step back while an AC heats.
 
 ## Safety
 
@@ -491,4 +519,13 @@ The round thermostat card is a separate project: [hc-dial-card](https://github.c
 python -m pytest
 ```
 
-The simulator in `tests/sim.py` runs the decision core without Home Assistant.
+The simulator in `tests/sim.py` runs the decision core without Home Assistant. 0.52.1: it has three house types
+(`HOUSES`): the radiator house HC was developed on, a heavy house on a floor slab with a heat pump, and a light,
+fast house with convectors / fan coils; `Run(resolution=0.1)` rounds the room reading like a real thermometer.
+`tests/test_house_types_521.py` checks regulation, the frozen-thermometer check, the hold before a lowering and
+the boost on all three.
+
+**Floor defaults (0.52.1, found in the simulator):** a floor instance holds `pre_change_s` = 2 h before a lowering
+(the screed gives the last hours' heat after it), and the frozen-thermometer check waits 8 h and ignores a value
+within 1 °C of the target (`frozen_band`) – a regulated room on a slab shows one 0.1 °C value for up to 17 h, and
+warming up at full power for up to 5 h. A setting given by hand still wins.

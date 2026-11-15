@@ -20,6 +20,9 @@ Room level (every other room):
   for a while after a start a "nobody here" does not start the absence clock;
 - a manual target or preset set on the room's climate holds until the room's automatic target changes (schedule,
   presence, the house target it follows);
+- 0.53.0: a room may be measured only (`heated` False): a room of the house with a thermometer but no heater of this
+  instance (a hall, a store room, a terrace another instance heats). It is drawn in the house with its reading, gets no
+  climate of its own, no radiator valve advice, no TRV heads and never asks for heat. The leading room is always heated.
 - 0.46.0: per room window / door contacts. In a TRV room they close the room's own heads only (frost target while
   one is open, after the window delay); in the leading room and in a room without a TRV they count as before: the
   boiler's window stop (`general_windows`).
@@ -100,6 +103,7 @@ class RoomSpec:
     windows: list[str] = field(default_factory=list)  # 0.46.0: window / door contacts of the room
     radiators: list[str] = field(default_factory=list)  # 0.48.0: radiator surface thermometers (information)
     humidity: list[str] = field(default_factory=list)  # 0.48.0: relative humidity sensors (dew point, mould risk)
+    heated: bool = True  # 0.53.0: False = no heater of this instance here, only measured (no climate, no advice)
 
     @property
     def has_trv(self) -> bool:
@@ -129,6 +133,8 @@ class RoomSpec:
             out["radiators"] = list(self.radiators)
         if self.humidity:
             out["humidity"] = list(self.humidity)
+        if not self.heated:
+            out["heated"] = False
         if self.head_sensors:
             out["head_sensors"] = dict(self.head_sensors)
         if self.mode == OWN:
@@ -156,6 +162,9 @@ def parse_room(raw: dict, taken: set[str] | None = None) -> RoomSpec | None:
         if head in trvs and isinstance(value, str) and (value == HEAD or value.startswith("sensor.")):
             heads[head] = value
     mode = raw.get("mode") if raw.get("mode") in (FOLLOW, OWN) else FOLLOW
+    heated = raw.get("heated") is not False  # 0.53.0: only an explicit False makes a measured-only room
+    if not heated:
+        trvs, heads = [], {}
     return RoomSpec(
         key=key, name=name or key, area=raw.get("area") if isinstance(raw.get("area"), str) and raw.get("area") else None,
         sensors=_ids(raw.get("sensors"), ("sensor.",)), trvs=trvs, head_sensors=heads,
@@ -172,6 +181,7 @@ def parse_room(raw: dict, taken: set[str] | None = None) -> RoomSpec | None:
         windows=_ids(raw.get("windows"), ("binary_sensor.", "input_boolean.")),
         radiators=_ids(raw.get("radiators"), ("sensor.",)),
         humidity=_ids(raw.get("humidity"), ("sensor.",)),
+        heated=heated,
     )
 
 
@@ -268,6 +278,7 @@ def rooms_options(rooms: list[dict], leading: str | None, indoor: str | None) ->
             elif s.sensors and indoor not in s.sensors:
                 out["indoor_entity"] = s.sensors[0]
             s.demand = False  # the leading room drives the boiler itself
+            s.heated = True  # 0.53.0: and is always heated
     out[CONF_ROOM_LIST] = [s.as_dict() for s in specs]
     out[CONF_LEADING] = leading
     out.update(rooms_to_legacy(specs, leading))

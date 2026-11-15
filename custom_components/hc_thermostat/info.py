@@ -154,7 +154,7 @@ def _room_list(hass, entry) -> list[dict]:
                              "windows": list(s.windows), "radiators": list(s.radiators), "humidity": list(s.humidity),
                              "measures": ((getattr(c, "measures", None) or {}).get("rooms") or {}).get(s.key),
                              "absent_min": s.absent_min, "setback": s.setback, "mode": s.mode, "offset": s.offset,
-                             "demand_allowed": s.demand, "entity_id": ids.get(s.key),
+                             "demand_allowed": s.demand, "entity_id": ids.get(s.key), "heated": s.heated,
                              "own": {"home": s.target_home, "night": s.target_night, "away": s.target_away,
                                      "night_start": s.night_start, "night_end": s.night_end} if s.mode == "own" else None,
                              "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence, *s.windows,
@@ -400,15 +400,81 @@ def _loaded(hass) -> list:
     return [e for e in hass.config_entries.async_entries(DOMAIN) if getattr(e, "runtime_data", None) is not None]
 
 
+# --- 0.53.0: one house, several heat sources -----------------------------------------------------------------------
+def _area(hass, entity_id) -> str | None:
+    if not isinstance(entity_id, str) or "." not in entity_id:
+        return None
+    try:
+        from .rooms_ha import area_id_of
+        return area_id_of(hass, entity_id)
+    except Exception:
+        return None
+
+
+def house_facts(hass, entry) -> "Facts":
+    """What core/house.py needs of one instance: its rooms with their areas, the leading room's area (else the main
+    thermometer's), the zone's area, its zones (central / buffer), the home name and the house setting."""
+    from .core.house import Facts
+    conf = {**entry.data, **entry.options}
+    c = entry.runtime_data
+    rooms: list[tuple[str, str | None]] = []
+    leading_area = None
+    if hasattr(c, "room_specs"):
+        try:
+            specs, leading = c.room_specs()
+            rooms = [(s.key, s.area or (_area(hass, s.sensors[0]) if s.sensors else None)) for s in specs]
+            leading_area = next((a for k, a in rooms if k == leading), None)
+        except Exception:
+            rooms = []
+    if leading_area is None:
+        leading_area = _area(hass, conf.get("indoor_entity"))
+    zones = []
+    for z in conf.get("zone_entities") or []:
+        e = entry_of_entity(hass, z) if isinstance(z, str) else None
+        if e:
+            zones.append(e)
+    return Facts(entry_id=entry.entry_id, title=entry.title, role=conf.get("role", "standalone"),
+                 link=str(conf.get("house_link") or "auto"), home_name=str(conf.get("home_name") or ""),
+                 rooms=tuple(rooms), leading_area=leading_area,
+                 zone_area=_area(hass, conf.get("zone_temp_entity")) if conf.get("zone_temp_entity") else None,
+                 zone_entries=tuple(zones))
+
+
+def house_links(hass) -> dict:
+    """entry id -> core.house.Link of every loaded instance; {} when it cannot be worked out (never raises)."""
+    from .core.house import houses
+    try:
+        facts = []
+        for e in _loaded(hass):
+            try:
+                facts.append(house_facts(hass, e))
+            except Exception:
+                continue
+        return houses(facts)
+    except Exception:
+        return {}
+
+
+def _house_brief(links: dict, entry_id: str) -> dict:
+    link = links.get(entry_id)
+    if link is None:
+        return {"house": None, "house_members": []}
+    if link.host != entry_id:
+        return {"house": link.host, "house_area": link.area, "house_room": link.room, "house_why": link.why,
+                "house_members": []}
+    return {"house": None, "house_members": list(link.members)}
+
+
 @websocket_api.require_admin  # 0.45.0: the HC info panel is admins only, so is its data
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/info_list"})
 @callback
 def ws_info_list(hass: HomeAssistant, connection, msg) -> None:
+    links = house_links(hass)  # 0.53.0: which instances the panel shows as one house
     connection.send_result(msg["id"], [
         {"entry_id": e.entry_id, "title": e.title, "role": e.data.get("role", "standalone"),
          "heat_source": e.data.get("heat_source"), "system": e.data.get("system"),
          "control": {**e.data, **e.options}.get("control"), "mode": {**e.data, **e.options}.get("mode"),
-         "trvs": _trvs(hass, e), "rooms": _rooms_brief(hass, e)}
+         "trvs": _trvs(hass, e), "rooms": _rooms_brief(hass, e), **_house_brief(links, e.entry_id)}
         for e in _loaded(hass)])
 
 
@@ -421,7 +487,7 @@ def _rooms_brief(hass, entry) -> list[dict]:
         ids = _room_entities(hass, entry)
         from .climate import room_title
         return [{"key": s.key, "name": room_title(hass, s), "trv": bool(s.trvs), "entity_id": ids.get(s.key)}
-                for s in c.other_rooms()]
+                for s in c.other_rooms() if s.heated]  # 0.53.0: a measured-only room has no thermostat to pick
     except Exception:
         return []
 
@@ -442,6 +508,7 @@ def ws_info(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "no such HC instance")
         return
     result = _instance(hass, entry)
+    result.update(_house_brief(house_links(hass), entry.entry_id))  # 0.53.0
     if via_trv:
         result["via_trv"] = via_trv
         if (key := room_of_head(entry, via_trv)):

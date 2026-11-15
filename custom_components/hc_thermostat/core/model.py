@@ -210,6 +210,10 @@ class HcConfig:
     # 0.41.0: a room reading unchanged for this many hours while the source ran frozen_burn_min minutes is frozen
     frozen_after_h: float = 3.0  # 0 = off
     frozen_burn_min: float = 45.0
+    # 0.52.1: a reading within this many degrees of the target is not judged (0 = every reading is). On a floor slab
+    # a regulated room shows one value of a 0.1 °C thermometer for many hours while the source runs – that is the
+    # regulation working, not a frozen sensor (the floors' default: 1.0, core/matrix.source_defaults)
+    frozen_band: float = 0.0
     # Floor temperature limit (floor heating): above floor_max no heat, whatever the regulator says; back below
     # floor_max - floor_hysteresis. floor_required: no fresh floor reading = no heat (electric floor heating).
     floor_max: float = 0.0  # 0 = by the covering and the probe position (core/floor.py; electric 27 °C, else none)

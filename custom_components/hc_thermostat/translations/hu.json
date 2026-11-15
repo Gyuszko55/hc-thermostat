@@ -282,7 +282,7 @@
               "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
               "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve).",
               "pwm_carry": "A minimális égésnél kisebb igények összegyűlnek egy rendes égéssé (szelep-késésnél mindig így van). Alapból ki: szimulációban a felfűtés utáni túllövést növelte.",
-              "pre_change_s": "Az ütemezett célcsökkenés (éjszaka kezdete, előbeállítás vagy kézi cél lejárta) előtt ennyi ideig nem indít új égést, ha a helyiség már most legalább olyan meleg, mint a váltás utáni cél – a hője a váltás után érkezne. A futó égést nem vágja el. Alapból: 1800 s.",
+              "pre_change_s": "Az ütemezett célcsökkenés (éjszaka kezdete, előbeállítás vagy kézi cél lejárta) előtt ennyi ideig nem indít új égést, ha a helyiség már most legalább olyan meleg, mint a váltás utáni cél – a hője a váltás után érkezne. A futó égést nem vágja el. Alapból: 1800 s. Padlófűtésnél alapból 7200 s, mert a padló az utolsó órák hőjét már a váltás után adja le. Ha a ház időállandója ismert, a helyiség ez alatt legfeljebb az alábbi megengedett mértékig hűlhet.",
               "pid_kp": "Mennyire erősen válaszol a HC a pillanatnyi eltérésre (0,4 = 40 % igény °C-onként a cél alatt).",
               "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).",
               "pid_d_filter_s": "A helyiséghőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
@@ -336,7 +336,7 @@
               "plaus_indoor_min": "Legalacsonyabb hihető helyiséghőmérséklet"
             },
             "data_description": {
-              "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan.",
+              "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan. Padlófűtésnél alapból 8 óra, és a céltól 1 °C-on belüli értéket nem ítéli meg: a lassú esztrich mellett a hőmérő órákig ugyanazt mutatja, miközben a szabályozás rendben működik.",
               "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi helyiség ennyi fűtéstől legalább egy lépést melegszik.",
               "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
               "zone_own_mixer": "Kikapcsolva a központi moduláló kazán előremenője nem megy e zóna legmagasabb előremenője (flow_max, padlónál alapból 45 °C) fölé, amíg a köre vizet kaphat – a radiátoros zónák ilyenkor gyengébben fűtenek. Csak akkor kapcsold be, ha a padlókörnek tényleg van keverőszelepe vagy hőfokkorlátozója.",
@@ -433,12 +433,16 @@
             }
           },
           "adjoining": {
-            "name": "Csatlakozó tér (második hőforrás)",
-            "description": "Télikert vagy szomszéd helyiség, amely ajtón át kap hőt.",
+            "name": "Csatlakozó tér, közös ház (több hőforrás)",
+            "description": "Télikert vagy szomszéd helyiség, amely ajtón át kap hőt; és hogy a HC info melyik ház rajzán mutassa ezt a példányt.",
             "data": {
               "zone_temp_entity": "Csatlakozó tér hőmérője (pl. télikert, szomszéd helyiség)",
               "zone_door_entities": "Ajtók a csatlakozó térbe",
-              "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb"
+              "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
+              "house_link": "Melyik ház része (HC info házrajz)"
+            },
+            "data_description": {
+              "house_link": "Egy házban több hőforrás is lehet (pl. kazán, klíma, olajradiátor, hőszivattyú), mindegyik a saját HC-példányával. Automatikusan egy házként látszanak, ha ennek a példánynak a helyisége egy másik, több helyiséges példány helyiségének vagy csatlakozó terének a területén van (de nem annak vezető helyiségében). Itt kézzel is megadhatod. Csak a megjelenítést érinti, semmit nem kapcsol."
             }
           },
           "measures": {

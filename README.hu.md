@@ -274,7 +274,9 @@ info panel mutatja őket (*Mérések*, és helyiségenként), a fűtési dönté
   korábban. Ha elindult, az éjszaka végéig tart (újraindításon át is).
 - **Kivárás célcsökkenés előtt, előrejelzéssel:** ismert τ-val az ütemezett célcsökkenés előtt legfeljebb
   `pre_change_max_s` (2 óra) ideig nem indít új égést, ha a helyiség magára hagyva is a váltás utáni cél felett és a
-  mostani cél alatt legfeljebb `pre_change_sag` (0,5 °C) marad. A `pre_change_s`-en belül a 0.48.3-as szabály változatlan.
+  mostani cél alatt legfeljebb `pre_change_sag` (0,5 °C) marad. A `pre_change_s`-en belül a 0.48.3-as szabály változatlan;
+  0.52.1: ismert τ-nál ott is legfeljebb `pre_change_sag`-nyit hűlhet a helyiség (egy könnyűszerkezetes ház 30 perc
+  alatt ~1 °C-ot veszít).
 - **Penészkockázat** a helyiség leghidegebb pontján (sarok, áthidaló): felületi hőmérséklet = kint + `mould_frsi` ×
   (bent − kint) (régi fal 0,7, szigetelt 0,75–0,8); ott 80 % felett nő a penész. A szenzor mutatja a felület
   hőmérsékletét és páratartalmát, és a legnagyobb penészmentes páratartalmat a helyiségben. A helyiségek
@@ -418,6 +420,10 @@ példány eszköze alatt):
   és csak amíg a ház nincs a saját célja fölött.
 - **Szelepfej nélküli helyiség:** csak a kazánon át fűthető: a termosztátja a ház célját mutatja, a rajta beállított célt
   érthető üzenettel elutasítja, radiátorszelep-tanácsot kap, és a kazánt soha nem vezérli.
+- **Csak mért helyiség (0.53.0):** a ház egy helyisége hőmérővel, de ennek a hőforrásnak a fűtőteste nélkül (előtér,
+  kamra, vagy egy helyiség, amit egy másik példány fűt): pipáld be a *Nincs fűtőteste ennek a hőforrásnak – csak mérés*
+  jelölést. A házrajzon látszik a hőmérsékletével, de nem kap célt, saját termosztátot, radiátorszelep-tanácsot és
+  szelepfejet. A vezető helyiség mindig fűtött.
 - **A helyiség célja:** *követi* = a ház célja + eltérés (éjszaka, távollét, presetek és a ház kézi célja is), vagy *saját* =
   saját otthon / éjszakai / távolléti hőfok és éjszakai időszak (a háztartás szabadságon: a ház szabadság-célja).
 - **Jelenlét helyiségenként (opcionális):** olyan források, amelyek állapota a helyiség területe (telefonos helyiség-követő,
@@ -457,6 +463,30 @@ A HC info a helyiségeket a gazda példány alatt sorolja; a helyiség termoszt�
 külön HACS frontend-tároló: a kiadott 1.14.0 „i” gombja megnyitja a HC infót; a helyiségekhez kötődő funkciók (a helyiség termosztátjának
 „i” gombja a helyiséget mutatja, a szelepfejes helyiség radiátor ikont kap, a szelepfej nélküli helyiség csak olvasható) a
 következő kiadásával jönnek. A kártya újabb, tesztelésre szánt példánya e tároló `frontend/` mappájában van.
+
+## Egy ház, több hőforrás (0.53.0)
+
+Egy házban több hőforrás is lehet – fali kazán, pelletkazán, hőszivattyú, klíma, olajradiátor –, mindegyik a saját
+HC-példányával. A HC info **egy házként** mutatja őket: a gazda rajzán minden helyiséggel és minden hőforrással,
+példányonként külön egyhelyiséges ház helyett.
+
+- **Mely példányok egy ház:** automatikusan az az egyhelyiséges példány (klíma, fűtőtest), amelynek a helyisége egy
+  másik, több helyiséges példány helyiségének vagy csatlakozó terének a területén van – de nem annak vezető
+  helyiségében: két, ugyanarról a helyiségről vezérelt példány egymás alternatívája (árnyék próba), nem két része. Az
+  azonos **otthon-nevű** példányok is egy házat alkotnak (a legtöbb helyiségű rajzol). Központi kazán vagy puffertartály
+  oda kerül, ahol a zónái többsége van. A beállításokban (*Csatlakozó tér, közös ház*) a **Melyik ház része** mezőben
+  kézzel is választható: automatikus, önálló ház, vagy egy másik példány háza.
+- **A rajz:** a tagok helyiségei a gazdáéhoz csatlakoznak (amit csak egy tag ismer, új helyiségként kerül be); abban a
+  helyiségben, amit a gazda nem fűt (csak mért, vagy a csatlakozó tere), a tag fűtőteste látszik – pl. a terasz klímája
+  a céljával, a HC által küldött beállítással és az egység saját mérésével; abban, amit a gazda is fűt, a tag eszköze a
+  sajátja mellett (olajradiátor a radiátor mellett, klíma fent a falon). A vizet fűtő hőforrások egymás mellett állnak a
+  gépházban; a hőszivattyú és a klíma kültéri egységei egy oldalon egymás fölött. Egy tag részére kattintva az a példány
+  nyílik meg.
+- **A választóban** a tag a háza alatt szerepel (*Klíma · Kazán házában*); a tag oldala az egész házat mutatja a saját
+  helyiségével kiemelve, a *Hőforrások a házban* szakasz pedig minden hőforrást felsorol a döntésével és a mérésével.
+- Csak a megjelenítést érinti: minden példány a saját hőforrását szabályozza, mint eddig. Két, **ugyanazon** a
+  vízkörön lévő hőforrás közti átváltást (hőszivattyú tartalék kazánnal) ez nem kapcsolja; a meglévő *más hőforrás*
+  (olcsóbb forrás, `yield_margin`) továbbra is visszaléptetheti a kazánt, amíg a klíma fűt.
 
 ## Biztonság
 
@@ -498,4 +528,14 @@ A kerek termosztát kártya külön projekt: [hc-dial-card](https://github.com/G
 python -m pytest
 ```
 
-A `tests/sim.py` szimulátor Home Assistant nélkül futtatja a döntési magot.
+A `tests/sim.py` szimulátor Home Assistant nélkül futtatja a döntési magot. 0.52.1: három háztípust ismer (`HOUSES`):
+a radiátoros házat, amelyen a HC készült, egy nehéz, padlólemezes házat hőszivattyúval, és egy könnyű, gyors házat
+konvektorokkal / fan-coilokkal; a `Run(resolution=0.1)` úgy kerekíti a helyiség hőmérsékletét, mint egy valódi hőmérő.
+A `tests/test_house_types_521.py` mindhármon ellenőrzi a szabályozást, a beragadt hőmérő felismerését, a csökkentés
+előtti tartást és a felfűtés-rásegítést.
+
+**Padlófűtés alapértékei (0.52.1, a szimulátor alapján):** a padlós példány csökkentés előtt 2 órát tart
+(`pre_change_s`; az esztrich az utolsó órák hőjét a váltás után adja le), a beragadt hőmérő vizsgálata 8 órát vár, és
+a céltól 1 °C-on belüli értéket nem ítéli meg (`frozen_band`) – szabályozott helyiségben a padló mellett egy 0,1 °C-os
+érték akár 17 óráig, teljes teljesítményű felfűtésnél akár 5 óráig is állhat. A kézzel megadott érték továbbra is
+elsőbbséget élvez.

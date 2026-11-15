@@ -312,7 +312,11 @@ def room_specs_for(hass, conf: dict, sensor_groups: dict | None = None, trv_grou
     if isinstance(raw, list) and raw:
         specs = parse_rooms(raw)
         leading = conf.get(CONF_LEADING)
-        return specs, leading if any(s.key == leading for s in specs) else None
+        leading = leading if any(s.key == leading for s in specs) else None
+        if leading is not None:  # 0.53.0: the leading room drives the source – it is always heated
+            from dataclasses import replace
+            specs = [replace(s, heated=True) if s.key == leading and not s.heated else s for s in specs]
+        return specs, leading
     if sensor_groups is None:
         sensor_groups = group_by_room(hass, list(conf.get(CONF_ROOMS) or []))
     if trv_groups is None:

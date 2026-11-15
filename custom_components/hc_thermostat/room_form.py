@@ -36,7 +36,8 @@ WORDS = {
            "head": "fej", "tracker": "helyiség-követő", "no_area": "terület nélkül", "taken": "másik HC-példány: {who}",
            "n_sensors": "hőmérő", "n_trvs": "szelepfej", "n_presence": "jelenlét", "n_windows": "ablak/ajtó",
            "nothing": "nincs eszköz", "radiators": "Radiátor-hőmérő (kap-e meleget)",
-           "humidity": "Páratartalom (harmatpont, penész-kockázat)"},
+           "humidity": "Páratartalom (harmatpont, penész-kockázat)",
+           "unheated": "Nincs fűtőteste ennek a hőforrásnak – csak mérés (a házrajzon látszik, nem kap célt)"},
     "en": {"name": "Name", "sensors": "Thermometers", "trvs": "TRV heads", "presence": "Presence",
            "windows": "Window / door", "more": "Add another device (from another area)", "mode": "Target",
            "offset": "Offset from the house target", "absent_min": "Absent after minutes (with presence)",
@@ -49,7 +50,8 @@ WORDS = {
            "head": "head", "tracker": "room tracker", "no_area": "no area", "taken": "other HC instance: {who}",
            "n_sensors": "thermometer(s)", "n_trvs": "TRV head(s)", "n_presence": "presence", "n_windows": "window/door",
            "nothing": "no devices", "radiators": "Radiator thermometer (does it get heat)",
-           "humidity": "Humidity (dew point, mould risk)"},
+           "humidity": "Humidity (dew point, mould risk)",
+           "unheated": "No heater of this heat source – measured only (shown in the house drawing, no target)"},
 }
 PROBLEMS = {
     "hu": {"room_name": "{room}: adj nevet a helyiségnek.", "room_name_taken": "{room}: van már ilyen nevű helyiség.",
@@ -61,6 +63,7 @@ PROBLEMS = {
            "radiator_is_room": "{room}: a(z) {what} nem lehet egyszerre a helyiség hőmérője és radiátor-hőmérő.",
            "leading_trv": "A vezető helyiségben ({room}) szelepfej van: pipáld be a megerősítést (a fejei a ház céljét kapják).",
            "area_taken": "{room}: ezen a területen már egy másik HC-példánynak van helyisége ({what}).",
+           "unheated_trv": "{room}: fűtőtest nélküli (csak mért) helyiségben nem lehet szelepfej – vedd ki a fejet, vagy a jelölést.",
            "no_rooms": "Jelölj be legalább egy területet, vagy adj meg egy helyiséget terület nélkül."},
     "en": {"room_name": "{room}: give the room a name.", "room_name_taken": "{room}: a room with this name exists.",
            "room_empty": "{room}: a room needs a thermometer or a TRV head.",
@@ -71,6 +74,7 @@ PROBLEMS = {
            "radiator_is_room": "{room}: {what} cannot be the room's thermometer and a radiator thermometer at once.",
            "leading_trv": "The leading room ({room}) has a TRV head: tick the confirmation (its heads get the house target).",
            "area_taken": "{room}: another HC instance has a room in this area ({what}).",
+           "unheated_trv": "{room}: a measured-only room (no heater) cannot have a TRV head – untick the head or the option.",
            "no_rooms": "Tick at least one area, or give a room without an area."},
 }
 MORE_DOMAINS = ["sensor", "climate", "binary_sensor", "person", "device_tracker", "input_select", "input_boolean"]
@@ -214,7 +218,7 @@ def room_candidates(room: dict, area: dict | None, tracking: list[dict], exclude
 
 def shows_trv_fields(room: dict, leading: str | None, cands: dict) -> bool:
     """The target / presence / demand fields: a room that is (or can be) a TRV room and is not the leading one."""
-    return room["key"] != leading and bool(room.get("trvs") or cands["trvs"])
+    return room["key"] != leading and room.get("heated") is not False and bool(room.get("trvs") or cands["trvs"])
 
 
 def cal_labels(hass, lang: str, heads: list[str]) -> dict[str, str]:
@@ -232,6 +236,8 @@ def room_section(hass, lang: str, room: dict, cands: dict, leading: str | None, 
         vol.Required(w["name"], default=room["name"]): TextSelector(),
         vol.Optional(w["sensors"], default=list(room.get("sensors") or [])): _checks(_options(hass, cands["sensors"], head_marks)),
     }
+    if room["key"] != leading:  # 0.53.0: a room of the house this source does not heat (measured only)
+        fields[vol.Required(w["unheated"], default=room.get("heated") is False)] = BooleanSelector()
     if cands["trvs"]:
         fields[vol.Optional(w["trvs"], default=list(room.get("trvs") or []))] = _checks(_options(hass, cands["trvs"]))
     trv_room = shows_trv_fields(room, leading, cands)
@@ -301,6 +307,11 @@ def read_section(hass, lang: str, room: dict, data: dict) -> dict:
     """One section's answer back into a room dict (the fields not shown keep the room's values)."""
     w = WORDS[lang]
     out = {**room, "name": str(data.get(w["name"], room["name"]) or "").strip()}
+    if w["unheated"] in data:  # 0.53.0
+        if data.get(w["unheated"]):
+            out["heated"] = False
+        else:
+            out.pop("heated", None)
     for k in ("sensors", "trvs", "presence", "windows", "radiators", "humidity"):
         if w[k] in data:
             out[k] = list(data.get(w[k]) or [])
@@ -348,6 +359,8 @@ def check_rooms(lang: str, rooms: list[dict], leading: str | None, confirm: bool
         seen_names.add(r["name"].casefold())
         if not r.get("sensors") and not r.get("trvs") and r["key"] != leading:
             return problem_text(lang, "room_empty", label)
+        if r.get("heated") is False and r.get("trvs") and r["key"] != leading:
+            return problem_text(lang, "unheated_trv", label)
         for h in r.get("trvs") or []:
             if h in hc_climates:
                 return problem_text(lang, "trv_is_hc", label)
@@ -408,6 +421,8 @@ def summary(lang: str, rooms: list[dict], leading: str | None) -> str:
         n = lambda k: len(r.get(k) or [])
         if r["key"] == leading:
             role = "vezető (a kazánt vezérli)" if hu else "leading (drives the boiler)"
+        elif r.get("heated") is False:
+            role = "csak mérés (nincs fűtőteste)" if hu else "measured only (no heater)"
         elif r.get("trvs"):
             role = "szelepfejes" if hu else "TRV room"
         else:

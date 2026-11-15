@@ -226,6 +226,11 @@ def source_defaults(system: str | None, source: str | None) -> dict:
         out.update(floor_max=27.0, floor_required=True)
     elif system in _FLOOR:
         out["floor_max"] = 29.0  # a water floor: the usual surface limit; acts only with a floor sensor
+    if system in _FLOOR:
+        # 0.52.1 (simulator, slab house): a regulated room on a screed shows one thermometer value for hours (near
+        # the target up to 17 h; while it warms up at full power, up to 5.3 h), and the heat of the last two hours
+        # before a lowering arrives after it
+        out.update(frozen_band=1.0, frozen_after_h=8.0, pre_change_s=7200.0)
     if system == "fan_coil":
         out["fan_coil"] = True  # the fan follows the valve's demand
     if source == "heat_pump" and system != "fan_coil":

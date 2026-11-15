@@ -400,10 +400,10 @@ def test_info_by_a_room_climate_returns_its_host_with_the_room(monkeypatch):
     monkeypatch.setattr(info, "_instance", lambda hass, entry: {"entry_id": entry.entry_id})
     conn = _Conn()
     info.ws_info(hass, conn, {"id": 1, "type": "hc_thermostat/info", "entity_id": "climate.konyha_hc"})
-    assert conn.result == {"entry_id": "e1", "via_room": "konyha"}
+    assert {k: v for k, v in conn.result.items() if not k.startswith("house")} == {"entry_id": "e1", "via_room": "konyha"}
     conn = _Conn()
     info.ws_info(hass, conn, {"id": 2, "type": "hc_thermostat/info", "entity_id": "climate.cirko_hc"})
-    assert conn.result == {"entry_id": "e1"}
+    assert {k: v for k, v in conn.result.items() if not k.startswith("house")} == {"entry_id": "e1"}
 
 
 def test_room_of_entity_reads_the_unique_id(monkeypatch):
@@ -445,3 +445,14 @@ def test_room_without_trv_rejects_a_target(monkeypatch):
     assert c._ctl("konyha").manual == 23.0
     asyncio.run(trv_ent.async_set_preset_mode("away"))
     assert c._ctl("konyha").preset == "away" and c._ctl("konyha").manual is None
+
+
+def test_a_measured_only_room_has_a_reading_but_no_target_no_heating_and_no_advice(monkeypatch):
+    # 0.53.0
+    rooms = [*ROOMS[:2], {**ROOMS[2], "heated": False}]
+    c, _ = _coordinator(monkeypatch, _states(), {"rooms": rooms, "leading_room": "nappali"})
+    asyncio.run(c._apply_trvs(_decision(target=20.5)))
+    h = c.room_states["halo"]
+    assert h["temperature"] == 19.0 and h["target"] is None and h["heating"] is False and h["reason"] == "unheated"
+    assert c._room_readings(T0) == {"Konyha": 20.0}  # the radiator valve advice leaves it out
+    assert [s.key for s in c.other_rooms() if s.heated] == ["konyha"]  # only heated rooms get a climate

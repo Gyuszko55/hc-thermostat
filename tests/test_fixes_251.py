@@ -66,8 +66,8 @@ def test_curve_mode_floor_limit_stops_at_once():
 
 
 def test_water_floor_has_a_default_limit():
-    assert source_defaults("floor_single", "onoff_boiler") == {"floor_max": 29.0}
-    assert source_defaults("floor_zones", "heat_pump") == {"floor_max": 29.0, "heat_pump": True}
+    assert source_defaults("floor_single", "onoff_boiler") == {"floor_max": 29.0, "frozen_band": 1.0, "frozen_after_h": 8.0, "pre_change_s": 7200.0}  # 0.52.1: + the slab defaults
+    assert source_defaults("floor_zones", "heat_pump") == {"floor_max": 29.0, "heat_pump": True, "frozen_band": 1.0, "frozen_after_h": 8.0, "pre_change_s": 7200.0}
     assert source_defaults("radiator_single", "onoff_boiler") == {}
     sup = Supervisor(HcConfig.from_mapping({**source_defaults("floor_single", "onoff_boiler"), **DAY, "control": "tpi"}))
     assert sup.step(Inputs(now=at(0), indoor=Reading(18.0), outdoor=Reading(0.0))).reason == Reason.REGULATING  # no sensor: no limit

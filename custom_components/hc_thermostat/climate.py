@@ -23,7 +23,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     rooms = []
     if rooms_supported(coordinator.conf) and coordinator.other_rooms():
         host_device = _host_device_id(hass, entry)
-        rooms = [HcRoomClimate(coordinator, spec, host_device) for spec in coordinator.other_rooms()]
+        # 0.53.0: a measured-only room (no heater of this instance) gets no climate
+        rooms = [HcRoomClimate(coordinator, spec, host_device) for spec in coordinator.other_rooms() if spec.heated]
     _remove_old_rooms(hass, entry, {r.unique_id for r in rooms})
     async_add_entities([HcClimate(coordinator), *rooms])
 

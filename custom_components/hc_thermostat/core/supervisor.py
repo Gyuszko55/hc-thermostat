@@ -301,12 +301,17 @@ class Supervisor:
         if after >= target - 1e-9 or indoor < after:
             return None
         hold = {"at": at, "target": round(after, 2), "min_left": round(left / 60, 1)}
-        if ahead:
+        if tau is not None and outdoor is not None:
             # 0.50.0: left alone, where will the room be at the change? Further out than pre_change_s it must stay at
-            # or above the coming target and within pre_change_sag of the current one.
+            # or above the coming target and within pre_change_sag of the current one. 0.52.1: within pre_change_s
+            # too, the room may not fall more than pre_change_sag (from the target, or from the room when it is
+            # already below it) – a light house loses ~1 °C in 30 minutes, a heavy one barely moves in two hours.
             predicted = predict(indoor, self.equilibrium(outdoor), tau, left / 3600)
             hold["predicted"] = round(predicted, 2)
-            if left > cfg.pre_change_s and (predicted < after or predicted < target - cfg.pre_change_sag):
+            if left > cfg.pre_change_s:
+                if predicted < after or predicted < target - cfg.pre_change_sag:
+                    return None
+            elif min(indoor, target) - predicted > cfg.pre_change_sag:
                 return None
         return hold
 
@@ -943,7 +948,7 @@ class Supervisor:
         if cfg.control in ("tpi", "pid", "onoff"):
             heating = inputs.actual_heating if inputs.actual_heating is not None else (self.pwm.output or self._gate.output)
             self._note_flame(now, bool(heating))
-            if self.frozen.step(now, indoor, bool(heating)):
+            if self.frozen.step(now, indoor, bool(heating), self._target_shown or None):
                 frozen, indoor = self.frozen.details(now), None  # looks fresh, measures nothing: the lost-sensor path
         outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
         self._update_season(inputs.outdoor_avg)

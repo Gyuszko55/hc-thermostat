@@ -1057,7 +1057,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _room_readings(self, now: datetime) -> dict[str, float | None]:
         """Every room but the leading one, by name."""
-        return {s.name: self._room_reading(s, now) for s in self.other_rooms() if s.sensors or s.trvs}
+        return {s.name: self._room_reading(s, now) for s in self.other_rooms() if (s.sensors or s.trvs) and s.heated}
 
     def _room_demand(self, now: datetime) -> list[str]:
         """Optional, per room: a TRV room far below its target with an open head asks for heat."""
@@ -1104,6 +1104,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                       "temperature": round(temp, 2) if temp is not None else None, "sensors": list(spec.sensors),
                       "house_target": house, "mode": spec.mode, "offset": spec.offset, "windows": list(spec.windows),
                       "advice": {"advice": a.advice, "deviation": a.deviation, "hours": a.hours} if a else None}
+            if not spec.heated and not is_lead:  # 0.53.0: measured only – no target, never heated by this instance
+                states[spec.key] = {**common, "target": None, "reason": "unheated", "heating": False, "presence": None,
+                                    "heated": False}
+                continue
             if not spec.trvs:
                 states[spec.key] = {**common, "target": house, "reason": "leading" if is_lead else "house",
                                     "heating": bool(decision.output), "presence": None}
@@ -1167,7 +1171,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     def _update_rooms(self, decision: Decision, now: datetime) -> None:
         """Single zone: the other rooms against the main thermometer; advice only, never the boiler."""
-        others = [s for s in self.other_rooms() if s.sensors or s.trvs]
+        others = [s for s in self.other_rooms() if (s.sensors or s.trvs) and s.heated]  # 0.53.0: not a measured-only room
         if not others:
             return
         quiet = decision.reason in (Reason.REGULATING, Reason.AT_TARGET, Reason.THERMOSTAT_IDLE)

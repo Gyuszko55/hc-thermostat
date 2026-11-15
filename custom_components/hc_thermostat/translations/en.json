@@ -282,7 +282,7 @@
               "coast_window_s": "For this long after a burn no new start while the room, just under the target, still rises (the radiators give their heat). Suggested: 2700 s. Off by default (measured on one house).",
               "pwm_midcycle_start": "When the demand grows past the minimum run in the middle of a cycle, a new cycle starts at once (no wait for the next). Off by default (measured on one house).",
               "pwm_carry": "Demands below the minimum run add up to a real run (always so with a valve delay). Off by default: in the simulation it raised the overshoot after a boost.",
-              "pre_change_s": "This long before a scheduled lowering of the target (night start, a preset or manual target running out) no new burn starts while the room is already at or above the coming target – its heat would arrive after the change. A running burn is not cut. Default: 1800 s.",
+              "pre_change_s": "This long before a scheduled lowering of the target (night start, a preset or manual target running out) no new burn starts while the room is already at or above the coming target – its heat would arrive after the change. A running burn is not cut. Default: 1800 s. On a floor the default is 7200 s, because the floor gives the last hours' heat after the change. With the house's time constant known, the room may sag at most the allowed amount below in this time.",
               "pid_kp": "How strongly HC answers the error now (0.4 = 40 % demand per °C below the target).",
               "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).",
               "pid_d_filter_s": "Room sensors report in 0.1 °C steps, only on a change: an unfiltered derivative is spiky. 0 = no filter; only matters when the derivative gain is not 0.",
@@ -336,7 +336,7 @@
               "plaus_indoor_min": "Lowest believable room temperature"
             },
             "data_description": {
-              "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating.",
+              "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating. On a floor the default is 8 hours, and a value within 1 °C of the target is not judged: next to a slow screed the thermometer shows one value for hours while the regulation works.",
               "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
               "zone_own_mixer": "Off: the flow of a central modulating boiler never goes above the highest flow of this zone (flow_max, 45 °C for a floor by default) while its circuit can get water – radiator zones heat more weakly then. Switch it on only when the floor circuit really has a mixing valve or a temperature limiter.",
@@ -433,12 +433,16 @@
             }
           },
           "adjoining": {
-            "name": "Adjoining room (second heat source)",
-            "description": "A conservatory or the next room that gets heat through a door.",
+            "name": "Adjoining room, shared house (several heat sources)",
+            "description": "A conservatory or the next room that gets heat through a door; and which house drawing of HC info shows this instance.",
             "data": {
               "zone_temp_entity": "Adjoining room thermometer (e.g. a conservatory or the next room)",
               "zone_door_entities": "Doors to the adjoining room",
-              "zone_max_diff": "Counts as part of the house if at most this much colder"
+              "zone_max_diff": "Counts as part of the house if at most this much colder",
+              "house_link": "Part of which house (HC info house drawing)"
+            },
+            "data_description": {
+              "house_link": "A house may have several heat sources (a boiler, an AC, an oil radiator, a heat pump), each with its own HC instance. They show as one house automatically when this instance's room is in the area of a room or the adjoining room of another instance with more rooms (but not its leading room). You can choose it here by hand. Display only: it switches nothing."
             }
           },
           "measures": {

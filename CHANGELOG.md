@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.53.0 – 2026-11-15
+One house, several heat sources.
+- **One house in HC info** (`core/house.py`): instances of the same building show as one house – automatically a
+  one-room instance (AC, heater) in the area of a room or the adjoining room of an instance with more rooms (not its
+  leading room), instances with the same home name, a central boiler / buffer where most of its zones are; or by hand:
+  the new setting `house_link` (*Adjoining room, shared house* → *Part of which house*: automatic, its own, or
+  another instance's house). `info_list` / `info` give `house`, `house_area`, `house_room`, `house_members`.
+- **The house drawing** takes the members in: their rooms, the AC / heater in the room it heats (with target, setpoint
+  and the unit's reading), a member's device next to the host's own emitter, every water-heating source side by side
+  in the plant room, outdoor units stacked; a click on a member's part opens it. The picker lists members under their
+  house; a member's page shows the whole house; a *Heat sources in the house* section lists them all.
+- **Measured-only rooms:** a room may be marked *No heater of this heat source – measured only* (options → Rooms, and
+  the wizard): drawn with its reading, no target, no climate, no radiator valve advice, no TRV heads. The leading
+  room is always heated.
+- Narrow drawings: an AC's setpoint label moves under the thermostat when it would cover the room's name.
+- Display only – no decision changes. Tests: tests/test_house_530.py (15) and one in test_rooms_430.py.
+
+## 0.52.1 – 2026-11-15
+The defaults checked on two more house types.
+- **Simulator** (`tests/sim.py`): three house types – the radiator house HC was developed on, a heavy house on a
+  floor slab (τ 100 h, the screed following in ~6 h, a heat pump) and a light, fast house (τ 12 h, convectors /
+  fan coils) – and a thermometer resolution (`Run(resolution=0.1)`).
+- **Fix – the frozen-thermometer check on floors:** on the slab a regulated room showed one 0.1 °C value for up to
+  17 h while the source ran, and the check took a working thermometer for lost for a third of the time; warming up
+  at full power in the cold, one value far below the target held up to 5.3 h. Floors now wait 8 h
+  (`frozen_after_h`) and do not judge a value within 1 °C of the target (new `frozen_band`); a thermometer stuck
+  further away is still found.
+- **Floors hold 2 h before a lowering** (`pre_change_s` 7200, was 1800): the screed gives the last hours' heat after
+  the change; in the simulator the last hour had no run any more and the room was only 0.11 °C cooler at the change.
+- **The hold before a lowering never sags more than `pre_change_sag`** when τ is known, also within `pre_change_s`
+  (from the target, or from the room when it is already below it): a light house lost ~0.8 °C in the 30 minutes.
+- The floor defaults are source defaults (a value set by hand wins) and the settings form shows them.
+- The radiator house (and so a radiator instance) behaves as in 0.52.0. Also seen: TPI's outdoor term
+  (`tpi_coef_ext` 0.01) fits a high-power boiler; on the slab and the light house TPI stays 0.3–0.6 °C under the
+  target, PID holds it – PID is the better choice there.
+- Tests: tests/test_house_types_521.py (40).
+
 ## 0.52.0 – 2026-11-15
 Fewer guesses that only fit one house.
 - **Presence values to choose** (`core/states.py`): for an `input_select` / `sensor` presence source the settings
