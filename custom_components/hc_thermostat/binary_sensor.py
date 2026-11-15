@@ -20,6 +20,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     if entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0
         async_add_entities([HcCircuitDemand(c)])
         return
+    if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
+        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c)])
+        return
     entities = [HcDemand(c), HcFault(c)]
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
     if (c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
@@ -124,3 +127,40 @@ class HcCircuitDemand(HcEntity, BinarySensorEntity):
         d = self.coordinator.data
         return {"lasting": list(d.lasting), "asking_now": list(d.asking),
                 "hold_s": self.coordinator.circuit.cfg.circuit_hold_s}
+
+
+class HcHpEnable(HcEntity, BinarySensorEntity):
+    """Heat pump coordination (0.55.0, shadow): the ON/OFF HC would ask of the unit – a request, not a sign that it runs."""
+
+    _attr_icon = "mdi:power"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_enable")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.data.enable
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self.coordinator.data
+        return {"mode": self.coordinator.write.status(d.now), "reason": d.reason, "cold_on": d.cold_on,
+                "written": self.coordinator.out_switch.info()}
+
+
+class HcHpHeatDemand(HcEntity, BinarySensorEntity):
+    """Heat pump coordination (0.55.0): heat should be made now (for the circuits or the tank)."""
+
+    _attr_device_class = BinarySensorDeviceClass.HEAT
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_heat_demand")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.data.heat_demand
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self.coordinator.data
+        return {"need": d.need, "wood": d.wood, "top": d.details.get("top"), "charge": d.details.get("charge")}

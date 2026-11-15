@@ -14,7 +14,8 @@ from homeassistant.helpers.storage import Store
 from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
 from .circuit_coordinator import CircuitCoordinator
-from .const import CENTRAL_PLATFORMS, CONF_ROLE, DOMAIN, PLATFORMS
+from .hp_coord_coordinator import HpCoordCoordinator
+from .const import CENTRAL_PLATFORMS, CIRCUIT_PLATFORMS, CONF_ROLE, DOMAIN, HP_COORD_PLATFORMS, PLATFORMS
 from .coordinator import HcCoordinator, note_ha_start
 from .rename import async_track_renames
 from .rooms_ha import auto_humidity
@@ -35,7 +36,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 def _central(entry: ConfigEntry) -> bool:
     """A central boiler, a buffer tank or a mixing circuit: no thermostat of its own, only its decision entities."""
-    return entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit")
+    return entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit", "hp_coord")
+
+
+def _platforms(entry: ConfigEntry) -> list[str]:
+    role = entry.data.get(CONF_ROLE)
+    return HP_COORD_PLATFORMS if role == "hp_coord" else CIRCUIT_PLATFORMS if role == "circuit" else CENTRAL_PLATFORMS
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -44,8 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.data.get(CONF_ROLE) == "buffer":
             central = BufferCoordinator(hass, entry)
             await central.async_load()
-        elif entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0, shadow only
-            central = CircuitCoordinator(hass, entry)
+        elif entry.data.get(CONF_ROLE) in ("circuit", "hp_coord"):  # 0.54.0 / 0.55.0, shadow only
+            central = (CircuitCoordinator if entry.data.get(CONF_ROLE) == "circuit" else HpCoordCoordinator)(hass, entry)
             await central.async_load()
 
             async def _save_circuit(_event) -> None:
@@ -57,7 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await central.async_load()  # when the pump last ran (pump exercise, 0.39.0)
         await central.async_config_entry_first_refresh()
         entry.runtime_data = central
-        await hass.config_entries.async_forward_entry_setups(entry, CENTRAL_PLATFORMS)
+        await hass.config_entries.async_forward_entry_setups(entry, _platforms(entry))
         entry.async_on_unload(entry.add_update_listener(_async_reload))
         entry.async_on_unload(async_track_renames(hass, entry))  # 0.51.1: a renamed entity is followed
         return True
@@ -115,9 +121,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if _central(entry):
-        if entry.data.get(CONF_ROLE) in ("central", "circuit"):
+        if entry.data.get(CONF_ROLE) in ("central", "circuit", "hp_coord"):
             await entry.runtime_data.async_save()
-        return await hass.config_entries.async_unload_platforms(entry, CENTRAL_PLATFORMS)
+        return await hass.config_entries.async_unload_platforms(entry, _platforms(entry))
     await entry.runtime_data.async_save()
     if (load := entry.runtime_data.supervisor.load) is not None:
         load.manager.release(load.name)  # free its room at once (options changed, removed)

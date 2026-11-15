@@ -75,9 +75,15 @@ def _instance(hass, entry) -> dict:
             "heat_source": conf.get("heat_source"), "system": conf.get("system"), "control": conf.get("control"),
             "entities": _entities(hass, conf), "conf": jsonable(conf)}
     if role == "circuit":  # 0.54.0, shadow only
-        return {**base, "mode": "shadow", "decision": jsonable(c.data), "zones": jsonable(c.zones),
+        return {**base, "mode": c.write.mode, "write": jsonable(c.write.info(c.data.now)) if c.data else {},
+                "outputs": {"target": jsonable(c.out.info())}, "decision": jsonable(c.data), "zones": jsonable(c.zones),
                 "config": jsonable(c.circuit.cfg), "buffer": jsonable(c.usable),
                 "state": jsonable(c.circuit.state(c.data.now)) if c.data else {}}
+    if role == "hp_coord":  # 0.55.0, shadow only
+        return {**base, "mode": c.write.mode, "write": jsonable(c.write.info(c.data.now)) if c.data else {},
+                "outputs": jsonable(c.outputs()), "decision": jsonable(c.data), "config": jsonable(c.hp.cfg),
+                "inputs": jsonable(c.inputs(c.data.now)) if c.data else None, "offset": c.offset,
+                "state": jsonable(c.hp.state(c.data.now)) if c.data else {}}
     if role in ("central", "buffer"):
         d = c.data
         extra = {"decision": jsonable(d)}

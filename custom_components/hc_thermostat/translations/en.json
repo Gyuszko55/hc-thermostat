@@ -189,12 +189,13 @@
       },
       "circuit": {
         "title": "Mixing circuit (shadow)",
-        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Shadow only: it writes nothing, the PLC / mixer keeps its own control and safety limits.",
+        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. It starts in shadow mode (writes nothing); writing – a supervised trial or active – is switched on in its settings.",
         "data": {
           "circuit_kind": "Circuit type",
           "zone_entities": "Zones of the circuit (HC)",
           "outdoor_entity": "Outdoor thermometer",
-          "circuit_buffer": "Buffer tank instance it draws from"
+          "circuit_buffer": "Buffer tank instance it draws from",
+          "circuit_output_entity": "Where the flow target is written (PLC number / input_number / climate, optional)"
         }
       },
       "circuit_settings": {
@@ -216,6 +217,47 @@
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)"
         }
+      },
+      "hp_coord": {
+        "title": "Heat pump coordination (shadow)",
+        "description": "For a heat pump charging a buffer tank (through its coil or directly), beside other sources such as a wood boiler. HC works out the ON/OFF request, the heat demand and a rarely changing flow target with your offset, from the buffer, its mixing circuits and the outdoor temperature. It starts in shadow mode (writes nothing); writing – a supervised trial or active – is switched on in its settings.",
+        "data": {
+          "hp_buffer": "Buffer tank instance it charges",
+          "outdoor_entity": "Outdoor thermometer",
+          "hp_running_entity": "Heat pump runs now (optional: binary, climate or power W)",
+          "wood_entity": "Wood boiler signal (optional: on while it fires)",
+          "hp_target_entity": "Where the flow target is written (number / input_number / climate, optional)",
+          "hp_switch_entity": "Heat pump ON/OFF (switch / input_boolean / climate, optional)",
+          "hp_demand_entity": "Heat demand signal (switch / input_boolean, optional)"
+        }
+      },
+      "hp_coord_settings": {
+        "title": "Heat pump coordination – rules",
+        "description": "Flow target = the circuits' need + reserve + offset, within the limits (after the offset). The cold-weather ON is only for a water-filled monoblock and never replaces its own frost protection; it wins over the long no-demand stop.",
+        "data": {
+          "hp_flow_min": "Lowest flow target (also the standby target)",
+          "hp_flow_max": "Highest flow target",
+          "hp_reserve": "Tank / coil reserve above the circuits' need",
+          "hp_offset": "Manual offset (the number entity changes it later)",
+          "hp_hyst": "Stop only this much above the need",
+          "hp_charge_on": "Start at or below this charge (0 = not used)",
+          "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+          "hp_min_on_s": "Minimum ON time",
+          "hp_min_off_s": "Minimum OFF time",
+          "hp_standby": "Keep ON with no demand (standby, lowest target)",
+          "hp_idle_off": "OFF after a long time without demand",
+          "hp_idle_hours": "Without demand for",
+          "hp_cold_on": "Cold-weather ON (water-filled monoblock)",
+          "hp_cold_on_below": "ON below",
+          "hp_cold_release_above": "Released above",
+          "hp_cold_release_s": "… lasting for",
+          "hp_wood_rise": "Tank warming that means another source (°C/h)",
+          "hp_deadband": "New target only for a difference of at least",
+          "hp_confirm_s": "The difference must last",
+          "hp_min_interval_s": "At least between two changes",
+          "hp_max_rise": "Rise at most per change (0 = no limit)",
+          "hp_urgent": "Urgent difference: no waiting (0 = never)"
+        }
       }
     },
     "error": {
@@ -225,11 +267,15 @@
       "name_taken": "An instance with this name exists already – choose another name.",
       "climate_taken": "This climate is an HC thermostat or is driven by another HC instance already – two would fight over it.",
       "cycle_too_short": "The cycle is too short for the useful heat delay: at least the delay + the minimum on + the minimum off time (e.g. 20 minutes for a 10-minute delay with 5 + 5).",
-      "circuit_order": "The highest flow target must be above the lowest."
+      "circuit_order": "The highest flow target must be above the lowest.",
+      "cold_order": "The release limit must be at or above the ON limit.",
+      "charge_order": "The stop charge must be above the start charge.",
+      "no_output": "Writing needs at least one output entity."
     },
     "abort": {
       "already_configured": "An instance with this name already exists.",
-      "use_wizard": "The setup wizard is ready: open it here: [HC setup]({url}) (it is in the sidebar too). The instance is created at the end of the wizard."
+      "use_wizard": "The setup wizard is ready: open it here: [HC setup]({url}) (it is in the sidebar too). The instance is created at the end of the wizard.",
+      "no_buffer": "Set up a buffer tank instance first – the heat pump coordination charges it."
     }
   },
   "options": {
@@ -688,12 +734,17 @@
       },
       "circuit": {
         "title": "Mixing circuit (shadow)",
-        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Shadow only: it writes nothing, the PLC / mixer keeps its own control and safety limits.",
+        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Writing (0.56.0): in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
         "data": {
           "circuit_kind": "Circuit type",
           "zone_entities": "Zones of the circuit (HC)",
           "outdoor_entity": "Outdoor thermometer",
-          "circuit_buffer": "Buffer tank instance it draws from"
+          "circuit_buffer": "Buffer tank instance it draws from",
+          "circuit_output_entity": "Where the flow target is written (PLC number / input_number / climate, optional)",
+          "mode": "Writing",
+          "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
+          "trial_hours": "Length of the supervised trial",
+          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)"
         }
       },
       "circuit_settings": {
@@ -715,6 +766,51 @@
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)"
         }
+      },
+      "hp_coord": {
+        "title": "Heat pump coordination (shadow)",
+        "description": "For a heat pump charging a buffer tank (through its coil or directly), beside other sources such as a wood boiler. HC works out the ON/OFF request, the heat demand and a rarely changing flow target with your offset, from the buffer, its mixing circuits and the outdoor temperature. Writing (0.56.0): in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
+        "data": {
+          "hp_buffer": "Buffer tank instance it charges",
+          "outdoor_entity": "Outdoor thermometer",
+          "hp_running_entity": "Heat pump runs now (optional: binary, climate or power W)",
+          "wood_entity": "Wood boiler signal (optional: on while it fires)",
+          "hp_target_entity": "Where the flow target is written (number / input_number / climate, optional)",
+          "hp_switch_entity": "Heat pump ON/OFF (switch / input_boolean / climate, optional)",
+          "hp_demand_entity": "Heat demand signal (switch / input_boolean, optional)",
+          "mode": "Writing",
+          "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
+          "trial_hours": "Length of the supervised trial",
+          "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)"
+        }
+      },
+      "hp_coord_settings": {
+        "title": "Heat pump coordination – rules",
+        "description": "Flow target = the circuits' need + reserve + offset, within the limits (after the offset). The cold-weather ON is only for a water-filled monoblock and never replaces its own frost protection; it wins over the long no-demand stop.",
+        "data": {
+          "hp_flow_min": "Lowest flow target (also the standby target)",
+          "hp_flow_max": "Highest flow target",
+          "hp_reserve": "Tank / coil reserve above the circuits' need",
+          "hp_offset": "Manual offset (the number entity changes it later)",
+          "hp_hyst": "Stop only this much above the need",
+          "hp_charge_on": "Start at or below this charge (0 = not used)",
+          "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+          "hp_min_on_s": "Minimum ON time",
+          "hp_min_off_s": "Minimum OFF time",
+          "hp_standby": "Keep ON with no demand (standby, lowest target)",
+          "hp_idle_off": "OFF after a long time without demand",
+          "hp_idle_hours": "Without demand for",
+          "hp_cold_on": "Cold-weather ON (water-filled monoblock)",
+          "hp_cold_on_below": "ON below",
+          "hp_cold_release_above": "Released above",
+          "hp_cold_release_s": "… lasting for",
+          "hp_wood_rise": "Tank warming that means another source (°C/h)",
+          "hp_deadband": "New target only for a difference of at least",
+          "hp_confirm_s": "The difference must last",
+          "hp_min_interval_s": "At least between two changes",
+          "hp_max_rise": "Rise at most per change (0 = no limit)",
+          "hp_urgent": "Urgent difference: no waiting (0 = never)"
+        }
       }
     },
     "error": {
@@ -730,7 +826,10 @@
       "rooms_need_valves": "Rooms work with TPI or PID only. Remove them in the Rooms menu first, then change the control.",
       "season_order": "The heating season's start (the \"starts below\" value) must be lower than its end.",
       "plaus_frost": "The lowest believable room temperature can be at most the frost target minus 2 °C.",
-      "circuit_order": "The highest flow target must be above the lowest."
+      "circuit_order": "The highest flow target must be above the lowest.",
+      "cold_order": "The release limit must be at or above the ON limit.",
+      "charge_order": "The stop charge must be above the start charge.",
+      "no_output": "Writing needs at least one output entity."
     }
   },
   "selector": {
@@ -804,7 +903,8 @@
         "zone": "Zone (switches only its own valve or TRV)",
         "central": "Central boiler (by the zones' demand)",
         "buffer": "Buffer tank (charges from the heat source)",
-        "circuit": "Mixing circuit from a buffer (shadow: flow target only)"
+        "circuit": "Mixing circuit from a buffer (shadow: flow target only)",
+        "hp_coord": "Heat pump coordination for a buffer (shadow: ON/OFF and target only)"
       }
     },
     "weekday": {
@@ -856,6 +956,13 @@
       "options": {
         "radiator": "Radiators",
         "floor": "Floor heating"
+      }
+    },
+    "write_mode": {
+      "options": {
+        "shadow": "Shadow – works out and shows, writes nothing",
+        "trial": "Supervised trial – writes for the set hours, then back to shadow",
+        "active": "Active – writes permanently"
       }
     }
   },
@@ -1016,6 +1123,32 @@
       },
       "circuit_raw": {
         "name": "Circuit flow target (raw)"
+      },
+      "hp_decision": {
+        "name": "Heat pump decision",
+        "state": {
+          "fail_safe_on": "ON: outdoor reading lost (fail-safe)",
+          "no_outdoor": "No outdoor reading: unchanged",
+          "no_buffer": "No tank reading: unchanged",
+          "cold_on": "ON: cold weather",
+          "frost": "Tank frost",
+          "low_charge": "Tank charge low",
+          "heat_needed": "Heat needed",
+          "heating": "Heating",
+          "charging": "Charging to the stop level",
+          "wood": "Another source charges the tank",
+          "idle_off": "OFF: long without demand",
+          "standby": "Standby (ON, no heating)",
+          "off": "No demand",
+          "min_on": "Minimum run",
+          "min_off": "Minimum pause"
+        }
+      },
+      "hp_target": {
+        "name": "Heat pump flow target"
+      },
+      "hp_raw": {
+        "name": "Heat pump flow target (raw)"
       }
     },
     "binary_sensor": {
@@ -1039,6 +1172,12 @@
       },
       "circuit_demand": {
         "name": "Circuit lasting demand"
+      },
+      "hp_enable": {
+        "name": "Heat pump ON request"
+      },
+      "hp_heat_demand": {
+        "name": "Heat pump heat demand"
       }
     },
     "climate": {
@@ -1084,6 +1223,14 @@
       },
       "supervision_paused_plain": {
         "name": "Supervision paused"
+      },
+      "write_paused": {
+        "name": "Writing paused"
+      }
+    },
+    "number": {
+      "hp_offset": {
+        "name": "Heat pump offset"
       }
     }
   },

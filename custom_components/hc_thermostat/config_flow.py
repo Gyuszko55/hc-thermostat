@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_NAME
+from homeassistant.util import dt as dt_util
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import entity_registry as er
@@ -18,7 +19,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_WRITE_KEEPALIVE, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -33,6 +34,7 @@ from .core.model import HcConfig
 from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig
+from .core.hp_coord import HpConfig
 from .core.room_model import OWN, rooms_options
 from . import room_form as rf
 from .core import measures as ms
@@ -165,7 +167,57 @@ def _circuit_fields(hass, current: dict) -> dict:
         vol.Required(CONF_OUTDOOR, default=current.get(CONF_OUTDOOR)) if current.get(CONF_OUTDOOR) else vol.Required(CONF_OUTDOOR): _ent(CONF_OUTDOOR, "sensor", "weather"),
         vol.Required(CONF_CIRCUIT_BUFFER, default=linked if any(b["value"] == linked for b in buffers) else "none"): SelectSelector(
             SelectSelectorConfig(options=buffers, mode=SelectSelectorMode.DROPDOWN)),
+        **_outputs("circuit", current),
     }
+
+
+WRITE_MODES = ["shadow", "trial", "active"]
+
+
+def _outputs(role: str, current: dict) -> dict:
+    """0.56.0: where a circuit / heat pump coordination writes (optional; nothing is written in shadow mode)."""
+    sug = lambda k: {"suggested_value": current.get(k)}  # noqa: E731
+    if role == "circuit":
+        return {vol.Optional(CONF_CIRCUIT_OUTPUT, description=sug(CONF_CIRCUIT_OUTPUT)): _entity("number", "input_number", "climate")}
+    return {
+        vol.Optional(CONF_HP_TARGET_OUT, description=sug(CONF_HP_TARGET_OUT)): _entity("number", "input_number", "climate"),
+        vol.Optional(CONF_HP_SWITCH, description=sug(CONF_HP_SWITCH)): _entity("switch", "input_boolean", "climate"),
+        vol.Optional(CONF_HP_DEMAND_OUT, description=sug(CONF_HP_DEMAND_OUT)): _entity("switch", "input_boolean"),
+    }
+
+
+def _write_fields(role: str, current: dict) -> dict:
+    """0.56.0: the writing mode (shadow / supervised trial / active) with its confirmation, the outputs, keep-alive."""
+    mode = current.get(CONF_MODE, MODE_SHADOW)
+    return {
+        vol.Required(CONF_MODE, default=mode if mode in WRITE_MODES else MODE_SHADOW): _select(WRITE_MODES, "write_mode"),
+        vol.Optional(CONF_CONFIRM, default=False): BooleanSelector(),
+        vol.Required(CONF_TRIAL_HOURS, default=current.get(CONF_TRIAL_HOURS, 4)): _number(0.5, 72, 0.5, "h"),
+        **_outputs(role, current),
+        vol.Required(CONF_WRITE_KEEPALIVE, default=current.get(CONF_WRITE_KEEPALIVE, 0)): _number(0, 3600, 60, "s"),
+    }
+
+
+def _write_errors(role: str, user_input: dict) -> dict:
+    if user_input.get(CONF_MODE, MODE_SHADOW) == MODE_SHADOW:
+        return {}
+    outs = [CONF_CIRCUIT_OUTPUT] if role == "circuit" else [CONF_HP_TARGET_OUT, CONF_HP_SWITCH, CONF_HP_DEMAND_OUT]
+    if not any(user_input.get(k) for k in outs):
+        return {CONF_MODE: "no_output"}
+    if not user_input.get(CONF_CONFIRM):
+        return {CONF_CONFIRM: "confirm_active"}
+    return {}
+
+
+def _with_trial(user_input: dict, current: dict) -> dict:
+    """A trial starts when it is chosen; editing the settings during a trial keeps its start."""
+    out = {k: v for k, v in user_input.items() if k != CONF_CONFIRM}
+    if out.get(CONF_MODE) == "trial":
+        keep = current.get(CONF_MODE) == "trial" and current.get("trial_start")
+        out["trial_start"] = current["trial_start"] if keep else dt_util.now().isoformat()
+    else:
+        out["trial_start"] = None
+    return out
 
 
 def _circuit_settings(current: dict, kind: str) -> dict:
@@ -189,6 +241,50 @@ def _circuit_settings(current: dict, kind: str) -> dict:
         vol.Required("circuit_max_rise", default=v("circuit_max_rise")): _number(0, 20, 0.5, "°C"),
         vol.Required("circuit_urgent", default=v("circuit_urgent")): _number(0, 20, 0.5, "°C"),
     }
+
+
+def _hpc_fields(hass, current: dict) -> dict:
+    """Heat pump coordination (0.55.0), first page: the tank it charges, the outdoor thermometer, optional signals."""
+    buffers = [{"value": e.entry_id, "label": e.title} for e in _buffers(hass)]
+    linked = current.get(CONF_HP_BUFFER)
+    default = linked if any(b["value"] == linked for b in buffers) else (buffers[0]["value"] if buffers else vol.UNDEFINED)
+    return {
+        vol.Required(CONF_HP_BUFFER, default=default): SelectSelector(SelectSelectorConfig(options=buffers, mode=SelectSelectorMode.DROPDOWN)),
+        vol.Required(CONF_OUTDOOR, default=current.get(CONF_OUTDOOR)) if current.get(CONF_OUTDOOR) else vol.Required(CONF_OUTDOOR): _ent(CONF_OUTDOOR, "sensor", "weather"),
+        vol.Optional(CONF_HP_RUNNING, description={"suggested_value": current.get(CONF_HP_RUNNING)}): _entity("binary_sensor", "switch", "input_boolean", "climate", "sensor"),
+        vol.Optional(CONF_WOOD, description={"suggested_value": current.get(CONF_WOOD)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
+        **_outputs("hp_coord", current),
+    }
+
+
+def _hpc_settings(current: dict) -> dict:
+    """Heat pump coordination (0.55.0), second page: limits, reserve, offset, the charge rules, standby and the long
+    no-demand stop, the cold-weather ON, wood, and the hold of the given-out target."""
+    cfg = HpConfig.from_conf(current)
+    n = lambda k, lo, hi, st, u="": (vol.Required(k, default=getattr(cfg, k)), _number(lo, hi, st, u))  # noqa: E731
+    b = lambda k: (vol.Required(k, default=getattr(cfg, k)), BooleanSelector())  # noqa: E731
+    return dict([
+        n("hp_flow_min", 15, 50, 1, "°C"), n("hp_flow_max", 25, 70, 1, "°C"), n("hp_reserve", 0, 15, 0.5, "°C"),
+        n("hp_offset", -8, 8, 0.5, "°C"), n("hp_hyst", 0.5, 10, 0.5, "°C"),
+        n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"),
+        n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
+        b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),
+        b("hp_cold_on"), n("hp_cold_on_below", -10, 15, 0.5, "°C"), n("hp_cold_release_above", -10, 20, 0.5, "°C"),
+        n("hp_cold_release_s", 0, 21600, 300, "s"), n("hp_wood_rise", 0.5, 20, 0.5, "°C/h"),
+        n("hp_deadband", 0.5, 6, 0.5, "°C"), n("hp_confirm_s", 0, 3600, 60, "s"), n("hp_min_interval_s", 0, 14400, 300, "s"),
+        n("hp_max_rise", 0, 20, 0.5, "°C"), n("hp_urgent", 0, 20, 0.5, "°C"),
+    ])
+
+
+def _hpc_errors(user_input: dict) -> dict:
+    errors = {}
+    if user_input["hp_flow_max"] <= user_input["hp_flow_min"]:
+        errors["hp_flow_max"] = "circuit_order"
+    if user_input["hp_cold_release_above"] < user_input["hp_cold_on_below"]:
+        errors["hp_cold_release_above"] = "cold_order"
+    if user_input["hp_charge_off"] and user_input["hp_charge_on"] and user_input["hp_charge_off"] <= user_input["hp_charge_on"]:
+        errors["hp_charge_off"] = "charge_order"
+    return errors
 
 
 def _circuit_errors(user_input: dict) -> dict:
@@ -611,6 +707,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_buffer()
             if user_input.get(CONF_ROLE) == "circuit":
                 return await self.async_step_circuit()
+            if user_input.get(CONF_ROLE) == "hp_coord":
+                return await self.async_step_hp_coord()
             return await self.async_step_control()
         last = user_input or {}
         schema = vol.Schema({
@@ -705,6 +803,21 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input, CONF_MODE: MODE_SHADOW})
         fields = _circuit_settings({**self._data, **(user_input or {})}, self._data.get("circuit_kind", "radiator"))
         return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors)
+
+    async def async_step_hp_coord(self, user_input=None):
+        """Heat pump coordination (0.55.0, shadow only): needs a buffer instance."""
+        if not _buffers(self.hass):
+            return self.async_abort(reason="no_buffer")
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_hp_coord_settings()
+        return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(_hpc_fields(self.hass, {})))
+
+    async def async_step_hp_coord_settings(self, user_input=None):
+        errors = _hpc_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input, CONF_MODE: MODE_SHADOW})
+        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_settings({**self._data, **(user_input or {})})), errors=errors)
 
     async def async_step_control(self, user_input=None):
         source, system = self._data[CONF_HEAT_SOURCE], self._data[CONF_SYSTEM]
@@ -816,6 +929,8 @@ class HcOptionsFlow(OptionsFlow):
             return await self.async_step_buffer(user_input)
         if current.get(CONF_ROLE) == "circuit":
             return await self.async_step_circuit(user_input)
+        if current.get(CONF_ROLE) == "hp_coord":
+            return await self.async_step_hp_coord(user_input)
         live = current.get(CONF_MODE, MODE_SHADOW) == MODE_ACTIVE
         menu = ["settings"]
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
@@ -1101,17 +1216,37 @@ class HcOptionsFlow(OptionsFlow):
     async def async_step_circuit(self, user_input=None):
         """Mixing circuit (0.54.0): shadow only – no mode to choose yet."""
         current = {**self.config_entry.data, **self.config_entry.options}
-        if user_input is not None:
-            self._circuit = dict(user_input)
+        errors = _write_errors("circuit", user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            self._circuit = _with_trial(user_input, current)
             return await self.async_step_circuit_settings()
-        return self.async_show_form(step_id="circuit", data_schema=vol.Schema(_circuit_fields(self.hass, current)))
+        fields = {**_write_fields("circuit", {**current, **(user_input or {})}), **_circuit_fields(self.hass, {**current, **(user_input or {})})}
+        return self.async_show_form(step_id="circuit", data_schema=vol.Schema(fields), errors=errors)
+
+    async def async_step_hp_coord(self, user_input=None):
+        """Heat pump coordination (0.55.0): shadow only – no mode to choose yet."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        errors = _write_errors("hp_coord", user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            self._hp = _with_trial(user_input, current)
+            return await self.async_step_hp_coord_settings()
+        fields = {**_write_fields("hp_coord", {**current, **(user_input or {})}), **_hpc_fields(self.hass, {**current, **(user_input or {})})}
+        return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(fields), errors=errors)
+
+    async def async_step_hp_coord_settings(self, user_input=None):
+        current = {**self.config_entry.data, **self.config_entry.options}
+        first = getattr(self, "_hp", {})
+        errors = _hpc_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            return self.async_create_entry(data={**first, **user_input})
+        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_settings({**current, **(user_input or {})})), errors=errors)
 
     async def async_step_circuit_settings(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}
         first = getattr(self, "_circuit", {})
         errors = _circuit_errors(user_input) if user_input is not None else {}
         if user_input is not None and not errors:
-            return self.async_create_entry(data={**first, **user_input, CONF_MODE: MODE_SHADOW})
+            return self.async_create_entry(data={**first, **user_input})
         fields = _circuit_settings({**current, **(user_input or {})}, first.get("circuit_kind", current.get("circuit_kind", "radiator")))
         return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors)
 

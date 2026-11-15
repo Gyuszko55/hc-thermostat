@@ -30,6 +30,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     if entry.data.get(CONF_ROLE) == "circuit":  # 0.54.0
         async_add_entities([HcCircuitTarget(c), HcCircuitRaw(c)])
         return
+    if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
+        async_add_entities([HcHpDecision(c), HcHpTarget(c), HcHpRaw(c)])
+        return
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if c.cfg.control not in ("external", "ac"):
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
@@ -486,7 +489,9 @@ class HcCircuitTarget(HcEntity, SensorEntity):
     def extra_state_attributes(self) -> dict:
         c, d = self.coordinator, self.coordinator.data
         cfg = c.circuit.cfg
-        return {"mode": "shadow", "kind": cfg.circuit_kind, "raw": d.raw, "reason": d.reason,
+        now = d.now
+        return {"mode": c.write.status(now), **c.write.info(now), "output": c.out.info(),
+                "kind": cfg.circuit_kind, "raw": d.raw, "reason": d.reason,
                 "next_allowed": d.details.get("next_allowed"), "last_change": d.details.get("last_change"),
                 "outdoor": d.outdoor, "room_target": d.t_room, "deficit": d.deficit,
                 "curve": d.details.get("curve"), "correction": d.details.get("correction"),
@@ -505,6 +510,71 @@ class HcCircuitRaw(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "circuit_raw")
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw
+        return None if raw is None else round(raw, 1)
+
+
+class HcHpDecision(HcEntity, SensorEntity):
+    """Heat pump coordination (0.55.0, shadow): why the ON/OFF request and the heat demand are what they are."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_icon = "mdi:heat-pump-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_decision")
+        from .core.hp_coord import REASONS
+        self._attr_options = list(REASONS)
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.data.reason
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d = self.coordinator.data
+        c = self.coordinator
+        return {"mode": c.write.status(d.now), **c.write.info(d.now), "outputs": c.outputs(),
+                "enable_request": d.enable, "heat_demand": d.heat_demand, "need": d.need,
+                "wood": d.wood, "cold_on": d.cold_on, **d.details}
+
+
+class HcHpTarget(HcEntity, SensorEntity):
+    """Heat pump coordination (0.55.0): the flow target given out (circuits' need + reserve + offset, rarely changed;
+    the lowest while there is no heat demand)."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer-water"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_target")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.data.target
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        d, cfg = self.coordinator.data, self.coordinator.hp.cfg
+        return {"mode": self.coordinator.write.status(d.now), "raw": d.raw, "hold": d.hold_reason, "need": d.need, "reserve": cfg.hp_reserve,
+                "offset": d.details.get("offset"), "flow_min": cfg.hp_flow_min, "flow_max": cfg.hp_flow_max,
+                "next_allowed": d.details.get("next_allowed")}
+
+
+class HcHpRaw(HcEntity, SensorEntity):
+    """Heat pump coordination (0.55.0): the raw flow target, every 30 seconds."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer-lines"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_raw")
 
     @property
     def native_value(self) -> float | None:

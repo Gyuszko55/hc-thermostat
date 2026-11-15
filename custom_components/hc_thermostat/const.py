@@ -3,6 +3,8 @@
 DOMAIN = "hc_thermostat"
 PLATFORMS = ["binary_sensor", "button", "climate", "sensor", "switch"]
 CENTRAL_PLATFORMS = ["binary_sensor", "sensor"]
+CIRCUIT_PLATFORMS = ["binary_sensor", "sensor", "switch"]  # 0.56.0: the writing-paused switch
+HP_COORD_PLATFORMS = ["binary_sensor", "number", "sensor", "switch"]  # 0.55.0: the offset is a number
 
 CONF_HEAT_SOURCE = "heat_source"
 CONF_SYSTEM = "system"
@@ -41,12 +43,21 @@ CONF_FLOW = "flow_setpoint_entity"  # heating curve (EXPERIMENTAL): where the fl
 CONF_HEAT_ENABLE = "heat_enable_entity"
 # Several zones (stage 3): the role of an instance; a central boiler reads its zone thermostats
 CONF_ROLE = "role"
-ROLES = ["standalone", "zone", "central", "buffer", "circuit"]
+ROLES = ["standalone", "zone", "central", "buffer", "circuit", "hp_coord"]
 CONF_BUFFER_TOP = "buffer_top_entity"  # buffer tank: temperature at the top (required)
 CONF_BUFFER_BOTTOM = "buffer_bottom_entity"  # buffer tank: temperature at the bottom (optional)
 CONF_BUFFER_UPPER = "buffer_upper_entity"  # 0.54.0: temperature in the upper middle (optional)
 CONF_BUFFER_LOWER = "buffer_lower_entity"  # 0.54.0: temperature in the lower middle (optional)
 CONF_BUFFER_CHARGE = "buffer_charge_entity"  # 0.54.0: an existing charge percentage, taken over unchanged (optional)
+CONF_HP_BUFFER = "hp_buffer"  # 0.55.0: heat pump coordination -> the buffer instance (entry id) it charges
+CONF_HP_RUNNING = "hp_running_entity"  # 0.55.0: whether the heat pump runs now (binary / climate / power W)
+CONF_WOOD = "wood_entity"  # 0.55.0: a wood boiler signal (on while it fires)
+CONF_CIRCUIT_OUTPUT = "circuit_output_entity"  # 0.56.0: where the circuit's flow target is written (PLC number)
+CONF_HP_SWITCH = "hp_switch_entity"  # 0.56.0: the heat pump's ON/OFF (switch / input_boolean / climate)
+CONF_HP_TARGET_OUT = "hp_target_entity"  # 0.56.0: the heat pump's flow target (number / input_number / climate)
+CONF_HP_DEMAND_OUT = "hp_demand_entity"  # 0.56.0: an optional heat demand signal (switch / input_boolean)
+CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
+CONF_TRIAL_HOURS = "trial_hours"  # 0.56.0: a supervised trial writes this long, then back to shadow
 CONF_CIRCUIT_BUFFER = "circuit_buffer"  # 0.54.0: mixing circuit -> the buffer instance (entry id) it draws from
 CONF_ZONES = "zone_entities"
 CONF_ASSIST = "assist_climate"  # air conditioner: the house HC whose cost advice and door it follows

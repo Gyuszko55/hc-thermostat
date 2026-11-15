@@ -304,7 +304,7 @@ def test_buffer_percentage_reading():
     assert bc._percent(hass, None, T0, 3600) is None
 
 
-def test_the_circuit_role_is_shadow_only_and_writes_nothing():
+def test_the_circuit_role_writes_only_through_the_writer():
     src = (BASE / "circuit_coordinator.py").read_text("utf8")
-    assert "async_call" not in src  # 0.54.0: no service call at all
-    assert "self.mode = MODE_SHADOW" in src
+    assert "async_call" not in src  # 0.54.0: no service call of its own (0.56.0: only through output_writer)
+    assert "WriteControl(hass, entry, data)" in src  # shadow unless a trial / active mode is chosen

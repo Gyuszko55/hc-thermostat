@@ -81,7 +81,11 @@ const REASON = {
     // 0.54.0: the hold of a mixing circuit's target, the tank's trend
     start: "Első cél", changed: "Új cél kiadva", ramp: "Emelés lépésben", urgent: "Sürgős módosítás", limit: "Határra igazítva",
     deadband: "Kis eltérés: marad", confirming: "Tartósságra vár", min_interval: "Két módosítás közti idő", no_input: "Nincs bemenet: marad",
-    emptying: "Merül", steady: "Állandó" },
+    emptying: "Merül", steady: "Állandó",
+    // 0.55.0: heat pump coordination
+    fail_safe_on: "ON: nincs kinti mérés (biztonsági)", no_outdoor: "Nincs kinti mérés: változatlan", no_buffer: "Nincs pufferhőfok: változatlan",
+    cold_on: "ON: hideg idő", low_charge: "Alacsony puffer-töltöttség", heat_needed: "Hő kell", wood: "Más hőforrás tölti a puffert",
+    idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény" },
   en: {},
 };
 
@@ -784,6 +788,7 @@ class HcInfoPanel extends HTMLElement {
     if (d.role === "central") return this._drawCentral();
     if (d.role === "buffer") return this._drawBuffer();
     if (d.role === "circuit") return this._drawCircuit();
+    if (d.role === "hp_coord") return this._drawHpCoord();
     // 0.44.0: the house view draws it (see _houseView); the data cards stay, each one the target of a hotspot
     this._houseMode = true;
     const t = this._t, src = d.heat_source, sys = d.system || "", L = this._hu ? "hu" : "en";
@@ -983,6 +988,62 @@ class HcInfoPanel extends HTMLElement {
     return { svg: svg.join(""), cards: cards.join("") };
   }
 
+  // 0.56.0: the writing state of a circuit / heat pump coordination and what was written where
+  _writeRows(d) {
+    const hu = this._hu, w = d.write || {}, outs = d.outputs || {};
+    const ST = { shadow: hu ? "árnyék – nem ír" : "shadow – writes nothing", trial: hu ? "felügyelt próba – ír" : "supervised trial – writing",
+      active: hu ? "éles – ír" : "active – writing", paused: hu ? "szüneteltetve – nem ír" : "paused – writes nothing", trial_over: hu ? "a próba lejárt" : "trial over" };
+    const OS = { none: hu ? "nincs megadva" : "not set", shadow: hu ? "nem ír" : "not writing", write: hu ? "írt" : "written", keepalive: hu ? "újraküldve" : "re-sent",
+      in_sync: hu ? "egyezik" : "in sync", no_value: hu ? "nincs érték" : "no value", unavailable: hu ? "nem elérhető" : "unavailable",
+      grace: hu ? "indulás utáni várakozás" : "waiting after a start", conflict: hu ? "ÜTKÖZÉS – más is írja, a HC nem ír bele" : "CONFLICT – someone else writes it, HC stays out", error: hu ? "HIBA" : "ERROR" };
+    const rows = [[hu ? "Írás" : "Writing", `${ST[w.write_status] || w.write_status || "–"}${w.trial_end ? ` (${hu ? "vége" : "ends"} ${this._val(w.trial_end)})` : ""}`, w.write_status === "trial" || w.write_status === "active"]];
+    for (const [k, o] of Object.entries(outs)) {
+      if (!o || !o.entity) continue;
+      rows.push([`${hu ? "Kimenet" : "Output"} (${k})`, `${o.entity} · ${OS[o.status] || o.status}${o.last_value != null ? ` · ${hu ? "utoljára" : "last"} ${this._num(o.last_value, 1)}` : ""}${o.error ? ` · ${o.error}` : ""}`, o.status === "conflict" || o.status === "error"]);
+    }
+    return rows;
+  }
+
+  // 0.55.0: heat pump coordination: the ON/OFF request, the heat demand and the given-out target
+  _drawHpCoord() {
+    this._n = 0; this._marks = [];
+    const d = this._d, t = this._t, dec = d.decision || {}, cfg = d.config || {}, hu = this._hu, det = dec.details || {}, inp = d.inputs || {};
+    const svg = [], cards = [];
+    svg.push(`<g class="dev ${dec.enable ? "on" : ""}"><rect x="60" y="260" width="200" height="160" rx="14"/></g>
+      <path class="cso" stroke="#e53935" d="M260,300 H440"/><path class="cso" stroke="#1e88e5" d="M440,400 H260"/>
+      <g class="dev"><rect x="440" y="140" width="160" height="380" rx="70"/></g>
+      <text x="160" y="346" text-anchor="middle" class="lbl">${esc(dec.enable ? "ON" : "OFF")}</text>
+      <text x="520" y="336" text-anchor="middle" class="lbl">${esc(det.top != null ? this._deg(det.top) : "–")}</text>`);
+    this._nextMark = [62, 262];
+    const woodTxt = { none: hu ? "nincs jel" : "no sign", possible: hu ? "lehet (nem tudni, fut-e a hőszivattyú)" : "possible (not known whether the heat pump runs)", likely: hu ? "valószínű" : "likely", certain: hu ? "biztos (jelzés)" : "certain (signal)" };
+    cards.push(this._card(20, 20, hu ? "Hőszivattyú-koordináció" : "Heat pump coordination", [
+      ...this._writeRows(d),
+      [hu ? "Döntés" : "Decision", this._reason(dec.reason), true],
+      [hu ? "ON kérés (nem visszajelzés)" : "ON request (not a confirmation)", dec.enable ? "ON" : "OFF", dec.enable],
+      [hu ? "Hőigény" : "Heat demand", dec.heat_demand ? t.yes : t.no, dec.heat_demand],
+      [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
+      [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
+      [hu ? "Visszatartás" : "Hold", this._reason(dec.hold_reason)],
+      [hu ? "Körök igénye (+ ráhagyás)" : "Circuits' need (+ margin)", dec.need != null ? this._deg(dec.need) : null],
+      [hu ? "Tartalék / korrekció" : "Reserve / offset", `+${this._num(cfg.hp_reserve, 1)} °C / ${det.offset >= 0 ? "+" : ""}${this._num(det.offset, 1)} °C`],
+      [hu ? "Határok" : "Limits", `${this._deg(cfg.hp_flow_min)} – ${this._deg(cfg.hp_flow_max)}`],
+      [hu ? "Fatüzelés" : "Wood", woodTxt[dec.wood] || dec.wood],
+      [hu ? "Hidegben-ON" : "Cold-weather ON", cfg.hp_cold_on ? (dec.cold_on ? (hu ? "aktív" : "active") : (hu ? "bekapcsolva, nem aktív" : "enabled, not active")) : (hu ? "kikapcsolva" : "off"), dec.cold_on],
+      [hu ? "Igény nélkül (óra)" : "Without demand (h)", det.idle_hours != null ? this._num(det.idle_hours, 1) : null],
+      [hu ? "Felülírt 24 órás leállás" : "Long stop overridden", det.idle_overridden ? (hu ? "igen – a hidegben-ON nyer" : "yes – cold-weather ON wins") : null, true],
+    ]));
+    this._nextMark = [598, 142];
+    cards.push(this._card(640, 20, hu ? "Bemenetek" : "Inputs", [
+      [t.outdoor, inp.outdoor != null ? this._deg(inp.outdoor) : (hu ? "nincs" : "none"), inp.outdoor == null],
+      [hu ? "Puffer teteje" : "Tank top", inp.top != null ? this._deg(inp.top) : t.none],
+      [hu ? "Töltöttség" : "Charge", inp.charge != null ? `${this._num(inp.charge, 1)} %` : null],
+      [hu ? "Puffer trend" : "Tank trend", inp.trend_c_h != null ? `${this._num(inp.trend_c_h, 1)} °C/h` : null],
+      [hu ? "Fut a hőszivattyú" : "Heat pump runs", inp.hp_running == null ? (hu ? "nem tudni" : "not known") : inp.hp_running ? t.yes : t.no],
+      ...(inp.circuits || []).map((c) => [c.name, `${c.target != null ? this._deg(c.target) : t.none}${c.demand ? (hu ? " · tartós igény" : " · lasting demand") : ""}`, c.demand]),
+    ]));
+    return { svg: svg.join(""), cards: cards.join("") };
+  }
+
   // 0.54.0: a mixing circuit from a buffer tank (shadow): the raw and the given-out flow target, the hold, its zones
   _drawCircuit() {
     this._n = 0; this._marks = [];
@@ -1001,7 +1062,8 @@ class HcInfoPanel extends HTMLElement {
     });
     this._nextMark = [362, 312];
     const kind = cfg.circuit_kind === "floor" ? (hu ? "padlófűtés" : "floor heating") : (hu ? "radiátoros" : "radiators");
-    cards.push(this._card(20, 20, `${hu ? "Keverőkör" : "Mixing circuit"} (${kind}, ${t.shadow})`, [
+    cards.push(this._card(20, 20, `${hu ? "Keverőkör" : "Mixing circuit"} (${kind})`, [
+      ...this._writeRows(d),
       [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Miért" : "Why", this._reason(dec.reason)],

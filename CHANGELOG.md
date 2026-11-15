@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.56.0 – 2026-11-15
+Writing: a mixing circuit's flow target to the PLC, the heat pump's flow target, ON/OFF and heat demand – after a
+supervised trial, with one writer per target.
+- **Writing modes** for the *mixing circuit* and the *heat pump coordination* roles (options, first page): *shadow*
+  (works out and shows, writes nothing – the default and where every new instance starts), *supervised trial* (writes
+  for `trial_hours`, 4 h by default, then goes back to shadow by itself, with a notification) and *active* (writes
+  permanently). Writing needs an output entity and a confirmation.
+- **Outputs:** a circuit writes its given-out target to `circuit_output_entity` (a PLC number / input_number, or a
+  climate's target); the heat pump coordination writes its target to `hp_target_entity` (number / input_number /
+  climate), then the ON/OFF request to `hp_switch_entity` (switch / input_boolean / a climate's hvac mode), then an
+  optional heat demand signal to `hp_demand_entity`. Only setpoints and ON/OFF: the PLC keeps its mixers, pumps and
+  safety, the unit its own frost protection. Values are clamped to the output's own min / max and stepped; °F numbers
+  get °F.
+- **One writer per target** (`core/output_guard.py`, `output_writer.py`): HC writes only when the value there differs
+  from what it wants. A value changed by someone else (the PLC, a person, an automation) more than 5 s after HC's write
+  is a **conflict**: HC stops writing that target, a notification says so, and it writes again only once the value is
+  HC's again. HC never fights another writer.
+- **No write in the first 2 minutes after a start** (the inputs settle; no stale value goes out); a lost output or no
+  value writes nothing; a failed write is logged and shown, the next decision goes on.
+- **Keep-alive** (`write_keepalive_s`, 0 = off): an unchanged value is re-sent this often, for a PLC that drops a
+  setpoint after a timeout.
+- **Writing paused** switch on both roles (kept over restarts): HC keeps working out and showing, writes nothing.
+- The writing state, the trial's end and each output's state (last value, conflict, error) are in the attributes and
+  in HC info.
+- Tests: tests/test_write_560.py (13).
+
+## 0.55.0 – 2026-11-15
+Heat pump coordination for a buffer tank – shadow only (nothing is switched or written).
+- **New role `hp_coord`** (*Heat pump coordination for a buffer*, `core/hp_coord.py`): for a heat pump charging a
+  buffer tank (through its coil or directly), beside another source such as a wood boiler. It reads the linked buffer
+  instance (its stratified stock, trend and mixing circuits), the outdoor thermometer and optionally whether the heat
+  pump runs now and a wood boiler signal, and works out three separate things:
+  - **heat demand** – the highest given-out target of the circuits with a lasting demand + their margin is the need;
+    heating starts when the tank top is below it (or the charge is at or below `hp_charge_on` %, or the top is at the
+    buffer's frost limit) and runs until the top is `hp_hyst` (3 °C) above it and, when set, the charge reached
+    `hp_charge_off` %;
+  - **the ON/OFF request** – a request, not a confirmation; minimum ON / OFF times (30 / 15 min);
+  - **the flow target** – need + coil reserve (`hp_reserve`, 5 °C) + the manual offset (−8…+8 °C, the new number entity
+    *Heat pump offset*, kept over restarts), within `hp_flow_min`–`hp_flow_max` after the offset; the lowest with no
+    heat demand (ON is not a heating command); given out through the same hold as the circuits (2 °C, 10 min, 45 min,
+    a rise at most 3 °C at a time, urgent 6 °C).
+- **Wood first:** with a wood signal on (`certain`), or the tank warming by `hp_wood_rise` (2 °C/h) while the heat pump
+  is known not to run (`likely`), no new heating starts; a warming tank with no running signal is only shown
+  (`possible`) – HC does not claim what it cannot know. A tank warm enough makes no demand anyway.
+- **Cold-weather ON** (`hp_cold_on`, off by default – a water-filled monoblock only): below +5 °C the request is ON even
+  with no demand and while wood heats; released only after a lasting +7 °C (1 h); a lost outdoor reading gives a
+  fail-safe ON. It never replaces the unit's own frost protection.
+- **Long no-demand stop:** with *keep ON with no demand* (`hp_standby`), the request goes OFF after `hp_idle_hours`
+  (24 h) without circuit or heat demand – unless the cold-weather ON holds: it wins, and the decision says so
+  (`idle_overridden`).
+- **Lost inputs:** no outdoor or tank reading – the last request stays (no random switching).
+- Entities: *Heat pump decision* (the reason), *Heat pump ON request*, *Heat pump heat demand*, *Heat pump flow target*
+  (given out; raw, hold, need, reserve, offset as attributes), *Heat pump flow target (raw)*, *Heat pump offset*
+  (number). HC info: a heat pump coordination drawing with the decision, the target parts, wood, the cold-weather ON
+  and the inputs.
+- Tests: tests/test_hp_coord_550.py (18), with the reference design's acceptance cases.
+
 ## 0.54.0 – 2026-11-15
 A stratified buffer tank and mixing circuits fed from it – shadow only, information only (nothing new is switched or
 written). The first step towards several heat sources on one buffer with separately controlled circuits.

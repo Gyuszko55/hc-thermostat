@@ -189,12 +189,13 @@
       },
       "circuit": {
         "title": "Keverőkör (árnyék)",
-        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Csak árnyék: semmit nem ír, a PLC / keverő saját szabályozása és védelmei maradnak.",
+        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Árnyék módban indul (semmit nem ír); az írás – felügyelt próba vagy éles – a beállításokban kapcsolható be.",
         "data": {
           "circuit_kind": "A kör típusa",
           "zone_entities": "A kör zónái (HC)",
           "outdoor_entity": "Kinti hőmérő",
-          "circuit_buffer": "Puffer-példány, amelyből a kör fűt"
+          "circuit_buffer": "Puffer-példány, amelyből a kör fűt",
+          "circuit_output_entity": "Ide írja az előremenő célt (PLC number / input_number / climate, nem kötelező)"
         }
       },
       "circuit_settings": {
@@ -216,6 +217,47 @@
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
         }
+      },
+      "hp_coord": {
+        "title": "Hőszivattyú-koordináció (árnyék)",
+        "description": "Puffertartályt (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz, más hőforrás, például fatüzelésű kazán mellett. A HC a puffer, a keverőkörök és a kinti hőmérséklet alapján kiszámolja az ON/OFF kérést, a hőigényt és egy ritkán változó előremenő célt a korrekcióddal. Árnyék módban indul (semmit nem ír); az írás – felügyelt próba vagy éles – a beállításokban kapcsolható be.",
+        "data": {
+          "hp_buffer": "Puffer-példány, amelyet tölt",
+          "outdoor_entity": "Kinti hőmérő",
+          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate vagy teljesítmény W)",
+          "wood_entity": "Fatüzelés jele (nem kötelező: be, amíg ég)",
+          "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
+          "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
+          "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)"
+        }
+      },
+      "hp_coord_settings": {
+        "title": "Hőszivattyú-koordináció – szabályok",
+        "description": "Előremenő cél = a körök igénye + tartalék + korrekció, a határokon belül (a korrekció után is). A hidegben-ON csak vízzel töltött monoblokkhoz való, és nem helyettesíti a gép saját fagyvédelmét; a hosszú igénymentes leállítással szemben ez nyer.",
+        "data": {
+          "hp_flow_min": "Legalacsonyabb előremenő cél (a készenléti cél is)",
+          "hp_flow_max": "Legmagasabb előremenő cél",
+          "hp_reserve": "Puffer / csőkígyó tartalék a körök igénye fölött",
+          "hp_offset": "Kézi korrekció (később a number entitással állítható)",
+          "hp_hyst": "Csak az igény fölött ennyivel áll le",
+          "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
+          "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+          "hp_min_on_s": "Legrövidebb ON idő",
+          "hp_min_off_s": "Legrövidebb OFF idő",
+          "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
+          "hp_idle_off": "OFF, ha sokáig nincs igény",
+          "hp_idle_hours": "Ennyi ideig nincs igény",
+          "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
+          "hp_cold_on_below": "ON ez alatt",
+          "hp_cold_release_above": "Feloldás e fölött",
+          "hp_cold_release_s": "… ennyi ideig tartósan",
+          "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+          "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
+          "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+          "hp_min_interval_s": "Két módosítás között legalább",
+          "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+        }
       }
     },
     "error": {
@@ -225,11 +267,15 @@
       "name_taken": "Már van ilyen nevű példány – adj másik nevet.",
       "climate_taken": "Ez a termosztát egy HC termosztát, vagy már egy másik HC példány vezérli – a kettő egymás ellen dolgozna.",
       "cycle_too_short": "A ciklus túl rövid a hasznos fűtés késéséhez: legalább a késés + minimális be- + minimális kikapcsolási idő legyen (pl. 10 perc késésnél 5 + 5 perccel legalább 20 perc).",
-      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie."
+      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie.",
+      "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
+      "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
+      "no_output": "Az íráshoz legalább egy kimeneti entitás kell."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
-      "use_wizard": "A beállító varázsló elérhető: nyisd meg itt: [HC beállítás]({url}) (az oldalsávban is megjelent). A varázsló végén jön létre a példány."
+      "use_wizard": "A beállító varázsló elérhető: nyisd meg itt: [HC beállítás]({url}) (az oldalsávban is megjelent). A varázsló végén jön létre a példány.",
+      "no_buffer": "Előbb állíts be egy puffertartály-példányt – a hőszivattyú-koordináció azt tölti."
     }
   },
   "options": {
@@ -688,12 +734,17 @@
       },
       "circuit": {
         "title": "Keverőkör (árnyék)",
-        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Csak árnyék: semmit nem ír, a PLC / keverő saját szabályozása és védelmei maradnak.",
+        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Írás (0.56.0): felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
         "data": {
           "circuit_kind": "A kör típusa",
           "zone_entities": "A kör zónái (HC)",
           "outdoor_entity": "Kinti hőmérő",
-          "circuit_buffer": "Puffer-példány, amelyből a kör fűt"
+          "circuit_buffer": "Puffer-példány, amelyből a kör fűt",
+          "circuit_output_entity": "Ide írja az előremenő célt (PLC number / input_number / climate, nem kötelező)",
+          "mode": "Írás",
+          "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
+          "trial_hours": "A felügyelt próba hossza",
+          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)"
         }
       },
       "circuit_settings": {
@@ -715,6 +766,51 @@
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
         }
+      },
+      "hp_coord": {
+        "title": "Hőszivattyú-koordináció (árnyék)",
+        "description": "Puffertartályt (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz, más hőforrás, például fatüzelésű kazán mellett. A HC a puffer, a keverőkörök és a kinti hőmérséklet alapján kiszámolja az ON/OFF kérést, a hőigényt és egy ritkán változó előremenő célt a korrekcióddal. Írás (0.56.0): felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
+        "data": {
+          "hp_buffer": "Puffer-példány, amelyet tölt",
+          "outdoor_entity": "Kinti hőmérő",
+          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate vagy teljesítmény W)",
+          "wood_entity": "Fatüzelés jele (nem kötelező: be, amíg ég)",
+          "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
+          "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
+          "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)",
+          "mode": "Írás",
+          "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
+          "trial_hours": "A felügyelt próba hossza",
+          "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)"
+        }
+      },
+      "hp_coord_settings": {
+        "title": "Hőszivattyú-koordináció – szabályok",
+        "description": "Előremenő cél = a körök igénye + tartalék + korrekció, a határokon belül (a korrekció után is). A hidegben-ON csak vízzel töltött monoblokkhoz való, és nem helyettesíti a gép saját fagyvédelmét; a hosszú igénymentes leállítással szemben ez nyer.",
+        "data": {
+          "hp_flow_min": "Legalacsonyabb előremenő cél (a készenléti cél is)",
+          "hp_flow_max": "Legmagasabb előremenő cél",
+          "hp_reserve": "Puffer / csőkígyó tartalék a körök igénye fölött",
+          "hp_offset": "Kézi korrekció (később a number entitással állítható)",
+          "hp_hyst": "Csak az igény fölött ennyivel áll le",
+          "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
+          "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+          "hp_min_on_s": "Legrövidebb ON idő",
+          "hp_min_off_s": "Legrövidebb OFF idő",
+          "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
+          "hp_idle_off": "OFF, ha sokáig nincs igény",
+          "hp_idle_hours": "Ennyi ideig nincs igény",
+          "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
+          "hp_cold_on_below": "ON ez alatt",
+          "hp_cold_release_above": "Feloldás e fölött",
+          "hp_cold_release_s": "… ennyi ideig tartósan",
+          "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+          "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
+          "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+          "hp_min_interval_s": "Két módosítás között legalább",
+          "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+        }
       }
     },
     "error": {
@@ -730,7 +826,10 @@
       "rooms_need_valves": "A helyiségek csak TPI vagy PID vezérléssel működnek. Előbb a Helyiségek menüben vedd ki őket, utána válts.",
       "season_order": "A fűtési idény kezdete (a „kezdete e alatt” érték) kisebb kell legyen, mint a vége.",
       "plaus_frost": "A legalacsonyabb hihető helyiséghőmérséklet legfeljebb a fagyvédelmi cél mínusz 2 °C lehet.",
-      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie."
+      "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie.",
+      "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
+      "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
+      "no_output": "Az íráshoz legalább egy kimeneti entitás kell."
     }
   },
   "selector": {
@@ -804,7 +903,8 @@
         "zone": "Zóna (csak a saját szelepét vagy TRV-jét kapcsolja)",
         "central": "Központi kazán (a zónák igénye szerint)",
         "buffer": "Puffertartály (a hőforrást tölti)",
-        "circuit": "Keverőkör pufferből (árnyék: csak előremenő cél)"
+        "circuit": "Keverőkör pufferből (árnyék: csak előremenő cél)",
+        "hp_coord": "Hőszivattyú-koordináció pufferhez (árnyék: csak ON/OFF és cél)"
       }
     },
     "weekday": {
@@ -856,6 +956,13 @@
       "options": {
         "radiator": "Radiátoros",
         "floor": "Padlófűtés"
+      }
+    },
+    "write_mode": {
+      "options": {
+        "shadow": "Árnyék – kiszámol és mutat, nem ír",
+        "trial": "Felügyelt próba – a beállított óráig ír, utána vissza árnyékba",
+        "active": "Éles – tartósan ír"
       }
     }
   },
@@ -1016,6 +1123,32 @@
       },
       "circuit_raw": {
         "name": "Kör előremenő cél (nyers)"
+      },
+      "hp_decision": {
+        "name": "Hőszivattyú döntés",
+        "state": {
+          "fail_safe_on": "ON: nincs kinti mérés (biztonsági)",
+          "no_outdoor": "Nincs kinti mérés: változatlan",
+          "no_buffer": "Nincs pufferhőfok: változatlan",
+          "cold_on": "ON: hideg idő",
+          "frost": "Puffer fagyvédelem",
+          "low_charge": "Alacsony puffer-töltöttség",
+          "heat_needed": "Hő kell",
+          "heating": "Fűt",
+          "charging": "Tölt a leállási szintig",
+          "wood": "Más hőforrás tölti a puffert",
+          "idle_off": "OFF: régóta nincs igény",
+          "standby": "Készenlét (ON, nem fűt)",
+          "off": "Nincs igény",
+          "min_on": "Minimális futás",
+          "min_off": "Minimális szünet"
+        }
+      },
+      "hp_target": {
+        "name": "Hőszivattyú előremenő cél"
+      },
+      "hp_raw": {
+        "name": "Hőszivattyú előremenő cél (nyers)"
       }
     },
     "binary_sensor": {
@@ -1039,6 +1172,12 @@
       },
       "circuit_demand": {
         "name": "Kör tartós igény"
+      },
+      "hp_enable": {
+        "name": "Hőszivattyú ON kérés"
+      },
+      "hp_heat_demand": {
+        "name": "Hőszivattyú hőigény"
       }
     },
     "climate": {
@@ -1084,6 +1223,14 @@
       },
       "supervision_paused_plain": {
         "name": "Felügyelet szünetel"
+      },
+      "write_paused": {
+        "name": "Írás szüneteltetve"
+      }
+    },
+    "number": {
+      "hp_offset": {
+        "name": "Hőszivattyú korrekció"
       }
     }
   },

@@ -502,8 +502,39 @@ the PLC / mixer keeps driving its valve, pump and safety limits. **0.54.0 writes
   given-out value with the raw target, the reason a change is held back and the next allowed change.
 - **The tank for a circuit:** whether the top is at least target + 2 °C, and the usable heat of the warm enough
   layers down to the circuit's return.
-- Not yet: writing the targets to the PLC, the heat pump's target, on/off and offset, wood-fire priority, the
-  cold-weather ON and the long no-demand stop – these come in the next versions, each in shadow first.
+- Writing the targets to the PLC: 0.56.0, below (supervised trial, one writer); the heat pump coordination is
+  0.55.0.
+
+## Heat pump coordination for a buffer (0.55.0, shadow)
+
+For a heat pump charging the buffer (through its coil or directly) beside a wood boiler. The role *Heat pump
+coordination for a buffer* reads the buffer instance, its mixing circuits and the outdoor temperature (optionally
+whether the heat pump runs and a wood signal) and shows – without writing anything – three separate things: the heat
+demand, the ON/OFF request and the flow target.
+
+- **Target:** the circuits' need + a coil reserve (5 °C) + your offset (−8…+8 °C, the *Heat pump offset* number – for
+  a unit that makes 38 °C on a 42 °C command), within its limits; the lowest while there is nothing to make. It changes
+  rarely (2 °C, 10 min, 45 min, at most +3 °C at a time).
+- **Wood first:** a wood signal, or the tank warming while the heat pump is known to stand, holds off a start.
+- **Cold-weather ON** (off by default, water-filled monoblock only): ON below +5 °C even with no demand, released after
+  a lasting +7 °C; it wins over the **long no-demand stop** (OFF after 24 h without demand, with *keep ON with no
+  demand*). It never replaces the unit's own frost protection, the manufacturer's rules or an independent safety.
+- Lost inputs keep the last request. Writing to the unit / the PLC: 0.56.0, below.
+
+## Writing the targets: supervised trial, one writer (0.56.0)
+
+A *mixing circuit* and the *heat pump coordination* start in shadow mode. In their options (first page) the writing
+can be switched to a **supervised trial** (writes for the given hours, 4 by default, then back to shadow by itself,
+with a notification) or to **active**; both need an output entity and a confirmation.
+
+- What is written: the circuit's flow target (a PLC number / input_number or a climate's target); the heat pump's flow
+  target, its ON/OFF (switch / input_boolean / climate) and an optional heat demand signal. Nothing else – the PLC
+  keeps its mixers, pumps and safety; the heat pump keeps its own frost protection.
+- **One writer per target:** HC writes only when the value differs; if someone else changes it, HC stops writing it and
+  notifies you, until the value is HC's again. Set the PLC so that HC's register is not written by the PLC too.
+- No write in the first 2 minutes after a start; an optional keep-alive re-sends an unchanged value for a PLC with a
+  timeout; the *Writing paused* switch stops all writing at once.
+- With Home Assistant down nothing is written: the PLC's own curve and safe fallback must stay in place.
 
 ## Safety
 

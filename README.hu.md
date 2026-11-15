@@ -510,8 +510,39 @@ semmit nem ír** – kiszámol és megmutat.
   cél* a kiadott értéket mutatja, mellette a nyers célt, a visszatartás okát és a legkorábbi következő módosítást.
 - **A puffer egy körnek:** a teteje eléri-e a cél + 2 °C-ot, és mennyi a használható hő az elég meleg rétegekben a
   kör visszatérőjéig.
-- Még nincs: a célok kiírása a PLC-be, a hőszivattyú célja, ON/OFF-ja és korrekciója, a fatüzelés elsőbbsége, a
-  hidegben-ON és a hosszú igénymentes leállítás – ezek a következő verziókban jönnek, mindegyik előbb árnyékban.
+- A célok kiírása a PLC-be: 0.56.0, lent (felügyelt próba, egy író); a hőszivattyú-koordináció a 0.55.0.
+
+## Hőszivattyú-koordináció pufferhez (0.55.0, árnyék)
+
+Fatüzelésű kazán mellett a puffert (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz. A *Hőszivattyú-koordináció
+pufferhez* szerep a puffer-példányt, a keverőköreit és a kinti hőmérsékletet olvassa (ha megadod: fut-e a hőszivattyú,
+és a fatüzelés jelét), és – semmit nem írva – három külön dolgot mutat: a hőigényt, az ON/OFF kérést és az előremenő
+célt.
+
+- **Cél:** a körök igénye + csőkígyó-tartalék (5 °C) + a korrekciód (−8…+8 °C, a *Hőszivattyú korrekció* number –
+  olyan géphez, amely 42 °C-os parancsra 38 °C-ot ad), a határokon belül; ha nincs mit termelni, a legalacsonyabb.
+  Ritkán változik (2 °C, 10 perc, 45 perc, egyszerre legfeljebb +3 °C).
+- **Fa elsőbbsége:** a fatüzelés jele, vagy a puffer melegedése, miközben tudjuk, hogy a hőszivattyú áll, visszatartja
+  az indítást.
+- **Hidegben-ON** (alapból ki, csak vízzel töltött monoblokkhoz): +5 °C alatt ON igény nélkül is, tartós +7 °C után
+  oldódik; ez nyer a **hosszú igénymentes leállítással** szemben (24 óra igény nélkül OFF, ha *igény nélkül is ON*).
+  Nem helyettesíti a gép saját fagyvédelmét, a gyártói előírásokat és a független biztonsági megoldást.
+- Kiesett bemenetnél a legutóbbi kérés marad. A gép / a PLC felé írás: 0.56.0, lent.
+
+## A célok kiírása: felügyelt próba, egy író (0.56.0)
+
+A *keverőkör* és a *hőszivattyú-koordináció* árnyék módban indul. A beállításaikban (első oldal) az írás
+**felügyelt próbára** (a megadott óráig ír, alapból 4, utána magától vissza árnyékba, értesítéssel) vagy **éles**
+módra kapcsolható; mindkettőhöz kimeneti entitás és megerősítés kell.
+
+- Amit ír: a kör előremenő célja (PLC number / input_number vagy egy climate célja); a hőszivattyú előremenő célja,
+  ON/OFF-ja (switch / input_boolean / climate) és egy nem kötelező hőigény-jel. Mást nem – a keverők, a szivattyúk és
+  a védelmek a PLC-nél, a hőszivattyú fagyvédelme a gépnél marad.
+- **Egy célnak egy írója:** a HC csak eltérésnél ír; ha más megváltoztatja az értéket, a HC nem ír bele, és értesít,
+  amíg az érték újra az övé nem lesz. A PLC-t úgy kell beállítani, hogy a HC regiszterét ne írja maga is.
+- Indulás után 2 percig nem ír; a keep-alive időkorlátos PLC-nek változatlan értéket is újraküld; az *Írás
+  szüneteltetve* kapcsoló azonnal leállít minden írást.
+- Ha a Home Assistant leáll, nem ír semmit: a PLC saját görbéje és biztonságos tartaléküzeme maradjon meg.
 
 ## Biztonság
 

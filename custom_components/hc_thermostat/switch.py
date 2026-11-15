@@ -18,7 +18,10 @@ from .entity import HcEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    if entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit"):
+    if entry.data.get(CONF_ROLE) in ("circuit", "hp_coord"):  # 0.56.0
+        async_add_entities([HcWritePaused(entry.runtime_data)])
+        return
+    if entry.data.get(CONF_ROLE) in ("central", "buffer"):
         return
     c = entry.runtime_data
     if getattr(c, "managed", False):
@@ -64,3 +67,32 @@ class HcSupervisionPaused(HcEntity, SwitchEntity, RestoreEntity):
 def title_has_hc(title: str | None) -> bool:
     """The instance's name has "HC" as a word already (e.g. "Boiler HC")."""
     return bool(re.search(r"(^|[^0-9A-Za-z])HC($|[^0-9A-Za-z])", str(title or "")))
+
+
+class HcWritePaused(HcEntity, SwitchEntity, RestoreEntity):
+    """0.56.0: while on, a mixing circuit / heat pump coordination writes nothing (it keeps working out and showing);
+    off again, the next update writes what differs. Kept over restarts."""
+
+    _attr_icon = "mdi:pause-octagon-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "write_paused")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        self.coordinator.write.paused = last is not None and last.state == "on"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.write.paused
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self.coordinator.write.paused = True
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self.coordinator.write.paused = False
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()

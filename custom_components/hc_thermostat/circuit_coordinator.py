@@ -3,8 +3,11 @@
 It reads its zones (ordinary HC zone instances – they keep switching their own valves) and the outdoor thermometer
 every 30 seconds, works out the raw flow target, and gives out a target that changes only now and then
 (core/circuit.py, core/setpoint_hold.py). With a buffer instance linked it also shows what the tank can still give
-this circuit. It writes nothing: the PLC / mixer keeps its own control; writing the target comes later, after a
-supervised trial.
+this circuit.
+
+0.56.0: in a supervised trial or in active mode the given-out target is written to the output (a PLC number /
+input_number, or a climate's target) – only the setpoint: the PLC keeps driving its mixer, pump and safety limits
+(output_writer.py: one writer, conflict detection, grace after a start, keep-alive, pause switch).
 """
 
 from __future__ import annotations
@@ -17,8 +20,9 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_CIRCUIT_BUFFER, CONF_MODE, CONF_OUTDOOR, CONF_ZONES, DOMAIN, MODE_SHADOW
+from .const import CONF_CIRCUIT_BUFFER, CONF_CIRCUIT_OUTPUT, CONF_OUTDOOR, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN
 from .core.circuit import CircuitConfig, CircuitDecision, MixingCircuit, ZoneReading
+from .output_writer import OutputWriter, WriteControl
 from .units import state_value_c
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +69,10 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         super().__init__(hass, _LOGGER, config_entry=entry, name=f"{DOMAIN}_circuit", update_interval=_INTERVAL)
         data = {**entry.data, **entry.options}
         self.conf = data
-        self.mode = MODE_SHADOW  # 0.54.0: shadow only, whatever the entry says
+        self.write = WriteControl(hass, entry, data)  # 0.56.0
+        self.mode = self.write.mode
+        self.out = OutputWriter(hass, data.get(CONF_CIRCUIT_OUTPUT), keepalive_s=float(data.get(CONF_WRITE_KEEPALIVE) or 0))
+        self._started = dt_util.now()
         self.circuit = MixingCircuit(CircuitConfig.from_conf(data))
         self.zones: list[ZoneReading] = []
         self.usable: dict = {}
@@ -74,7 +81,7 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
 
     @property
     def is_shadow(self) -> bool:
-        return True
+        return not self.write.writing(dt_util.now())
 
     async def async_load(self) -> None:
         self.circuit.restore(await self._store.async_load() or {}, dt_util.now())
@@ -100,4 +107,7 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         self.usable = buf.stock.usable(decision.target, cfg.circuit_dt, cfg.circuit_margin) if buf is not None else {}
         if decision.details.get("changed") or now - self._last_save >= _SAVE_EVERY:
             await self.async_save()
+        await self.write.tick(now)
+        await self.out.apply(now, decision.target, self.write.writing(now), (now - self._started).total_seconds())
+        self.write.note_conflict(self.out)
         return decision
