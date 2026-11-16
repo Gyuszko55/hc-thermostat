@@ -362,6 +362,14 @@ once, and HC creates the room zones, the tank, the circuits and the heat pump co
 Wood firing can be told from the wood boiler's thermometer with two thresholds and a confirmation time
 (`wood_temp_entity`), when there is no direct signal.
 
+**Mixing circuit target and pump enable are two values (0.62.0).** In a TPI / PWM pause the circuit's flow target stays
+on the weather curve at the highest target of its zones; it no longer drops to the 20 °C fallback room. Whether water
+should flow is the circuit's demand (the *circuit demand* `binary_sensor`, also `pump_enable` on the target sensor): let
+the PLC stop the circuit pump on it and move the mixing valve only while the pump runs. The old behaviour is the
+*Keep the zones' target in a pause* option. The tank, its circuits and the heat pump coordination join one house by
+their links (a house link field is on their settings too), and the source watch says *no data* only for a power or
+flame reading that was set and got lost.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

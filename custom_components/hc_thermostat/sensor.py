@@ -497,6 +497,8 @@ class HcCircuitTarget(HcEntity, SensorEntity):
                 "curve": d.details.get("curve"), "correction": d.details.get("correction"),
                 "flow_min": cfg.circuit_flow_min, "flow_max": cfg.circuit_flow_max,
                 "demand": d.demand, "lasting": list(d.lasting),
+                # 0.62.0: the target and the flow are two values – the pump runs on the demand, the target stays
+                "pump_enable": d.demand, "room_from": d.details.get("room_from"),
                 **({"buffer": c.usable} if c.usable else {})}
 
 

@@ -1087,6 +1087,9 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Utolsó módosítás" : "Last change", det.last_change ? this._val(det.last_change) : null],
       [t.outdoor, dec.outdoor != null ? this._deg(dec.outdoor) : (hu ? "nincs – a cél marad" : "none – the target stays")],
       [hu ? "Görbe" : "Curve", det.curve != null ? `${this._deg(det.curve)} (${this._num(cfg.circuit_slope, 2)} × , ${this._deg(dec.t_room)})` : null],
+      // 0.62.0: the circulation (pump enable) and the target are two values
+      [hu ? "Keringetés engedélye" : "Pump enable", dec.demand ? (hu ? "igen – van tartós igény" : "yes – lasting demand") : (hu ? "nem – szünet" : "no – pause"), !!dec.demand],
+      [hu ? "Görbe helyiség-célja" : "Curve's room target", det.room_from ? `${this._deg(dec.t_room)} · ${({ demand: hu ? "igénylő zónák" : "zones asking", zones: hu ? "zónák célja (szünet, nem esik)" : "zones' target (pause, kept)", default: hu ? "alapérték" : "fallback" })[det.room_from] || det.room_from}` : null],
       [hu ? "Helyiség-korrekció" : "Room correction", det.correction ? `+${this._num(det.correction, 1)} °C` : null],
       [hu ? "Határok" : "Limits", `${this._deg(cfg.circuit_flow_min)} – ${this._deg(cfg.circuit_flow_max)}`],
       [hu ? "Ritkítás" : "Hold", `±${this._num(cfg.circuit_deadband, 1)} °C · ${this._num((cfg.circuit_confirm_s || 0) / 60, 0)} / ${this._num((cfg.circuit_min_interval_s || 0) / 60, 0)} perc · ≤ +${this._num(cfg.circuit_max_rise, 1)} °C`],

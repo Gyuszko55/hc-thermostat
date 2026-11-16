@@ -1217,7 +1217,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         # a wall thermostat's own setpoint rules the room (0.38.0): the overheating check has no target to compare to
         target = None if self.cfg.demand_contact else decision.target
         self.health.update(now, relay_on, power, flame, decision.fault, decision.indoor, target,
-                           busy=bool(decision.details.get("hp_mode")))
+                           busy=bool(decision.details.get("hp_mode")),
+                           watched=bool(conf.get(CONF_BOILER_POWER) or conf.get(CONF_FLAME)))  # 0.62.0
 
     # --- 0.48.0: measurements ---------------------------------------------------
     def _plain(self, key: str) -> tuple[float | None, str | None, str | None]:

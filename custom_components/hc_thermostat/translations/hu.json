@@ -204,13 +204,14 @@
         "data": {
           "circuit_slope": "Görbe meredeksége",
           "circuit_shift": "Görbe eltolása",
-          "circuit_room": "Helyiség-hőfok, ha egy zóna sem kér",
+          "circuit_room": "Alap helyiség-hőfok (ha egy zónának sincs célja)",
           "circuit_flow_min": "Legalacsonyabb előremenő cél",
           "circuit_flow_max": "Legmagasabb előremenő cél",
           "circuit_kp": "Helyiség-korrekció (°C víz / °C hiány)",
           "circuit_dt": "Előremenő − visszatérő méretezéskor (a puffer használható hőjéhez)",
           "circuit_margin": "A tartály teteje legalább ennyivel a cél fölött",
           "circuit_hold_s": "Tartós igény: ennyi időn belül kért a zóna",
+          "circuit_idle_keep": "Szünetben is a zónák céljával számol (a cél nem esik le)",
           "circuit_deadband": "Új cél csak legalább ekkora eltérésnél",
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "circuit_min_interval_s": "Két módosítás között legalább",
@@ -696,7 +697,11 @@
           "buffer_share_upper": "Felső-középső réteg aránya (0 = egyenlő)",
           "buffer_share_lower": "Alsó-középső réteg aránya (0 = egyenlő)",
           "buffer_share_bottom": "Alsó réteg aránya (0 = egyenlő)",
-          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)"
+          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)",
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+        },
+        "data_description": {
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
         }
       },
       "rooms": {
@@ -764,7 +769,11 @@
           "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
           "trial_hours": "A felügyelt próba hossza",
           "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
-          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól"
+          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+        },
+        "data_description": {
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
         }
       },
       "circuit_settings": {
@@ -773,13 +782,14 @@
         "data": {
           "circuit_slope": "Görbe meredeksége",
           "circuit_shift": "Görbe eltolása",
-          "circuit_room": "Helyiség-hőfok, ha egy zóna sem kér",
+          "circuit_room": "Alap helyiség-hőfok (ha egy zónának sincs célja)",
           "circuit_flow_min": "Legalacsonyabb előremenő cél",
           "circuit_flow_max": "Legmagasabb előremenő cél",
           "circuit_kp": "Helyiség-korrekció (°C víz / °C hiány)",
           "circuit_dt": "Előremenő − visszatérő méretezéskor (a puffer használható hőjéhez)",
           "circuit_margin": "A tartály teteje legalább ennyivel a cél fölött",
           "circuit_hold_s": "Tartós igény: ennyi időn belül kért a zóna",
+          "circuit_idle_keep": "Szünetben is a zónák céljával számol (a cél nem esik le)",
           "circuit_deadband": "Új cél csak legalább ekkora eltérésnél",
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "circuit_min_interval_s": "Két módosítás között legalább",
@@ -806,7 +816,11 @@
           "trial_hours": "A felügyelt próba hossza",
           "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
           "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
-          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)"
+          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)",
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+        },
+        "data_description": {
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
         }
       },
       "hp_coord_settings": {
@@ -1078,7 +1092,8 @@
           "no_flame": "Nem gyújt be",
           "heating_fault": "Fűtési hiba",
           "short_cycling": "Taktol",
-          "learning": "Kazán szintjeit tanulja"
+          "learning": "Kazán szintjeit tanulja",
+          "unwatched": "Nem figyelt (nincs teljesítménymérő / lángjel)"
         }
       },
       "shadow_regulator": {

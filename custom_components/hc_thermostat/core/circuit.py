@@ -7,7 +7,10 @@ The rooms keep their own HC zones (TPI / PWM on their valves). The circuit only 
   (30 minutes): a TPI pulse switching off for some minutes does not drop the demand;
 - raw target = curve at the room target + room correction:
       t_room + slope × max(t_room − outdoor, 0) + shift + kp × min(deficit, DEFICIT_CAP)
-  t_room: the highest target of the zones with a lasting demand (none: `circuit_room`, 20 °C);
+  t_room: the highest target of the zones with a lasting demand; with none (0.62.0) the highest target of all the
+  circuit's zones, so a TPI / PWM pause does not drop the water to a 20 °C room's curve – whether the water flows is
+  the circuit's demand (the pump enable), a separate output; `circuit_room` (20 °C) only when no zone has a target, or
+  always without demand when `circuit_idle_keep` is off (the behaviour before 0.62.0);
   deficit: the largest (target − room temperature) of those zones;
   clamped to [`circuit_flow_min`, `circuit_flow_max`] – the floor circuit's maximum (36 °C in the reference house) is
   the water's flow limit, not the floor surface limit; that protection stays on the hydraulic / PLC side.
@@ -53,6 +56,7 @@ class CircuitConfig:
     circuit_min_interval_s: float = 1500.0
     circuit_max_rise: float = 3.0
     circuit_urgent: float = 5.0
+    circuit_idle_keep: bool = True  # 0.62.0: without demand the curve stays at the zones' targets
 
     @classmethod
     def from_conf(cls, conf: dict) -> "CircuitConfig":
@@ -116,6 +120,10 @@ class MixingCircuit:
         lasting = [z for z in zones if not z.fault and z.name in self.last_ask
                    and (now - self.last_ask[z.name]).total_seconds() <= cfg.circuit_hold_s]
         targets = [z.target for z in lasting if z.target is not None]
+        room_from = "demand" if targets else "default"
+        if not targets and cfg.circuit_idle_keep:
+            targets = [z.target for z in zones if not z.fault and z.target is not None]
+            room_from = "zones" if targets else "default"
         t_room = max(targets) if targets else cfg.circuit_room
         deficits = [z.target - z.indoor for z in lasting if z.target is not None and z.indoor is not None]
         deficit = round(max([0.0, *deficits]), 2)
@@ -126,7 +134,7 @@ class MixingCircuit:
                    "correction": round(cfg.circuit_kp * min(deficit, DEFICIT_CAP), 2),
                    "next_allowed": res.next_allowed.isoformat() if res.next_allowed else None,
                    "last_change": self.hold.last_change.isoformat() if self.hold.last_change else None,
-                   "changed": res.changed}
+                   "changed": res.changed, "room_from": room_from}
         if raw is None:
             details["no_outdoor"] = True
         return CircuitDecision(now, res.value, res.raw, res.reason, bool(lasting), tuple(z.name for z in lasting),

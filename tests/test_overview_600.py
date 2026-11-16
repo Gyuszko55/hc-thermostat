@@ -121,4 +121,4 @@ def test_settings_form_curve_preview():
 
 
 def test_version_600():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0")

@@ -13,6 +13,9 @@ Rules, in this order:
    it is that instance's leading room: two instances led from the same room are alternatives (a shadow trial of the
    same boiler), not two parts of one house.
 5. A central boiler / a buffer tank belongs to the house most of its zones belong to.
+6. (0.62.0) The plant joins by its pipes: a buffer tank without zones goes where most of the mixing circuits and heat
+   pump coordinations it feeds are; a mixing circuit / a heat pump coordination still alone goes to its tank's house.
+   So a buffer system (wood boiler + heat pump + tank + circuits + zones) is one house without naming it nine times.
 
 A chain resolves to its end (A → B → C: A is in C's house); a loop is cut (both stay their own).
 """
@@ -35,6 +38,7 @@ class Facts:
     leading_area: str | None = None
     zone_area: str | None = None  # the separate zone (terrace behind a door) the instance draws
     zone_entries: tuple[str, ...] = ()  # central / buffer: the entry ids of its zones
+    feeds_from: tuple[str, ...] = ()  # 0.62.0: circuit / heat pump coordination: the entry id of its tank
 
     @property
     def room_areas(self) -> set[str]:
@@ -50,7 +54,7 @@ class Link:
     host: str  # the entry id of the house's host (itself for a host or a house of its own)
     area: str | None = None  # the member's area in the host's house
     room: str | None = None  # the host's room key in that area (None: a room the host does not list)
-    why: str = ""  # own | named | home_name | area | zones
+    why: str = ""  # own | named | home_name | area | zones | plant
     members: list[str] = field(default_factory=list)  # for a host: its members, in the given order
 
 
@@ -114,6 +118,24 @@ def houses(facts: list[Facts]) -> dict[str, Link]:
                     votes[h] = votes.get(h, 0) + 1
         if votes:
             parent[f.entry_id] = (max(votes, key=lambda h: (votes[h], -order[h])), "zones")
+    # 6. the plant by its pipes (0.62.0); twice, so tank -> circuit -> tank chains settle either way
+    for _ in range(2):
+        for f in facts:
+            if f.link != AUTO or f.entry_id in parent:
+                continue
+            votes = {}
+            for g in facts:  # the circuits / heat pumps fed by this tank – only those already in a house
+                if f.entry_id in g.feeds_from and g.entry_id != f.entry_id:
+                    h = _resolve(g.entry_id, parent)
+                    if h != f.entry_id and (h != g.entry_id or g.entry_id in parent or _hosts(h, parent)):
+                        votes[h] = votes.get(h, 0) + 1
+            for t in f.feeds_from:  # its own tank
+                if t in by_id and t != f.entry_id:
+                    h = _resolve(t, parent)
+                    if h != f.entry_id:  # a tank on its own becomes the house of its plant
+                        votes[h] = votes.get(h, 0) + 2
+            if votes:
+                parent[f.entry_id] = (max(votes, key=lambda h: (votes[h], -order[h])), "plant")
 
     out: dict[str, Link] = {}
     for f in facts:
@@ -130,6 +152,11 @@ def houses(facts: list[Facts]) -> dict[str, Link]:
         if link.host != f.entry_id:
             out[link.host].members.append(f.entry_id)
     return out
+
+
+def _hosts(entry_id: str, parent: dict[str, tuple[str, str]]) -> bool:
+    """Someone is already in this instance's house."""
+    return any(h == entry_id for h, _ in parent.values())
 
 
 def _resolve(entry_id: str, parent: dict[str, tuple[str, str]]) -> str:

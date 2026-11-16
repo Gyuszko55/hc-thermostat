@@ -242,6 +242,7 @@ def _circuit_settings(current: dict, kind: str) -> dict:
         vol.Required("circuit_dt", default=v("circuit_dt")): _number(2, 25, 1, "°C"),
         vol.Required("circuit_margin", default=v("circuit_margin")): _number(0, 10, 0.5, "°C"),
         vol.Required("circuit_hold_s", default=v("circuit_hold_s")): _number(0, 7200, 60, "s"),
+        vol.Required("circuit_idle_keep", default=bool(v("circuit_idle_keep"))): BooleanSelector(),  # 0.62.0
         vol.Required("circuit_deadband", default=v("circuit_deadband")): _number(0.5, 5, 0.5, "°C"),
         vol.Required("circuit_confirm_s", default=v("circuit_confirm_s")): _number(0, 3600, 60, "s"),
         vol.Required("circuit_min_interval_s", default=v("circuit_min_interval_s")): _number(0, 7200, 60, "s"),
@@ -1269,6 +1270,7 @@ class HcOptionsFlow(OptionsFlow):
             vol.Optional(CONF_CONFIRM, default=False): BooleanSelector(),
             **_buffer_fields(current),
         }
+        fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
         return self.async_show_form(step_id="buffer", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_circuit(self, user_input=None):
@@ -1279,6 +1281,7 @@ class HcOptionsFlow(OptionsFlow):
             self._circuit = _with_trial(user_input, current)
             return await self.async_step_circuit_settings()
         fields = {**_write_fields("circuit", {**current, **(user_input or {})}), **_circuit_fields(self.hass, {**current, **(user_input or {})})}
+        fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
         return self.async_show_form(step_id="circuit", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_hp_coord(self, user_input=None):
@@ -1289,6 +1292,7 @@ class HcOptionsFlow(OptionsFlow):
             self._hp = _with_trial(user_input, current)
             return await self.async_step_hp_coord_settings()
         fields = {**_write_fields("hp_coord", {**current, **(user_input or {})}), **_hpc_fields(self.hass, {**current, **(user_input or {})})}
+        fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
         return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_hp_coord_settings(self, user_input=None):

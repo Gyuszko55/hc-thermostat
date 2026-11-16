@@ -28,7 +28,8 @@ export const OV_TXT = {
     differs: "eltér (árnyékban rendben)", room: "Helyiség", stale: "elavult", min: "perc", s: "mp", need: "a körök igénye",
     whyNoHeat: "Most nincs hőigény.", kinds: { onoff_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő", storage_heater: "Hőtárolós kályha", district_heating: "Távhő", pellet_boiler: "Pelletkazán", external_heat: "Külső hőtermelő" },
     burning: "ég", idle: "áll", unitsCol: "Helyiségi egységek", unheated: "nem fűti", sharedRoom: "2 körön", woodBy: "a kazán hőmérője szerint", woodPending: "vált:", woodLv: { certain: "biztos", likely: "valószínű", possible: "lehetséges", none: "nincs" },
-    wst: { shadow: "nem ír (árnyék)", none: "nincs kimenet", in_sync: "egyezik", write: "ír", confirming: "visszaigazolásra vár", grace: "indulási türelem", keepalive: "frissítés", conflict: "ütközés", not_accepted: "nem fogadja el", unavailable: "nem elérhető", no_value: "nincs érték", error: "hiba" }, plant: "KAZÁNHÁZ", outside: "KÜLTÉR", house: "HELYISÉGEK",
+    wst: { shadow: "nem ír (árnyék)", none: "nincs kimenet", in_sync: "egyezik", write: "ír", confirming: "visszaigazolásra vár", grace: "indulási türelem", keepalive: "frissítés", conflict: "ütközés", not_accepted: "nem fogadja el", unavailable: "nem elérhető", no_value: "nincs érték", error: "hiba" },
+    hst: { no_data: "a hőforrás teljesítménymérője / lángjele nem ad adatot", uncommanded_burn: "parancs nélkül ég", overheating: "túlfűt", no_response: "a kazán nem reagál a relére", no_flame: "nem gyújt be", heating_fault: "fűtési hiba (sokáig fűt, a ház mégis hűl)", short_cycling: "taktol" }, hstLbl: "hőforrás-figyelés", plant: "KAZÁNHÁZ", outside: "KÜLTÉR", house: "HELYISÉGEK",
     coil: "csőkígyó", mixer: "keverő + szivattyú", direct: "közvetlenül", normal: "normál görbe", corrected: "helyiséghiánnyal",
     limits: "korlátok", now: "most", given: "kiadott cél", outdoorAxis: "kinti hőmérséklet (°C)", flowAxis: "előremenő (°C)",
     deficit: "helyiséghiány", lowWaits: "alacsony töltöttség, de nincs helyiségi igény: nem indít",
@@ -51,7 +52,8 @@ export const OV_TXT = {
     differs: "differs (fine in shadow)", room: "Room", stale: "stale", min: "min", s: "s", need: "the circuits' need",
     whyNoHeat: "No heat demand now.", kinds: { onoff_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler", air_conditioner: "Air conditioner", electric_heater: "Electric heater", storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler", external_heat: "External heat source" },
     burning: "burning", idle: "idle", unitsCol: "Room units", unheated: "not heated", sharedRoom: "on 2 circuits", woodBy: "by the boiler's thermometer", woodPending: "changing:", woodLv: { certain: "certain", likely: "likely", possible: "possible", none: "none" },
-    wst: { shadow: "not writing (shadow)", none: "no output", in_sync: "in sync", write: "writing", confirming: "awaiting confirmation", grace: "start grace", keepalive: "keep-alive", conflict: "conflict", not_accepted: "not accepted", unavailable: "unavailable", no_value: "no value", error: "error" }, plant: "PLANT ROOM", outside: "OUTDOORS", house: "ROOMS",
+    wst: { shadow: "not writing (shadow)", none: "no output", in_sync: "in sync", write: "writing", confirming: "awaiting confirmation", grace: "start grace", keepalive: "keep-alive", conflict: "conflict", not_accepted: "not accepted", unavailable: "unavailable", no_value: "no value", error: "error" },
+    hst: { no_data: "the source's power / flame reading gives no data", uncommanded_burn: "burns without command", overheating: "overheating", no_response: "the boiler does not answer the relay", no_flame: "no ignition", heating_fault: "heating fault (long heating, the house still cools)", short_cycling: "short cycling" }, hstLbl: "source watch", plant: "PLANT ROOM", outside: "OUTDOORS", house: "ROOMS",
     coil: "coil", mixer: "mixer + pump", direct: "direct", normal: "normal curve", corrected: "with room deficit",
     limits: "limits", now: "now", given: "given-out target", outdoorAxis: "outdoor temperature (°C)", flowAxis: "flow (°C)",
     deficit: "room deficit", lowWaits: "low charge, but no room asks: no start",
@@ -96,7 +98,9 @@ function warnings(m, T, lang) {
     for (const [k, o] of Object.entries(i.outputs || {})) {
       if (o && o.entity && ["conflict", "not_accepted", "unavailable", "error"].includes(o.status)) out.push(`${n} → ${k}: ${o.status}${o.error ? ` (${o.error})` : ""}`);
     }
-    if (i.health?.state && !["ok", "good", "unknown"].includes(i.health.state)) out.push(`${n}: ${i.health.state}`);
+    // 0.62.0: the source watch (power / flame) in words; quiet states (nothing to watch, learning) are no warning
+    const hs = i.health?.state;
+    if (hs && !["ok", "good", "unknown", "learning", "unwatched"].includes(hs)) out.push(`${n} – ${T.hstLbl}: ${T.hst[hs] || hs}`);
   }
   for (const h of m.hps) {
     const det = h.decision?.details || {};

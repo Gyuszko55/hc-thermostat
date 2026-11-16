@@ -24,6 +24,9 @@ States, the first that applies:
 - learning (0.45.0): a burner judged by its power draw whose levels nobody gave yet (no `power_idle_w` /
   `power_burn_w` in the options, none measured by the setup wizard) – the defaults are one boiler's and
   would raise no_response / no_flame on another, so those two are not judged; not a problem;
+- unwatched (0.62.0): neither a power reading nor a flame sensor is set (a zone whose relay drives a valve or another
+  controller's input, a heat pump known only by its relay): nothing to judge the source by – not a problem, and no
+  no_data either (that is for a reading set but lost);
 - ok.
 """
 
@@ -33,8 +36,8 @@ from collections import deque
 from datetime import datetime, timedelta
 
 STATES = ["ok", "no_data", "uncommanded_burn", "overheating", "no_response", "no_flame", "heating_fault", "short_cycling",
-          "learning"]
-QUIET_STATES = ("ok", "learning")  # no problem
+          "learning", "unwatched"]
+QUIET_STATES = ("ok", "learning", "unwatched")  # no problem
 FLAME_SOURCES = ("onoff_boiler", "modulating_boiler")
 
 
@@ -74,8 +77,10 @@ class BoilerHealth:
         self._last_t: datetime | None = None
 
     def update(self, now: datetime, relay_on: bool | None, power: float | None, flame: bool | None,
-               heating_fault: bool, indoor: float | None = None, target: float | None = None, busy: bool = False) -> str:
-        """busy: a heat pump defrosts or makes hot water – its own work, not a run without command."""
+               heating_fault: bool, indoor: float | None = None, target: float | None = None, busy: bool = False,
+               watched: bool = True) -> str:
+        """busy: a heat pump defrosts or makes hot water – its own work, not a run without command.
+        watched (0.62.0): a power reading or a flame sensor is set; without either there is no no_data."""
         cfg = self.cfg
         electric = self.kind in ("electric", "heat_pump", "pellet")
         # what the boiler does now: burn / pump / idle, from the power draw if there is one
@@ -88,7 +93,7 @@ class BoilerHealth:
             mode = "burn" if flame else "pump"  # without a power reading "not burning" is all we know
         else:
             mode = None
-        if mode is None:
+        if mode is None and watched:
             self._missing_since = self._missing_since or now
         else:
             self._missing_since = None
@@ -148,7 +153,7 @@ class BoilerHealth:
         elif len(self.starts) > cfg.health_max_starts_per_hour:
             state = "short_cycling"
         else:
-            state = "ok" if judged or electric else "learning"
+            state = ("ok" if judged or electric else "learning") if watched else "unwatched"
         if state != self.state:
             self.state, self.since = state, now
         return state

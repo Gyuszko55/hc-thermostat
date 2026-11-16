@@ -475,7 +475,8 @@ def house_facts(hass, entry) -> "Facts":
                  link=str(conf.get("house_link") or "auto"), home_name=str(conf.get("home_name") or ""),
                  rooms=tuple(rooms), leading_area=leading_area,
                  zone_area=_area(hass, conf.get("zone_temp_entity")) if conf.get("zone_temp_entity") else None,
-                 zone_entries=tuple(zones))
+                 zone_entries=tuple(zones),
+                 feeds_from=tuple(t for t in (conf.get("circuit_buffer"), conf.get("hp_buffer")) if isinstance(t, str) and t))
 
 
 def house_links(hass) -> dict:

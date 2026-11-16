@@ -366,6 +366,14 @@ helyiség egy zóna) egyszer kell leírni, a HC létrehozza és összeköti a he
 hőszivattyú-koordinációt, árnyék módban. A fatüzelés közvetlen jel nélkül a kazán hőmérőjéből is felismerhető, két
 küszöbbel és megerősítési idővel (`wood_temp_entity`).
 
+**A keverőkör célja és a szivattyú-engedély két külön érték (0.62.0).** TPI/PWM-szünetben a kör előremenő célja az
+időjárásgörbén marad, a kör zónáinak legmagasabb céljával számolva; már nem esik a 20 °C-os alap helyiség-hőfokra.
+Hogy keringjen-e a víz, azt a kör hőigénye mondja meg (*Kör tartós igény* `binary_sensor`, és `pump_enable` a cél
+érzékelőjén): a PLC erre állítsa le a kör szivattyúját, és a keverőszelepet csak futó szivattyúnál mozgassa. A régi
+működés a *Szünetben is a zónák céljával számol* kapcsoló kikapcsolásával kérhető. A puffer, a keverőkörei és a
+hőszivattyú-koordináció a kapcsolataik alapján egy házba kerülnek (a beállításaikban is van ház-mező), a
+hőforrás-figyelés pedig csak akkor mond *nincs adat*-ot, ha egy beállított teljesítménymérő vagy lángjel kiesett.
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

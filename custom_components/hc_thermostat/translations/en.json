@@ -204,13 +204,14 @@
         "data": {
           "circuit_slope": "Curve slope",
           "circuit_shift": "Curve shift",
-          "circuit_room": "Room temperature when no zone asks",
+          "circuit_room": "Fallback room temperature (no zone has a target)",
           "circuit_flow_min": "Lowest flow target",
           "circuit_flow_max": "Highest flow target",
           "circuit_kp": "Room correction (°C of water per °C of room deficit)",
           "circuit_dt": "Flow − return at design (for the usable heat of the tank)",
           "circuit_margin": "Tank top above the flow target at least",
           "circuit_hold_s": "A zone that asked within this has a lasting demand",
+          "circuit_idle_keep": "Keep the zones' target in a pause (no drop)",
           "circuit_deadband": "New target only for a difference of at least",
           "circuit_confirm_s": "The difference must last",
           "circuit_min_interval_s": "At least between two changes",
@@ -696,7 +697,11 @@
           "buffer_share_upper": "Share of the upper-middle layer (0 = even)",
           "buffer_share_lower": "Share of the lower-middle layer (0 = even)",
           "buffer_share_bottom": "Share of the bottom layer (0 = even)",
-          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)"
+          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)",
+          "house_link": "Part of which house (HC info: overview, diagram)"
+        },
+        "data_description": {
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
         }
       },
       "rooms": {
@@ -764,7 +769,11 @@
           "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
           "trial_hours": "Length of the supervised trial",
           "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
-          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells"
+          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
+          "house_link": "Part of which house (HC info: overview, diagram)"
+        },
+        "data_description": {
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
         }
       },
       "circuit_settings": {
@@ -773,13 +782,14 @@
         "data": {
           "circuit_slope": "Curve slope",
           "circuit_shift": "Curve shift",
-          "circuit_room": "Room temperature when no zone asks",
+          "circuit_room": "Fallback room temperature (no zone has a target)",
           "circuit_flow_min": "Lowest flow target",
           "circuit_flow_max": "Highest flow target",
           "circuit_kp": "Room correction (°C of water per °C of room deficit)",
           "circuit_dt": "Flow − return at design (for the usable heat of the tank)",
           "circuit_margin": "Tank top above the flow target at least",
           "circuit_hold_s": "A zone that asked within this has a lasting demand",
+          "circuit_idle_keep": "Keep the zones' target in a pause (no drop)",
           "circuit_deadband": "New target only for a difference of at least",
           "circuit_confirm_s": "The difference must last",
           "circuit_min_interval_s": "At least between two changes",
@@ -806,7 +816,11 @@
           "trial_hours": "Length of the supervised trial",
           "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
           "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
-          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)"
+          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)",
+          "house_link": "Part of which house (HC info: overview, diagram)"
+        },
+        "data_description": {
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
         }
       },
       "hp_coord_settings": {
@@ -1078,7 +1092,8 @@
           "no_flame": "No flame",
           "heating_fault": "Heating fault",
           "short_cycling": "Short cycling",
-          "learning": "Learning the boiler's power levels"
+          "learning": "Learning the boiler's power levels",
+          "unwatched": "Not watched (no power or flame reading)"
         }
       },
       "shadow_regulator": {

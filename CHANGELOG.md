@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.62.0 – 2026-11-16
+The tester's second round on the buffer system (wood boiler, 1000 l stratified tank, heat pump on the lower coil,
+radiator and floor mixing circuits under a PLC, five room zones, the bathroom on both circuits).
+- **The mixing circuit's target no longer drops in a TPI / PWM pause:** with no zone asking within `circuit_hold_s`
+  the curve used the 20 °C fallback room (`circuit_room`), so the floor circuit fell from 29–30 °C to 26 °C between
+  two pulses and the next pulse waited for the confirmation. Now the curve stays at the highest target of the
+  circuit's zones (only the room correction of a demand goes); `circuit_room` is used only when no zone has a target.
+  The circulation is the separate value it already was: the circuit's demand (the *circuit demand* `binary_sensor`; new
+  `pump_enable` and `room_from` attributes on the target sensor, and two new rows on the info page). The PLC should
+  stop the circuit's pump on it and move the mixing valve only while the pump runs (a pipe warmed by gravity then moves
+  nothing). The heat pump coordination still counts only circuits with demand, so a kept target asks no heat. The
+  old behaviour: switch off `circuit_idle_keep` (*Keep the zones' target in a pause*).
+- **The plant joins one house by its pipes:** a buffer tank without zones joins the house of the circuits / heat pump
+  coordinations it feeds, and a circuit or heat pump coordination still alone joins its tank's house (house rule 6,
+  why "plant"). So the overview and the hydraulic diagram show the wood boiler, the tank, the heat pump on its coil,
+  both circuits and every room as one system, from whichever instance it is opened; nothing has to be made again. The
+  house link field is now on the buffer, mixing circuit and heat pump coordination settings too.
+- **Source watch: no false *no data*:** an instance with neither a power reading nor a flame sensor (a zone on a
+  valve relay, a source known only by its relay) gave `no_data` after ten minutes. Now it is `unwatched` (a quiet
+  state, no warning); `no_data` means a reading that was set and got lost. The overview says the warnings in words
+  ("source watch: the source's power / flame reading gives no data").
+
 ## 0.61.0 – 2026-11-16
 The tester's last two points (5.2 and 5.7), and a fix of the 0.60.0 hydraulic diagram.
 - **Buffer system setup path (HC setup panel → *Buffer system*):** the real system is described once – home name,
