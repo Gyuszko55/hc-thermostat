@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.65.2 – 2026-11-16
+Settings forms easier to read (no change in what is controlled; the stored settings are the same).
+- **Heat pump coordination rules page in fold-out sections:** the charging rule, the flow limits, the reserve and the
+  offset stay on top; *Charging by demand*, *Classic charging*, *Running and standby*, *Summer / winter mode,
+  exercise*, *Cold-weather ON (monoblock)*, *Wood* and *Hold of the target* fold out – the classic and the
+  demand-based charging fields are no longer mixed. An error of a folded field is shown above the form.
+- **Explanations** (Hungarian and English) for every field of the buffer, mixing circuit, circuit curve, heat pump
+  coordination and rules forms, and for every field of the zone / thermostat settings page (about 150 new texts):
+  what it does, when it matters, typical values.
+
 ## 0.65.1 – 2026-11-16
 A user-friendliness pass (no change in what is controlled).
 - **Info panel:** the mixing circuit's and the heat pump coordination's *Decision* and *Details* rows are in words

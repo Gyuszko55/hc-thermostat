@@ -360,6 +360,33 @@ def _hpc_errors(user_input: dict) -> dict:
     return errors
 
 
+# 0.65.2: the heat pump coordination's rules page in fold-out sections – the charging rule and the flow limits on top,
+# the classic and the demand-based charging apart, then running, season, cold weather, wood and the target's hold
+HPC_SECTIONS = {
+    "charge_demand": ("hp_start_margin", "hp_start_kwh", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"),
+    "charge_classic": ("hp_hyst", "hp_charge_on", "hp_charge_off", "hp_charge_needs_demand"),
+    "running": ("hp_min_on_s", "hp_min_off_s", "hp_standby", "hp_idle_off", "hp_idle_hours"),
+    "season": ("hp_auto_summer", "hp_summer_after_h", "hp_winter_after_s", "hp_exercise", "hp_exercise_weekday",
+               "hp_exercise_hour", "hp_exercise_min"),
+    "cold": ("hp_cold_on", "hp_cold_on_below", "hp_cold_release_above", "hp_cold_release_s"),
+    "wood": ("hp_wood_rise", "hp_wood_first", "wood_on_above", "wood_off_below", "wood_confirm_s"),
+    "hold": ("hp_deadband", "hp_confirm_s", "hp_min_interval_s", "hp_max_rise", "hp_urgent"),
+}
+HPC_SECTION_OF = {k: name for name, keys in HPC_SECTIONS.items() for k in keys}
+
+
+def _hpc_form(current: dict) -> dict:
+    return _grouped(_hpc_settings(current), HPC_SECTION_OF, HPC_SECTIONS)
+
+
+def _hpc_section_errors(user_input: dict) -> dict:
+    """An error of a field in a fold-out section is shown above the form."""
+    out: dict = {}
+    for key, code in _hpc_errors(user_input).items():
+        out.update(_field_error(key, code, HPC_SECTION_OF))
+    return out
+
+
 def _circuit_errors(user_input: dict) -> dict:
     return {"circuit_flow_max": "circuit_order"} if user_input["circuit_flow_max"] <= user_input["circuit_flow_min"] else {}
 
@@ -894,10 +921,11 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(_hpc_fields(self.hass, {})))
 
     async def async_step_hp_coord_settings(self, user_input=None):
-        errors = _hpc_errors(user_input) if user_input is not None else {}
+        user_input = _flat(user_input, HPC_SECTIONS) if user_input is not None else None  # 0.65.2: fold-out sections
+        errors = _hpc_section_errors(user_input) if user_input is not None else {}
         if user_input is not None and not errors:
             return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input, CONF_MODE: MODE_SHADOW})
-        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_settings({**self._data, **(user_input or {})})), errors=errors)
+        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_form({**self._data, **(user_input or {})})), errors=errors)
 
     async def async_step_control(self, user_input=None):
         source, system = self._data[CONF_HEAT_SOURCE], self._data[CONF_SYSTEM]
@@ -1329,10 +1357,11 @@ class HcOptionsFlow(OptionsFlow):
     async def async_step_hp_coord_settings(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}
         first = getattr(self, "_hp", {})
-        errors = _hpc_errors(user_input) if user_input is not None else {}
+        user_input = _flat(user_input, HPC_SECTIONS) if user_input is not None else None  # 0.65.2: fold-out sections
+        errors = _hpc_section_errors(user_input) if user_input is not None else {}
         if user_input is not None and not errors:
             return self.async_create_entry(data={**first, **user_input})
-        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_settings({**current, **(user_input or {})})), errors=errors)
+        return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_form({**current, **(user_input or {})})), errors=errors)
 
     async def async_step_circuit_settings(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}

@@ -217,7 +217,7 @@ def test_settings_entities_and_texts():
         assert data["entity"]["binary_sensor"]["hp_exercise"]["name"]
         assert data["entity"]["sensor"]["hp_decision"]["state"]["summer"]
         for key in ("hp_auto_summer", "hp_summer_after_h", "hp_winter_after_s", "hp_summer_entity", "hp_exercise_entity"):
-            assert text.count(f'"{key}"') == 2, (lang, key)
+            assert text.count(f'"{key}"') >= 2, (lang, key)  # 0.65.2: + explanations and sections
     panel = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "hp_auto_summer" in panel and 'summer: "Nyári üzem: nem fűt"' in panel
 

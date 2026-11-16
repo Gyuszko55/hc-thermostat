@@ -161,6 +161,30 @@
           "dhw_pump_entity": "HMV-tároló töltőszivattyúja (nem kötelező, csak a rajzon)",
           "dhw_temp_entity": "HMV-tároló hőmérője (nem kötelező, csak a rajzon)",
           "dhw_heater_entity": "HMV-tároló villanyfűtése (napelem / hálózat; nem kötelező, csak a rajzon)"
+        },
+        "data_description": {
+          "buffer_top_entity": "A tartály legfelső hőmérője – a töltés indítása és a keverőkörök kiszolgálhatósága ehhez igazodik.",
+          "buffer_bottom_entity": "Ha megvan, a töltés akkor áll le, amikor az alja is felmelegedett (teljes töltés). Nélküle a teteje dönt.",
+          "boiler_entity": "Az a kapcsoló, amely a tartályt töltő hőforrást indítja (pellet, villanypatron). Hőszivattyúnál ezt a hőszivattyú-koordináció végzi – itt hagyd üresen.",
+          "zone_entities": "A tartályból fűtő HC-zónák. Megadva a töltés csak akkor indul, ha valamelyik fűteni kér (lásd lent).",
+          "buffer_demand_led": "Bekapcsolva nincs „tartalékra” töltés: új töltés csak zónaigénynél indul. A fagyvédelem mindig tölt.",
+          "buffer_on": "Ha a tartály teteje ennyire hűl, indul a töltés. Legyen a fűtőkörök igénye fölött.",
+          "buffer_off": "A töltés vége. Hőszivattyúnál ne legyen magasabb annál, amit a gép a csőkígyón át el tud érni.",
+          "buffer_min_off_s": "Két töltés között legalább ennyi szünet – a hőforrás ne kapcsolgasson sűrűn.",
+          "buffer_max_charge_s": "Ha egy töltés ennél tovább tart, a HC leállítja és szól (hibás szenzor, gyenge hőforrás).",
+          "buffer_frost": "E alatt a hőfok alatt mindig tölt, akkor is, ha egy zóna sem kér.",
+          "buffer_upper_entity": "A rétegzett tartály pontosabb képéhez (tárolt hő, töltöttség). A töltést nem kapcsolja.",
+          "buffer_lower_entity": "A rétegzett tartály pontosabb képéhez; az igény szerinti hőszivattyú-töltés alapból ehhez a réteghez méri a leállítást.",
+          "buffer_volume_l": "Megadva a HC kWh-ban is számol (tárolt hő, tartalék az igény fölött).",
+          "buffer_base_temp": "A töltöttség 0%-a: ennél hidegebb víz már nem fűt érdemben. Radiátornál ~30 °C, padlónál ~25 °C.",
+          "buffer_share_top": "A tartály hányad része tartozik ehhez a hőmérőhöz. 0 = a megadott hőmérők között egyenlően.",
+          "buffer_share_upper": "Mint fent.",
+          "buffer_share_lower": "Mint fent.",
+          "buffer_share_bottom": "Mint fent.",
+          "buffer_charge_entity": "Ha a vezérlőd már számol töltöttséget, a HC azt mutatja a sajátja helyett.",
+          "dhw_pump_entity": "A HMV-tárolót a pufferből töltő szivattyú – csak a rendszerrajzon látszik, a HC nem kapcsolja.",
+          "dhw_temp_entity": "Csak a rendszerrajzon és az áttekintésen.",
+          "dhw_heater_entity": "Csak a rendszerrajzon és az áttekintésen."
         }
       },
       "start": {
@@ -201,6 +225,15 @@
           "circuit_output_entity": "Ide írja az előremenő célt (PLC number / input_number / climate, nem kötelező)",
           "circuit_pump_entity": "A kör szivattyúja fut (PLC-jel, nem kötelező, csak megjelenítés)",
           "circuit_flow_entity": "A kör mért előremenője (nem kötelező, csak megjelenítés)"
+        },
+        "data_description": {
+          "circuit_kind": "Radiátor vagy padló: más görbe, határok és lépések az alapértékekben (a következő lapon állítható).",
+          "zone_entities": "A körről fűtött HC-zónák (helyiségek). A célt a tartósan kérő zónák céljából és hiányából számolja.",
+          "outdoor_entity": "A fűtési görbe kinti hőmérséklete. Ha kiesik, a kiadott cél marad.",
+          "circuit_buffer": "Megadva látszik, mennyi használható hő van a körnek, a hőszivattyú ismeri az igényét, és bekapcsolható a puffer-korlát.",
+          "circuit_output_entity": "A PLC előremenő-alapjele. Árnyék módban nem ír; a keverő, a szivattyú és a védelmek a PLC-nél maradnak.",
+          "circuit_pump_entity": "Ha a PLC jelzi, a rajz a valódi szivattyú-állapotot mutatja.",
+          "circuit_flow_entity": "A tényleges előremenő a kiadott cél mellett látszik – így ellenőrizhető a keverő."
         }
       },
       "circuit_settings": {
@@ -226,7 +259,22 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
+          "circuit_slope": "Ennyi °C-kal melegebb víz jut minden fok különbségre a helyiség célja és a kint között. Radiátor ~1,0–1,5, padló ~0,3–0,6.",
+          "circuit_shift": "Az egész görbét feljebb (+) vagy lejjebb (−) tolja. Ha mindig hideg vagy meleg, ezt állítsd először.",
+          "circuit_room": "Csak ha egyik zónának sincs célja (pl. mind ki van kapcsolva).",
+          "circuit_flow_min": "Ennél alacsonyabb célt nem ad ki.",
+          "circuit_flow_max": "A víz előremenő-korlátja. A padló felületi védelme a PLC / hidraulika oldalon marad.",
+          "circuit_kp": "Ha egy tartósan kérő helyiség a célja alatt van, fokonként ennyivel melegebb vizet kér (legfeljebb 3 °C hiányig).",
+          "circuit_dt": "A kör méretezési hőfoklépcsője: a puffer használható hőjének becsléséhez kell.",
+          "circuit_margin": "A hőszivattyú ennyivel melegebb puffert kér a kör céljánál; bekapcsolt puffer-korlátnál a keverő legfeljebb teteje − ennyi célt kap.",
+          "circuit_hold_s": "Egy rövid TPI-szünet ne szüntesse meg az igényt: ennyi időn belüli kérés még tartós igénynek számít.",
+          "circuit_idle_keep": "Bekapcsolva a cél szünetben sem esik a 20 °C-os alapra; a keringetés engedélye ettől külön jel.",
+          "circuit_deadband": "Kis ingadozásra nem ír új célt a PLC-nek.",
+          "circuit_confirm_s": "Az eltérésnek ennyi ideig kell fennállnia, mielőtt új cél megy ki.",
+          "circuit_min_interval_s": "Két célváltás között legalább ennyi idő – a keverő ne mozogjon folyton.",
+          "circuit_max_rise": "Felfelé fokozatosan lép; lefelé nincs korlát.",
+          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre."
         }
       },
       "hp_coord": {
@@ -248,7 +296,17 @@
         },
         "data_description": {
           "hp_target_round": "A HC belül tizedesre számol; ez csak a hőszivattyúnak küldött értékre vonatkozik. Egész fokra felfelé: 36,1 → 37 °C.",
-          "hp_water_temp_entity": "Csak a „Hőszivattyú célja” grafikonhoz: így látszik, hogyan követi a víz a kiadott célt."
+          "hp_water_temp_entity": "Csak a „Hőszivattyú célja” grafikonhoz: így látszik, hogyan követi a víz a kiadott célt.",
+          "hp_buffer": "A puffer-példány, amelyet a hőszivattyú tölt – a hőfokai, rétegei és keverőkörei innen jönnek.",
+          "outdoor_entity": "A hidegben-ON és a nyári/téli üzem ehhez igazodik.",
+          "hp_running_entity": "Teljesítmény (W) vagy frekvencia esetén a HC maga dönti el, hogy fut-e. Kell a fatüzelés felismeréséhez.",
+          "wood_entity": "Közvetlen jel (füstgáz-termosztát, kazán-relé): amíg be van kapcsolva, a hőszivattyú nem tölt.",
+          "wood_temp_entity": "Ha nincs közvetlen jel: a fatüzelésű kazán hőmérőjéből, két küszöbbel ismeri fel az égést (a szabályok lapon).",
+          "hp_target_entity": "A hőszivattyú előremenő célja. A kerekítést lent állíthatod.",
+          "hp_switch_entity": "Az ON/OFF kérés. Az ON nem fűtési parancs: igény nélkül a cél a legalacsonyabb.",
+          "hp_demand_entity": "Egy kapcsoló, amely a PLC-nek jelzi, hogy most hő kell.",
+          "hp_summer_entity": "Bekapcsolva jelzi a PLC-nek a nyári üzemet.",
+          "hp_exercise_entity": "Nyári üzemben hetente jelzi a PLC-nek, hogy járassa meg a szivattyúkat és szelepeket."
         }
       },
       "hp_coord_settings": {
@@ -297,7 +355,167 @@
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
         },
         "data_description": {
-          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók."
+          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
+          "hp_flow_min": "Igény nélkül (készenlétben) ez a cél megy ki.",
+          "hp_flow_max": "Ennél magasabb célt nem kér a hőszivattyútól.",
+          "hp_reserve": "A hőszivattyú célja = a körök igénye + ez + korrekció. A csőkígyó hőátadása miatt kell.",
+          "hp_offset": "Kézi eltolás −8…+8 °C között, ha a hőszivattyú saját mérése eltér a puffertől.",
+          "hp_hyst": "Klasszikus: a töltés akkor áll le, amikor a teteje legalább igény + ennyi.",
+          "hp_charge_on": "Klasszikus: alacsony töltöttségnél indít, akkor is, ha a teteje még elég meleg.",
+          "hp_charge_off": "Klasszikus: a töltés csak e fölött állhat le.",
+          "hp_charge_needs_demand": "Klasszikus: alacsony töltöttség magában nem indít, csak ha egy helyiség vagy kör kér.",
+          "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
+          "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
+          "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
+          "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
+          "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
+          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
+          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+          "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
+          "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
+          "hp_idle_hours": "Ennyi igénymentes óra után.",
+          "hp_auto_summer": "Nem dátum szerint: ha ennyi ideig egy helyiség sem kér, nyári üzem; a körök tartós igényére magától visszavált.",
+          "hp_summer_after_h": "Ennyi igénymentes óra után nyári üzem.",
+          "hp_winter_after_s": "Egy TPI-impulzus vagy szellőztetés még nem hozza vissza a fűtést.",
+          "hp_exercise": "Nyári üzemben hetente jelez; a PLC járatja meg a szivattyúkat.",
+          "hp_exercise_weekday": "0 = hétfő … 6 = vasárnap.",
+          "hp_exercise_hour": "A jel kezdete (óra).",
+          "hp_exercise_min": "A jel hossza percben.",
+          "hp_cold_on": "Csak vízzel töltött monoblokkhoz: fagyveszélynél ON marad, hogy a gép saját fagyvédelme működhessen. Nem helyettesíti azt.",
+          "hp_cold_on_below": "Kint e hőfok alatt ON.",
+          "hp_cold_release_above": "Csak e fölött oldódik fel…",
+          "hp_cold_release_s": "…ha ennyi ideig tartósan fölötte van.",
+          "hp_wood_rise": "Ha a puffer ennél gyorsabban melegszik, miközben a hőszivattyú nem fut, a HC fatüzelésnek veszi.",
+          "hp_wood_first": "Bekapcsolva fatüzelés alatt a hőszivattyú nem tölt (a fagyvédelem és a hidegben-ON marad).",
+          "wood_on_above": "A fatüzelésű kazán hőmérője e fölött: ég.",
+          "wood_off_below": "…és e alatt: kialudt. A kettő közti sáv megakadályozza a kapkodást.",
+          "wood_confirm_s": "A váltás előtt ennyi ideig kell tartania.",
+          "hp_deadband": "Kis ingadozásra nem ír új célt.",
+          "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
+          "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
+          "hp_max_rise": "Felfelé fokozatosan lép.",
+          "hp_urgent": "Ekkora eltérésnél nem vár."
+        },
+        "sections": {
+          "charge_demand": {
+            "name": "Igény szerinti töltés",
+            "data": {
+              "hp_start_margin": "Igény szerinti: indítási tartalék (tető < igény + ennyi)",
+              "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
+              "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
+              "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
+              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+            },
+            "data_description": {
+              "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
+              "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
+              "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
+              "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
+              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet."
+            }
+          },
+          "charge_classic": {
+            "name": "Klasszikus töltés",
+            "data": {
+              "hp_hyst": "Csak az igény fölött ennyivel áll le",
+              "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
+              "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+              "hp_charge_needs_demand": "A töltöttség csak helyiségi/köri igény mellett indít és tart fűtést"
+            },
+            "data_description": {
+              "hp_hyst": "Klasszikus: a töltés akkor áll le, amikor a teteje legalább igény + ennyi.",
+              "hp_charge_on": "Klasszikus: alacsony töltöttségnél indít, akkor is, ha a teteje még elég meleg.",
+              "hp_charge_off": "Klasszikus: a töltés csak e fölött állhat le.",
+              "hp_charge_needs_demand": "Klasszikus: alacsony töltöttség magában nem indít, csak ha egy helyiség vagy kör kér."
+            }
+          },
+          "running": {
+            "name": "Futás és készenlét",
+            "data": {
+              "hp_min_on_s": "Legrövidebb ON idő",
+              "hp_min_off_s": "Legrövidebb OFF idő",
+              "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
+              "hp_idle_off": "OFF, ha sokáig nincs igény",
+              "hp_idle_hours": "Ennyi ideig nincs igény"
+            },
+            "data_description": {
+              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
+              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+              "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
+              "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
+              "hp_idle_hours": "Ennyi igénymentes óra után."
+            }
+          },
+          "season": {
+            "name": "Nyári / téli üzem, megjáratás",
+            "data": {
+              "hp_auto_summer": "Automatikus nyári/téli üzem (a ház igénye szerint)",
+              "hp_summer_after_h": "Nyári üzem ennyi igénymentes idő után",
+              "hp_winter_after_s": "Vissza téli üzembe, ha a körök igénye ennyi ideig tart (0 = azonnal)",
+              "hp_exercise": "Megjáratás esedékes jel nyári üzemben (a PLC végzi)",
+              "hp_exercise_weekday": "Megjáratás napja (0 = hétfő … 6 = vasárnap)",
+              "hp_exercise_hour": "Megjáratás kezdete (óra)",
+              "hp_exercise_min": "Megjáratás jel hossza (perc)"
+            },
+            "data_description": {
+              "hp_auto_summer": "Nem dátum szerint: ha ennyi ideig egy helyiség sem kér, nyári üzem; a körök tartós igényére magától visszavált.",
+              "hp_summer_after_h": "Ennyi igénymentes óra után nyári üzem.",
+              "hp_winter_after_s": "Egy TPI-impulzus vagy szellőztetés még nem hozza vissza a fűtést.",
+              "hp_exercise": "Nyári üzemben hetente jelez; a PLC járatja meg a szivattyúkat.",
+              "hp_exercise_weekday": "0 = hétfő … 6 = vasárnap.",
+              "hp_exercise_hour": "A jel kezdete (óra).",
+              "hp_exercise_min": "A jel hossza percben."
+            }
+          },
+          "cold": {
+            "name": "Hidegben-ON (monoblokk)",
+            "data": {
+              "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
+              "hp_cold_on_below": "ON ez alatt",
+              "hp_cold_release_above": "Feloldás e fölött",
+              "hp_cold_release_s": "… ennyi ideig tartósan"
+            },
+            "data_description": {
+              "hp_cold_on": "Csak vízzel töltött monoblokkhoz: fagyveszélynél ON marad, hogy a gép saját fagyvédelme működhessen. Nem helyettesíti azt.",
+              "hp_cold_on_below": "Kint e hőfok alatt ON.",
+              "hp_cold_release_above": "Csak e fölött oldódik fel…",
+              "hp_cold_release_s": "…ha ennyi ideig tartósan fölötte van."
+            }
+          },
+          "wood": {
+            "name": "Fatüzelés",
+            "data": {
+              "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+              "hp_wood_first": "Fa elsőbbsége: alacsony töltöttségnél sem indít, a futó felfűtés leáll (fagyvédelem és hidegben-ON marad)",
+              "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
+              "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
+              "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
+            },
+            "data_description": {
+              "hp_wood_rise": "Ha a puffer ennél gyorsabban melegszik, miközben a hőszivattyú nem fut, a HC fatüzelésnek veszi.",
+              "hp_wood_first": "Bekapcsolva fatüzelés alatt a hőszivattyú nem tölt (a fagyvédelem és a hidegben-ON marad).",
+              "wood_on_above": "A fatüzelésű kazán hőmérője e fölött: ég.",
+              "wood_off_below": "…és e alatt: kialudt. A kettő közti sáv megakadályozza a kapkodást.",
+              "wood_confirm_s": "A váltás előtt ennyi ideig kell tartania."
+            }
+          },
+          "hold": {
+            "name": "A cél ritkítása",
+            "data": {
+              "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
+              "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+              "hp_min_interval_s": "Két módosítás között legalább",
+              "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+            },
+            "data_description": {
+              "hp_deadband": "Kis ingadozásra nem ír új célt.",
+              "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
+              "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
+              "hp_max_rise": "Felfelé fokozatosan lép.",
+              "hp_urgent": "Ekkora eltérésnél nem vár."
+            }
+          }
         }
       }
     },
@@ -359,7 +577,18 @@
           "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
           "target_cool": "Hűtési cél"
         },
-        "data_description": {},
+        "data_description": {
+          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
+          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.",
+          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.",
+          "target_vacation": "Szabadság presetben – rövid távollétnél a Távolléti hőfok marad.",
+          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.",
+          "night_start": "Ettől kezdve az alvási hőfok érvényes.",
+          "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít.",
+          "mode": "Árnyék: csak számol, összevethető a mostani vezérléssel. Éles: a HC kapcsolja az eszközt.",
+          "confirm": "Éles módhoz bepipálandó: ugyanazt a kimenetet más ne vezérelje.",
+          "target_cool": "Hűtési üzemben ennyire hűt."
+        },
         "sections": {
           "regulation": {
             "name": "Szabályozás és időzítés",
@@ -414,7 +643,31 @@
               "pid_kp": "Mennyire erősen válaszol a HC a pillanatnyi eltérésre (0,4 = 40 % igény °C-onként a cél alatt).",
               "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).",
               "pid_d_filter_s": "A helyiséghőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
-              "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol."
+              "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol.",
+              "min_off_s": "Kikapcsolás után legalább ennyi ideig ki marad (kazán- és relévédelem).",
+              "pid_kd": "Fékezi a gyors változást. 0 = nincs; csak ha a hőfok túllő.",
+              "curve_slope": "Ennyi °C-kal melegebb víz jut minden fok különbségre a cél és a kint között.",
+              "curve_shift": "Az egész görbét feljebb (+) vagy lejjebb (−) tolja – ha mindig hideg vagy meleg, ezt állítsd először.",
+              "flow_min": "Ennél hidegebb előremenőt nem kér.",
+              "flow_max": "Ennél melegebb előremenőt nem kér (padlónál a burkolat védelme miatt alacsony).",
+              "room_kp": "Ha a helyiség a cél alatt van, fokonként ennyivel melegebb vizet kér.",
+              "room_ki_per_hour": "Lassan eltünteti a megmaradó eltérést; túl nagy érték lengést okoz.",
+              "hp_min_on_s": "Kompresszorvédelem.",
+              "hp_min_off_s": "Kompresszorvédelem.",
+              "onoff_hysteresis": "On-off vezérlésnél a cél alatt ennyivel kapcsol be, a célnál ki.",
+              "ac_ki_per_hour": "A klíma célját lassan korrigálja, ha a helyiség tartósan eltér tőle.",
+              "ac_min_change_s": "A klíma célját legfeljebb ilyen gyakran módosítja (sípolás, kopás).",
+              "assist_climate": "A ház fő HC-termosztátja: a klíma ennek a hiányát segíti, ha olcsóbb hőt ad és az ajtó nyitva.",
+              "storage_window_start": "A kedvezményes (vezérelt) áram kezdete.",
+              "storage_window_end": "A kedvezményes áram vége.",
+              "storage_charge_h": "Ennyi óra alatt töltődik fel teljesen üresről.",
+              "storage_bias": "Ha reggelre túl meleg vagy hideg, ezzel hangold.",
+              "storage_discharge_hyst": "Ennyivel a cél alatt nyitja a kisütést.",
+              "fan_min_pct": "A ventilátor ennél lassabban nem forog, amíg fűt.",
+              "fan_overrun_s": "A hőcserélőben maradt hőt még kifújja.",
+              "fan_min_coil": "Hideg hőcserélővel nem fúj hideg levegőt.",
+              "keep_alive_s": "Olyan relénél, amely magától lekapcsol egy idő után.",
+              "yield_margin": "Hogy a kazán ne versenyezzen az olcsóbb hőforrással, ennyivel a cél alatt szabályoz."
             }
           },
           "functions": {
@@ -440,7 +693,11 @@
               "season_off_above": "Ha a napi kinti középhőmérséklet e fölé megy, a fűtési idény szünetel. Alapérték 15 °C; jól szigetelt háznál lehet kevesebb, régi háznál több.",
               "season_on_below": "Ha a napi kinti középhőmérséklet e alá megy, a fűtési idény újra indul. Kisebb kell legyen, mint a vége (alapérték 13 °C).",
               "presence_home_states": "Az input_select / sensor jelenlétforrás mely értékei jelentenek otthont (pl. „Itthon”). A beépített szavak (home, on, otthon) mellett számítanak. Ha itt és a szabadságnál sincs semmi, egy ismeretlen érték egyszer figyelmeztetést ír a naplóba.",
-              "presence_vacation_states": "Mely értékek jelentenek szabadságot (pl. „Nyaralás”). A beépített vacation / szabadság mellett számítanak. Minden más érték távollét."
+              "presence_vacation_states": "Mely értékek jelentenek szabadságot (pl. „Nyaralás”). A beépített vacation / szabadság mellett számítanak. Minden más érték távollét.",
+              "season_enabled": "Ha a kinti napi átlag a nyári határ fölött van, nem fűt; a fagyvédelem marad.",
+              "boost_enabled": "Nagy hiánynál folyamatosan fűt, és időben leáll, a tanult utómelegedéssel számolva.",
+              "learning_enabled": "A ház viselkedéséből tanul; a tanult értékek a Tanult értékek visszaállítása gombbal törölhetők.",
+              "shadow_regulator": "Csak összehasonlításhoz – a döntést nem befolyásolja."
             }
           },
           "protection": {
@@ -469,7 +726,16 @@
               "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
               "zone_own_mixer": "Kikapcsolva a központi moduláló kazán előremenője nem megy e zóna legmagasabb előremenője (flow_max, padlónál alapból 45 °C) fölé, amíg a köre vizet kaphat – a radiátoros zónák ilyenkor gyengébben fűtenek. Csak akkor kapcsold be, ha a padlókörnek tényleg van keverőszelepe vagy hőfokkorlátozója.",
               "valve_exercise": "Hetente egyszer néhány percre kinyitja a régóta zárt szelepet, hogy ne ragadjon be. Közben a zóna nem kér hőt, a központi kazán nem indul.",
-              "plaus_indoor_min": "Ez alatt a helyiség hőmérőjének értéke hibásnak (elveszettnek) számít. Legfeljebb a fagyvédelmi cél mínusz 2 °C lehet, hogy egy valóban hideg helyiségben a fagyvédelem elinduljon. Alapérték 3 °C; fűtetlen hétvégi háznál lehet kevesebb."
+              "plaus_indoor_min": "Ez alatt a helyiség hőmérőjének értéke hibásnak (elveszettnek) számít. Legfeljebb a fagyvédelmi cél mínusz 2 °C lehet, hogy egy valóban hideg helyiségben a fagyvédelem elinduljon. Alapérték 3 °C; fűtetlen hétvégi háznál lehet kevesebb.",
+              "window_entities": "Nyitott ablaknál/ajtónál a fűtés szünetel (fagyvédelem marad).",
+              "window_drop_entities": "Ablakszenzor nélkül: a hirtelen hőesésből ismeri fel a szellőztetést.",
+              "window_drop_rate": "Ennél gyorsabb hűlés szellőztetésnek számít.",
+              "exercise_weekday": "Nyáron is hetente megmozgatja a szelepeket, hogy ne ragadjanak be.",
+              "exercise_time": "A mozgatás kezdete.",
+              "exercise_s": "Ennyi ideig nyitja ki.",
+              "return_temp_entity": "A visszatérő-korláthoz kell.",
+              "return_max": "Kondenzációs kazánnál a túl meleg visszatérő rontja a hatásfokot.",
+              "return_hysteresis": "Ennyivel a korlát alatt nyit újra."
             }
           },
           "floor": {
@@ -504,7 +770,18 @@
               "floor_temper": "Kényelem: meleg padló. Amíg a helyiség elég meleg, a padlót a helyiség célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a helyiség ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
               "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a helyiség jobban a célja fölé ingadozhat, és többet fogyaszt.",
               "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a helyiség célja + a temperálás eltérése hőfokán tartja, amíg a helyiséghőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
-              "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell."
+              "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell.",
+              "floor_hysteresis": "A padló-limit elérése után ennyivel hűlnie kell, mielőtt újra fűt.",
+              "floor_temper_offset": "Ennyivel melegebb padlót tart, mint a helyiség célja (kényelmi temperálás).",
+              "floor_temper_night": "Éjszakára más padlócél.",
+              "floor_temper_hysteresis": "A temperálás visszakapcsolási sávja.",
+              "humidity_entity": "A harmatpont számításához; nélküle nem hűt.",
+              "cool_mode_entity": "A hőszivattyút hűtésre váltó kapcsoló.",
+              "dew_margin": "A padló ennyivel a harmatpont fölött marad, hogy ne párásodjon.",
+              "floor_min_cool": "Hűtéskor a padló ennél hidegebb nem lehet.",
+              "cool_flow_entity": "Ha a hőszivattyúnak külön hűtési alapjele van.",
+              "cool_flow": "A hűtővíz célja.",
+              "cool_flow_max": "Ha a harmatpont miatt ennél melegebb víz kellene, a hűtés leáll."
             }
           },
           "devices": {
@@ -533,7 +810,14 @@
               "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
               "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
               "hp_busy_states": "Ha a leolvasztás vagy melegvíz jelzése egy mód-szenzor, annak mely értékei jelentik, hogy a hőszivattyú épp a saját dolgát végzi. A beépített szavak (on, defrost, dhw, hmv, leolvasztás…) mellett számítanak.",
-              "district_connection": "Hogyan kapcsolódik a lakás a ház távfűtéséhez: saját lakásállomás hőcserélővel és hőmennyiségmérővel, vagy a radiátorok közvetlenül a felszálló vezetékeken, költségosztókkal. Csak a házrajz használja."
+              "district_connection": "Hogyan kapcsolódik a lakás a ház távfűtéséhez: saját lakásállomás hőcserélővel és hőmennyiségmérővel, vagy a radiátorok közvetlenül a felszálló vezetékeken, költségosztókkal. Csak a házrajz használja.",
+              "flame_entity": "Mutatja, hogy a kazán valóban ég-e – a hibafigyeléshez és a tanuláshoz.",
+              "boiler_power_entity": "Áramfelvételből a HC felismeri az égést, a hibát és a taktolást.",
+              "boiler_power_kw": "A kazán névleges hőteljesítménye; a hőigény-alapú szabályozáshoz.",
+              "power_available_entity": "Vezérelt (pl. H-tarifás) áramnál: ki = nincs áram, a HC nem kapcsol.",
+              "discharge_entity": "Hőtárolós kályha kisütő ventilátora vagy csappantyúja.",
+              "fan_entity": "A HC a fordulatot a hőigényhez igazítja.",
+              "coil_temp_entity": "A ventilátor csak meleg hőcserélőnél indul."
             }
           },
           "energy": {
@@ -559,7 +843,17 @@
               "heat_fuel": "Automatikus: a mérő mértékegységéből (m³ gáz, kWh, MJ, GJ), mérő nélkül a hőtermelőből. Egyéni: a lenti szám marad. Hőszivattyúnál az Egyéni a jó.",
               "heat_efficiency": "Égős hőtermelőnél számít (gáz, olaj, pellet); villanynál és hőmennyiségmérőnél nem.",
               "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő).",
-              "gas_heating_value": "kWh/m³, csak földgáznál számít (Automatikus mérő m³-ben, vagy Földgáz). A 9,61 a magyar számlák 34,6 MJ/m³-e; más országban vagy szolgáltatónál a számlán szereplő érték (MJ/m³ ÷ 3,6)."
+              "gas_heating_value": "kWh/m³, csak földgáznál számít (Automatikus mérő m³-ben, vagy Földgáz). A 9,61 a magyar számlák 34,6 MJ/m³-e; más országban vagy szolgáltatónál a számlán szereplő érték (MJ/m³ ÷ 3,6).",
+              "heat_energy_entity": "Összegző (növekvő) érték, pl. gázmérő m³; a valós hőfelhasználáshoz.",
+              "energy_factor": "Egy mérőegység hány kWh hő (gáznál kb. 9,5–10 kWh/m³ × hatásfok).",
+              "boiler_price_entity": "Az olcsóbb hőforrás tanácshoz.",
+              "other_price_entity": "Az olcsóbb hőforrás tanácshoz (pl. a klíma vagy hőszivattyú áramára).",
+              "boiler_price": "Ha nincs árszenzor.",
+              "other_price": "Ha nincs árszenzor.",
+              "boiler_allowance_entity": "A rezsicsökkentett keret maradéka – keret fölött drágább.",
+              "other_allowance_entity": "Mint fent.",
+              "cop_high": "Enyhe időben (+7 °C) ennyi hőt ad 1 kWh áramból.",
+              "cop_low": "Hidegben (−7 °C) ennyi hőt ad 1 kWh áramból."
             }
           },
           "adjoining": {
@@ -574,7 +868,10 @@
             },
             "data_description": {
               "house_link": "Egy házban több hőforrás is lehet (pl. kazán, klíma, olajradiátor, hőszivattyú), mindegyik a saját HC-példányával. Automatikusan egy házként látszanak, ha ennek a példánynak a helyisége egy másik, több helyiséges példány helyiségének vagy csatlakozó terének a területén van (de nem annak vezető helyiségében). Itt kézzel is megadhatod. Csak a megjelenítést érinti, semmit nem kapcsol.",
-              "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
+              "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek.",
+              "zone_temp_entity": "Ha nyitott ajtón át a ház része, a HC vele együtt számol.",
+              "zone_door_entities": "Nyitott ajtónál a csatlakozó tér a házhoz tartozik.",
+              "zone_max_diff": "Ennél hidegebb csatlakozó tér nem számít a ház részének."
             }
           },
           "measures": {
@@ -607,7 +904,18 @@
               "humidity_entity": "Harmatpont és penész-kockázat a példány helyiségében. Több helyiségnél a helyiségek űrlapján add meg helyiségenként.",
               "starts_per_hour_max": "0 = nem figyeli.",
               "radiator_cold_min": "Ha fűtés közben a radiátor-hőmérő ennyi ideig nem melegszik fel, miközben a helyiség a célja alatt van.",
-              "fault_ok_values": "Vesszővel elválasztva, pl. „OK, Normál, 255”. A csupa nulla (00, F.00, 0x00) magától sem hiba."
+              "fault_ok_values": "Vesszővel elválasztva, pl. „OK, Normál, 255”. A csupa nulla (00, F.00, 0x00) magától sem hiba.",
+              "pressure_entity": "A víznyomás figyeléséhez (alacsony / magas jelzés).",
+              "flow_temp_entity": "Megjelenítés és ellenőrzés: a kiadott cél mellett a valós érték.",
+              "return_temp_entity": "Megjelenítés: a hőfoklépcső számításához.",
+              "modulation_entity": "Megjelenítés.",
+              "flue_temp_entity": "Megjelenítés.",
+              "fuel_level_entity": "Pellet, olaj: alacsony szintnél jelez.",
+              "core_temp_entity": "Hőtárolós kályha maghőmérséklete.",
+              "source_state_entity": "A hőtermelő saját állapotszövege (pl. hibakód).",
+              "pressure_min": "Ez alatt figyelmeztet.",
+              "pressure_max": "E fölött figyelmeztet.",
+              "fuel_min": "Ez alatt figyelmeztet."
             }
           },
           "house": {
@@ -642,7 +950,8 @@
               "dhw_kwh_year": "A melegvíz évi végső energiája, pl. gázkazánnál m³ × 9,61 kWh. 0 = nem számolja.",
               "aux_kwh_year": "A kazán vagy a hőszivattyú segédárama évente (keringető szivattyú, vezérlés); a villany tényezőjével (2,3) számít.",
               "primary_factor": "Nem megújuló primer tényező: földgáz 1,1, villany 2,3, távhő 1,38, szilárd biomassza 0,6. 0 = a hőforrás szerint.",
-              "rating_outdoor_entity": "A besoroláshoz ennek a szenzornak az elmúlt évét használja (napi átlagok a statisztikából) – adj meg egy régebbi adatsorú kinti hőmérőt vagy csoportot. A hiányzó napokat a szabványos magyar évből pótolja."
+              "rating_outdoor_entity": "A besoroláshoz ennek a szenzornak az elmúlt évét használja (napi átlagok a statisztikából) – adj meg egy régebbi adatsorú kinti hőmérőt vagy csoportot. A hiányzó napokat a szabványos magyar évből pótolja.",
+              "optimal_start_max_min": "Az okos indítás legfeljebb ennyivel indít korábban, hogy időre meleg legyen."
             }
           }
         }
@@ -732,7 +1041,31 @@
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
-          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek.",
+          "buffer_top_entity": "A tartály legfelső hőmérője – a töltés indítása és a keverőkörök kiszolgálhatósága ehhez igazodik.",
+          "buffer_bottom_entity": "Ha megvan, a töltés akkor áll le, amikor az alja is felmelegedett (teljes töltés). Nélküle a teteje dönt.",
+          "boiler_entity": "Az a kapcsoló, amely a tartályt töltő hőforrást indítja (pellet, villanypatron). Hőszivattyúnál ezt a hőszivattyú-koordináció végzi – itt hagyd üresen.",
+          "zone_entities": "A tartályból fűtő HC-zónák. Megadva a töltés csak akkor indul, ha valamelyik fűteni kér (lásd lent).",
+          "buffer_demand_led": "Bekapcsolva nincs „tartalékra” töltés: új töltés csak zónaigénynél indul. A fagyvédelem mindig tölt.",
+          "buffer_on": "Ha a tartály teteje ennyire hűl, indul a töltés. Legyen a fűtőkörök igénye fölött.",
+          "buffer_off": "A töltés vége. Hőszivattyúnál ne legyen magasabb annál, amit a gép a csőkígyón át el tud érni.",
+          "buffer_min_off_s": "Két töltés között legalább ennyi szünet – a hőforrás ne kapcsolgasson sűrűn.",
+          "buffer_max_charge_s": "Ha egy töltés ennél tovább tart, a HC leállítja és szól (hibás szenzor, gyenge hőforrás).",
+          "buffer_frost": "E alatt a hőfok alatt mindig tölt, akkor is, ha egy zóna sem kér.",
+          "buffer_upper_entity": "A rétegzett tartály pontosabb képéhez (tárolt hő, töltöttség). A töltést nem kapcsolja.",
+          "buffer_lower_entity": "A rétegzett tartály pontosabb képéhez; az igény szerinti hőszivattyú-töltés alapból ehhez a réteghez méri a leállítást.",
+          "buffer_volume_l": "Megadva a HC kWh-ban is számol (tárolt hő, tartalék az igény fölött).",
+          "buffer_base_temp": "A töltöttség 0%-a: ennél hidegebb víz már nem fűt érdemben. Radiátornál ~30 °C, padlónál ~25 °C.",
+          "buffer_share_top": "A tartály hányad része tartozik ehhez a hőmérőhöz. 0 = a megadott hőmérők között egyenlően.",
+          "buffer_share_upper": "Mint fent.",
+          "buffer_share_lower": "Mint fent.",
+          "buffer_share_bottom": "Mint fent.",
+          "buffer_charge_entity": "Ha a vezérlőd már számol töltöttséget, a HC azt mutatja a sajátja helyett.",
+          "dhw_pump_entity": "A HMV-tárolót a pufferből töltő szivattyú – csak a rendszerrajzon látszik, a HC nem kapcsolja.",
+          "dhw_temp_entity": "Csak a rendszerrajzon és az áttekintésen.",
+          "dhw_heater_entity": "Csak a rendszerrajzon és az áttekintésen.",
+          "mode": "Árnyék: csak számol és mutat. Éles: kapcsolja a hőforrás reléjét.",
+          "confirm": "Éles módban bepipálandó: a HC ekkor valódi relét kapcsol."
         }
       },
       "rooms": {
@@ -808,7 +1141,19 @@
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
-          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek.",
+          "circuit_kind": "Radiátor vagy padló: más görbe, határok és lépések az alapértékekben (a következő lapon állítható).",
+          "zone_entities": "A körről fűtött HC-zónák (helyiségek). A célt a tartósan kérő zónák céljából és hiányából számolja.",
+          "outdoor_entity": "A fűtési görbe kinti hőmérséklete. Ha kiesik, a kiadott cél marad.",
+          "circuit_buffer": "Megadva látszik, mennyi használható hő van a körnek, a hőszivattyú ismeri az igényét, és bekapcsolható a puffer-korlát.",
+          "circuit_output_entity": "A PLC előremenő-alapjele. Árnyék módban nem ír; a keverő, a szivattyú és a védelmek a PLC-nél maradnak.",
+          "circuit_pump_entity": "Ha a PLC jelzi, a rajz a valódi szivattyú-állapotot mutatja.",
+          "circuit_flow_entity": "A tényleges előremenő a kiadott cél mellett látszik – így ellenőrizhető a keverő.",
+          "mode": "Árnyék: csak számol és mutat. Felügyelt próba: a megadott ideig ír, utána magától visszaáll árnyékba. Éles: tartósan ír.",
+          "confirm": "Írásnál kötelező bepipálni. Egy alapjelnek egy írója legyen: ha a PLC vagy egy automatizálás is írja, a HC ütközést jelez és abbahagyja.",
+          "trial_hours": "A felügyelt próba ennyi óra után magától véget ér, és értesítést küld.",
+          "write_keepalive_s": "Olyan PLC-hez, amely egy idő után eldobja a kapott alapjelet. Egyébként maradjon 0.",
+          "write_confirm_s": "Lassú (felhős) eszköznél növeld. Gyors helyi eszköznél az alapérték jó."
         }
       },
       "circuit_settings": {
@@ -834,7 +1179,22 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
+          "circuit_slope": "Ennyi °C-kal melegebb víz jut minden fok különbségre a helyiség célja és a kint között. Radiátor ~1,0–1,5, padló ~0,3–0,6.",
+          "circuit_shift": "Az egész görbét feljebb (+) vagy lejjebb (−) tolja. Ha mindig hideg vagy meleg, ezt állítsd először.",
+          "circuit_room": "Csak ha egyik zónának sincs célja (pl. mind ki van kapcsolva).",
+          "circuit_flow_min": "Ennél alacsonyabb célt nem ad ki.",
+          "circuit_flow_max": "A víz előremenő-korlátja. A padló felületi védelme a PLC / hidraulika oldalon marad.",
+          "circuit_kp": "Ha egy tartósan kérő helyiség a célja alatt van, fokonként ennyivel melegebb vizet kér (legfeljebb 3 °C hiányig).",
+          "circuit_dt": "A kör méretezési hőfoklépcsője: a puffer használható hőjének becsléséhez kell.",
+          "circuit_margin": "A hőszivattyú ennyivel melegebb puffert kér a kör céljánál; bekapcsolt puffer-korlátnál a keverő legfeljebb teteje − ennyi célt kap.",
+          "circuit_hold_s": "Egy rövid TPI-szünet ne szüntesse meg az igényt: ennyi időn belüli kérés még tartós igénynek számít.",
+          "circuit_idle_keep": "Bekapcsolva a cél szünetben sem esik a 20 °C-os alapra; a keringetés engedélye ettől külön jel.",
+          "circuit_deadband": "Kis ingadozásra nem ír új célt a PLC-nek.",
+          "circuit_confirm_s": "Az eltérésnek ennyi ideig kell fennállnia, mielőtt új cél megy ki.",
+          "circuit_min_interval_s": "Két célváltás között legalább ennyi idő – a keverő ne mozogjon folyton.",
+          "circuit_max_rise": "Felfelé fokozatosan lép; lefelé nincs korlát.",
+          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre."
         }
       },
       "hp_coord": {
@@ -865,7 +1225,22 @@
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
           "hp_target_round": "A HC belül tizedesre számol; ez csak a hőszivattyúnak küldött értékre vonatkozik. Egész fokra felfelé: 36,1 → 37 °C.",
           "hp_water_temp_entity": "Csak a „Hőszivattyú célja” grafikonhoz: így látszik, hogyan követi a víz a kiadott célt.",
-          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek.",
+          "hp_buffer": "A puffer-példány, amelyet a hőszivattyú tölt – a hőfokai, rétegei és keverőkörei innen jönnek.",
+          "outdoor_entity": "A hidegben-ON és a nyári/téli üzem ehhez igazodik.",
+          "hp_running_entity": "Teljesítmény (W) vagy frekvencia esetén a HC maga dönti el, hogy fut-e. Kell a fatüzelés felismeréséhez.",
+          "wood_entity": "Közvetlen jel (füstgáz-termosztát, kazán-relé): amíg be van kapcsolva, a hőszivattyú nem tölt.",
+          "wood_temp_entity": "Ha nincs közvetlen jel: a fatüzelésű kazán hőmérőjéből, két küszöbbel ismeri fel az égést (a szabályok lapon).",
+          "hp_target_entity": "A hőszivattyú előremenő célja. A kerekítést lent állíthatod.",
+          "hp_switch_entity": "Az ON/OFF kérés. Az ON nem fűtési parancs: igény nélkül a cél a legalacsonyabb.",
+          "hp_demand_entity": "Egy kapcsoló, amely a PLC-nek jelzi, hogy most hő kell.",
+          "hp_summer_entity": "Bekapcsolva jelzi a PLC-nek a nyári üzemet.",
+          "hp_exercise_entity": "Nyári üzemben hetente jelzi a PLC-nek, hogy járassa meg a szivattyúkat és szelepeket.",
+          "mode": "Árnyék: csak számol és mutat. Felügyelt próba: a megadott ideig ír, utána magától visszaáll árnyékba. Éles: tartósan ír.",
+          "confirm": "Írásnál kötelező bepipálni. Egy alapjelnek egy írója legyen: ha a PLC vagy egy automatizálás is írja, a HC ütközést jelez és abbahagyja.",
+          "trial_hours": "A felügyelt próba ennyi óra után magától véget ér, és értesítést küld.",
+          "write_keepalive_s": "Olyan PLC-hez, amely egy idő után eldobja a kapott alapjelet. Egyébként maradjon 0.",
+          "write_confirm_s": "Lassú (felhős) eszköznél növeld. Gyors helyi eszköznél az alapérték jó."
         }
       },
       "hp_coord_settings": {
@@ -914,7 +1289,167 @@
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
         },
         "data_description": {
-          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók."
+          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
+          "hp_flow_min": "Igény nélkül (készenlétben) ez a cél megy ki.",
+          "hp_flow_max": "Ennél magasabb célt nem kér a hőszivattyútól.",
+          "hp_reserve": "A hőszivattyú célja = a körök igénye + ez + korrekció. A csőkígyó hőátadása miatt kell.",
+          "hp_offset": "Kézi eltolás −8…+8 °C között, ha a hőszivattyú saját mérése eltér a puffertől.",
+          "hp_hyst": "Klasszikus: a töltés akkor áll le, amikor a teteje legalább igény + ennyi.",
+          "hp_charge_on": "Klasszikus: alacsony töltöttségnél indít, akkor is, ha a teteje még elég meleg.",
+          "hp_charge_off": "Klasszikus: a töltés csak e fölött állhat le.",
+          "hp_charge_needs_demand": "Klasszikus: alacsony töltöttség magában nem indít, csak ha egy helyiség vagy kör kér.",
+          "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
+          "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
+          "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
+          "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
+          "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
+          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
+          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+          "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
+          "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
+          "hp_idle_hours": "Ennyi igénymentes óra után.",
+          "hp_auto_summer": "Nem dátum szerint: ha ennyi ideig egy helyiség sem kér, nyári üzem; a körök tartós igényére magától visszavált.",
+          "hp_summer_after_h": "Ennyi igénymentes óra után nyári üzem.",
+          "hp_winter_after_s": "Egy TPI-impulzus vagy szellőztetés még nem hozza vissza a fűtést.",
+          "hp_exercise": "Nyári üzemben hetente jelez; a PLC járatja meg a szivattyúkat.",
+          "hp_exercise_weekday": "0 = hétfő … 6 = vasárnap.",
+          "hp_exercise_hour": "A jel kezdete (óra).",
+          "hp_exercise_min": "A jel hossza percben.",
+          "hp_cold_on": "Csak vízzel töltött monoblokkhoz: fagyveszélynél ON marad, hogy a gép saját fagyvédelme működhessen. Nem helyettesíti azt.",
+          "hp_cold_on_below": "Kint e hőfok alatt ON.",
+          "hp_cold_release_above": "Csak e fölött oldódik fel…",
+          "hp_cold_release_s": "…ha ennyi ideig tartósan fölötte van.",
+          "hp_wood_rise": "Ha a puffer ennél gyorsabban melegszik, miközben a hőszivattyú nem fut, a HC fatüzelésnek veszi.",
+          "hp_wood_first": "Bekapcsolva fatüzelés alatt a hőszivattyú nem tölt (a fagyvédelem és a hidegben-ON marad).",
+          "wood_on_above": "A fatüzelésű kazán hőmérője e fölött: ég.",
+          "wood_off_below": "…és e alatt: kialudt. A kettő közti sáv megakadályozza a kapkodást.",
+          "wood_confirm_s": "A váltás előtt ennyi ideig kell tartania.",
+          "hp_deadband": "Kis ingadozásra nem ír új célt.",
+          "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
+          "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
+          "hp_max_rise": "Felfelé fokozatosan lép.",
+          "hp_urgent": "Ekkora eltérésnél nem vár."
+        },
+        "sections": {
+          "charge_demand": {
+            "name": "Igény szerinti töltés",
+            "data": {
+              "hp_start_margin": "Igény szerinti: indítási tartalék (tető < igény + ennyi)",
+              "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
+              "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
+              "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
+              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+            },
+            "data_description": {
+              "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
+              "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
+              "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
+              "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
+              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet."
+            }
+          },
+          "charge_classic": {
+            "name": "Klasszikus töltés",
+            "data": {
+              "hp_hyst": "Csak az igény fölött ennyivel áll le",
+              "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
+              "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+              "hp_charge_needs_demand": "A töltöttség csak helyiségi/köri igény mellett indít és tart fűtést"
+            },
+            "data_description": {
+              "hp_hyst": "Klasszikus: a töltés akkor áll le, amikor a teteje legalább igény + ennyi.",
+              "hp_charge_on": "Klasszikus: alacsony töltöttségnél indít, akkor is, ha a teteje még elég meleg.",
+              "hp_charge_off": "Klasszikus: a töltés csak e fölött állhat le.",
+              "hp_charge_needs_demand": "Klasszikus: alacsony töltöttség magában nem indít, csak ha egy helyiség vagy kör kér."
+            }
+          },
+          "running": {
+            "name": "Futás és készenlét",
+            "data": {
+              "hp_min_on_s": "Legrövidebb ON idő",
+              "hp_min_off_s": "Legrövidebb OFF idő",
+              "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
+              "hp_idle_off": "OFF, ha sokáig nincs igény",
+              "hp_idle_hours": "Ennyi ideig nincs igény"
+            },
+            "data_description": {
+              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
+              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+              "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
+              "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
+              "hp_idle_hours": "Ennyi igénymentes óra után."
+            }
+          },
+          "season": {
+            "name": "Nyári / téli üzem, megjáratás",
+            "data": {
+              "hp_auto_summer": "Automatikus nyári/téli üzem (a ház igénye szerint)",
+              "hp_summer_after_h": "Nyári üzem ennyi igénymentes idő után",
+              "hp_winter_after_s": "Vissza téli üzembe, ha a körök igénye ennyi ideig tart (0 = azonnal)",
+              "hp_exercise": "Megjáratás esedékes jel nyári üzemben (a PLC végzi)",
+              "hp_exercise_weekday": "Megjáratás napja (0 = hétfő … 6 = vasárnap)",
+              "hp_exercise_hour": "Megjáratás kezdete (óra)",
+              "hp_exercise_min": "Megjáratás jel hossza (perc)"
+            },
+            "data_description": {
+              "hp_auto_summer": "Nem dátum szerint: ha ennyi ideig egy helyiség sem kér, nyári üzem; a körök tartós igényére magától visszavált.",
+              "hp_summer_after_h": "Ennyi igénymentes óra után nyári üzem.",
+              "hp_winter_after_s": "Egy TPI-impulzus vagy szellőztetés még nem hozza vissza a fűtést.",
+              "hp_exercise": "Nyári üzemben hetente jelez; a PLC járatja meg a szivattyúkat.",
+              "hp_exercise_weekday": "0 = hétfő … 6 = vasárnap.",
+              "hp_exercise_hour": "A jel kezdete (óra).",
+              "hp_exercise_min": "A jel hossza percben."
+            }
+          },
+          "cold": {
+            "name": "Hidegben-ON (monoblokk)",
+            "data": {
+              "hp_cold_on": "Hidegben-ON (vízzel töltött monoblokk)",
+              "hp_cold_on_below": "ON ez alatt",
+              "hp_cold_release_above": "Feloldás e fölött",
+              "hp_cold_release_s": "… ennyi ideig tartósan"
+            },
+            "data_description": {
+              "hp_cold_on": "Csak vízzel töltött monoblokkhoz: fagyveszélynél ON marad, hogy a gép saját fagyvédelme működhessen. Nem helyettesíti azt.",
+              "hp_cold_on_below": "Kint e hőfok alatt ON.",
+              "hp_cold_release_above": "Csak e fölött oldódik fel…",
+              "hp_cold_release_s": "…ha ennyi ideig tartósan fölötte van."
+            }
+          },
+          "wood": {
+            "name": "Fatüzelés",
+            "data": {
+              "hp_wood_rise": "Puffer-melegedés, ami más hőforrást jelent (°C/h)",
+              "hp_wood_first": "Fa elsőbbsége: alacsony töltöttségnél sem indít, a futó felfűtés leáll (fagyvédelem és hidegben-ON marad)",
+              "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
+              "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
+              "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
+            },
+            "data_description": {
+              "hp_wood_rise": "Ha a puffer ennél gyorsabban melegszik, miközben a hőszivattyú nem fut, a HC fatüzelésnek veszi.",
+              "hp_wood_first": "Bekapcsolva fatüzelés alatt a hőszivattyú nem tölt (a fagyvédelem és a hidegben-ON marad).",
+              "wood_on_above": "A fatüzelésű kazán hőmérője e fölött: ég.",
+              "wood_off_below": "…és e alatt: kialudt. A kettő közti sáv megakadályozza a kapkodást.",
+              "wood_confirm_s": "A váltás előtt ennyi ideig kell tartania."
+            }
+          },
+          "hold": {
+            "name": "A cél ritkítása",
+            "data": {
+              "hp_deadband": "Új cél csak legalább ekkora eltérésnél",
+              "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
+              "hp_min_interval_s": "Két módosítás között legalább",
+              "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
+              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+            },
+            "data_description": {
+              "hp_deadband": "Kis ingadozásra nem ír új célt.",
+              "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
+              "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
+              "hp_max_rise": "Felfelé fokozatosan lép.",
+              "hp_urgent": "Ekkora eltérésnél nem vár."
+            }
+          }
         }
       }
     },

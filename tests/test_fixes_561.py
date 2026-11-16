@@ -91,7 +91,7 @@ def test_wood_first_is_on_by_default_and_in_the_settings():
     assert 'b("hp_wood_first")' in src
     for lang in ("en", "hu"):
         assert json.loads((BASE / "translations" / f"{lang}.json").read_text(encoding="utf-8")) and \
-            (BASE / "translations" / f"{lang}.json").read_text(encoding="utf-8").count('"hp_wood_first"') == 2
+            (BASE / "translations" / f"{lang}.json").read_text(encoding="utf-8").count('"hp_wood_first"') >= 2  # 0.65.2: + explanations and sections
 
 
 # --- confirmation wait -----------------------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def test_write_confirm_setting_default_and_wiring():
     for f in ("circuit_coordinator.py", "hp_coord_coordinator.py"):
         assert "confirm_s=" in (BASE / f).read_text()
     for lang in ("en", "hu"):
-        assert (BASE / "translations" / f"{lang}.json").read_text(encoding="utf-8").count('"write_confirm_s"') == 2
+        assert (BASE / "translations" / f"{lang}.json").read_text(encoding="utf-8").count('"write_confirm_s"') >= 2  # 0.65.2: + explanations
     panel = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "not_accepted" in panel and "confirming" in panel
 

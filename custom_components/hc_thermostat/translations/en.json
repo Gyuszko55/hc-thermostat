@@ -161,6 +161,30 @@
           "dhw_pump_entity": "Hot water tank charging pump (optional, drawing only)",
           "dhw_temp_entity": "Hot water tank thermometer (optional, drawing only)",
           "dhw_heater_entity": "Hot water tank electric heater (PV / grid; optional, drawing only)"
+        },
+        "data_description": {
+          "buffer_top_entity": "The tank's topmost thermometer – the start of a charge and what the circuits can get go by it.",
+          "buffer_bottom_entity": "When given, a charge stops when the bottom is warm too (a full charge). Without it the top decides.",
+          "boiler_entity": "The switch that starts the source charging the tank (pellet, electric element). For a heat pump the heat pump coordination does it – leave this empty.",
+          "zone_entities": "The HC zones heated from the tank. With them a charge starts only while one asks for heat (see below).",
+          "buffer_demand_led": "On: no charging \"for later\" – a new charge starts only with a zone demand. The frost limit always charges.",
+          "buffer_on": "When the top cools to this, a charge starts. Keep it above what the circuits need.",
+          "buffer_off": "The end of a charge. For a heat pump not above what it can reach through the coil.",
+          "buffer_min_off_s": "At least this pause between two charges, so the source does not cycle.",
+          "buffer_max_charge_s": "A charge running longer is stopped and reported (a faulty sensor, a weak source).",
+          "buffer_frost": "Under this it always charges, even when no zone asks.",
+          "buffer_upper_entity": "For a truer picture of a stratified tank (stored heat, charge). It switches nothing.",
+          "buffer_lower_entity": "For a truer picture of a stratified tank; the heat pump's demand-based charging stops by this layer by default.",
+          "buffer_volume_l": "With it HC also works in kWh (stored heat, reserve above the need).",
+          "buffer_base_temp": "0 % charge: water colder than this no longer heats. ~30 °C for radiators, ~25 °C for floor heating.",
+          "buffer_share_top": "The share of the tank around this thermometer. 0 = equal among the given thermometers.",
+          "buffer_share_upper": "As above.",
+          "buffer_share_lower": "As above.",
+          "buffer_share_bottom": "As above.",
+          "buffer_charge_entity": "When your controller already works out a charge, HC shows that instead of its own.",
+          "dhw_pump_entity": "The pump charging the hot water tank from the buffer – shown on the diagram only, HC does not switch it.",
+          "dhw_temp_entity": "On the diagram and the overview only.",
+          "dhw_heater_entity": "On the diagram and the overview only."
         }
       },
       "start": {
@@ -201,6 +225,15 @@
           "circuit_output_entity": "Where the flow target is written (PLC number / input_number / climate, optional)",
           "circuit_pump_entity": "The circuit's pump runs (PLC signal, optional, display only)",
           "circuit_flow_entity": "The circuit's measured flow temperature (optional, display only)"
+        },
+        "data_description": {
+          "circuit_kind": "Radiator or floor: different curve, limits and steps by default (set on the next page).",
+          "zone_entities": "The HC zones (rooms) on this circuit. The target comes from the targets and deficits of the zones with a lasting demand.",
+          "outdoor_entity": "The heating curve's outdoor temperature. When it is lost, the given-out target stays.",
+          "circuit_buffer": "With it you see the heat the tank still has for the circuit, the heat pump knows its need, and the tank cap can be switched on.",
+          "circuit_output_entity": "The PLC's flow setpoint. Nothing is written in shadow; the mixer, pump and protections stay with the PLC.",
+          "circuit_pump_entity": "When the PLC reports it, the drawing shows the real pump state.",
+          "circuit_flow_entity": "The real flow next to the given-out target – to check the mixer."
         }
       },
       "circuit_settings": {
@@ -226,7 +259,22 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
+          "circuit_slope": "°C of water per degree between the room target and outdoors. Radiators ~1.0–1.5, floor ~0.3–0.6.",
+          "circuit_shift": "Moves the whole curve up (+) or down (−). If it is always too cold or warm, set this first.",
+          "circuit_room": "Only when no zone has a target (e.g. all are off).",
+          "circuit_flow_min": "No target under this.",
+          "circuit_flow_max": "The water's flow limit. The floor surface protection stays with the PLC / hydraulics.",
+          "circuit_kp": "A room with a lasting demand under its target asks for this much warmer water per degree (up to 3 °C deficit).",
+          "circuit_dt": "The circuit's design temperature drop: for estimating the tank's usable heat.",
+          "circuit_margin": "The heat pump asks for a tank this much warmer than the target; with the tank cap on, the mixer gets at most top − this.",
+          "circuit_hold_s": "A short TPI pause does not end the demand: a request within this time still counts.",
+          "circuit_idle_keep": "On: the target does not drop to the 20 °C fallback in a pause; the pump enable is a separate signal.",
+          "circuit_deadband": "No new target for small wobbles.",
+          "circuit_confirm_s": "The difference must last this long before a new target goes out.",
+          "circuit_min_interval_s": "At least this long between two changes, so the mixer does not keep moving.",
+          "circuit_max_rise": "Rises step by step; no limit going down.",
+          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval."
         }
       },
       "hp_coord": {
@@ -248,7 +296,17 @@
         },
         "data_description": {
           "hp_target_round": "HC keeps its decimals inside; this is only the value sent to the heat pump. Up to whole °C: 36.1 → 37 °C.",
-          "hp_water_temp_entity": "Only for the \"Heat pump target\" chart: how the water follows the given-out target."
+          "hp_water_temp_entity": "Only for the \"Heat pump target\" chart: how the water follows the given-out target.",
+          "hp_buffer": "The tank instance the heat pump charges – its temperatures, layers and circuits come from there.",
+          "outdoor_entity": "The cold-weather ON and the summer / winter mode go by it.",
+          "hp_running_entity": "With a power (W) or frequency reading HC decides itself whether it runs. Needed to recognise wood.",
+          "wood_entity": "A direct signal (flue thermostat, boiler relay): while it is on the heat pump does not charge.",
+          "wood_temp_entity": "Without a direct signal: burning is told from the wood boiler's thermometer by two thresholds (on the rules page).",
+          "hp_target_entity": "The heat pump's flow target. Its rounding is set below.",
+          "hp_switch_entity": "The ON / OFF request. ON is no heating command: with no demand the target is the lowest.",
+          "hp_demand_entity": "A switch telling the PLC that heat is wanted now.",
+          "hp_summer_entity": "Tells the PLC it is summer mode.",
+          "hp_exercise_entity": "In summer mode it tells the PLC weekly to run the pumps and valves."
         }
       },
       "hp_coord_settings": {
@@ -297,7 +355,167 @@
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
         },
         "data_description": {
-          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow."
+          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
+          "hp_flow_min": "This is the target with no demand (standby).",
+          "hp_flow_max": "It never asks the heat pump for more.",
+          "hp_reserve": "The heat pump's target = the circuits' need + this + offset. Needed for the coil's heat transfer.",
+          "hp_offset": "A manual shift of −8…+8 °C when the unit's own reading differs from the tank.",
+          "hp_hyst": "Classic: a charge stops when the top is at least need + this.",
+          "hp_charge_on": "Classic: starts on a low charge even while the top is still warm enough.",
+          "hp_charge_off": "Classic: a charge may stop only above this.",
+          "hp_charge_needs_demand": "Classic: a low charge alone starts nothing, only with a room or circuit asking.",
+          "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
+          "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
+          "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
+          "hp_stop_margin": "How far above the need the stop layer must be.",
+          "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
+          "hp_min_on_s": "Compressor protection: stays ON at least this long.",
+          "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+          "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
+          "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
+          "hp_idle_hours": "After this many hours with no demand.",
+          "hp_auto_summer": "Not by date: summer mode after a long time with no room demand; back to winter on the circuits' lasting demand.",
+          "hp_summer_after_h": "Summer mode after this many hours with no demand.",
+          "hp_winter_after_s": "One TPI pulse or airing does not bring the heating back.",
+          "hp_exercise": "Signals weekly in summer mode; the PLC runs the pumps.",
+          "hp_exercise_weekday": "0 = Monday … 6 = Sunday.",
+          "hp_exercise_hour": "When the signal starts (hour).",
+          "hp_exercise_min": "How long the signal lasts, in minutes.",
+          "hp_cold_on": "Only for a water-filled monoblock: stays ON in frost so the unit's own frost protection can work. It does not replace it.",
+          "hp_cold_on_below": "ON under this outdoor temperature.",
+          "hp_cold_release_above": "Released only above this…",
+          "hp_cold_release_s": "…when it stays above for this long.",
+          "hp_wood_rise": "If the tank warms faster than this while the heat pump does not run, HC takes it as wood burning.",
+          "hp_wood_first": "On: no heat pump charging while wood burns (frost and cold-weather ON stay).",
+          "wood_on_above": "Wood boiler thermometer above this: burning.",
+          "wood_off_below": "…and under this: out. The band between stops flapping.",
+          "wood_confirm_s": "It must last this long before it switches.",
+          "hp_deadband": "No new target for small wobbles.",
+          "hp_confirm_s": "The difference must last this long.",
+          "hp_min_interval_s": "At least this long between two changes.",
+          "hp_max_rise": "Rises step by step.",
+          "hp_urgent": "A difference this large does not wait."
+        },
+        "sections": {
+          "charge_demand": {
+            "name": "Charging by demand",
+            "data": {
+              "hp_start_margin": "Demand: start margin (top < need + this)",
+              "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
+              "hp_stop_layer": "Demand: the layer that decides the stop",
+              "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
+              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+            },
+            "data_description": {
+              "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
+              "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
+              "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
+              "hp_stop_margin": "How far above the need the stop layer must be.",
+              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more."
+            }
+          },
+          "charge_classic": {
+            "name": "Classic charging",
+            "data": {
+              "hp_hyst": "Stop only this much above the need",
+              "hp_charge_on": "Start at or below this charge (0 = not used)",
+              "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+              "hp_charge_needs_demand": "The charge starts / keeps a heating only while a room or circuit asks"
+            },
+            "data_description": {
+              "hp_hyst": "Classic: a charge stops when the top is at least need + this.",
+              "hp_charge_on": "Classic: starts on a low charge even while the top is still warm enough.",
+              "hp_charge_off": "Classic: a charge may stop only above this.",
+              "hp_charge_needs_demand": "Classic: a low charge alone starts nothing, only with a room or circuit asking."
+            }
+          },
+          "running": {
+            "name": "Running and standby",
+            "data": {
+              "hp_min_on_s": "Minimum ON time",
+              "hp_min_off_s": "Minimum OFF time",
+              "hp_standby": "Keep ON with no demand (standby, lowest target)",
+              "hp_idle_off": "OFF after a long time without demand",
+              "hp_idle_hours": "Without demand for"
+            },
+            "data_description": {
+              "hp_min_on_s": "Compressor protection: stays ON at least this long.",
+              "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+              "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
+              "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
+              "hp_idle_hours": "After this many hours with no demand."
+            }
+          },
+          "season": {
+            "name": "Summer / winter mode, exercise",
+            "data": {
+              "hp_auto_summer": "Automatic summer / winter mode (by the house's demand)",
+              "hp_summer_after_h": "Summer mode after this long without demand",
+              "hp_winter_after_s": "Back to winter when the circuits' demand lasted this long (0 = at once)",
+              "hp_exercise": "Exercise due signal in summer mode (the PLC runs it)",
+              "hp_exercise_weekday": "Exercise day (0 = Monday … 6 = Sunday)",
+              "hp_exercise_hour": "Exercise start (hour)",
+              "hp_exercise_min": "Exercise signal length (minutes)"
+            },
+            "data_description": {
+              "hp_auto_summer": "Not by date: summer mode after a long time with no room demand; back to winter on the circuits' lasting demand.",
+              "hp_summer_after_h": "Summer mode after this many hours with no demand.",
+              "hp_winter_after_s": "One TPI pulse or airing does not bring the heating back.",
+              "hp_exercise": "Signals weekly in summer mode; the PLC runs the pumps.",
+              "hp_exercise_weekday": "0 = Monday … 6 = Sunday.",
+              "hp_exercise_hour": "When the signal starts (hour).",
+              "hp_exercise_min": "How long the signal lasts, in minutes."
+            }
+          },
+          "cold": {
+            "name": "Cold-weather ON (monoblock)",
+            "data": {
+              "hp_cold_on": "Cold-weather ON (water-filled monoblock)",
+              "hp_cold_on_below": "ON below",
+              "hp_cold_release_above": "Released above",
+              "hp_cold_release_s": "… lasting for"
+            },
+            "data_description": {
+              "hp_cold_on": "Only for a water-filled monoblock: stays ON in frost so the unit's own frost protection can work. It does not replace it.",
+              "hp_cold_on_below": "ON under this outdoor temperature.",
+              "hp_cold_release_above": "Released only above this…",
+              "hp_cold_release_s": "…when it stays above for this long."
+            }
+          },
+          "wood": {
+            "name": "Wood",
+            "data": {
+              "hp_wood_rise": "Tank warming that means another source (°C/h)",
+              "hp_wood_first": "Wood first: also no low-charge start, and a running heating stops (frost protection and cold-weather ON stay)",
+              "wood_on_above": "Wood active when the boiler is at least",
+              "wood_off_below": "Wood inactive when the boiler is at most",
+              "wood_confirm_s": "Lasting this long before it changes"
+            },
+            "data_description": {
+              "hp_wood_rise": "If the tank warms faster than this while the heat pump does not run, HC takes it as wood burning.",
+              "hp_wood_first": "On: no heat pump charging while wood burns (frost and cold-weather ON stay).",
+              "wood_on_above": "Wood boiler thermometer above this: burning.",
+              "wood_off_below": "…and under this: out. The band between stops flapping.",
+              "wood_confirm_s": "It must last this long before it switches."
+            }
+          },
+          "hold": {
+            "name": "Hold of the target",
+            "data": {
+              "hp_deadband": "New target only for a difference of at least",
+              "hp_confirm_s": "The difference must last",
+              "hp_min_interval_s": "At least between two changes",
+              "hp_max_rise": "Rise at most per change (0 = no limit)",
+              "hp_urgent": "Urgent difference: no waiting (0 = never)"
+            },
+            "data_description": {
+              "hp_deadband": "No new target for small wobbles.",
+              "hp_confirm_s": "The difference must last this long.",
+              "hp_min_interval_s": "At least this long between two changes.",
+              "hp_max_rise": "Rises step by step.",
+              "hp_urgent": "A difference this large does not wait."
+            }
+          }
         }
       }
     },
@@ -359,7 +577,18 @@
           "confirm": "I understand: active mode switches a real device",
           "target_cool": "Cooling target"
         },
-        "data_description": {},
+        "data_description": {
+          "target_home": "At home and awake. Also settable from the thermostat card.",
+          "target_night": "Between the night's start and end (below), and in the Sleep preset.",
+          "target_away": "When nobody is home (by the presence entities) or in the Away preset.",
+          "target_vacation": "In the Vacation preset – a short absence keeps the Away target.",
+          "frost_temp": "It never cools below this, not even while off or with a window open.",
+          "night_start": "The sleep target applies from this time.",
+          "night_end": "The sleep target lasts until this; optimal start times itself to it.",
+          "mode": "Shadow: works out only, to compare with the current control. Active: HC switches the device.",
+          "confirm": "Must be ticked for active mode: nothing else may drive the same output.",
+          "target_cool": "The cooling target."
+        },
         "sections": {
           "regulation": {
             "name": "Control and timing",
@@ -414,7 +643,31 @@
               "pid_kp": "How strongly HC answers the error now (0.4 = 40 % demand per °C below the target).",
               "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).",
               "pid_d_filter_s": "Room sensors report in 0.1 °C steps, only on a change: an unfiltered derivative is spiky. 0 = no filter; only matters when the derivative gain is not 0.",
-              "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most."
+              "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most.",
+              "min_off_s": "Stays off at least this long after switching off (protects boiler and relay).",
+              "pid_kd": "Damps fast changes. 0 = none; only if the temperature overshoots.",
+              "curve_slope": "°C of water per degree between the target and outdoors.",
+              "curve_shift": "Moves the whole curve up (+) or down (−) – if always too cold or warm, set this first.",
+              "flow_min": "It never asks for colder flow.",
+              "flow_max": "It never asks for warmer flow (low for floor heating, for the surface).",
+              "room_kp": "Warmer water per degree the room is under its target.",
+              "room_ki_per_hour": "Slowly removes a lasting offset; too large makes it swing.",
+              "hp_min_on_s": "Compressor protection.",
+              "hp_min_off_s": "Compressor protection.",
+              "onoff_hysteresis": "On-off control: switches on this far under the target, off at the target.",
+              "ac_ki_per_hour": "Slowly corrects the AC's target when the room stays off it.",
+              "ac_min_change_s": "Changes the AC's target at most this often (beeps, wear).",
+              "assist_climate": "The house's main HC thermostat: the AC helps it when cheaper and the door is open.",
+              "storage_window_start": "When the cheap (controlled) power starts.",
+              "storage_window_end": "When the cheap power ends.",
+              "storage_charge_h": "Hours from empty to full.",
+              "storage_bias": "Tune it if the mornings are too warm or cold.",
+              "storage_discharge_hyst": "Opens the discharge this far under the target.",
+              "fan_min_pct": "The fan never runs slower while heating.",
+              "fan_overrun_s": "Blows out the heat left in the coil.",
+              "fan_min_coil": "No cold draught from a cold coil.",
+              "keep_alive_s": "For a relay that switches itself off after a while.",
+              "yield_margin": "So the boiler does not compete with the cheaper source, it regulates this far under the target."
             }
           },
           "functions": {
@@ -440,7 +693,11 @@
               "season_off_above": "When the daily outdoor mean goes above this, the heating season pauses. Default 15 °C; lower for a well insulated house, higher for an old one.",
               "season_on_below": "When the daily outdoor mean goes below this, the heating season starts again. Must be lower than the end (default 13 °C).",
               "presence_home_states": "Which values of an input_select / sensor presence source mean home (e.g. \"At home\"). They count besides the built-in words (home, on, otthon). With nothing here and under vacation, an unknown value writes one warning to the log.",
-              "presence_vacation_states": "Which values mean vacation (e.g. \"Holiday\"). They count besides the built-in vacation / szabadság. Every other value is away."
+              "presence_vacation_states": "Which values mean vacation (e.g. \"Holiday\"). They count besides the built-in vacation / szabadság. Every other value is away.",
+              "season_enabled": "No heating while the daily outdoor mean is above the summer limit; frost protection stays.",
+              "boost_enabled": "With a large deficit it heats without pauses and stops in time, counting the learned after-heat.",
+              "learning_enabled": "Learns from the house; the learned values can be reset with the reset button.",
+              "shadow_regulator": "For comparison only – it does not change the decision."
             }
           },
           "protection": {
@@ -469,7 +726,16 @@
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
               "zone_own_mixer": "Off: the flow of a central modulating boiler never goes above the highest flow of this zone (flow_max, 45 °C for a floor by default) while its circuit can get water – radiator zones heat more weakly then. Switch it on only when the floor circuit really has a mixing valve or a temperature limiter.",
               "valve_exercise": "Once a week it opens a long-closed valve for a few minutes so it does not seize. The zone asks for no heat meanwhile, a central boiler does not start.",
-              "plaus_indoor_min": "Below this the room thermometer's reading counts as wrong (lost). At most the frost target minus 2 °C, so that the frost protection starts in a really cold room. Default 3 °C; lower for an unheated holiday home."
+              "plaus_indoor_min": "Below this the room thermometer's reading counts as wrong (lost). At most the frost target minus 2 °C, so that the frost protection starts in a really cold room. Default 3 °C; lower for an unheated holiday home.",
+              "window_entities": "Heating pauses while one is open (frost protection stays).",
+              "window_drop_entities": "Without a window sensor: airing is told from a sudden temperature drop.",
+              "window_drop_rate": "Cooling faster than this counts as airing.",
+              "exercise_weekday": "Moves the valves weekly in summer too, so they do not stick.",
+              "exercise_time": "When the exercise starts.",
+              "exercise_s": "How long it opens them.",
+              "return_temp_entity": "Needed for the return limit.",
+              "return_max": "With a condensing boiler a hot return lowers the efficiency.",
+              "return_hysteresis": "Opens again this far under the limit."
             }
           },
           "floor": {
@@ -504,7 +770,18 @@
               "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
               "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy.",
               "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
-              "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor."
+              "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor.",
+              "floor_hysteresis": "After the floor limit it must cool this much before heating again.",
+              "floor_temper_offset": "Keeps the floor this much warmer than the room target (comfort).",
+              "floor_temper_night": "A different floor target at night.",
+              "floor_temper_hysteresis": "The tempering's switch-back band.",
+              "humidity_entity": "For the dew point; it does not cool without it.",
+              "cool_mode_entity": "The switch putting the heat pump into cooling.",
+              "dew_margin": "The floor stays this far above the dew point, so no condensation.",
+              "floor_min_cool": "The floor never gets colder while cooling.",
+              "cool_flow_entity": "When the heat pump has its own cooling setpoint.",
+              "cool_flow": "The cooling water's target.",
+              "cool_flow_max": "If the dew point would need warmer water than this, cooling stops."
             }
           },
           "devices": {
@@ -533,7 +810,14 @@
               "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
               "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
               "hp_busy_states": "When the defrost or hot-water signal is a mode sensor: which of its values mean the heat pump does its own work. They count besides the built-in words (on, defrost, dhw, hot_water…).",
-              "district_connection": "How the flat is connected to the building's district heating: its own flat station with a heat exchanger and heat meter, or radiators straight on the risers with heat cost allocators. Only the house drawing uses it."
+              "district_connection": "How the flat is connected to the building's district heating: its own flat station with a heat exchanger and heat meter, or radiators straight on the risers with heat cost allocators. Only the house drawing uses it.",
+              "flame_entity": "Shows whether the boiler really burns – for the fault watch and learning.",
+              "boiler_power_entity": "From the power draw HC recognises burning, faults and short cycling.",
+              "boiler_power_kw": "The boiler's rated heat output; for the heat-need based control.",
+              "power_available_entity": "Controlled (off-peak) power: off = no power, HC does not switch.",
+              "discharge_entity": "A storage heater's discharge fan or flap.",
+              "fan_entity": "HC sets its speed to the heat demand.",
+              "coil_temp_entity": "The fan starts only with a warm coil."
             }
           },
           "energy": {
@@ -559,7 +843,17 @@
               "heat_fuel": "Automatic: from the meter's unit (m³ gas, kWh, MJ, GJ), without a meter from the heat source. Custom: the number below is kept. For a heat pump, Custom is right.",
               "heat_efficiency": "Counts for a burner (gas, oil, pellet); not for electric heat or a heat meter.",
               "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat).",
-              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6)."
+              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6).",
+              "heat_energy_entity": "A total (increasing) value, e.g. a gas meter in m³; for the real heat use.",
+              "energy_factor": "kWh of heat per meter unit (gas about 9.5–10 kWh/m³ × efficiency).",
+              "boiler_price_entity": "For the cheaper source advice.",
+              "other_price_entity": "For the cheaper source advice (e.g. the AC's or heat pump's electricity).",
+              "boiler_price": "When there is no price sensor.",
+              "other_price": "When there is no price sensor.",
+              "boiler_allowance_entity": "What is left of the discounted allowance – above it, it costs more.",
+              "other_allowance_entity": "As above.",
+              "cop_high": "Heat per 1 kWh of electricity in mild weather (+7 °C).",
+              "cop_low": "Heat per 1 kWh of electricity in the cold (−7 °C)."
             }
           },
           "adjoining": {
@@ -574,7 +868,10 @@
             },
             "data_description": {
               "house_link": "A house may have several heat sources (a boiler, an AC, an oil radiator, a heat pump), each with its own HC instance. They show as one house automatically when this instance's room is in the area of a room or the adjoining room of another instance with more rooms (but not its leading room). You can choose it here by hand. Display only: it switches nothing.",
-              "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
+              "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house.",
+              "zone_temp_entity": "When joined through an open door, HC counts it with the house.",
+              "zone_door_entities": "With the door open the adjoining space belongs to the house.",
+              "zone_max_diff": "A colder adjoining space does not count as part of the house."
             }
           },
           "measures": {
@@ -607,7 +904,18 @@
               "humidity_entity": "Dew point and mould risk in the instance's room. With several rooms, set them per room in the rooms form.",
               "starts_per_hour_max": "0 = not watched.",
               "radiator_cold_min": "When a radiator thermometer stays cold this long while heating and its room is below its target.",
-              "fault_ok_values": "Comma separated, e.g. \"OK, Normal, 255\". All zeros (00, F.00, 0x00) are no fault anyway."
+              "fault_ok_values": "Comma separated, e.g. \"OK, Normal, 255\". All zeros (00, F.00, 0x00) are no fault anyway.",
+              "pressure_entity": "To watch the water pressure (low / high warning).",
+              "flow_temp_entity": "Shown next to the target, to check it.",
+              "return_temp_entity": "Shown; for the temperature drop.",
+              "modulation_entity": "Shown only.",
+              "flue_temp_entity": "Shown only.",
+              "fuel_level_entity": "Pellets, oil: warns at a low level.",
+              "core_temp_entity": "A storage heater's core temperature.",
+              "source_state_entity": "The source's own status text (e.g. an error code).",
+              "pressure_min": "Warns under this.",
+              "pressure_max": "Warns above this.",
+              "fuel_min": "Warns under this."
             }
           },
           "house": {
@@ -642,7 +950,8 @@
               "dhw_kwh_year": "Hot water's final energy per year, e.g. for a gas boiler m³ × 9.61 kWh. 0 = not counted.",
               "aux_kwh_year": "The boiler's or heat pump's auxiliary electricity per year (circulation pump, controls); counted with the electricity factor (2.3).",
               "primary_factor": "Non-renewable primary factor: natural gas 1.1, electricity 2.3, district heat 1.38, solid biomass 0.6. 0 = by the heat source.",
-              "rating_outdoor_entity": "The rating uses this sensor's last year (daily means from the statistics) – pick an outdoor sensor or group with a longer history. Missing days are filled from the standard Hungarian year."
+              "rating_outdoor_entity": "The rating uses this sensor's last year (daily means from the statistics) – pick an outdoor sensor or group with a longer history. Missing days are filled from the standard Hungarian year.",
+              "optimal_start_max_min": "Optimal start begins at most this much earlier to be warm on time."
             }
           }
         }
@@ -732,7 +1041,31 @@
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
-          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house.",
+          "buffer_top_entity": "The tank's topmost thermometer – the start of a charge and what the circuits can get go by it.",
+          "buffer_bottom_entity": "When given, a charge stops when the bottom is warm too (a full charge). Without it the top decides.",
+          "boiler_entity": "The switch that starts the source charging the tank (pellet, electric element). For a heat pump the heat pump coordination does it – leave this empty.",
+          "zone_entities": "The HC zones heated from the tank. With them a charge starts only while one asks for heat (see below).",
+          "buffer_demand_led": "On: no charging \"for later\" – a new charge starts only with a zone demand. The frost limit always charges.",
+          "buffer_on": "When the top cools to this, a charge starts. Keep it above what the circuits need.",
+          "buffer_off": "The end of a charge. For a heat pump not above what it can reach through the coil.",
+          "buffer_min_off_s": "At least this pause between two charges, so the source does not cycle.",
+          "buffer_max_charge_s": "A charge running longer is stopped and reported (a faulty sensor, a weak source).",
+          "buffer_frost": "Under this it always charges, even when no zone asks.",
+          "buffer_upper_entity": "For a truer picture of a stratified tank (stored heat, charge). It switches nothing.",
+          "buffer_lower_entity": "For a truer picture of a stratified tank; the heat pump's demand-based charging stops by this layer by default.",
+          "buffer_volume_l": "With it HC also works in kWh (stored heat, reserve above the need).",
+          "buffer_base_temp": "0 % charge: water colder than this no longer heats. ~30 °C for radiators, ~25 °C for floor heating.",
+          "buffer_share_top": "The share of the tank around this thermometer. 0 = equal among the given thermometers.",
+          "buffer_share_upper": "As above.",
+          "buffer_share_lower": "As above.",
+          "buffer_share_bottom": "As above.",
+          "buffer_charge_entity": "When your controller already works out a charge, HC shows that instead of its own.",
+          "dhw_pump_entity": "The pump charging the hot water tank from the buffer – shown on the diagram only, HC does not switch it.",
+          "dhw_temp_entity": "On the diagram and the overview only.",
+          "dhw_heater_entity": "On the diagram and the overview only.",
+          "mode": "Shadow: works out and shows only. Active: switches the source's relay.",
+          "confirm": "Must be ticked for active mode: HC then switches a real relay."
         }
       },
       "rooms": {
@@ -808,7 +1141,19 @@
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
-          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house.",
+          "circuit_kind": "Radiator or floor: different curve, limits and steps by default (set on the next page).",
+          "zone_entities": "The HC zones (rooms) on this circuit. The target comes from the targets and deficits of the zones with a lasting demand.",
+          "outdoor_entity": "The heating curve's outdoor temperature. When it is lost, the given-out target stays.",
+          "circuit_buffer": "With it you see the heat the tank still has for the circuit, the heat pump knows its need, and the tank cap can be switched on.",
+          "circuit_output_entity": "The PLC's flow setpoint. Nothing is written in shadow; the mixer, pump and protections stay with the PLC.",
+          "circuit_pump_entity": "When the PLC reports it, the drawing shows the real pump state.",
+          "circuit_flow_entity": "The real flow next to the given-out target – to check the mixer.",
+          "mode": "Shadow: works out and shows only. Supervised trial: writes for the given time, then goes back to shadow by itself. Active: writes for good.",
+          "confirm": "Must be ticked for writing. One target, one writer: if the PLC or an automation writes it too, HC reports a conflict and stops.",
+          "trial_hours": "The supervised trial ends by itself after this many hours, with a notification.",
+          "write_keepalive_s": "For a PLC that drops a setpoint after a while. Otherwise leave it at 0.",
+          "write_confirm_s": "Raise it for a slow (cloud) device. The default suits a fast local one."
         }
       },
       "circuit_settings": {
@@ -834,7 +1179,22 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
+          "circuit_slope": "°C of water per degree between the room target and outdoors. Radiators ~1.0–1.5, floor ~0.3–0.6.",
+          "circuit_shift": "Moves the whole curve up (+) or down (−). If it is always too cold or warm, set this first.",
+          "circuit_room": "Only when no zone has a target (e.g. all are off).",
+          "circuit_flow_min": "No target under this.",
+          "circuit_flow_max": "The water's flow limit. The floor surface protection stays with the PLC / hydraulics.",
+          "circuit_kp": "A room with a lasting demand under its target asks for this much warmer water per degree (up to 3 °C deficit).",
+          "circuit_dt": "The circuit's design temperature drop: for estimating the tank's usable heat.",
+          "circuit_margin": "The heat pump asks for a tank this much warmer than the target; with the tank cap on, the mixer gets at most top − this.",
+          "circuit_hold_s": "A short TPI pause does not end the demand: a request within this time still counts.",
+          "circuit_idle_keep": "On: the target does not drop to the 20 °C fallback in a pause; the pump enable is a separate signal.",
+          "circuit_deadband": "No new target for small wobbles.",
+          "circuit_confirm_s": "The difference must last this long before a new target goes out.",
+          "circuit_min_interval_s": "At least this long between two changes, so the mixer does not keep moving.",
+          "circuit_max_rise": "Rises step by step; no limit going down.",
+          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval."
         }
       },
       "hp_coord": {
@@ -865,7 +1225,22 @@
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
           "hp_target_round": "HC keeps its decimals inside; this is only the value sent to the heat pump. Up to whole °C: 36.1 → 37 °C.",
           "hp_water_temp_entity": "Only for the \"Heat pump target\" chart: how the water follows the given-out target.",
-          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house.",
+          "hp_buffer": "The tank instance the heat pump charges – its temperatures, layers and circuits come from there.",
+          "outdoor_entity": "The cold-weather ON and the summer / winter mode go by it.",
+          "hp_running_entity": "With a power (W) or frequency reading HC decides itself whether it runs. Needed to recognise wood.",
+          "wood_entity": "A direct signal (flue thermostat, boiler relay): while it is on the heat pump does not charge.",
+          "wood_temp_entity": "Without a direct signal: burning is told from the wood boiler's thermometer by two thresholds (on the rules page).",
+          "hp_target_entity": "The heat pump's flow target. Its rounding is set below.",
+          "hp_switch_entity": "The ON / OFF request. ON is no heating command: with no demand the target is the lowest.",
+          "hp_demand_entity": "A switch telling the PLC that heat is wanted now.",
+          "hp_summer_entity": "Tells the PLC it is summer mode.",
+          "hp_exercise_entity": "In summer mode it tells the PLC weekly to run the pumps and valves.",
+          "mode": "Shadow: works out and shows only. Supervised trial: writes for the given time, then goes back to shadow by itself. Active: writes for good.",
+          "confirm": "Must be ticked for writing. One target, one writer: if the PLC or an automation writes it too, HC reports a conflict and stops.",
+          "trial_hours": "The supervised trial ends by itself after this many hours, with a notification.",
+          "write_keepalive_s": "For a PLC that drops a setpoint after a while. Otherwise leave it at 0.",
+          "write_confirm_s": "Raise it for a slow (cloud) device. The default suits a fast local one."
         }
       },
       "hp_coord_settings": {
@@ -914,7 +1289,167 @@
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
         },
         "data_description": {
-          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow."
+          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
+          "hp_flow_min": "This is the target with no demand (standby).",
+          "hp_flow_max": "It never asks the heat pump for more.",
+          "hp_reserve": "The heat pump's target = the circuits' need + this + offset. Needed for the coil's heat transfer.",
+          "hp_offset": "A manual shift of −8…+8 °C when the unit's own reading differs from the tank.",
+          "hp_hyst": "Classic: a charge stops when the top is at least need + this.",
+          "hp_charge_on": "Classic: starts on a low charge even while the top is still warm enough.",
+          "hp_charge_off": "Classic: a charge may stop only above this.",
+          "hp_charge_needs_demand": "Classic: a low charge alone starts nothing, only with a room or circuit asking.",
+          "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
+          "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
+          "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
+          "hp_stop_margin": "How far above the need the stop layer must be.",
+          "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
+          "hp_min_on_s": "Compressor protection: stays ON at least this long.",
+          "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+          "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
+          "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
+          "hp_idle_hours": "After this many hours with no demand.",
+          "hp_auto_summer": "Not by date: summer mode after a long time with no room demand; back to winter on the circuits' lasting demand.",
+          "hp_summer_after_h": "Summer mode after this many hours with no demand.",
+          "hp_winter_after_s": "One TPI pulse or airing does not bring the heating back.",
+          "hp_exercise": "Signals weekly in summer mode; the PLC runs the pumps.",
+          "hp_exercise_weekday": "0 = Monday … 6 = Sunday.",
+          "hp_exercise_hour": "When the signal starts (hour).",
+          "hp_exercise_min": "How long the signal lasts, in minutes.",
+          "hp_cold_on": "Only for a water-filled monoblock: stays ON in frost so the unit's own frost protection can work. It does not replace it.",
+          "hp_cold_on_below": "ON under this outdoor temperature.",
+          "hp_cold_release_above": "Released only above this…",
+          "hp_cold_release_s": "…when it stays above for this long.",
+          "hp_wood_rise": "If the tank warms faster than this while the heat pump does not run, HC takes it as wood burning.",
+          "hp_wood_first": "On: no heat pump charging while wood burns (frost and cold-weather ON stay).",
+          "wood_on_above": "Wood boiler thermometer above this: burning.",
+          "wood_off_below": "…and under this: out. The band between stops flapping.",
+          "wood_confirm_s": "It must last this long before it switches.",
+          "hp_deadband": "No new target for small wobbles.",
+          "hp_confirm_s": "The difference must last this long.",
+          "hp_min_interval_s": "At least this long between two changes.",
+          "hp_max_rise": "Rises step by step.",
+          "hp_urgent": "A difference this large does not wait."
+        },
+        "sections": {
+          "charge_demand": {
+            "name": "Charging by demand",
+            "data": {
+              "hp_start_margin": "Demand: start margin (top < need + this)",
+              "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
+              "hp_stop_layer": "Demand: the layer that decides the stop",
+              "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
+              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+            },
+            "data_description": {
+              "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
+              "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
+              "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
+              "hp_stop_margin": "How far above the need the stop layer must be.",
+              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more."
+            }
+          },
+          "charge_classic": {
+            "name": "Classic charging",
+            "data": {
+              "hp_hyst": "Stop only this much above the need",
+              "hp_charge_on": "Start at or below this charge (0 = not used)",
+              "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+              "hp_charge_needs_demand": "The charge starts / keeps a heating only while a room or circuit asks"
+            },
+            "data_description": {
+              "hp_hyst": "Classic: a charge stops when the top is at least need + this.",
+              "hp_charge_on": "Classic: starts on a low charge even while the top is still warm enough.",
+              "hp_charge_off": "Classic: a charge may stop only above this.",
+              "hp_charge_needs_demand": "Classic: a low charge alone starts nothing, only with a room or circuit asking."
+            }
+          },
+          "running": {
+            "name": "Running and standby",
+            "data": {
+              "hp_min_on_s": "Minimum ON time",
+              "hp_min_off_s": "Minimum OFF time",
+              "hp_standby": "Keep ON with no demand (standby, lowest target)",
+              "hp_idle_off": "OFF after a long time without demand",
+              "hp_idle_hours": "Without demand for"
+            },
+            "data_description": {
+              "hp_min_on_s": "Compressor protection: stays ON at least this long.",
+              "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+              "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
+              "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
+              "hp_idle_hours": "After this many hours with no demand."
+            }
+          },
+          "season": {
+            "name": "Summer / winter mode, exercise",
+            "data": {
+              "hp_auto_summer": "Automatic summer / winter mode (by the house's demand)",
+              "hp_summer_after_h": "Summer mode after this long without demand",
+              "hp_winter_after_s": "Back to winter when the circuits' demand lasted this long (0 = at once)",
+              "hp_exercise": "Exercise due signal in summer mode (the PLC runs it)",
+              "hp_exercise_weekday": "Exercise day (0 = Monday … 6 = Sunday)",
+              "hp_exercise_hour": "Exercise start (hour)",
+              "hp_exercise_min": "Exercise signal length (minutes)"
+            },
+            "data_description": {
+              "hp_auto_summer": "Not by date: summer mode after a long time with no room demand; back to winter on the circuits' lasting demand.",
+              "hp_summer_after_h": "Summer mode after this many hours with no demand.",
+              "hp_winter_after_s": "One TPI pulse or airing does not bring the heating back.",
+              "hp_exercise": "Signals weekly in summer mode; the PLC runs the pumps.",
+              "hp_exercise_weekday": "0 = Monday … 6 = Sunday.",
+              "hp_exercise_hour": "When the signal starts (hour).",
+              "hp_exercise_min": "How long the signal lasts, in minutes."
+            }
+          },
+          "cold": {
+            "name": "Cold-weather ON (monoblock)",
+            "data": {
+              "hp_cold_on": "Cold-weather ON (water-filled monoblock)",
+              "hp_cold_on_below": "ON below",
+              "hp_cold_release_above": "Released above",
+              "hp_cold_release_s": "… lasting for"
+            },
+            "data_description": {
+              "hp_cold_on": "Only for a water-filled monoblock: stays ON in frost so the unit's own frost protection can work. It does not replace it.",
+              "hp_cold_on_below": "ON under this outdoor temperature.",
+              "hp_cold_release_above": "Released only above this…",
+              "hp_cold_release_s": "…when it stays above for this long."
+            }
+          },
+          "wood": {
+            "name": "Wood",
+            "data": {
+              "hp_wood_rise": "Tank warming that means another source (°C/h)",
+              "hp_wood_first": "Wood first: also no low-charge start, and a running heating stops (frost protection and cold-weather ON stay)",
+              "wood_on_above": "Wood active when the boiler is at least",
+              "wood_off_below": "Wood inactive when the boiler is at most",
+              "wood_confirm_s": "Lasting this long before it changes"
+            },
+            "data_description": {
+              "hp_wood_rise": "If the tank warms faster than this while the heat pump does not run, HC takes it as wood burning.",
+              "hp_wood_first": "On: no heat pump charging while wood burns (frost and cold-weather ON stay).",
+              "wood_on_above": "Wood boiler thermometer above this: burning.",
+              "wood_off_below": "…and under this: out. The band between stops flapping.",
+              "wood_confirm_s": "It must last this long before it switches."
+            }
+          },
+          "hold": {
+            "name": "Hold of the target",
+            "data": {
+              "hp_deadband": "New target only for a difference of at least",
+              "hp_confirm_s": "The difference must last",
+              "hp_min_interval_s": "At least between two changes",
+              "hp_max_rise": "Rise at most per change (0 = no limit)",
+              "hp_urgent": "Urgent difference: no waiting (0 = never)"
+            },
+            "data_description": {
+              "hp_deadband": "No new target for small wobbles.",
+              "hp_confirm_s": "The difference must last this long.",
+              "hp_min_interval_s": "At least this long between two changes.",
+              "hp_max_rise": "Rises step by step.",
+              "hp_urgent": "A difference this large does not wait."
+            }
+          }
         }
       }
     },
