@@ -56,5 +56,6 @@ ADVICE_TEXT = {
     "other": {"hu": "Most a másik hőforrás az olcsóbb, és eléri a házat.", "en": "The other source is cheaper now and reaches the house."},
     "other_zone_only": {"hu": "A másik hőforrás olcsóbb, de most csak a saját terét fűti.", "en": "The other source is cheaper, but it only heats its own room now."},
     "equal": {"hu": "A két hőforrás most kb. egyformán kerül.", "en": "The two sources cost about the same now."},
-    "unknown": {"hu": "Nincs elég adat az összehasonlításhoz.", "en": "Not enough data to compare."},
+    "unknown": {"hu": "Nincs elég adat az összehasonlításhoz: add meg a kazán és a másik hőforrás árát (Beállítások → Energia), és kell kinti hőmérő.",
+                "en": "Not enough data to compare: give the boiler's and the other source's price (Settings → Energy); an outdoor thermometer is needed too."},
 }

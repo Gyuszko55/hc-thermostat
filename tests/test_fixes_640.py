@@ -154,7 +154,7 @@ def test_flow_panel_and_texts():
     keys = {str(k) for k in cf._circuit_settings({}, "radiator")}
     assert "circuit_tank_cap" in keys
     src = (BASE / "config_flow.py").read_text()
-    assert src.count("fields[vol.Optional(CONF_HOME_NAME") == 3  # buffer, circuit, heat pump coordination
+    assert src.count("fields[vol.Optional(CONF_HOME_NAME") == 4  # buffer, circuit, heat pump coordination; 0.65.1: zone
     for lang in ("hu", "en"):
         tr = json.loads((BASE / "translations" / f"{lang}.json").read_text())
         for top in ("config", "options"):
@@ -167,7 +167,7 @@ def test_flow_panel_and_texts():
     js = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "hc_thermostat/hp_history" in js and "Puffer-korlát" in js and "Kiküldve" in js
     assert (BASE / "wizard.py").read_text().count("ws_hp_history") == 2
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.64.0", "0.64.1", "0.65.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2")
 
 
 def test_tank_cap_is_off_by_default_since_641():

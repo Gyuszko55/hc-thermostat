@@ -627,7 +627,7 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
     "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_GAS_VALUE, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
                CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
-    "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF, CONF_HOUSE_LINK),
+    "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF, CONF_HOUSE_LINK, CONF_HOME_NAME),
     # 0.50.0
     "house": ("house_loss_w_k", "house_gains_kw", "house_tau_h", "optimal_start", "optimal_start_max_min",
               "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi", "house_area_m2",
@@ -1113,6 +1113,8 @@ class HcOptionsFlow(OptionsFlow):
         if user_input is not None:
             # 0.48.0 / 0.49.0: the fold-out sections' fields are settings like the others
             user_input = _flat(user_input, (*SETTINGS_SECTIONS, MEASURES))
+            if current.get(CONF_ROLE) == "zone":  # 0.65.1: an emptied house name is cleared, not kept from before
+                user_input[CONF_HOME_NAME] = str(user_input.get(CONF_HOME_NAME) or "").strip()
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
             elif float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
@@ -1241,6 +1243,8 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required(CONF_COP_LOW, default=current.get(CONF_COP_LOW, 2.4)): _number(1, 8, 0.1),
         }
         fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.53.0
+        if current.get(CONF_ROLE) == "zone":  # 0.65.1: a zone has no rooms step – its house name is set here
+            fields[vol.Optional(CONF_HOME_NAME, description={"suggested_value": current.get(CONF_HOME_NAME)})] = TextSelector()
         fields.update(_floor_fields(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE), cfg.control, current))
         fields.update(_hp_fields(current.get(CONF_HEAT_SOURCE), cfg.control, current, settings=True,
                                  hass=getattr(self, "hass", None)))

@@ -161,4 +161,4 @@ def test_house_view_source_markers():
     assert "function titleRoom(title, areas)" in JS and "function hpSources(mi)" in JS
     assert 'wood_boiler: "Fatüzelésű kazán"' in JS
 def test_version_590():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2")

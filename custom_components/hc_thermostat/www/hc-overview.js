@@ -616,7 +616,7 @@ export const OV_CSS = `
 .ovt td { padding:4px; border-bottom:1px solid var(--divider-color); } .ovt td small { display:block; color:var(--secondary-text-color); }
 .ovt tr.diff td { background:color-mix(in srgb, #ff9800 10%, transparent); }
 .hccurve { width:100%; height:auto; display:block; } .ovcurve { margin-top:6px; }
-.hccurve .cg { stroke:var(--divider-color); stroke-width:.6; } .hccurve .cx { fill:var(--secondary-text-color); font-size:9.5px; }
+.hccurve .cg { stroke:var(--divider-color); stroke-width:.6; } .hccurve .cx { fill:var(--secondary-text-color); font-size:11px; }
 .hccurve .cn { fill:none; stroke:var(--primary-color); stroke-width:2.2; } .hccurve .cc { fill:none; stroke:#ef6c00; stroke-width:2; stroke-dasharray:5 3; }
 .hccurve .clim { stroke:#9e9e9e; stroke-width:1.2; stroke-dasharray:3 3; } .hccurve .cnow { stroke:var(--secondary-text-color); stroke-width:1; stroke-dasharray:2 3; }
 .hccurve .craw { fill:var(--primary-color); } .hccurve .ctg { fill:#2e7d32; } .hccurve .cplc { fill:#8e24aa; }

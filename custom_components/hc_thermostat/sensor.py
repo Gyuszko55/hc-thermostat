@@ -113,6 +113,8 @@ class HcHeatNeed(HcEntity, SensorEntity):
             "extra_source_kw": round(c.extra_kw, 2),
             "other_sources_kw": round(d.other_heat_kw, 2),
             "boiler_share_kw": None if d.heat_need_kw is None else round(max(d.heat_need_kw - d.other_heat_kw, 0.0), 2),
+            # 0.65.1: why there is no value yet (shown translated in the entity's attributes)
+            "status": "ok" if d.heat_need_kw is not None else "learning",
         }
 
 
@@ -146,7 +148,9 @@ class HcHeatLoss(HcEntity, SensorEntity):
                 "fit_r": None if fit is None else round(fit["r"], 2),
                 "ratio_w_k": None if ratio is None else round(ratio * 1000, 1),
                 "manual_w_k": round(need.manual_loss * 1000, 1) if need.manual_loss else None,
-                "since": need.since}
+                "since": need.since,
+                # 0.65.1: learning (no value yet: heating days are needed, or give it by hand) / manual / learned
+                "status": "learning" if self.native_value is None else ("manual" if need.source == "manual" else "learned")}
 
 
 class HcEnergyRating(HcEntity, SensorEntity):
@@ -198,21 +202,25 @@ class HcTimeConstant(HcEntity, SensorEntity):
                 "learned_h": sup.tau.learned_h, "manual_h": sup.tau.manual or None,
                 # heat stored per degree: τ × H
                 "capacity_kwh_per_k": None if tau is None or loss is None else round(tau * loss, 1),
-                "optimal_start": sup.early_start is not None}
+                "optimal_start": sup.early_start is not None,
+                # 0.65.1: learning (cool-down stretches with the heating off are needed, or give it by hand)
+                "status": "learning" if tau is None else ("manual" if sup.tau.source == "manual" else "learned")}
 
 
 class HcSourceAdvice(HcEntity, SensorEntity):
     """Which source gives the cheaper heat now. Advice only, it switches nothing."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = list(ADVICE_TEXT)
+    # 0.65.1: "no_data" instead of "unknown" – HA shows the state "unknown" as plain "Unknown", not our text
+    _attr_options = [k for k in ADVICE_TEXT if k != "unknown"] + ["no_data"]
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "source_advice")
 
     @property
     def native_value(self) -> str:
-        return self.coordinator.cost.advice
+        advice = self.coordinator.cost.advice
+        return "no_data" if advice == "unknown" else advice
 
     @property
     def extra_state_attributes(self) -> dict:

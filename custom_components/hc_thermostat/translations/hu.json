@@ -191,7 +191,7 @@
         }
       },
       "circuit": {
-        "title": "Keverőkör (árnyék)",
+        "title": "Keverőkör",
         "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Árnyék módban indul (semmit nem ír); az írás – felügyelt próba vagy éles – a beállításokban kapcsolható be.",
         "data": {
           "circuit_kind": "A kör típusa",
@@ -226,11 +226,11 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Alapból kikapcsolva (0.64.1), hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
-        "title": "Hőszivattyú-koordináció (árnyék)",
+        "title": "Hőszivattyú-koordináció",
         "description": "Puffertartályt (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz, más hőforrás, például fatüzelésű kazán mellett. A HC a puffer, a keverőkörök és a kinti hőmérséklet alapján kiszámolja az ON/OFF kérést, a hőigényt és egy ritkán változó előremenő célt a korrekcióddal. Árnyék módban indul (semmit nem ír); az írás – felügyelt próba vagy éles – a beállításokban kapcsolható be.",
         "data": {
           "hp_buffer": "Puffer-példány, amelyet tölt",
@@ -258,7 +258,7 @@
           "hp_flow_min": "Legalacsonyabb előremenő cél (a készenléti cél is)",
           "hp_flow_max": "Legmagasabb előremenő cél",
           "hp_reserve": "Puffer / csőkígyó tartalék a körök igénye fölött",
-          "hp_offset": "Kézi korrekció (később a number entitással állítható)",
+          "hp_offset": "Kézi korrekció (a „Korrekció” számentitással menet közben is állítható)",
           "hp_hyst": "Csak az igény fölött ennyivel áll le",
           "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
           "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
@@ -569,10 +569,12 @@
               "zone_temp_entity": "Csatlakozó tér hőmérője (pl. télikert, szomszéd helyiség)",
               "zone_door_entities": "Ajtók a csatlakozó térbe",
               "zone_max_diff": "A ház részének számít, ha legfeljebb ennyivel hidegebb",
-              "house_link": "Melyik ház része (HC info házrajz)"
+              "house_link": "Melyik ház része (HC info házrajz)",
+              "home_name": "Háznév (nem kötelező)"
             },
             "data_description": {
-              "house_link": "Egy házban több hőforrás is lehet (pl. kazán, klíma, olajradiátor, hőszivattyú), mindegyik a saját HC-példányával. Automatikusan egy házként látszanak, ha ennek a példánynak a helyisége egy másik, több helyiséges példány helyiségének vagy csatlakozó terének a területén van (de nem annak vezető helyiségében). Itt kézzel is megadhatod. Csak a megjelenítést érinti, semmit nem kapcsol."
+              "house_link": "Egy házban több hőforrás is lehet (pl. kazán, klíma, olajradiátor, hőszivattyú), mindegyik a saját HC-példányával. Automatikusan egy házként látszanak, ha ennek a példánynak a helyisége egy másik, több helyiséges példány helyiségének vagy csatlakozó terének a területén van (de nem annak vezető helyiségében). Itt kézzel is megadhatod. Csak a megjelenítést érinti, semmit nem kapcsol.",
+              "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
             }
           },
           "measures": {
@@ -786,8 +788,8 @@
         }
       },
       "circuit": {
-        "title": "Keverőkör (árnyék)",
-        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Írás (0.56.0): felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
+        "title": "Keverőkör",
+        "description": "Saját szivattyús, keverőszelepes radiátoros vagy padlófűtési kör, puffertartályból. A HC a kinti hőmérséklet és a zónák tartós igénye alapján kiszámolja az előremenő célt, és csak ritkán változó célt ad ki. Írás: felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
         "data": {
           "circuit_kind": "A kör típusa",
           "zone_entities": "A kör zónái (HC)",
@@ -832,12 +834,12 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Alapból kikapcsolva (0.64.1), hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
-        "title": "Hőszivattyú-koordináció (árnyék)",
-        "description": "Puffertartályt (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz, más hőforrás, például fatüzelésű kazán mellett. A HC a puffer, a keverőkörök és a kinti hőmérséklet alapján kiszámolja az ON/OFF kérést, a hőigényt és egy ritkán változó előremenő célt a korrekcióddal. Írás (0.56.0): felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
+        "title": "Hőszivattyú-koordináció",
+        "description": "Puffertartályt (csőkígyón át vagy közvetlenül) töltő hőszivattyúhoz, más hőforrás, például fatüzelésű kazán mellett. A HC a puffer, a keverőkörök és a kinti hőmérséklet alapján kiszámolja az ON/OFF kérést, a hőigényt és egy ritkán változó előremenő célt a korrekcióddal. Írás: felügyelt próbában vagy éles módban a HC csak az alapjeleket / az ON/OFF-ot írja – a keverő, a szivattyúk és a védelmek a PLC-nél, a fagyvédelem a gépnél marad. Csak eltérésnél ír, indulás után 2 percig soha, és nem ír abba a célba, amelyet más megváltoztatott (értesítést küld). A próba magától lejár.",
         "data": {
           "hp_buffer": "Puffer-példány, amelyet tölt",
           "outdoor_entity": "Kinti hőmérő",
@@ -873,7 +875,7 @@
           "hp_flow_min": "Legalacsonyabb előremenő cél (a készenléti cél is)",
           "hp_flow_max": "Legmagasabb előremenő cél",
           "hp_reserve": "Puffer / csőkígyó tartalék a körök igénye fölött",
-          "hp_offset": "Kézi korrekció (később a number entitással állítható)",
+          "hp_offset": "Kézi korrekció (a „Korrekció” számentitással menet közben is állítható)",
           "hp_hyst": "Csak az igény fölött ennyivel áll le",
           "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
           "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
@@ -1136,10 +1138,29 @@
         "name": "Egyezés a tényleges fűtéssel"
       },
       "heat_need": {
-        "name": "Ház hőigénye"
+        "name": "Ház hőigénye",
+        "state_attributes": {
+          "status": {
+            "name": "Állapot",
+            "state": {
+              "ok": "Rendben",
+              "learning": "Még tanul – nincs elég adat (vagy add meg kézzel)"
+            }
+          }
+        }
       },
       "heat_loss": {
-        "name": "Hőveszteség-tényező"
+        "name": "Hőveszteség-tényező",
+        "state_attributes": {
+          "status": {
+            "name": "Állapot",
+            "state": {
+              "learning": "Még tanul – nincs elég adat (vagy add meg kézzel)",
+              "manual": "Kézzel megadott",
+              "learned": "Tanult"
+            }
+          }
+        }
       },
       "source_advice": {
         "name": "Olcsóbb hőforrás",
@@ -1148,7 +1169,8 @@
           "other": "Másik hőforrás",
           "other_zone_only": "Másik hőforrás, csak a saját terében",
           "equal": "Kb. egyforma",
-          "unknown": "Nincs adat"
+          "unknown": "Nincs adat",
+          "no_data": "Nincs adat – adj meg árakat"
         }
       },
       "learned": {
@@ -1231,7 +1253,17 @@
         }
       },
       "time_constant": {
-        "name": "Időállandó (τ)"
+        "name": "Időállandó (τ)",
+        "state_attributes": {
+          "status": {
+            "name": "Állapot",
+            "state": {
+              "learning": "Még tanul – nincs elég adat (vagy add meg kézzel)",
+              "manual": "Kézzel megadott",
+              "learned": "Tanult"
+            }
+          }
+        }
       },
       "energy_rating": {
         "name": "Energetikai besorolás (becslés)"

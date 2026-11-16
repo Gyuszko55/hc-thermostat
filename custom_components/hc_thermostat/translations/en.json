@@ -191,7 +191,7 @@
         }
       },
       "circuit": {
-        "title": "Mixing circuit (shadow)",
+        "title": "Mixing circuit",
         "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. It starts in shadow mode (writes nothing); writing – a supervised trial or active – is switched on in its settings.",
         "data": {
           "circuit_kind": "Circuit type",
@@ -226,11 +226,11 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "Off by default (0.64.1), so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {
-        "title": "Heat pump coordination (shadow)",
+        "title": "Heat pump coordination",
         "description": "For a heat pump charging a buffer tank (through its coil or directly), beside other sources such as a wood boiler. HC works out the ON/OFF request, the heat demand and a rarely changing flow target with your offset, from the buffer, its mixing circuits and the outdoor temperature. It starts in shadow mode (writes nothing); writing – a supervised trial or active – is switched on in its settings.",
         "data": {
           "hp_buffer": "Buffer tank instance it charges",
@@ -258,7 +258,7 @@
           "hp_flow_min": "Lowest flow target (also the standby target)",
           "hp_flow_max": "Highest flow target",
           "hp_reserve": "Tank / coil reserve above the circuits' need",
-          "hp_offset": "Manual offset (the number entity changes it later)",
+          "hp_offset": "Manual offset (also adjustable any time with the \"Offset\" number entity)",
           "hp_hyst": "Stop only this much above the need",
           "hp_charge_on": "Start at or below this charge (0 = not used)",
           "hp_charge_off": "Stop only at or above this charge (0 = not used)",
@@ -569,10 +569,12 @@
               "zone_temp_entity": "Adjoining room thermometer (e.g. a conservatory or the next room)",
               "zone_door_entities": "Doors to the adjoining room",
               "zone_max_diff": "Counts as part of the house if at most this much colder",
-              "house_link": "Part of which house (HC info house drawing)"
+              "house_link": "Part of which house (HC info house drawing)",
+              "home_name": "House name (optional)"
             },
             "data_description": {
-              "house_link": "A house may have several heat sources (a boiler, an AC, an oil radiator, a heat pump), each with its own HC instance. They show as one house automatically when this instance's room is in the area of a room or the adjoining room of another instance with more rooms (but not its leading room). You can choose it here by hand. Display only: it switches nothing."
+              "house_link": "A house may have several heat sources (a boiler, an AC, an oil radiator, a heat pump), each with its own HC instance. They show as one house automatically when this instance's room is in the area of a room or the adjoining room of another instance with more rooms (but not its leading room). You can choose it here by hand. Display only: it switches nothing.",
+              "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
             }
           },
           "measures": {
@@ -786,8 +788,8 @@
         }
       },
       "circuit": {
-        "title": "Mixing circuit (shadow)",
-        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Writing (0.56.0): in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
+        "title": "Mixing circuit",
+        "description": "A radiator or floor circuit with its own pump and mixing valve, fed from a buffer tank. HC works out the flow target from the outdoor temperature and the lasting demand of its zones and gives out a target that changes only now and then. Writing: in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
         "data": {
           "circuit_kind": "Circuit type",
           "zone_entities": "Zones of the circuit (HC)",
@@ -832,12 +834,12 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "Off by default (0.64.1), so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {
-        "title": "Heat pump coordination (shadow)",
-        "description": "For a heat pump charging a buffer tank (through its coil or directly), beside other sources such as a wood boiler. HC works out the ON/OFF request, the heat demand and a rarely changing flow target with your offset, from the buffer, its mixing circuits and the outdoor temperature. Writing (0.56.0): in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
+        "title": "Heat pump coordination",
+        "description": "For a heat pump charging a buffer tank (through its coil or directly), beside other sources such as a wood boiler. HC works out the ON/OFF request, the heat demand and a rarely changing flow target with your offset, from the buffer, its mixing circuits and the outdoor temperature. Writing: in a supervised trial or in active mode HC writes only the setpoints / the ON/OFF – the PLC keeps its mixer, pumps and safety, the unit its own frost protection. HC writes only when the value differs, never in the first 2 minutes after a start, and stops writing a target that someone else changes (a notification says so). A trial ends by itself.",
         "data": {
           "hp_buffer": "Buffer tank instance it charges",
           "outdoor_entity": "Outdoor thermometer",
@@ -873,7 +875,7 @@
           "hp_flow_min": "Lowest flow target (also the standby target)",
           "hp_flow_max": "Highest flow target",
           "hp_reserve": "Tank / coil reserve above the circuits' need",
-          "hp_offset": "Manual offset (the number entity changes it later)",
+          "hp_offset": "Manual offset (also adjustable any time with the \"Offset\" number entity)",
           "hp_hyst": "Stop only this much above the need",
           "hp_charge_on": "Start at or below this charge (0 = not used)",
           "hp_charge_off": "Stop only at or above this charge (0 = not used)",
@@ -1136,10 +1138,29 @@
         "name": "Agreement with actual heating"
       },
       "heat_need": {
-        "name": "Heat need"
+        "name": "Heat need",
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "ok": "OK",
+              "learning": "Still learning – not enough data yet (or give it by hand)"
+            }
+          }
+        }
       },
       "heat_loss": {
-        "name": "Heat loss factor"
+        "name": "Heat loss factor",
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "learning": "Still learning – not enough data yet (or give it by hand)",
+              "manual": "Given by hand",
+              "learned": "Learned"
+            }
+          }
+        }
       },
       "source_advice": {
         "name": "Cheaper heat source",
@@ -1148,7 +1169,8 @@
           "other": "Other source",
           "other_zone_only": "Other source, own room only",
           "equal": "About equal",
-          "unknown": "Unknown"
+          "unknown": "Unknown",
+          "no_data": "No data – give the prices"
         }
       },
       "learned": {
@@ -1231,7 +1253,17 @@
         }
       },
       "time_constant": {
-        "name": "Time constant (τ)"
+        "name": "Time constant (τ)",
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "learning": "Still learning – not enough data yet (or give it by hand)",
+              "manual": "Given by hand",
+              "learned": "Learned"
+            }
+          }
+        }
       },
       "energy_rating": {
         "name": "Energy rating (estimate)"

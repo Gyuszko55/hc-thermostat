@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.65.1 – 2026-11-16
+A user-friendliness pass (no change in what is controlled).
+- **Info panel:** the mixing circuit's and the heat pump coordination's *Decision* and *Details* rows are in words
+  (Hungarian / English labels, reasons, wood level, cap state, charging rule, stop layer) instead of raw keys; zones
+  are shown by their names, not entity ids (the zones card, *lasting* / *asking*, the names in the circuit drawing);
+  the header says the role ("Mixing circuit (from the tank)", "Heat pump coordination (tank charging)") instead of the
+  raw role twice; the cards are wider and no longer break words; the heat pump target chart is open; a switched-off
+  tank cap says "switched off", not "no tank".
+- **Forms:** the circuit and heat pump coordination titles lost "(shadow)" (they can write), no version numbers in the
+  texts, the offset label no longer says "later"; a **zone** can now set the **house name** too (in *Adjoining*), as
+  it has no rooms step.
+- **Learning sensors:** the heat need, heat loss factor and time constant have a `status` attribute (still learning /
+  given by hand / learned), and the cheaper source sensor says "no data – give the prices" (`no_data`) instead of
+  HA's plain "unknown".
+- The heating curve's small texts are a little larger.
+
 ## 0.65.0 – 2026-11-16
 **Demand-based tank charging** (`hp_charge_mode`), after the tester's live case: at 18:58 with 5 °C outside the top was
 37.0 °C, the layers below 36.6 / 35.9 / 28.5 °C, the charge 9 %, both circuits asking, the need 34.5 °C – and the heat

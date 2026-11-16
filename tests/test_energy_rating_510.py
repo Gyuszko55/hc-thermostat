@@ -52,7 +52,7 @@ def test_nothing_without_an_area_or_a_loss():
 
 def test_version():
     root = Path(__file__).resolve().parents[1] / "custom_components" / "hc_thermostat"
-    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0")
+    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2")
     tr = json.loads((root / "translations" / "hu.json").read_text())
     assert tr["entity"]["sensor"]["energy_rating"]["name"] == "Energetikai besorolás (becslés)"
     assert "house_area_m2" in tr["options"]["step"]["settings"]["sections"]["house"]["data"]

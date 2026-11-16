@@ -98,6 +98,10 @@ const REASON = {
   en: {},
 };
 
+const ROLE_TXT = {  // 0.65.1
+  hu: { circuit: "Keverőkör (pufferből)", hp_coord: "Hőszivattyú-koordináció (puffertöltés)", buffer: "Puffertartály", central: "Központi kazán a zónákhoz" },
+  en: { circuit: "Mixing circuit (from the tank)", hp_coord: "Heat pump coordination (tank charging)", buffer: "Buffer tank", central: "Central boiler for the zones" },
+};
 const SOURCE = {
   hu: { onoff_boiler: "On-off gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú",
     electric_boiler: "Elektromos kazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő",
@@ -146,6 +150,20 @@ const KEY_HU = {
   curve: "Fűtési görbe", exercise: "Szivattyú-átmozgatás", storage: "Hőtároló", ac: "Klíma", shadow: "Árnyék",
   floor_temper_on: "Padlótemperálás", floor_limit: "Padlóhőfok-limit", load: "Terhelés", details: "Részletek",
   pump: "Szivattyú", valve_open: "Szelep nyitva", wants_heat: "Hőt kér",
+  // 0.65.1: the circuit's and the heat pump coordination's decision rows
+  now: "Időpont", enable: "ON kérés", heat_demand: "Hőigény", raw: "Nyers cél", hold_reason: "Visszatartás", need: "Körök igénye",
+  wood: "Fatüzelés", cold_on: "Hidegidős ON", summer: "Nyári üzem", offset: "Korrekció", top: "Puffer teteje", charge: "Töltöttség (%)",
+  trend_c_h: "Puffer trend (°C/h)", hp_running: "Fut a hőszivattyú", hp_running_age_s: "Futásjel kora (s)", charge_mode: "Töltési szabály",
+  classic: "Klasszikus szabály", demand_charge: "Igény szerinti szabály", heat: "Tölt", why: "Ok", reserve_c: "Tartalék (°C)",
+  reserve_kwh: "Tartalék (kWh)", start_below: "Indul, ha a teteje ez alá esik", stop_at: "Leáll, ha a réteg eléri", stop_layer: "Leállító réteg",
+  stop_layer_temp: "A leállító réteg most", layers_seen: "Mért rétegek", hours_left: "Becsült idő a tartalék fogyásáig (h)",
+  summer_since: "Nyári üzem óta", room_idle_hours: "Helyiségigény nélkül (h)", demand_held_s: "Igény tartama (s)", season_change: "Szezonváltás",
+  idle_hours: "Igény nélkül (h)", next_allowed: "Következő módosítás legkorábban", last_change: "Utolsó módosítás", target_changed: "A cél most módosult",
+  warm_since: "Enyhe idő óta", heat_reason: "A töltés oka", idle_overridden: "Hosszú leállítás felülírva", low_charge_waits: "Alacsony töltöttség, de nincs igény",
+  charge_mode_fallback: "Klasszikus (nincs keverőkör)", lasting: "Tartós igényű zónák", asking: "Most kérő zónák", t_room: "Görbe helyiség-célja",
+  deficit: "Helyiséghiány (°C)", correction: "Helyiség-korrekció (°C)", changed: "A cél most módosult", room_from: "Helyiség-cél forrása",
+  no_outdoor: "Nincs kinti mérés", demand_target: "Igényelt előremenő", cap: "Puffer-korlát", cap_state: "Korlát állapota",
+  shortfall: "Hiányzó hőmérséklet (°C)", exercise_due: "Átmozgatás esedékes",
 };
 // English labels of the same generic rows (entity keys stay as they are)
 const KEY_EN = {
@@ -158,12 +176,41 @@ const KEY_EN = {
   curve: "Heating curve", exercise: "Pump exercise", storage: "Storage heater", ac: "Air conditioner", shadow: "Shadow",
   floor_temper_on: "Floor tempering", floor_limit: "Floor limit", load: "Load", details: "Details",
   pump: "Pump", valve_open: "Valve open", wants_heat: "Wants heat",
+  // 0.65.1
+  now: "Time", enable: "ON request", heat_demand: "Heat demand", raw: "Raw target", hold_reason: "Hold", need: "Circuits' need",
+  wood: "Wood", cold_on: "Cold-weather ON", summer: "Summer mode", offset: "Offset", top: "Tank top", charge: "Charge (%)",
+  trend_c_h: "Tank trend (°C/h)", hp_running: "Heat pump runs", hp_running_age_s: "Run signal age (s)", charge_mode: "Charging rule",
+  classic: "Classic rule", demand_charge: "Demand rule", heat: "Charges", why: "Reason", reserve_c: "Reserve (°C)",
+  reserve_kwh: "Reserve (kWh)", start_below: "Starts when the top drops under", stop_at: "Stops when the layer reaches", stop_layer: "Stop layer",
+  stop_layer_temp: "The stop layer now", layers_seen: "Measured layers", hours_left: "Estimated time until the reserve is used (h)",
+  summer_since: "Summer mode since", room_idle_hours: "No room demand for (h)", demand_held_s: "Demand lasted (s)", season_change: "Season change",
+  idle_hours: "No demand for (h)", next_allowed: "Next change at the earliest", last_change: "Last change", target_changed: "Target just changed",
+  warm_since: "Mild since", heat_reason: "Why it charges", idle_overridden: "Long stop overridden", low_charge_waits: "Low charge, but no demand",
+  charge_mode_fallback: "Classic (no mixing circuit)", lasting: "Zones with lasting demand", asking: "Zones asking now", t_room: "Curve's room target",
+  deficit: "Room deficit (°C)", correction: "Room correction (°C)", changed: "Target just changed", room_from: "Room target from",
+  no_outdoor: "No outdoor reading", demand_target: "Demanded flow", cap: "Tank cap", cap_state: "Cap state",
+  shortfall: "Shortfall (°C)", exercise_due: "Exercise due",
 };
 // why the output was held (Decision.limited_by)
 const LIMITED = {
   hu: { min_on: "minimális futás", min_off: "minimális szünet", load_limit: "terheléskorlát", return_limit: "visszatérő-korlát", no_power: "nincs vezérelt áram" },
   en: { min_on: "minimum run", min_off: "minimum pause", load_limit: "load limit", return_limit: "return limit", no_power: "no controlled power" },
 };
+// 0.65.1: values of the circuit's / heat pump coordination's decision rows in words
+const VALS = {
+  hu: { wood: { none: "nincs jel", possible: "lehet", likely: "valószínű", certain: "biztos (jelzés)" },
+    cap_state: { off: "kikapcsolva", ok: "nem korlátoz", limited: "korlátoz", cold: "hideg a puffer", stale: "az utolsó jó érték szerint", no_data: "nincs pufferadat" },
+    charge_mode: { classic: "klasszikus", demand: "igény szerinti" },
+    stop_layer: { top: "teteje", upper: "felső közép", lower: "alsó közép", bottom: "alja" },
+    room_from: { demand: "igénylő zónák", zones: "zónák célja (szünet)", default: "alapérték" } },
+  en: { wood: { none: "no sign", possible: "possible", likely: "likely", certain: "certain (signal)" },
+    cap_state: { off: "switched off", ok: "not limiting", limited: "limiting", cold: "tank too cold", stale: "by the last good reading", no_data: "no tank reading" },
+    charge_mode: { classic: "classic", demand: "by demand" },
+    stop_layer: { top: "top", upper: "upper middle", lower: "lower middle", bottom: "bottom" },
+    room_from: { demand: "zones asking", zones: "zones' target (pause)", default: "fallback" } },
+};
+const REASON_KEYS = new Set(["reason", "why", "hold_reason", "heat_reason"]);
+const NAME_LIST_KEYS = new Set(["lasting", "asking"]);
 // keys whose true / false is a switch state (on / off), not yes / no
 const ONOFF_KEYS = new Set(["output", "actual", "season_on", "pump", "floor_temper_on"]);
 
@@ -436,7 +483,7 @@ class HcInfoPanel extends HTMLElement {
     let saved = null;
     try { saved = localStorage.getItem("hc-info:entry"); } catch (e) { /* private mode */ }
     this._sel = (this._list.find((x) => x.entry_id === saved) || this._list[0])?.entry_id;
-    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true, house_src: true, curve: true };
+    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true, house_src: true, curve: true, hp_chart: true };
     try { this._view = localStorage.getItem("hc-info:view") || "house"; } catch (e) { this._view = "house"; }
     await OVP;
     if (await this._fromUrl()) return;
@@ -497,6 +544,11 @@ class HcInfoPanel extends HTMLElement {
     return (this._hu ? REASON.hu[r] : null) || (r.charAt(0).toUpperCase() + r.slice(1).replace(/_/g, " "));
   }
   _ent(key) { return this._d?.entities?.[key] || []; }
+  // 0.65.1: an entity's friendly name from the instance's configured entities (else the id)
+  _ename(id) {
+    for (const items of Object.values(this._d?.entities || {})) for (const it of items || []) if (it.entity_id === id) return it.name || id;
+    return id;
+  }
   // ---------------------------------------------------------------- rooms (0.43.0)
   _roomKey() {
     if (this._room) return this._room;
@@ -564,6 +616,12 @@ class HcInfoPanel extends HTMLElement {
   // a row label in the viewer's language (raw key when there is none)
   _key(k) { return (this._hu ? KEY_HU[k] : KEY_EN[k]) || k; }
   _rowVal(k, v) {
+    // 0.65.1: reasons, levels and modes in words; zone entity ids as their names
+    if (REASON_KEYS.has(k) && typeof v === "string") return this._reason(v);
+    const vm = VALS[this._hu ? "hu" : "en"][k];
+    if (vm && typeof v === "string") return vm[v] || v;
+    if (k === "layers_seen" && Array.isArray(v)) return v.map((x) => VALS[this._hu ? "hu" : "en"].stop_layer[x] || x).join(", ");
+    if (NAME_LIST_KEYS.has(k) && Array.isArray(v)) return v.map((x) => this._ename(x)).join(", ") || this._t.none;
     if (k === "limited_by" && typeof v === "string") return LIMITED[this._hu ? "hu" : "en"][v] || v;
     if (ONOFF_KEYS.has(k) && typeof v === "boolean") return v ? this._t.on : this._t.off;
     return this._val(v);
@@ -1100,7 +1158,8 @@ class HcInfoPanel extends HTMLElement {
     const zones = d.zones || [], n = Math.max(zones.length, 1);
     zones.forEach((z, i) => {
       const y = 120 + (i * 420) / n;
-      svg.push(`<path class="cso" stroke="#e53935" d="M640,330 L640,${y + 30} L700,${y + 30}"/><g class="dev ${z.asking ? "on" : ""}"><rect x="700" y="${y}" width="120" height="56" rx="8"/></g>`);
+      svg.push(`<path class="cso" stroke="#e53935" d="M640,330 L640,${y + 30} L700,${y + 30}"/><g class="dev ${z.asking ? "on" : ""}"><rect x="700" y="${y}" width="120" height="56" rx="8"/></g>
+        <text x="760" y="${y + 34}" text-anchor="middle" class="sm">${esc(String(this._ename(z.name)).replace(/^PSz\s+/, "").slice(0, 14))}</text>`);
     });
     this._nextMark = [362, 312];
     const kind = cfg.circuit_kind === "floor" ? (hu ? "padlófűtés" : "floor heating") : (hu ? "radiátoros" : "radiators");
@@ -1110,7 +1169,7 @@ class HcInfoPanel extends HTMLElement {
       // 0.64.0: the tank cap – the demanded target goes to the heat pump, the mixer gets at most top − margin
       [hu ? "Igényelt előremenő" : "Demanded flow", dec.demand_target != null ? this._deg(dec.demand_target) : null],
       [hu ? "Puffer-korlát" : "Tank cap", dec.cap != null ? `${this._deg(dec.cap)} (${hu ? "teteje" : "top"} − ${this._num(cfg.circuit_margin, 1)} °C)` : null],
-      [hu ? "Korlát állapota" : "Cap state", ({ off: hu ? "nincs (nincs puffer vagy kikapcsolva)" : "none (no tank or switched off)", ok: hu ? "nem korlátoz" : "not limiting", limited: hu ? "KORLÁTOZ – a puffer nem elég meleg" : "LIMITING – the tank is not warm enough", cold: hu ? "HIDEG A PUFFER – a minimum sem jön ki" : "TANK TOO COLD – not even the minimum", stale: hu ? "az utolsó jó pufferérték szerint" : "by the last good tank reading", no_data: hu ? "nincs pufferadat – nem korlátoz" : "no tank reading – not limiting" })[dec.cap_state] || dec.cap_state || null, ["limited", "cold", "no_data"].includes(dec.cap_state)],
+      [hu ? "Korlát állapota" : "Cap state", ({ off: d.conf?.circuit_buffer && d.conf.circuit_buffer !== "none" ? (hu ? "kikapcsolva (a kör beállításaiban kapcsolható be)" : "switched off (on in the circuit's settings)") : (hu ? "nincs puffer a körhöz kötve" : "no tank linked to the circuit"), ok: hu ? "nem korlátoz" : "not limiting", limited: hu ? "KORLÁTOZ – a puffer nem elég meleg" : "LIMITING – the tank is not warm enough", cold: hu ? "HIDEG A PUFFER – a minimum sem jön ki" : "TANK TOO COLD – not even the minimum", stale: hu ? "az utolsó jó pufferérték szerint" : "by the last good tank reading", no_data: hu ? "nincs pufferadat – nem korlátoz" : "no tank reading – not limiting" })[dec.cap_state] || dec.cap_state || null, ["limited", "cold", "no_data"].includes(dec.cap_state)],
       [hu ? "Hiányzó hőmérséklet" : "Shortfall", dec.shortfall ? `${this._num(dec.shortfall, 1)} °C` : null],
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Miért" : "Why", this._reason(dec.reason)],
@@ -1134,7 +1193,7 @@ class HcInfoPanel extends HTMLElement {
       ]));
     }
     this._nextMark = [822, 122];
-    cards.push(this._card(840, 20, t.zones, zones.map((z) => [z.name, `${z.asking ? (hu ? "kér" : "asks") : (dec.lasting || []).includes(z.name) ? (hu ? "tartós igény" : "lasting demand") : "–"}${z.indoor != null ? " · " + this._deg(z.indoor) : ""}${z.target != null ? " → " + this._deg(z.target) : ""}${z.fault ? " · fault" : ""}`, z.asking])));
+    cards.push(this._card(840, 20, t.zones, zones.map((z) => [this._ename(z.name), `${z.asking ? (hu ? "kér" : "asks") : (dec.lasting || []).includes(z.name) ? (hu ? "tartós igény" : "lasting demand") : "–"}${z.indoor != null ? " · " + this._deg(z.indoor) : ""}${z.target != null ? " → " + this._deg(z.target) : ""}${z.fault ? " · fault" : ""}`, z.asking])));
     return { svg: svg.join(""), cards: cards.join("") };
   }
 
@@ -1160,7 +1219,11 @@ class HcInfoPanel extends HTMLElement {
     else if (d) {
       const dr = this._drawing();
       const dec = d.decision || {};
-      const head = `<div class="head"><h2>${esc(d.title)}</h2><span>${esc(SOURCE[this._hu ? "hu" : "en"][d.heat_source] || d.role)} · ${esc(SYSTEM[this._hu ? "hu" : "en"][d.system] || d.system || "")} · ${esc(CONTROL[d.control] || d.control || d.role)}</span>
+      // 0.65.1: the circuit / tank / heat pump coordination have no source, system or control – their role in words
+      const roleTxt = (ROLE_TXT[this._hu ? "hu" : "en"] || {})[d.role];
+      const headSub = roleTxt && !d.heat_source ? roleTxt
+        : [SOURCE[this._hu ? "hu" : "en"][d.heat_source] || d.role, SYSTEM[this._hu ? "hu" : "en"][d.system] || d.system || "", CONTROL[d.control] || d.control || ""].filter(Boolean).join(" · ");
+      const head = `<div class="head"><h2>${esc(d.title)}</h2><span>${esc(headSub)}</span>
         <span class="badge ${d.mode === "active" ? "live" : ""}">${d.mode === "active" ? t.live : t.shadow}</span>
         ${this._roomKey() ? `<span class="badge room">${esc(t.room)}: ${esc(this._roomData()?.name || this._roomKey())}</span>` : ""}
         ${this._trv ? `<span class="badge">${esc(t.trv)}: ${esc(((list.find((x) => x.entry_id === d.entry_id) || {}).trvs || []).find((h) => h.entity_id === this._trv)?.name || this._trv)} · ${esc(trvSources(d).find((x) => x.startsWith((ENTS(d, "room_trvs") || []).find((e) => e.entity_id === this._trv)?.name + ":"))?.split(": ").slice(1).join(": ") || "")}</span>` : ""}</div>`;
@@ -1307,7 +1370,7 @@ svg .nyit { fill:#43a047; } svg .zar { fill:#9e9e9e; }
 .card .ct { font-weight:600; font-size:1.08em; margin-bottom:3px; color:var(--primary-color); }
 .card .r { display:flex; justify-content:space-between; gap:8px; line-height:1.45; }
 .card .r span { color:var(--secondary-text-color); }
-.card .r b { font-weight:500; text-align:right; word-break:break-word; }
+.card .r b { font-weight:500; text-align:right; word-break:normal; overflow-wrap:break-word; }
 .hot { color:#ff8100; }
 details.sec { background:var(--card-background-color); border-radius:12px; margin-bottom:8px; }
 details.sec summary { cursor:pointer; padding:10px 12px; font-weight:500; display:flex; gap:8px; align-items:center; }
@@ -1333,7 +1396,7 @@ th.sub { text-align:left; padding-top:6px; font-weight:500; color:var(--primary-
 .muted { color:var(--secondary-text-color); }
 .empty { padding:40px; text-align:center; color:var(--secondary-text-color); }
 table.log td.k { width:28%; }
-.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); gap:10px; align-items:start; margin-top:12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:10px; align-items:start; margin-top:12px; }
 .card .no { display:inline-flex; align-items:center; justify-content:center; width:1.5em; height:1.5em; border-radius:50%;
   background:var(--primary-color); color:var(--text-primary-color, #fff); font-style:normal; font-size:.8em; margin-right:5px; vertical-align:1px; }
 svg .num circle { fill:var(--primary-color); }
