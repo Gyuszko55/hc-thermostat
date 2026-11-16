@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.59.0 – 2026-11-16
+Findings of a tester on a buffer system (wood boiler and a monoblock heat pump on the tank's coil, 1000 l tank with four
+thermometers, a radiator and a floor mixing circuit run by a PLC, five room zones – the bathroom on both circuits). The
+drawing and the texts change; the decisions stay as they were unless the new option is turned on.
+- **No phantom room from a mixing circuit:** a circuit, a buffer tank and a heat pump coordination in a house are parts
+  of the plant room, not rooms. The extra "Room 33 °C" was a circuit's flow target; each circuit now shows in the plant
+  room as a mixing valve with its name and flow target (radiator grey, floor purple), the tank as its layers with
+  their temperatures, the charge % and the stored kWh.
+- **Room zones are not heat sources:** a zone instance (role zone, or a heat source with its own control) no longer
+  adds an *External heat source* box per room. The heat pump coordination brings the real ones: the heat pump's
+  outdoor unit (with its power) piped to the tank's coil, and – when its wood signal is set – a **wood boiler** with
+  its fire door and flame while it fires.
+- **Rooms named by their instance:** a zone named "HC Mosókonyha" is the Mosókonyha, even when its thermometer's name
+  contains "konyha" (an area named exactly like the instance wins; the area of the thermometer only when the title
+  contains its name).
+- **One bathroom, radiator and floor:** a zone listed in a radiator and a floor circuit is one room with both emitters
+  (the floor loop on its own circuit), one thermometer and one thermostat.
+- **The zone's water:** a zone in mixing circuits shows the circuits' given-out flow targets (*Mixing circuit flow
+  target*, e.g. "Radiator circuit: 33 °C; Floor circuit: 29 °C") instead of its own flow request (48 °C), which is
+  not what its water gets.
+- **Low charge only with a room demand (option, off):** heat pump coordination → `hp_charge_needs_demand`. On: the
+  charge percentages (`hp_charge_on` / `hp_charge_off`) start and keep a heating only while a circuit / zone has a
+  lasting demand; with no demand a low charge starts nothing (`low_charge_waits` in the details) and a running heating
+  stops on the temperatures alone. Frost protection and the cold-weather ON are unchanged. Off: as before.
+- **A stale "runs" reading is not trusted:** a power / current / speed reading that says "runs" but has not been
+  reported for 15 minutes is "not known" (a meter stuck at 1.5 kW no longer keeps the heat pump running and wood
+  impossible); a stale low reading stays "does not run". The reading's age is in the details (`hp_running_age_s`).
+- **Setup texts:** the relay field reads *Switched relay (the boiler, or for a zone its zone valve / room relay)*; the
+  buffer tank's heat source relay is optional – empty, HC only watches the tank (no virtual switch needed for a shadow
+  trial or a tank charged by a heat pump coordination).
+- Tip from the same review, already possible: the house's title is the host's *Home name* (settings), not its instance
+  name.
+
 ## 0.58.0 – 2026-11-16
 Each heating system drawn the way it is built (house view; only the drawing changes, no decision does).
 - **District heating is a flat in a block of flats:** no roof, garden, sun or ground – the flats above and below with

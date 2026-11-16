@@ -231,7 +231,7 @@ def test_version():
     import json
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "custom_components" / "hc_thermostat"
-    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.50.0", "0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0")
+    assert json.loads((root / "manifest.json").read_text())["version"] in ("0.50.0", "0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0")
 
 
 # --- 4. mould risk at the coldest surface, humidity sensors from the thermometers ------------------------------------

@@ -323,7 +323,9 @@ const INFO = [
   ["heater_pw", "unit", "Áramfelvétel", "Power draw", (d) => { const e = ENT(d, "boiler_power_entity"); return e ? `${e.state} ${e.unit || ""}` : null; }, "text", ["electric"]],
   ["heater_load", "unit", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
   // emitters
-  ["flow_req", "emitter", "Kért előremenő", "Flow request", (d) => CA(d, "flow_request"), "deg", ["zone"]],
+  // 0.59.0: a zone in mixing circuits gets their water – their given-out targets, not the zone's own flow request
+  ["mix_targets", "emitter", "Keverőkör előremenő célja", "Mixing circuit flow target", (d) => (d.circuits || []).map((q) => `${q.title}: ${q.target != null ? `${Number(q.target).toFixed(1)} °C` : "–"}`).join("; ") || null, "text", ["zone"]],
+  ["flow_req", "emitter", "Kért előremenő", "Flow request", (d) => ((d.circuits || []).length ? null : CA(d, "flow_request")), "deg", ["zone"]],
   ["valve_fb", "emitter", "Szelep visszajelzés", "Valve feedback", (d) => ENT(d, "valve_feedback_entity")?.state, "state", ["zone"]],
   ["exercise", "emitter", "Következő szelepmozgatás", "Next valve exercise", (d) => CA(d, "valve_exercise_next"), "time", ["zone"]],
   ["trv_heads", "emitter", "Szelepfej", "TRV head", (d) => (ENTS(d, "room_trvs") || []).map((e) => `${e.name}: ${e.current_temperature ?? "?"} → ${e.temperature ?? "?"} °C`).join("; ") || null, "text", ["trv"]],

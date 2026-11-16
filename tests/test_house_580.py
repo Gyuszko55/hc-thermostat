@@ -39,7 +39,7 @@ def test_district_connection_option_and_texts():
 def test_pellet_store_and_fire_door():
     assert 'class="silo"' in JS and 'class="pell"' in JS and 'class="auger"' in JS and 'class="pwin' in JS
     assert "fuelLevel: num(info.measures?.fuel_level)" in JS
-    assert 'k === "pellet_boiler" ? "pel"' in JS
+    assert 'k === "pellet_boiler" ? "pel"' in JS or '{solid ? "pel" :' in JS  # 0.59.0: wood boilers too
 
 
 def test_manifold_for_floor_loops():
@@ -58,4 +58,4 @@ def test_electric_floor_and_storage_heaters_are_wired_from_the_board():
 
 
 def test_version():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] == "0.58.0"
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.58.0", "0.59.0")

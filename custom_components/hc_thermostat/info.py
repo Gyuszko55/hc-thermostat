@@ -137,7 +137,8 @@ def _instance(hass, entry) -> dict:
                            "rating": jsonable(c.energy_rating()) if hasattr(c, "energy_rating") else None},
                  "load": jsonable(sup.load.details(d.now)) if sup.load is not None and d else None},
         "health": {"state": c.health.state, **jsonable(c.health.attributes())} if getattr(c, "health", None) else None,
-        "climate": _climate(hass, entry),
+        "climate": (clim := _climate(hass, entry)),
+        "circuits": _circuits_of(hass, (clim or {}).get("entity_id")),  # 0.59.0: the mixing circuits this zone is in
         "cost": jsonable(c.cost),
         "rooms": {"advice": jsonable(c.room_advice), "asking": list(c.asking_rooms), "trv": jsonable(c.trv_info)},
         "room_list": _room_list(hass, entry),  # 0.43.0: every room of this boiler with its state
@@ -151,6 +152,28 @@ def _instance(hass, entry) -> dict:
         "measure_problems": list(getattr(c, "measure_problems", None) or []),
         **_house(hass, entry, conf),  # 0.44.0: what the house drawing needs (areas, sun, today's heat energy)
     }
+
+
+def _circuits_of(hass, entity_id: str | None) -> list[dict]:
+    """0.59.0: the mixing circuits that list this zone (a bathroom can be in a radiator and a floor circuit): their
+    given-out flow targets are what the zone's water gets – not the zone's own flow request."""
+    out: list[dict] = []
+    if not entity_id:
+        return out
+    try:
+        for e in _loaded(hass):
+            conf = {**e.data, **e.options}
+            if conf.get("role") != "circuit" or entity_id not in (conf.get("zone_entities") or []):
+                continue
+            c = e.runtime_data
+            d = getattr(c, "data", None)
+            out.append({"entry_id": e.entry_id, "title": e.title,
+                        "kind": getattr(getattr(getattr(c, "circuit", None), "cfg", None), "circuit_kind", None)
+                        or conf.get("circuit_kind") or "radiator",
+                        "target": getattr(d, "target", None), "demand": getattr(d, "demand", None)})
+    except Exception:
+        return out
+    return out
 
 
 def _room_list(hass, entry) -> list[dict]:

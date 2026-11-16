@@ -347,6 +347,12 @@ kert, fölötte és alatta a szomszéd lakások, a falban a ház felszálló vez
 (eszközök → *Távhő bekötése*): **lakásállomás** hőcserélővel és hőmennyiségmérővel, vagy **radiátorok a felszállón** –
 elzárók és a lakás hőmennyiségmérője az előszobában, minden radiátoron költségosztó.
 
+**Pufferes rendszer a rajzon (0.59.0).** Puffertartályos, keverőkörös, hőszivattyú-koordinációs házban ezek a
+kazánházban jelennek meg, sosem helyiségként: a tartály a rétegeivel, töltöttségével és tárolt kWh-jával, minden
+keverőkör keverőszelepként az előremenő céljával, a hőszivattyú kültéri egysége a tartály csőkígyójára kötve, fa jel
+esetén a fatüzelésű kazán. A helyiségi zónák csak a helyiségüket hozzák (a példány nevével); a radiátoros és a
+padlófűtési körben is szereplő zóna egy helyiség mindkét hőleadóval.
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

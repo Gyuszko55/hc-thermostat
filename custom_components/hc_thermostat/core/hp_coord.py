@@ -31,6 +31,8 @@ Heat demand in detail (all thresholds settable; percentages only when the tank h
 - starts when the tank top is below the need, or the charge is at or below `hp_charge_on` %, or the top is at the
   buffer's frost limit;
 - runs on until the top is at least need + `hp_hyst` and, with `hp_charge_off` set, the charge reached it;
+- 0.59.0 `hp_charge_needs_demand` (off): the two percentages count only while a circuit / zone has a lasting demand –
+  a low charge alone then starts nothing, and with no demand a heating stops on the temperatures alone;
 - `hp_min_on_s` / `hp_min_off_s` hold the enable request (not the cold-weather ON and not a fail-safe ON).
 
 Automatic summer / winter mode (`hp_auto_summer`, off – 0.57.0): not a date and not only the outdoor temperature, but
@@ -71,6 +73,7 @@ class HpConfig:
     hp_hyst: float = 3.0  # °C above the need before a heating stops
     hp_charge_on: float = 0.0  # % – start at or below (0 = not used)
     hp_charge_off: float = 0.0  # % – stop only at or above (0 = not used)
+    hp_charge_needs_demand: bool = False  # 0.59.0: the charge % starts / keeps a heating only with a room demand
     hp_min_on_s: float = 1800.0
     hp_min_off_s: float = 900.0
     hp_standby: bool = False  # keep the unit ON with no demand (its target at the lowest)
@@ -124,6 +127,7 @@ class HpInputs:
     frost_top: float = 8.0  # the buffer's frost limit
     wood_signal: bool | None = None  # a wood boiler / flue signal (None: none given)
     hp_running: bool | None = None  # the heat pump runs now (None: not known)
+    hp_running_age_s: float | None = None  # 0.59.0: seconds since that reading was reported
     offset: float | None = None  # the manual offset now (the number entity)
 
 
@@ -227,10 +231,12 @@ class HeatPumpCoordinator:
         needs = [c.target + c.margin for c in i.circuits if c.demand and c.target is not None]
         return round(max(needs), 1) if needs else None
 
-    def _heat(self, i: HpInputs, need: float | None, wood: str) -> tuple[bool, str]:
+    def _heat(self, i: HpInputs, need: float | None, wood: str, demand: bool = True) -> tuple[bool, str]:
         cfg = self.cfg
         frost = i.top is not None and i.top <= i.frost_top
-        low = cfg.hp_charge_on > 0 and i.charge is not None and i.charge <= cfg.hp_charge_on
+        # 0.59.0: with `hp_charge_needs_demand` the charge percentage only counts while a room / circuit asks for heat
+        by_charge = demand or not cfg.hp_charge_needs_demand
+        low = by_charge and cfg.hp_charge_on > 0 and i.charge is not None and i.charge <= cfg.hp_charge_on
         if frost:
             return True, "frost"
         if cfg.hp_wood_first and wood in ("certain", "likely"):
@@ -242,7 +248,7 @@ class HeatPumpCoordinator:
         if self.heating:
             if need is not None and i.top < need + cfg.hp_hyst:
                 return True, "heating"
-            if cfg.hp_charge_off > 0 and i.charge is not None and i.charge < cfg.hp_charge_off:
+            if by_charge and cfg.hp_charge_off > 0 and i.charge is not None and i.charge < cfg.hp_charge_off:
                 return True, "charging"
             return False, "off"
         if need is not None and i.top < need:
@@ -272,7 +278,7 @@ class HeatPumpCoordinator:
         wood = self._wood(i)
         need = self._need(i)
         details: dict = {"offset": offset, "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
-                         "hp_running": i.hp_running}
+                         "hp_running": i.hp_running, "hp_running_age_s": i.hp_running_age_s}
         # 0.57.1: the buffer's own zones (no circuit linked) get the circuits' hold too: a TPI pause does not end their
         # demand, so the summer mode can end on a lasting demand
         if i.zones_asking:
@@ -284,7 +290,10 @@ class HeatPumpCoordinator:
         if i.top is None:
             heat, why = self.heating, "no_buffer"
         else:
-            heat, why = self._heat(i, need, wood)
+            heat, why = self._heat(i, need, wood, demand_now)
+            if (self.cfg.hp_charge_needs_demand and not demand_now and self.cfg.hp_charge_on > 0 and i.charge is not None
+                    and i.charge <= self.cfg.hp_charge_on):
+                details["low_charge_waits"] = True  # 0.59.0: a low charge, but no room asks – no start for it
         if self.summer and why != "frost":
             heat, why = False, "summer"  # 0.57.0: no heating for the tank in summer mode; the frost limit still heats
         self.heating = heat

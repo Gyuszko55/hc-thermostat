@@ -66,23 +66,23 @@ const FONT = 'Roboto, "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
 const TXT = {
   hu: {
-    room: "Helyiség", flow: "előremenő", ret: "visszatérő", target: "cél", gas: "Gáz", total: "össz.", today: "ma", now: "most",
+    flowTargetL: "előremenő cél", mixCap: "keverőkörök előremenő célja", charge: "töltöttség", room: "Helyiség", flow: "előremenő", ret: "visszatérő", target: "cél", gas: "Gáz", total: "össz.", today: "ma", now: "most",
     burning: "ég", idle: "áll", running: "üzemel", off: "ki", outdoor: "Kint", avg: "24 h átl.", open: "nyitva",
     v_heating: "nyit", v_idle: "zárva", v_off: "ki", leading: "vezető", demand: "igény", home: "otthon", away: "távol",
     vacation: "szabadság", nobody: "senki", shadow: "árnyék", fault: "HIBA", zone: "zóna", buffer: "puffer", pump: "szivattyú",
     follows: "házat követi", door: "ajtó nyitva", unit: "egység", estimated: "becsült", efloor: "Elektromos padlófűtés",
     kinds: { gas_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán",
-      pellet_boiler: "Pelletkazán", district_heating: "Távhő", external_heat: "Külső hőtermelő", buffer: "Puffertartály", air_conditioner: "Klíma",
+      pellet_boiler: "Pelletkazán", wood_boiler: "Fatüzelésű kazán", district_heating: "Távhő", external_heat: "Külső hőtermelő", buffer: "Puffertartály", air_conditioner: "Klíma",
       electric_heater: "Villanyfűtő", storage_heater: "Hőtárolós kályha" },
   },
   en: {
-    room: "Room", flow: "flow", ret: "return", target: "target", gas: "Gas", total: "total", today: "today", now: "now",
+    flowTargetL: "flow target", mixCap: "mixing circuits' flow targets", charge: "charge", room: "Room", flow: "flow", ret: "return", target: "target", gas: "Gas", total: "total", today: "today", now: "now",
     burning: "burning", idle: "idle", running: "running", off: "off", outdoor: "Outdoor", avg: "24 h avg", open: "open",
     v_heating: "open", v_idle: "closed", v_off: "off", leading: "leading", demand: "demand", home: "home", away: "away",
     vacation: "vacation", nobody: "nobody", shadow: "shadow", fault: "FAULT", zone: "zone", buffer: "buffer", pump: "pump",
     follows: "follows house", door: "door open", unit: "unit", estimated: "estimated", efloor: "Electric floor heating",
     kinds: { gas_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler",
-      pellet_boiler: "Pellet boiler", district_heating: "District heating", external_heat: "External heat source", buffer: "Buffer tank", air_conditioner: "Air conditioner",
+      pellet_boiler: "Pellet boiler", wood_boiler: "Wood boiler", district_heating: "District heating", external_heat: "External heat source", buffer: "Buffer tank", air_conditioner: "Air conditioner",
       electric_heater: "Electric heater", storage_heater: "Storage heater" },
   },
 };
@@ -167,6 +167,42 @@ function makeMatcher(areas) {
     }
     return null;
   };
+}
+
+// 0.59.0: the room an instance is named after: "HC Mosókonyha" -> the area "Mosókonyha" (or that name without an area)
+const GENERIC_TITLE = /^(hc|zona|zone|termosztat|thermostat|futes|heating|helyiseg|room)$/;
+function titleRoom(title, areas) {
+  const t = String(title || "").replace(/^\s*hc(?=[\s:\-–]|$)[\s:\-–]*/i, "").trim();
+  if (!t || GENERIC_TITLE.test(norm(t))) return null;
+  const a = (areas || []).find((q) => norm(q.name) === norm(t));
+  return a ? { name: a.name, area: a } : { name: t, area: null };
+}
+
+// 0.59.0: plant-room parts from the house's other instances
+function circuitOf(mi) {
+  const d = mi.decision || {}, conf = mi.conf || {};
+  const out = (mi.entities?.circuit_output_entity || [])[0];
+  return { entry: mi.entry_id, title: mi.title || "", kind: (mi.config?.circuit_kind || conf.circuit_kind) === "floor" ? "floor" : "radiator",
+    target: num(d.target), raw: num(d.raw), demand: !!d.demand, plc: out ? num(out.state) : null, mode: mi.mode || "shadow" };
+}
+function tankOf(mi) {
+  const st = mi.stock || {}, d = mi.decision || {};
+  const layers = (st.layers || []).map((l) => ({ name: l.name, temp: num(l.temp), measured: l.measured !== false }));
+  return { entry: mi.entry_id, title: mi.title || "", layers, top: num(st.top) ?? num(d.top), charge: num(st.charge),
+    kwh: num(st.stored_kwh), charging: !!d.output, mode: mi.mode || "shadow" };
+}
+function hpSources(mi) {
+  const d = mi.decision || {}, det = d.details || {}, conf = mi.conf || {}, out = [];
+  const re = (mi.entities?.hp_running_entity || [])[0];
+  const power = re && /^k?w$/i.test(re.unit || "") && num(re.state) != null ? { value: num(re.state), unit: re.unit } : null;
+  const running = det.hp_running === true;
+  out.push({ kind: "heat_pump", running, pump: running, flowTarget: num(d.target), power, coil: true,
+    entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "shadow", fault: false });
+  if (conf.wood_entity) {
+    const wood = d.wood === "certain" || d.wood === "likely" || mi.inputs?.wood_signal === true;
+    out.unshift({ kind: "wood_boiler", running: wood, pump: wood, entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "shadow", fault: false });
+  }
+  return out;
 }
 
 // ───────────── adapter: info JSON -> view model ─────────────
@@ -329,6 +365,26 @@ export function fromInfo(info, x = {}) {
     lead = room({ name: nm || TXT[lang].room, area: null });
   }
   lead.leading = true;
+  // 0.59.0: a room zone (a zone of a central / mixing circuit, or a heat source with its own control) is named by its
+  // instance: "HC Mosókonyha" is the Mosókonyha, even when its thermometer's name (or area) says "konyha"
+  const zoneLike = info.role === "zone" || srcRaw === "external_heat";
+  const tName = zoneLike ? titleRoom(info.title, areas) : null;
+  if (tName) {
+    const la = lead.area_id ? areaById[lead.area_id] : null;
+    const fits = la && tokens(la.name).every((w) => tokens(tName.name).includes(w));
+    if (!fits && norm(lead.name) !== norm(tName.name)) {
+      lead.name = tName.name; lead.area_id = tName.area?.area_id || null; lead.kind = guessKind(tName.name, tName.area?.icon);
+      if (tName.area?.floor_id != null) lead.floor = floorLevel[tName.area.floor_id] ?? lead.floor;
+    }
+  }
+  // 0.59.0: the mixing circuits this zone is in give its emitters (a bathroom: radiator and floor, one thermostat)
+  const circs = Array.isArray(info.circuits) ? info.circuits : [];
+  if (circs.length && !ROOM_UNIT_KINDS.includes(kind)) {
+    const ks = new Set(circs.map((q) => q.kind === "floor" ? "floor" : "radiator"));
+    lead.emitter = ks.has("radiator") ? "radiator" : "floor";
+    lead.circuits = circs.map((q) => ({ entry: q.entry_id, title: q.title, kind: q.kind, target: num(q.target) }));
+    if (ks.size > 1) lead.extras = [...(lead.extras || []), { emitter: "floor", heating: false, both: true, entry: (circs.find((q) => q.kind === "floor") || {}).entry_id, title: (circs.find((q) => q.kind === "floor") || {}).title || "" }];
+  }
   lead.temp = num(inp.indoor?.value) ?? num(dec.indoor) ?? num(cl.current_temperature);
   lead.target = num(dec.target) ?? num(cl.temperature);
   lead.thermostat = { temp: lead.temp, target: lead.target, hc: true };
@@ -406,21 +462,33 @@ export function fromInfo(info, x = {}) {
     if (["radiator", "floor", "fan_coil"].includes(r.emitter)) {
       if (r._heatingSet) continue;
       r.heating = flowing && (r.trvs.length ? r.trvs.some((t) => t.state === "heating" || t.state === "unknown") : true);
+      // 0.59.0: a zone's own valve (an external heat source / a circuit) – the room heats while it asks
+      if (r.leading && zoneLike) r.heating = !!(output || actual || relay);
     } else if (r.leading && ROOM_UNIT_KINDS.includes(kind)) r.heating = running;
+    for (const ex of r.extras || []) if (ex.both) ex.heating = r.heating;
     if (!r.thermostat && r.temp != null) r.thermostat = { temp: r.temp, target: r.target, hc: false };
   }
 
   // 0.53.0: one house, several heat sources – the other HC instances of this house (x.members: their info data) put
   // their rooms, room units and heat sources into this drawing
-  const sources = [];
+  const sources = [], circuits = [];
+  let tank = null;
   for (const mi of Array.isArray(x.members) ? x.members : []) {
     if (!mi || !mi.entry_id) continue;
+    // 0.59.0: a mixing circuit, a buffer tank and a heat pump coordination are parts of the plant room – no room of
+    // their own (the "Helyiség 33 °C" was a circuit's flow target), and no boiler box
+    const role = mi.role || "standalone";
+    if (role === "circuit") { circuits.push(circuitOf(mi)); continue; }
+    if (role === "buffer") { if (!tank) tank = tankOf(mi); continue; }
+    if (role === "hp_coord") { sources.push(...hpSources(mi)); continue; }
     let mv;
     try { mv = fromInfo(mi, { lang, areas: x.areas, floors: x.floors, sun: x.sun, members: [] }); } catch (e) { continue; }
     const who = { entry: mi.entry_id, title: mi.title || "", kind: mv.source?.kind || null, mode: mi.mode || "active" };
-    sources.push({ ...(mv.source || {}), entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "active", target: mv.target, indoor: mv.indoor });
+    // 0.59.0: a room zone (its valve only) is not a heat source of the house
+    const zoneM = role === "zone" || mi.heat_source === "external_heat";
+    if (!zoneM) sources.push({ ...(mv.source || {}), entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "active", target: mv.target, indoor: mv.indoor });
     for (const mr of mv.rooms || []) {
-      const host = mr.leading && (mi.house_room || mi.house_area)
+      const host = mr.leading && !zoneM && (mi.house_room || mi.house_area)
         ? room({ key: mi.house_room || undefined, name: areaById[mi.house_area]?.name || mr.name, area: areaById[mi.house_area] || null })
         : room({ key: undefined, name: mr.name, area: (mr.area_id && areaById[mr.area_id]) || null });
       if (!host) continue;
@@ -431,15 +499,18 @@ export function fromInfo(info, x = {}) {
       if (fresh) {  // a room only this member knows: all of it
         Object.assign(host, { kind: mr.kind || host.kind, temp: mr.temp, target: mr.target, emitter: mr.emitter, unit, trvs: mr.trvs || [],
           heating: !!mr.heating, _heatingSet: true, thermostat: mr.thermostat ? { ...mr.thermostat, hc: false } : null, presence: mr.presence ?? host.presence,
-          window: mr.window ?? host.window, memberOnly: mi.entry_id });
+          window: mr.window ?? host.window, memberOnly: mi.entry_id, extras: [...(host.extras || []), ...(mr.extras || [])],
+          circuits: mr.circuits || host.circuits });
         if (host.floor == null && mr.floor != null) host.floor = mr.floor;
       } else if (host.emitter === "none" || emptyAc) {  // a room the host does not heat (measured only, or the zone): the member's emitter
-        Object.assign(host, { emitter: mr.emitter, unit, heating: !!mr.heating, _heatingSet: true, member: mi.entry_id });
+        Object.assign(host, { emitter: mr.emitter, unit, heating: !!mr.heating, _heatingSet: true, member: mi.entry_id,
+          extras: [...(host.extras || []), ...(mr.extras || [])], circuits: mr.circuits || host.circuits });
         if (isNum(mr.target)) host.target = mr.target;
         if (host.temp == null) host.temp = mr.temp;
         host.thermostat = { temp: host.temp, target: host.target, hc: false };
       } else {  // a room the host heats too: the member's emitter next to it
-        host.extras = [...(host.extras || []), { emitter: mr.emitter, unit, heating: !!mr.heating, target: mr.target, entry: mi.entry_id, title: mi.title || "" }];
+        host.extras = [...(host.extras || []), { emitter: mr.emitter, unit, heating: !!mr.heating, target: mr.target, entry: mi.entry_id, title: mi.title || "" },
+          ...(mr.extras || [])];
         if (host.temp == null) host.temp = mr.temp;
       }
     }
@@ -466,7 +537,7 @@ export function fromInfo(info, x = {}) {
     lang, title: conf.home_name || info.title || conf.name || "HC", subtitle: lang === "hu" ? info.text_hu : info.text_en,
     mode: info.mode || "active", target: num(dec.target), indoor: num(dec.indoor), demand,
     night: !!night, outdoor: (num(inp.outdoor?.value) ?? num(dec.outdoor)) != null ? { temp: num(inp.outdoor?.value) ?? num(dec.outdoor), avg: num(inp.outdoor_avg) } : null,
-    presence, doors, source, rooms: ordered, sources,
+    presence, doors, source, rooms: ordered, sources, circuits, tank, role: info.role || "standalone",
   };
 }
 
@@ -509,7 +580,11 @@ export function renderHouse(vm, opts = {}) {
   const FS = narrow ? 1.22 : 1; // label scale on phones
   const src0 = vm.source || { kind: "gas_boiler" };
   // 0.53.0: the plant room's sources – the host's own (when it heats water) and the other instances' of this house
-  const plant = [src0, ...(vm.sources || [])].filter((q) => q && !ROOM_UNIT_KINDS.includes(q.kind));
+  let plant = [src0, ...(vm.sources || [])].filter((q) => q && !ROOM_UNIT_KINDS.includes(q.kind));
+  // 0.59.0: a room zone's "heat source with its own control" is not drawn next to the house's real heat sources
+  const realP = plant.filter((q) => q.kind !== "external_heat" && !(q === src0 && vm.role === "zone" && (vm.sources || []).length));
+  if (realP.length) plant = realP;
+  const tank = vm.tank || null, circuits = vm.circuits || [];
   const src = plant[0] || src0;
   const GAS_KINDS = ["gas_boiler", "modulating_boiler"];
   const gasSrc = plant.find((q) => GAS_KINDS.includes(q.kind)) || null;
@@ -901,7 +976,12 @@ export function renderHouse(vm, opts = {}) {
     if (g.cell.elec) return drawElec(g);
     const b = roomBox(g, "util");
     // 0.53.0: every water-heating source of the house side by side (the host's first), one expansion tank
-    const list = plant.length ? plant : [src];
+    let list = plant.length ? plant : [src];
+    // 0.59.0: a heat pump on the tank's coil (heat pump coordination) has no box in here – only its outdoor unit,
+    // piped to the tank's lower third
+    const coilHp = tank ? list.filter((q) => q.coil) : [];
+    if (coilHp.length && coilHp.length < list.length) list = list.filter((q) => !q.coil);
+    else coilHp.length = 0;
     const n = list.length;
     if (direct && n === 1) return drawDirect(g, b, list);
     const bw = n > 1 ? (narrow ? 38 : 44) : (narrow ? 50 : 56), bh = n > 1 ? 62 : 74, gap = n > 2 ? 8 : 12;
@@ -917,7 +997,7 @@ export function renderHouse(vm, opts = {}) {
     pipe(`M${fx1},${by + bh} V${g.yFH} H${rfx}`, "f", flowing);
     pipe(`M${rrx},${g.yRH} H${rx1} V${by + bh}`, "r", flowing);
     list.forEach((q, i) => {
-      const x = bx + i * (bw + gap), k = q.kind, on = !!q.running, big = k === "pellet_boiler";
+      const x = bx + i * (bw + gap), k = q.kind, on = !!q.running, big = k === "pellet_boiler", solid = k === "pellet_boiler" || k === "wood_boiler";
       q._box = { x, y: by, w: bw, h: bh };
       const p2 = [];
       if (i > 0) {  // its own stubs onto the plant room's mains
@@ -925,13 +1005,13 @@ export function renderHouse(vm, opts = {}) {
         pipe(`M${x + 8},${g.yRH} V${by + bh}`, "r", flowing && (q.pump || on));
       }
       if (on) p2.push(`<ellipse cx="${x + bw / 2}" cy="${by + bh * 0.6}" rx="${bw}" ry="${bh * 0.7}" fill="url(#${P}glow)" class="a-pulse"/>`);
-      p2.push(`<rect x="${x}" y="${by}" width="${bw}" height="${bh}" rx="6" fill="url(#${P}${k === "pellet_boiler" ? "pel" : k === "district_heating" ? "steel" : "boiler"})" class="unit" filter="url(#${P}sh)"/>
+      p2.push(`<rect x="${x}" y="${by}" width="${bw}" height="${bh}" rx="6" fill="url(#${P}${solid ? "pel" : k === "district_heating" ? "steel" : "boiler"})" class="unit" filter="url(#${P}sh)"/>
         <rect x="${x + 6}" y="${by + 10}" width="${bw - 12}" height="15" rx="2.5" class="lcd"/>`);
       const disp = isNum(q.flow) ? deg(q.flow, lang) : isNum(q.flowTarget) && on ? deg(q.flowTarget, lang) : on ? "ON" : "– –";
       p2.push(`<text x="${x + bw / 2}" y="${by + 21.5}" class="lcdt" text-anchor="middle">${esc(disp)}</text>`);
       const cy = by + bh * 0.66;
-      if (k === "pellet_boiler") p2.push(`<rect x="${x + 7}" y="${by + bh * 0.42}" width="${bw - 14}" height="${bh * 0.48}" rx="3" class="pwin ${on ? "on" : ""}"/>`);  // the fire door
-      if (["gas_boiler", "modulating_boiler", "pellet_boiler"].includes(k)) {
+      if (solid) p2.push(`<rect x="${x + 7}" y="${by + bh * 0.42}" width="${bw - 14}" height="${bh * 0.48}" rx="3" class="pwin ${on ? "on" : ""}"/>`);  // the fire door
+      if (["gas_boiler", "modulating_boiler", "pellet_boiler", "wood_boiler"].includes(k)) {
         const sc = (on ? 0.8 + 0.6 * (q.modulation ?? 1) : 0.9) * (n > 1 ? 0.85 : 1);
         p2.push(`<g transform="translate(${x + bw / 2},${cy}) scale(${sc.toFixed(2)})"><path d="M0,-12 C6,-5 10,-1 8,5 C6,11 -6,11 -8,5 C-10,-1 -4,-2 -2,-8 C0,-4 2,-3 0,-12Z" class="${on ? "flame a-flk" : "flame0"}"/>${on ? `<path d="M0,-3 C3,0 4,2 3,5 C2,7 -2,7 -3,5 C-4,2 -1,1 0,-3Z" fill="#fff59d" class="a-flk"/>` : ""}</g>`);
       } else if (k === "electric_boiler") {
@@ -962,11 +1042,11 @@ export function renderHouse(vm, opts = {}) {
         const fy = by + 7, ex = X0 - 12;
         p2.push(`<path d="M${x + bw / 2},${by} V${fy - 8} Q${x + bw / 2},${fy - 14} ${x + bw / 2 - 6},${fy - 14} H${ex}" class="flue"/><rect x="${ex - 7}" y="${fy - 20}" width="9" height="12" rx="2" class="fluecap"/>`);
         if (on) for (let j = 0; j < 3; j++) p2.push(`<circle cx="${ex - 10}" cy="${fy - 16}" r="${4 + j}" class="puff a-puff" style="animation-delay:${(-j * 0.9).toFixed(1)}s"/>`);
-      } else if (i === 0 && k === "pellet_boiler") {
+      } else if (i === 0 && solid) {
         const ex = X0 - 16;
         p2.push(`<path d="M${x + bw / 2},${by} V${by - 6} H${ex + 6}" class="flue"/><rect x="${ex - 6}" y="${apexY + RH * 0.45}" width="16" height="${by - apexY - RH * 0.45 + 6}" class="chim"/>`);
         if (on) for (let j = 0; j < 3; j++) p2.push(`<circle cx="${ex + 2}" cy="${apexY + RH * 0.45 - 4}" r="${4 + j}" class="puff a-puff" style="animation-delay:${(-j * 0.9).toFixed(1)}s"/>`);
-      } else if ([...GAS_KINDS, "pellet_boiler"].includes(k)) {
+      } else if ([...GAS_KINDS, "pellet_boiler", "wood_boiler"].includes(k)) {
         p2.push(`<path d="M${x + bw / 2},${by} V${b.y0 + CD}" class="flue"/>`);
       }
       if (i === 0) parts.push(...p2);
@@ -978,7 +1058,28 @@ export function renderHouse(vm, opts = {}) {
     let used = lastX;
     if (tx + 16 < rfx - 4) used = tx + 16;
     if (tx + 16 < rfx - 4) parts.push(`<path d="M${tx + 8},${ty + 40} V${g.yRH}" class="pp pp-r" style="stroke-width:3"/><rect x="${tx}" y="${ty}" width="16" height="40" rx="8" fill="url(#${P}tank)" filter="url(#${P}sh)"/>`);
-    const bufSrc = list.find((q) => q.buffer);
+    const bufSrc = tank ? null : list.find((q) => q.buffer);
+    if (tank && b.w > 150) {  // 0.59.0: the stratified tank – its layers top to bottom, the charge under it
+      // below the plant room's two label lines, above the circuits' rows
+      const cx = tx + 26, cw = Math.min(34, rfx - cx - 8), ty0 = Math.max(by - 4, b.y0 + CD + 44);
+      const th = Math.max(40, Math.min(bh + 8, b.yB - 14 - Math.min(circuits.length, 3) * 19 * FS - ty0 - 16));
+      if (cw > 18) {
+        const ls = tank.layers.length ? tank.layers : [{ temp: tank.top }];
+        const lh = (th - 6) / ls.length;
+        const tp = [`<rect x="${cx}" y="${ty0}" width="${cw}" height="${th}" rx="${cw / 2.6}" fill="url(#${P}steel)" filter="url(#${P}sh)"/>`];
+        ls.forEach((l, j) => {
+          const c = isNum(l.temp) ? `hsl(${clamp(220 - (l.temp - 25) * 5.5, 0, 220).toFixed(0)},70%,55%)` : "#9e9e9e";
+          tp.push(`<rect x="${cx + 3}" y="${(ty0 + 3 + j * lh).toFixed(1)}" width="${cw - 6}" height="${(lh - 1).toFixed(1)}" rx="2" fill="${c}" fill-opacity=".85" class="tlay"><title>${esc(`${l.name || ""} ${deg(l.temp, lang)}`)}</title></rect>`);
+          if (isNum(l.temp) && lh >= 10) tp.push(`<text x="${cx + cw / 2}" y="${(ty0 + 3 + j * lh + lh / 2 + 3).toFixed(1)}" class="tiny tlt" text-anchor="middle">${esc(tn(l.temp, lang, 0))}°</text>`);
+        });
+        if (coilHp.length) tp.push(`<path d="M${cx + 4},${ty0 + th * 0.7} q${(cw - 8) / 4},-5 ${(cw - 8) / 2},0 t${(cw - 8) / 2},0 M${cx + 4},${ty0 + th * 0.8} q${(cw - 8) / 4},-5 ${(cw - 8) / 2},0 t${(cw - 8) / 2},0" class="coil"/>`);
+        parts.push(`<g class="hs" data-key="member:${esc(tank.entry || "")}"><title>${esc(tank.title || L.kinds.buffer)}</title>${tp.join("")}</g>`);
+        const tl = [isNum(tank.charge) ? `${tn(tank.charge, lang, 0)} %` : null, isNum(tank.kwh) ? `${tn(tank.kwh, lang, tank.kwh < 10 ? 1 : 0)} kWh` : null].filter(Boolean).join(" · ");
+        if (tl) roomOverlays.push(pill(cx + cw / 2, ty0 + th + 9, tl, { cls: tank.charging ? "pon2" : "poff2", anchor: "middle", size: 9.5, key: `member:${tank.entry || ""}` }));
+        for (const q of coilHp) q._box = { x: cx, y: ty0 + th * 0.66 - 22, w: cw, h: th * 0.34 };
+        used = cx + cw;
+      }
+    }
     if (bufSrc && b.w > 150) {
       const cx = tx + 26, cw = Math.min(30, rfx - cx - 10);
       if (cw > 18) parts.push(`<rect x="${cx}" y="${by - 4}" width="${cw}" height="${bh + 8}" rx="${cw / 2.6}" fill="url(#${P}steel)" filter="url(#${P}sh)"/>${isNum(bufSrc.bufferTemp) ? `<text x="${cx + cw / 2}" y="${by + bh / 2}" class="tiny" text-anchor="middle">${esc(deg(bufSrc.bufferTemp, lang))}</text>` : ""}`);
@@ -998,7 +1099,17 @@ export function renderHouse(vm, opts = {}) {
     // pump on the return stub
     const py = by + bh + 14;
     roomOverlays.push(`<g transform="translate(${rx1},${py})"><circle r="8" class="pump" filter="url(#${P}sh)"/><g class="${flowing ? "a-spin" : ""}"><path d="M0,-5 L1.5,0 L0,5 L-1.5,0Z M-5,0 L0,1.5 L5,0 L0,-1.5Z" class="rotor"/></g></g>`);
-    plantLabels(b, list, parts, extra);
+    // 0.59.0: the mixing circuits – a mixing valve and the circuit's flow target (not a room)
+    circuits.slice(0, 3).forEach((c, j) => {
+      const yy = b.yB - 11 - j * (19 * FS), xr = b.x1 - I - 4;
+      const name = String(c.title || "").replace(/^\s*hc(?=[\s:\-–]|$)[\s:\-–]*/i, "") || (c.kind === "floor" ? (lang === "hu" ? "Padlófűtési kör" : "Floor circuit") : (lang === "hu" ? "Radiátoros kör" : "Radiator circuit"));
+      const t = fit(`${name} · ${L.target} ${tn(c.target, lang)}°`, 10, b.w - 2 * I - 30, 600);
+      const w = tw(t, 10 * FS, 600) + 12;
+      roomOverlays.push(pill(xr, yy, t, { cls: c.demand ? "pon2" : "poff2", anchor: "end", size: 10, key: `member:${c.entry || ""}` }));
+      const vx = xr - w - 9;
+      roomOverlays.push(`<g class="hs" data-key="member:${esc(c.entry || "")}" transform="translate(${vx.toFixed(1)},${yy.toFixed(1)})"><title>${esc(`${c.title || ""} – ${L.flowTargetL} ${deg(c.target, lang)}`)}</title><path d="M-6,-4 L0,0 L-6,4Z M6,-4 L0,0 L6,4Z M-3,6 L0,0 L3,6Z" class="mix ${c.kind === "floor" ? "mixf" : ""}"/></g>`);
+    });
+    plantLabels(b, [...list, ...coilHp], parts, extra);
   }
 
   // 0.58.0: a district-heated flat with its radiators straight on the building's risers: shut-off valves and the
@@ -1048,7 +1159,7 @@ export function renderHouse(vm, opts = {}) {
   // status labels of the plant room: one source as before; several: their names, then their states
   function plantLabels(b, list, parts, extra) {
     const n = list.length, anyOn = list.some((q) => q.running);
-    const stOf = (q) => ROOM_UNIT_KINDS.includes(q.kind) && !elec ? "" : [...GAS_KINDS, "pellet_boiler"].includes(q.kind) ? (q.running ? L.burning : L.idle) : (q.running ? L.running : L.idle);
+    const stOf = (q) => ROOM_UNIT_KINDS.includes(q.kind) && !elec ? "" : [...GAS_KINDS, "pellet_boiler", "wood_boiler"].includes(q.kind) ? (q.running ? L.burning : L.idle) : (q.running ? L.running : L.idle);
     const lx = b.x1 - I - 4, ly = b.y0 + CD + 13;
     const maxW = b.w - 2 * I - 8;
     const name = n > 1 ? list.map((q) => L.kinds[q.kind] || q.kind).join(" + ") : efl && src.kind === "electric_heater" ? L.efloor : (L.kinds[src.kind] || src.kind);
@@ -1207,6 +1318,16 @@ export function renderHouse(vm, opts = {}) {
         const pw = ex.unit?.power;
         if (pw && isNum(pw.value)) labels.push(pill(exx + ew / 2, ey - 12, `${tn(pw.value, lang, pw.value < 10 ? 1 : 0)} ${pw.unit}`, { cls: on ? "pon2" : "poff2", anchor: "middle", size: 10, key: kx }));
         slotL = exx - 8;
+      } else if (ex.emitter === "floor" && ex.both) {
+        // 0.59.0: the same room's floor loop on its own mixing circuit (a bathroom with a radiator too), one thermostat
+        const P2 = (u, v) => [lerp(lerp(b.x0 + I, b.x0, v), lerp(b.x1 - I, b.x1, v), u), lerp(b.yB, b.y1, v)];
+        const pts = [P2(0.06, 1)];
+        [0.82, 0.55, 0.28].forEach((v, i) => { const a = i % 2 === 0 ? [0.06, 0.94] : [0.94, 0.06]; pts.push(P2(a[0], v), P2(a[1], v)); });
+        pts.push(P2(0.96, 0.18), P2(0.96, 1));
+        const d = "M" + pts.map((q) => `${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" L");
+        if (on) p3.push(`<path d="M${b.x0 + I},${b.yB} H${b.x1 - I} L${b.x1},${b.y1} H${b.x0} Z" class="ufhglow a-pulse"/>`);
+        p3.push(`<path d="${d}" class="ufh" stroke="#ab47bc"/>`);
+        if (on && flowing) p3.push(`<path d="${d}" class="fl fl-u a-fl"/>`);
       } else if ((ex.emitter === "floor" || ex.emitter === "efloor") && on) {
         p3.push(`<path d="M${b.x0 + I},${b.yB} H${b.x1 - I} L${b.x1},${b.y1} H${b.x0} Z" class="ufhglow a-pulse"/>`);
       }
@@ -1274,7 +1395,7 @@ export function renderHouse(vm, opts = {}) {
       ...r.trvs.map((t) => `${t.name}: ${deg(t.temp, lang)} → ${tn(t.target, lang)}° (${t.state === "heating" ? L.v_heating : t.state === "off" ? L.v_off : L.v_idle})${isNum(t.calibration) ? ` cal ${t.calibration > 0 ? "+" : ""}${tn(t.calibration, lang, 2)}` : ""}`),
       r.window ? `${L.open}` : null, r.door ? L.door : null, r.leading ? L.leading : null, r.zone ? L.zone : null,
       r.advice && r.advice !== "ok" ? `${r.advice}${isNum(r.deviation) ? ` (${r.deviation > 0 ? "+" : ""}${tn(r.deviation, lang, 2)} K)` : ""}` : null,
-      ...(r.members || []).map((m) => `${m.title}${m.kind ? ` (${L.kinds[m.kind] || m.kind})` : ""}`)].filter(Boolean).join(" · ");
+      ...(r.members || []).map((m) => `${m.title}${m.kind && m.kind !== "external_heat" ? ` (${L.kinds[m.kind] || m.kind})` : ""}`)].filter(Boolean).join(" · ");
     // 0.53.0: a room another instance heats (alone, or in the host's unheated room) opens that instance
     const rkey = r.memberOnly || r.member ? `member:${esc(r.memberOnly || r.member)}` : `room:${esc(r.key)}`;
     out.push(`<g class="hs" data-key="${rkey}" role="button" tabindex="0" aria-label="${esc(tip)}"><title>${esc(tip)}</title><rect x="${b.x0}" y="${b.y0}" width="${b.w}" height="${b.h}" class="hit"/>${parts.join("")}</g>`);
@@ -1454,6 +1575,7 @@ svg.night { --sk1:#08112a; --sk2:#22325a; --gl1:#0f1d3d; --gl2:#2a3f6e; }
 .rad { stroke:#aab3ba; stroke-width:1; } .radl { stroke:rgba(0,0,0,.14); stroke-width:1; } .radl2 { fill:#9aa3ab; }
 .shim { fill:none; stroke:#ff8a65; stroke-width:1.6; stroke-linecap:round; opacity:0; }
 .trv { fill:#fafafa; stroke:#9aa3ab; stroke-width:.8; } .trvr.trv-h { fill:#ff5722; } .trvr.trv-i { fill:#90a4ae; } .trvr.trv-o { fill:#455a64; }
+.mix { fill:#78909c; stroke:#37474f; stroke-width:.8; } .mix.mixf { fill:#ab47bc; } .coil { fill:none; stroke:#e53935; stroke-width:1.6; } .tlt { fill:#fff; font-weight:700; }
 .ufh { fill:none; stroke-width:3; stroke-linecap:round; opacity:.95; } .ufhglow { fill:#ff8a50; fill-opacity:.16; }
 .acu { fill:#fbfbfb; stroke:#c5cbd0; } .acl { stroke:#9aa3ab; stroke-width:1.2; }
 .air { fill:none; stroke:#ffab76; stroke-width:2; stroke-linecap:round; stroke-dasharray:6 6; opacity:.9; } .air.cool { stroke:#81d4fa; }

@@ -130,7 +130,9 @@ def _buffer_fields(current: dict) -> dict:
     return {
         vol.Required(CONF_BUFFER_TOP, default=current.get(CONF_BUFFER_TOP)) if current.get(CONF_BUFFER_TOP) else vol.Required(CONF_BUFFER_TOP): _ent(CONF_BUFFER_TOP, "sensor"),
         vol.Optional(CONF_BUFFER_BOTTOM, description={"suggested_value": current.get(CONF_BUFFER_BOTTOM)}): _ent(CONF_BUFFER_BOTTOM, "sensor"),
-        vol.Required(CONF_BOILER, default=current.get(CONF_BOILER)) if current.get(CONF_BOILER) else vol.Required(CONF_BOILER): _entity("switch", "input_boolean"),
+        # 0.59.0: optional – without it the tank is only watched (its heat source has its own control, or a heat pump
+        # coordination drives it)
+        vol.Optional(CONF_BOILER, description={"suggested_value": current.get(CONF_BOILER)}): _entity("switch", "input_boolean"),
         vol.Optional(CONF_ZONES, description={"suggested_value": current.get(CONF_ZONES)}): zones,
         vol.Required("buffer_demand_led", default=cfg.buffer_demand_led): BooleanSelector(),
         vol.Required("buffer_on", default=cfg.buffer_on): _number(20, 80, 1, "°C"),
@@ -270,7 +272,7 @@ def _hpc_settings(current: dict) -> dict:
     return dict([
         n("hp_flow_min", 15, 50, 1, "°C"), n("hp_flow_max", 25, 70, 1, "°C"), n("hp_reserve", 0, 15, 0.5, "°C"),
         n("hp_offset", -8, 8, 0.5, "°C"), n("hp_hyst", 0.5, 10, 0.5, "°C"),
-        n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"),
+        n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"), b("hp_charge_needs_demand"),
         n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
         b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),
         b("hp_auto_summer"), n("hp_summer_after_h", 1, 168, 1, "h"), n("hp_winter_after_s", 0, 14400, 300, "s"),

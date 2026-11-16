@@ -28,7 +28,7 @@
         "data": {
           "indoor_entity": "Benti hőmérséklet (fali termosztát érintkezőjével elhagyható)",
           "outdoor_entity": "Kinti hőmérő",
-          "actuator_entity": "Kazánt kapcsoló relé",
+          "actuator_entity": "Kapcsolt relé (kazán, illetve zónánál a zónaszelep / helyiségi relé)",
           "external_climate": "Külső termosztát",
           "window_entities": "Ablakok és ajtók",
           "presence_entities": "Jelenlét",
@@ -141,7 +141,7 @@
         "data": {
           "buffer_top_entity": "Tartály felső hőmérője",
           "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
-          "boiler_entity": "Hőforrás reléje",
+          "boiler_entity": "Hőforrás reléje (nem kötelező: üresen a HC csak figyeli a tartályt)",
           "zone_entities": "Zónák, amelyek a tartályból fűtenek (HC)",
           "buffer_demand_led": "Csak zónaigénynél kezdjen új töltést",
           "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
@@ -244,6 +244,7 @@
           "hp_hyst": "Csak az igény fölött ennyivel áll le",
           "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
           "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+          "hp_charge_needs_demand": "A töltöttség csak helyiségi/köri igény mellett indít és tart fűtést",
           "hp_min_on_s": "Legrövidebb ON idő",
           "hp_min_off_s": "Legrövidebb OFF idő",
           "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
@@ -671,7 +672,7 @@
         "data": {
           "buffer_top_entity": "Tartály felső hőmérője",
           "buffer_bottom_entity": "Tartály alsó hőmérője (nem kötelező)",
-          "boiler_entity": "Hőforrás reléje",
+          "boiler_entity": "Hőforrás reléje (nem kötelező: üresen a HC csak figyeli a tartályt)",
           "zone_entities": "Zónák, amelyek a tartályból fűtenek (HC)",
           "buffer_demand_led": "Csak zónaigénynél kezdjen új töltést",
           "buffer_on": "Töltés indul, ha a teteje ennyi vagy hidegebb",
@@ -734,7 +735,7 @@
         "data": {
           "indoor_entity": "Benti hőmérséklet (fali termosztát érintkezőjével elhagyható)",
           "demand_entity": "Vezetékes fali termosztát érintkezője (ha van: be = fűtést kér)",
-          "actuator_entity": "Kazánt kapcsoló relé",
+          "actuator_entity": "Kapcsolt relé (kazán, illetve zónánál a zónaszelep / helyiségi relé)",
           "external_climate": "Külső termosztát",
           "flow_setpoint_entity": "Előremenő-cél entitás (number / input_number, pl. OpenTherm vagy ebusd)",
           "heat_enable_entity": "Fűtés engedélyezése (kapcsoló, ha van)",
@@ -811,6 +812,7 @@
           "hp_hyst": "Csak az igény fölött ennyivel áll le",
           "hp_charge_on": "Indul ennél a töltöttségnél vagy alatta (0 = nem használja)",
           "hp_charge_off": "Csak ennél a töltöttségnél vagy fölötte áll le (0 = nem használja)",
+          "hp_charge_needs_demand": "A töltöttség csak helyiségi/köri igény mellett indít és tart fűtést",
           "hp_min_on_s": "Legrövidebb ON idő",
           "hp_min_off_s": "Legrövidebb OFF idő",
           "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",

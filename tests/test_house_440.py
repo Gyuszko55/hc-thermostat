@@ -166,4 +166,4 @@ def test_position_field_is_translated_and_the_house_view_is_served():
     assert "export function fromInfo" in js and 'customElements.define("hc-house-view"' in js
     panel = (ROOT / "www" / "hc-info-panel.js").read_text()
     assert "hc-house-view.js${new URL(import.meta.url).search}" in panel  # cache-busting with the panel's ?v=
-    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.0", "0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2", "0.48.3", "0.49.0", "0.50.0", "0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0")
+    assert json.loads((ROOT / "manifest.json").read_text())["version"] in ("0.44.0", "0.44.1", "0.44.2", "0.44.3", "0.44.4", "0.44.5", "0.45.0", "0.46.0", "0.47.0", "0.48.0", "0.48.1", "0.48.2", "0.48.3", "0.49.0", "0.50.0", "0.51.0", "0.51.1", "0.51.2", "0.52.0", "0.52.1", "0.53.0", "0.54.0", "0.55.0", "0.56.0", "0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0")

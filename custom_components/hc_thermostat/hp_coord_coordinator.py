@@ -36,9 +36,24 @@ RUNNING_W = 100.0  # a power reading above this means the heat pump runs
 # reading is no longer taken as watts (which made the heat pump's own heat look like wood)
 RUNNING_ABOVE = {"W": RUNNING_W, "kW": 0.1, "mW": RUNNING_W * 1000, "A": 0.5, "mA": 500.0, "Hz": 0.0, "rpm": 0.0,
                  "%": 0.0}
+# 0.59.0: a measured number (power, current…) that says "runs" but has not been reported for this long is not trusted:
+# a meter that stopped reporting at 1.5 kW must not keep the heat pump "running" (and wood looking impossible).
+# A stale low reading stays "does not run" – a quiet meter at idle is normal.
+RUNNING_MAX_AGE_S = 900.0
 
 
-def on_state(hass, entity_id: str | None) -> bool | None:
+def reading_age_s(state, now: datetime | None = None) -> float | None:
+    """Seconds since the entity last reported (None: not known)."""
+    reported = getattr(state, "last_reported", None) or getattr(state, "last_updated", None)
+    if reported is None:
+        return None
+    try:
+        return max(0.0, ((now or dt_util.utcnow()) - reported).total_seconds())
+    except TypeError:
+        return None
+
+
+def on_state(hass, entity_id: str | None, now: datetime | None = None) -> bool | None:
     """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
     (power W / kW, current A, compressor Hz / rpm, modulation %); None when not given or not known."""
     state = hass.states.get(entity_id) if entity_id else None
@@ -59,7 +74,14 @@ def on_state(hass, entity_id: str | None) -> bool | None:
     except ValueError:
         return None
     above = RUNNING_ABOVE.get(str(state.attributes.get("unit_of_measurement") or "").strip())
-    return None if above is None else value > above
+    if above is None:
+        return None
+    runs = value > above
+    if runs:
+        age = reading_age_s(state, now)
+        if age is not None and age > RUNNING_MAX_AGE_S:
+            return None  # 0.59.0: an old "runs" reading – not known
+    return runs
 
 
 class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
@@ -124,9 +146,19 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                         charge=stock.charge if stock is not None else None,
                         trend_c_h=trend.get("c_per_h"), circuits=tuple(circuits), zones_asking=zones_asking,
                         frost_top=frost,
-                        wood_signal=on_state(self.hass, self.conf.get(CONF_WOOD)) if self.conf.get(CONF_WOOD) else None,
-                        hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING)),
+                        wood_signal=on_state(self.hass, self.conf.get(CONF_WOOD), now) if self.conf.get(CONF_WOOD) else None,
+                        hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now),
+                        hp_running_age_s=self._running_age(now),
                         offset=self.offset)
+
+    def _running_age(self, now: datetime) -> float | None:
+        """0.59.0: how old the "runs" reading is (shown next to it)."""
+        eid = self.conf.get(CONF_HP_RUNNING)
+        state = self.hass.states.get(eid) if eid else None
+        if state is None:
+            return None
+        age = reading_age_s(state, now)
+        return None if age is None else round(age)
 
     async def _async_update_data(self) -> HpDecision:
         now = dt_util.now()

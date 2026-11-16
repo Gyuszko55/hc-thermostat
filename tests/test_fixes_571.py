@@ -38,7 +38,7 @@ def test_running_signal_by_unit():
         "sensor.nounit": st("2.4"), "sensor.temp": st("45", unit_of_measurement="°C"),
     }
     hass = SimpleNamespace(states=SimpleNamespace(get=states.get))
-    on = lambda e: hc.on_state(hass, e)  # noqa: E731
+    on = lambda e: hc.on_state(hass, e, T0)  # noqa: E731  (0.59.0: "now" = the readings' time)
     assert on("sensor.kw") is True and on("sensor.kw0") is False  # 2.4 kW: runs (it was "not running" as watts)
     assert on("sensor.a") is True and on("sensor.a0") is False
     assert on("sensor.hz") is True and on("sensor.hz0") is False
@@ -190,7 +190,7 @@ def test_zone_hold_survives_a_restart():
 
 
 def test_version():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.57.1", "0.58.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.57.1", "0.58.0", "0.59.0")
 
 
 def test_house_view_power_above_the_outdoor_unit():

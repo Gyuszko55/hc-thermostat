@@ -28,7 +28,7 @@
         "data": {
           "indoor_entity": "Indoor temperature (optional when a wall thermostat contact is given)",
           "outdoor_entity": "Outdoor temperature",
-          "actuator_entity": "Boiler relay",
+          "actuator_entity": "Switched relay (the boiler, or for a zone its zone valve / room relay)",
           "external_climate": "External thermostat",
           "window_entities": "Windows and doors",
           "presence_entities": "Presence",
@@ -141,7 +141,7 @@
         "data": {
           "buffer_top_entity": "Tank top thermometer",
           "buffer_bottom_entity": "Tank bottom thermometer (optional)",
-          "boiler_entity": "Heat source relay",
+          "boiler_entity": "Heat source relay (optional: empty = HC only watches the tank)",
           "zone_entities": "Zones heating from the tank (HC)",
           "buffer_demand_led": "Start a new charge only on zone demand",
           "buffer_on": "Charge starts when the top is this cold or colder",
@@ -244,6 +244,7 @@
           "hp_hyst": "Stop only this much above the need",
           "hp_charge_on": "Start at or below this charge (0 = not used)",
           "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+          "hp_charge_needs_demand": "The charge starts / keeps a heating only while a room or circuit asks",
           "hp_min_on_s": "Minimum ON time",
           "hp_min_off_s": "Minimum OFF time",
           "hp_standby": "Keep ON with no demand (standby, lowest target)",
@@ -671,7 +672,7 @@
         "data": {
           "buffer_top_entity": "Tank top thermometer",
           "buffer_bottom_entity": "Tank bottom thermometer (optional)",
-          "boiler_entity": "Heat source relay",
+          "boiler_entity": "Heat source relay (optional: empty = HC only watches the tank)",
           "zone_entities": "Zones heating from the tank (HC)",
           "buffer_demand_led": "Start a new charge only on zone demand",
           "buffer_on": "Charge starts when the top is this cold or colder",
@@ -734,7 +735,7 @@
         "data": {
           "indoor_entity": "Indoor temperature (optional when a wall thermostat contact is given)",
           "demand_entity": "Wired wall thermostat contact (optional: on = it asks for heat)",
-          "actuator_entity": "Boiler relay",
+          "actuator_entity": "Switched relay (the boiler, or for a zone its zone valve / room relay)",
           "external_climate": "External thermostat",
           "flow_setpoint_entity": "Flow setpoint entity (number / input_number, e.g. OpenTherm or ebusd)",
           "heat_enable_entity": "Heating enable (switch, if any)",
@@ -811,6 +812,7 @@
           "hp_hyst": "Stop only this much above the need",
           "hp_charge_on": "Start at or below this charge (0 = not used)",
           "hp_charge_off": "Stop only at or above this charge (0 = not used)",
+          "hp_charge_needs_demand": "The charge starts / keeps a heating only while a room or circuit asks",
           "hp_min_on_s": "Minimum ON time",
           "hp_min_off_s": "Minimum OFF time",
           "hp_standby": "Keep ON with no demand (standby, lowest target)",

@@ -344,6 +344,12 @@ garden, the flats above and below, the building's risers in the outer wall. Its 
 (devices → *District heating connection*): a **flat station** with a heat exchanger and its heat meter, or **radiators
 on the risers** – shut-off valves and the flat's heat meter in the hall, a heat cost allocator on every radiator.
 
+**Buffer systems in the drawing (0.59.0).** In a house with a buffer tank, mixing circuits and a heat pump
+coordination these are drawn in the plant room, never as rooms: the tank with its layers, charge and stored kWh, each
+mixing circuit as a mixing valve with its flow target, the heat pump's outdoor unit piped to the tank's coil and – with
+a wood signal – the wood boiler. Room zones bring only their room (named by the instance); a zone in a radiator and a
+floor circuit is one room with both emitters.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is
