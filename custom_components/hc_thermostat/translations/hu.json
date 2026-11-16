@@ -157,7 +157,10 @@
           "buffer_share_upper": "Felső-középső réteg aránya (0 = egyenlő)",
           "buffer_share_lower": "Alsó-középső réteg aránya (0 = egyenlő)",
           "buffer_share_bottom": "Alsó réteg aránya (0 = egyenlő)",
-          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)"
+          "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)",
+          "dhw_pump_entity": "HMV-tároló töltőszivattyúja (nem kötelező, csak a rajzon)",
+          "dhw_temp_entity": "HMV-tároló hőmérője (nem kötelező, csak a rajzon)",
+          "dhw_heater_entity": "HMV-tároló villanyfűtése (napelem / hálózat; nem kötelező, csak a rajzon)"
         }
       },
       "start": {
@@ -195,7 +198,9 @@
           "zone_entities": "A kör zónái (HC)",
           "outdoor_entity": "Kinti hőmérő",
           "circuit_buffer": "Puffer-példány, amelyből a kör fűt",
-          "circuit_output_entity": "Ide írja az előremenő célt (PLC number / input_number / climate, nem kötelező)"
+          "circuit_output_entity": "Ide írja az előremenő célt (PLC number / input_number / climate, nem kötelező)",
+          "circuit_pump_entity": "A kör szivattyúja fut (PLC-jel, nem kötelező, csak megjelenítés)",
+          "circuit_flow_entity": "A kör mért előremenője (nem kötelező, csak megjelenítés)"
         }
       },
       "circuit_settings": {
@@ -698,7 +703,10 @@
           "buffer_share_lower": "Alsó-középső réteg aránya (0 = egyenlő)",
           "buffer_share_bottom": "Alsó réteg aránya (0 = egyenlő)",
           "buffer_charge_entity": "A tartály meglévő töltöttség-százaléka (változtatás nélkül átveszi, nem kötelező)",
-          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
+          "dhw_pump_entity": "HMV-tároló töltőszivattyúja (nem kötelező, csak a rajzon)",
+          "dhw_temp_entity": "HMV-tároló hőmérője (nem kötelező, csak a rajzon)",
+          "dhw_heater_entity": "HMV-tároló villanyfűtése (napelem / hálózat; nem kötelező, csak a rajzon)"
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
@@ -770,7 +778,9 @@
           "trial_hours": "A felügyelt próba hossza",
           "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
           "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
-          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
+          "circuit_pump_entity": "A kör szivattyúja fut (PLC-jel, nem kötelező, csak megjelenítés)",
+          "circuit_flow_entity": "A kör mért előremenője (nem kötelező, csak megjelenítés)"
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."

@@ -21,7 +21,7 @@ from .const import (
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
     CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
-    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
+    CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_DHW_PUMP, CONF_DHW_TEMP, CONF_DHW_HEATER, CONF_CIRCUIT_PUMP, CONF_CIRCUIT_FLOW, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
 )
 from .core.matrix import (
@@ -149,6 +149,10 @@ def _buffer_fields(current: dict) -> dict:
         **{vol.Required(f"buffer_share_{n}", default=current.get(f"buffer_share_{n}", 0)): _number(0, 100, 1, "%")
            for n in ("top", "upper", "lower", "bottom")},
         vol.Optional(CONF_BUFFER_CHARGE, description={"suggested_value": current.get(CONF_BUFFER_CHARGE)}): _ent(CONF_BUFFER_CHARGE, "sensor", "input_number"),
+        # 0.63.0: the hot water tank charged from this tank (only drawn, nothing is switched)
+        vol.Optional(CONF_DHW_PUMP, description={"suggested_value": current.get(CONF_DHW_PUMP)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
+        vol.Optional(CONF_DHW_TEMP, description={"suggested_value": current.get(CONF_DHW_TEMP)}): _entity("sensor"),
+        vol.Optional(CONF_DHW_HEATER, description={"suggested_value": current.get(CONF_DHW_HEATER)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
     }
 
 
@@ -170,6 +174,9 @@ def _circuit_fields(hass, current: dict) -> dict:
         vol.Required(CONF_OUTDOOR, default=current.get(CONF_OUTDOOR)) if current.get(CONF_OUTDOOR) else vol.Required(CONF_OUTDOOR): _ent(CONF_OUTDOOR, "sensor", "weather"),
         vol.Required(CONF_CIRCUIT_BUFFER, default=linked if any(b["value"] == linked for b in buffers) else "none"): SelectSelector(
             SelectSelectorConfig(options=buffers, mode=SelectSelectorMode.DROPDOWN)),
+        # 0.63.0: what the PLC reports (only shown): the pump runs, the measured flow temperature
+        vol.Optional(CONF_CIRCUIT_PUMP, description={"suggested_value": current.get(CONF_CIRCUIT_PUMP)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
+        vol.Optional(CONF_CIRCUIT_FLOW, description={"suggested_value": current.get(CONF_CIRCUIT_FLOW)}): _entity("sensor"),
         **_outputs("circuit", current),
     }
 

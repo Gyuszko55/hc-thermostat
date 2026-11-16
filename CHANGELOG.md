@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.63.0 – 2026-11-16
+The buffer system's hydraulic diagram redrawn after the tester's own plant room drawing, and the readings it was
+missing.
+- **Plant room diagram:** outdoors the air-to-water heat pump (running / standing, its power), in the plant room the
+  wood boiler (fire, its thermometer), the tank with its layers as a cold-to-warm colour gradient and its thermometers
+  named on its side ("Tank 1 (top)" … "Tank 4 (bottom)"), the heat pump's lower coil, separate flow (red) and return
+  (blue) pipes with arrows (moving while they flow), and per mixing circuit its circulation pump and three-way mixing
+  valve with the return through the valve's third port; the circuit boxes carry a radiator / floor icon, the target and
+  the measured flow. The rooms have icons (bedroom, bathroom, laundry, living room, kitchen, study); a room on two
+  circuits (the bathroom with radiator and floor) is drawn once, between its two circuits. A legend and a control box
+  (the modes of the instances, coil, wood first) close it. Light and dark theme. A house without a tank keeps its
+  simple drawing.
+- **Hot water tank (optional, drawing and overview only):** `dhw_pump_entity` (the third pump that charges it from the
+  tank), `dhw_temp_entity` and `dhw_heater_entity` (its electric heater, PV / grid) in the buffer's settings: hot water
+  is drawn as a branch of its own from the middle of the tank, through the hot water pump to the hot water tank (with
+  its temperature and heater), under the circuits, its return to the tank's bottom; the overview shows them too.
+  Nothing is switched.
+- **What the PLC reports (optional, display only):** `circuit_pump_entity` (the circuit's pump runs) and
+  `circuit_flow_entity` (the measured flow) in a mixing circuit's settings: the diagram shows the pump as the PLC says
+  (else HC's enable), the overview has *pump (PLC)* and *measured flow* rows.
+- The buffer system setup (`hc_thermostat/wizard/system`) takes these too (`buffer.dhw_pump`, `dhw_temp`, `dhw_heater`,
+  `circuits[].pump`, `flow`).
+
 ## 0.62.0 – 2026-11-16
 The tester's second round on the buffer system (wood boiler, 1000 l stratified tank, heat pump on the lower coil,
 radiator and floor mixing circuits under a PLC, five room zones, the bathroom on both circuits).

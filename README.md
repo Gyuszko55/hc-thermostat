@@ -370,6 +370,11 @@ the PLC stop the circuit pump on it and move the mixing valve only while the pum
 their links (a house link field is on their settings too), and the source watch says *no data* only for a power or
 flame reading that was set and got lost.
 
+**Plant room diagram (0.63.0).** A buffer system is drawn like a plant room overview: heat pump outdoors on the
+tank's coil, wood boiler, the tank's layers and thermometers, flow and return pipes, the pump and mixing valve of each
+circuit, the rooms with icons, a legend. Optional display-only readings: the hot water tank's pump, thermometer and
+electric heater (buffer settings), and the circuit pump and measured flow the PLC reports (circuit settings).
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

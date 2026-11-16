@@ -157,7 +157,10 @@
           "buffer_share_upper": "Share of the upper-middle layer (0 = even)",
           "buffer_share_lower": "Share of the lower-middle layer (0 = even)",
           "buffer_share_bottom": "Share of the bottom layer (0 = even)",
-          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)"
+          "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)",
+          "dhw_pump_entity": "Hot water tank charging pump (optional, drawing only)",
+          "dhw_temp_entity": "Hot water tank thermometer (optional, drawing only)",
+          "dhw_heater_entity": "Hot water tank electric heater (PV / grid; optional, drawing only)"
         }
       },
       "start": {
@@ -195,7 +198,9 @@
           "zone_entities": "Zones of the circuit (HC)",
           "outdoor_entity": "Outdoor thermometer",
           "circuit_buffer": "Buffer tank instance it draws from",
-          "circuit_output_entity": "Where the flow target is written (PLC number / input_number / climate, optional)"
+          "circuit_output_entity": "Where the flow target is written (PLC number / input_number / climate, optional)",
+          "circuit_pump_entity": "The circuit's pump runs (PLC signal, optional, display only)",
+          "circuit_flow_entity": "The circuit's measured flow temperature (optional, display only)"
         }
       },
       "circuit_settings": {
@@ -698,7 +703,10 @@
           "buffer_share_lower": "Share of the lower-middle layer (0 = even)",
           "buffer_share_bottom": "Share of the bottom layer (0 = even)",
           "buffer_charge_entity": "Existing charge percentage of the tank (taken over unchanged, optional)",
-          "house_link": "Part of which house (HC info: overview, diagram)"
+          "house_link": "Part of which house (HC info: overview, diagram)",
+          "dhw_pump_entity": "Hot water tank charging pump (optional, drawing only)",
+          "dhw_temp_entity": "Hot water tank thermometer (optional, drawing only)",
+          "dhw_heater_entity": "Hot water tank electric heater (PV / grid; optional, drawing only)"
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
@@ -770,7 +778,9 @@
           "trial_hours": "Length of the supervised trial",
           "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
           "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
-          "house_link": "Part of which house (HC info: overview, diagram)"
+          "house_link": "Part of which house (HC info: overview, diagram)",
+          "circuit_pump_entity": "The circuit's pump runs (PLC signal, optional, display only)",
+          "circuit_flow_entity": "The circuit's measured flow temperature (optional, display only)"
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."

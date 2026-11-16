@@ -78,7 +78,7 @@ console.log(JSON.stringify({{
   diff: (html.match(/class="diff"/g) || []).length, plc: html.includes("34 °C"),
   rooms: (html.match(/<tr data-key="member:z_/g) || []).length,
   schRooms: (sch.match(/class="sroom/g) || []).length, schMix: (sch.match(/class="smix/g) || []).length,
-  schShared: (sch.match(/2 körön/g) || []).length, schWood: sch.includes("Fatüzelés"), schCoil: sch.includes("csőkígyó"),
+  schShared: (sch.match(/radiátor \+ padlófűtés/g) || []).length, schWood: sch.includes("Fatüzelés"), schCoil: sch.includes("csőkígyó"),
   curve: cur.includes('class="cn"') && cur.includes('class="cc"') && cur.includes('class="cplc"') && cur.includes('class="ctg"'),
   tab: tab.map((r) => [r.outdoor, r.flow]), now: tab.some((r) => r.now),
 }}));
@@ -86,7 +86,8 @@ console.log(JSON.stringify({{
     out = _node(script)
     assert out["why"] and out["lowWaits"] and out["modes"] and out["conflict"] and out["hpUnknown"] and out["tank"]
     assert out["diff"] == 1 and out["plc"] and out["rooms"] == 3  # the bathroom: HC says ON, the relay is off
-    assert out["schRooms"] == 4 and out["schMix"] == 2 and out["schShared"] == 2 and out["schWood"] and out["schCoil"]
+    # 0.63.0: a room on two circuits is drawn once, between them; the legend has a mixing valve too
+    assert out["schRooms"] == 3 and out["schMix"] == 3 and out["schShared"] == 1 and out["schWood"] and out["schCoil"]
     assert out["curve"] and out["now"]
     tab = dict((o, f) for o, f in out["tab"])
     assert tab[-15] == 41 and tab[5] == 30 and tab[15] == 30  # 20 + 0.6 × 35 = 41; clamped at the 30 °C minimum
@@ -121,4 +122,4 @@ def test_settings_form_curve_preview():
 
 
 def test_version_600():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0", "0.63.0")

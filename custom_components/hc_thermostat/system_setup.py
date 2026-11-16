@@ -91,7 +91,9 @@ def plan(msg: dict, lang: str = "hu") -> dict:
     tank = {"name": title(names["buffer"]), CONF_ROLE: "buffer", CONF_BUFFER_TOP: buf["top"], CONF_MODE: MODE_SHADOW,
             "buffer_volume_l": float(buf.get("volume_l") or 0), "buffer_base_temp": float(buf.get("base_temp") or 30.0)}
     for k, key in (("upper", CONF_BUFFER_UPPER), ("lower", CONF_BUFFER_LOWER), ("bottom", CONF_BUFFER_BOTTOM),
-                   ("charge", CONF_BUFFER_CHARGE), ("relay", CONF_BOILER)):
+                   ("charge", CONF_BUFFER_CHARGE), ("relay", CONF_BOILER),
+                   ("dhw_pump", "dhw_pump_entity"), ("dhw_temp", "dhw_temp_entity"),
+                   ("dhw_heater", "dhw_heater_entity")):  # 0.63.0: hot water, drawn only
         if buf.get(k):
             tank[key] = buf[k]
     if home:
@@ -105,6 +107,9 @@ def plan(msg: dict, lang: str = "hu") -> dict:
                 d[k] = float(c[k])
         if c.get("output"):
             d[CONF_CIRCUIT_OUTPUT] = c["output"]
+        for k, key in (("pump", "circuit_pump_entity"), ("flow", "circuit_flow_entity")):  # 0.63.0: PLC readings, shown
+            if c.get(k):
+                d[key] = c[k]
         if home:
             d[CONF_HOME_NAME] = home
         circs.append(d)

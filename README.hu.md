@@ -374,6 +374,12 @@ működés a *Szünetben is a zónák céljával számol* kapcsoló kikapcsolás
 hőszivattyú-koordináció a kapcsolataik alapján egy házba kerülnek (a beállításaikban is van ház-mező), a
 hőforrás-figyelés pedig csak akkor mond *nincs adat*-ot, ha egy beállított teljesítménymérő vagy lángjel kiesett.
 
+**Kazánházi rendszerrajz (0.63.0).** A pufferes rendszer kazánházi áttekintőként rajzolódik: kint a hőszivattyú a
+puffer csőkígyóján, a fatüzelésű kazán, a puffer rétegei és hőmérői, külön előremenő és visszatérő vezeték, körönként
+keringető szivattyú és keverőszelep, a helyiségek ikonokkal, jelmagyarázat. Választható, csak megjelenített adatok: a
+HMV-tároló szivattyúja, hőmérője és villanyfűtése (a puffer beállításaiban), valamint a PLC által jelzett
+keringetőszivattyú és mért előremenő (a keverőkör beállításaiban).
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a
