@@ -226,7 +226,7 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default (0.64.1), so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {
@@ -823,7 +823,7 @@
           "circuit_tank_cap": "Circuit target at most the tank's top − margin"
         },
         "data_description": {
-          "circuit_tank_cap": "On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
+          "circuit_tank_cap": "Off by default (0.64.1), so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {

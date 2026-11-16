@@ -17,7 +17,8 @@ The rooms keep their own HC zones (TPI / PWM on their valves). The circuit only 
 - no outdoor reading: no raw target; the given-out one stays (no guess from a lost sensor).
 - the given-out target follows the raw one through core/setpoint_hold.py (deadband, confirmation, interval, rise limit).
 
-0.64.0 – the tank cap (`circuit_tank_cap`, on; a linked buffer only): the mixer cannot give warmer water than the
+0.64.0 – the tank cap (`circuit_tank_cap`; a linked buffer only – off by default since 0.64.1, so an update never
+changes a live PLC setpoint by itself): the mixer cannot give warmer water than the
 tank's top holds, so the target given to it is min(demanded, top − `circuit_margin`) – the limit on a 0.5 °C grid (a
 tank cooling by 0.1 °C does not rewrite the mixer). Three values: the demanded target (the hold's output – this one
 goes to the heat pump coordination, which must see the real need), the one given to the mixer, and the shortfall.
@@ -72,7 +73,7 @@ class CircuitConfig:
     circuit_max_rise: float = 3.0
     circuit_urgent: float = 5.0
     circuit_idle_keep: bool = True  # 0.62.0: without demand the curve stays at the zones' targets
-    circuit_tank_cap: bool = True  # 0.64.0: the target given to the mixer is at most the tank's top − margin
+    circuit_tank_cap: bool = False  # 0.64.0: the mixer's target at most the tank's top − margin (0.64.1: off by default)
 
     @classmethod
     def from_conf(cls, conf: dict) -> "CircuitConfig":

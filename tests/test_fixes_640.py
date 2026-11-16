@@ -23,7 +23,7 @@ T0 = datetime(2026, 11, 16, 6, 0)
 
 
 def _rad(**kw):
-    return MixingCircuit(CircuitConfig.from_conf({"circuit_kind": "radiator", "circuit_margin": 3.0, **kw}))
+    return MixingCircuit(CircuitConfig.from_conf({"circuit_kind": "radiator", "circuit_margin": 3.0, "circuit_tank_cap": True, **kw}))
 
 
 def test_cap_gives_the_mixer_top_minus_margin():
@@ -167,4 +167,15 @@ def test_flow_panel_and_texts():
     js = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "hc_thermostat/hp_history" in js and "Puffer-korlát" in js and "Kiküldve" in js
     assert (BASE / "wizard.py").read_text().count("ws_hp_history") == 2
-    assert json.loads((BASE / "manifest.json").read_text())["version"] == "0.64.0"
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.64.0", "0.64.1", "0.65.0")
+
+
+def test_tank_cap_is_off_by_default_since_641():
+    """0.64.1: an update must not change a live PLC setpoint by itself – the cap is switched on by hand."""
+    assert CircuitConfig().circuit_tank_cap is False
+    assert CircuitConfig.from_conf({"circuit_kind": "floor"}).circuit_tank_cap is False
+    c = MixingCircuit(CircuitConfig.from_conf({"circuit_kind": "radiator"}))
+    assert c.cap(T0, 40.0, 30.0, True) == (40.0, None, "off")
+    from hc_thermostat import config_flow as cf
+    form = {str(k): k for k in cf._circuit_settings({}, "radiator")}
+    assert form["circuit_tank_cap"].default() is False

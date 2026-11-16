@@ -190,7 +190,7 @@ def test_zone_hold_survives_a_restart():
 
 
 def test_version():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0")
 
 
 def test_house_view_power_above_the_outdoor_unit():

@@ -380,7 +380,7 @@ keringető szivattyú és keverőszelep, a helyiségek ikonokkal, jelmagyarázat
 HMV-tároló szivattyúja, hőmérője és villanyfűtése (a puffer beállításaiban), valamint a PLC által jelzett
 keringetőszivattyú és mért előremenő (a keverőkör beállításaiban).
 
-**Puffer-korlát, kerekített hőszivattyú-cél, célgrafikon (0.64.0).** A pufferre kötött keverőkör a keverőnek legfeljebb
+**Puffer-korlát, kerekített hőszivattyú-cél, célgrafikon (0.64.0).** A pufferre kötött keverőkör (a beállításaiban bekapcsolva; 0.64.1 óta alapból ki) a keverőnek legfeljebb
 a puffer teteje − ráhagyás értéket adja ki (hűlő puffernél azonnal lejjebb, melegedéskor fokozatosan vissza), a
 hőszivattyú-koordináció viszont továbbra is a korlát nélküli igényt kapja; a hiányzó hőmérséklet látszik. A
 hőszivattyúnak kiírt cél 0,5 °C-ra vagy egész fokra felfelé kerekíthető. A HC info panel 24 órás grafikonon mutatja a

@@ -1,9 +1,15 @@
 # Changelog
 
+## 0.64.1 – 2026-11-16
+- **Update safety: the tank cap (`circuit_tank_cap`) is off by default.** In 0.64.0 it came on by itself for every
+  circuit linked to a buffer, so for a circuit already writing to a PLC the update alone could change the live
+  setpoint (a cooling tank, or the first half minute after a restart while the tank's reading is not in yet). Now it
+  is switched on by hand in the circuit's settings; an instance where it was already ticked keeps it.
+
 ## 0.64.0 – 2026-11-16
 The tester's third round, live on the buffer system: the heat pump's target writing works (slowly, by the
 confirmation, the interval and the start-up wait – as meant); four requests.
-- **The mixer's target is capped by the tank (`circuit_tank_cap`, on for a circuit linked to a buffer):** the mixer
+- **The mixer's target is capped by the tank (`circuit_tank_cap`, for a circuit linked to a buffer; off by default since 0.64.1):** the mixer
   cannot give warmer water than the tank's top holds, so the target given to it is min(demanded, top −
   `circuit_margin`), the limit on a 0.5 °C grid. Three values: the **demanded** flow (it still goes to the heat pump
   coordination – the heat pump must see the real need, not the capped one), the one **given to the mixer**, and the

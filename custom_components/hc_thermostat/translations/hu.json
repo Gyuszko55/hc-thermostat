@@ -226,7 +226,7 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva (0.64.1), hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
@@ -823,7 +823,7 @@
           "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
         },
         "data_description": {
-          "circuit_tank_cap": "Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
+          "circuit_tank_cap": "Alapból kikapcsolva (0.64.1), hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
