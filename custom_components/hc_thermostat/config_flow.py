@@ -33,7 +33,7 @@ from .core.floor import COVERINGS, PROBES, covering_of
 from .core.model import HcConfig
 from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
-from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig
+from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig, MixingCircuit
 from .core.hp_coord import HpConfig
 from .core.room_model import OWN, rooms_options
 from . import room_form as rf
@@ -246,7 +246,42 @@ def _circuit_settings(current: dict, kind: str) -> dict:
         vol.Required("circuit_min_interval_s", default=v("circuit_min_interval_s")): _number(0, 7200, 60, "s"),
         vol.Required("circuit_max_rise", default=v("circuit_max_rise")): _number(0, 20, 0.5, "°C"),
         vol.Required("circuit_urgent", default=v("circuit_urgent")): _number(0, 20, 0.5, "°C"),
+        # 0.60.0: ticked, the form comes back with the curve of the values entered – nothing is saved
+        vol.Optional("circuit_preview", default=False): BooleanSelector(),
     }
+
+
+PREVIEW_OUTDOOR = (-15, -10, -5, 0, 5, 10, 15)
+
+
+def curve_preview(hass, conf: dict, kind: str) -> str:
+    """0.60.0: the mixing circuit's curve as a small table (Markdown) for the settings form: the flow target at some
+    outdoor temperatures and now, at the room target and with 1 °C room deficit, within the limits."""
+    base = CircuitConfig.from_conf({**conf, "circuit_kind": kind})
+    circuit = MixingCircuit(base)
+    hu = str(getattr(getattr(hass, "config", None), "language", "") or "").startswith("hu")
+    outdoor_now = None
+    try:
+        from .units import state_value_c
+        st = hass.states.get(conf.get(CONF_OUTDOOR)) if hass is not None and conf.get(CONF_OUTDOOR) else None
+        outdoor_now = state_value_c(st) if st is not None else None
+    except Exception:
+        outdoor_now = None
+    cols = [(f"{o}", float(o)) for o in PREVIEW_OUTDOOR]
+    if outdoor_now is not None:
+        cols.append(((f"most {outdoor_now:.1f}" if hu else f"now {outdoor_now:.1f}").replace(".", "," if hu else "."), outdoor_now))
+
+    def cell(v):
+        if v is not None:
+            v = max(base.circuit_flow_min, min(base.circuit_flow_max, v))  # as the circuit gives it out
+        return "–" if v is None else (f"{v:.1f}".replace(".", ",") if hu else f"{v:.1f}")
+
+    room = base.circuit_room
+    head = "| " + ("Kint °C" if hu else "Outdoor °C") + " | " + " | ".join(c for c, _ in cols) + " |"
+    sep = "|" + "---|" * (len(cols) + 1)
+    r0 = "| " + ("Előremenő °C" if hu else "Flow °C") + " | " + " | ".join(cell(circuit.raw(o, room, 0.0)) for _, o in cols) + " |"
+    r1 = "| " + ("+1 °C helyiséghiánnyal" if hu else "+1 °C room deficit") + " | " + " | ".join(cell(circuit.raw(o, room, 1.0)) for _, o in cols) + " |"
+    return "\n".join((head, sep, r0, r1))
 
 
 def _hpc_fields(hass, current: dict) -> dict:
@@ -810,10 +845,14 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_circuit_settings(self, user_input=None):
         errors = _circuit_errors(user_input) if user_input is not None else {}
-        if user_input is not None and not errors:
+        preview = bool(user_input and user_input.pop("circuit_preview", False))
+        if user_input is not None and not errors and not preview:
             return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input, CONF_MODE: MODE_SHADOW})
-        fields = _circuit_settings({**self._data, **(user_input or {})}, self._data.get("circuit_kind", "radiator"))
-        return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors)
+        kind = self._data.get("circuit_kind", "radiator")
+        values = {**self._data, **(user_input or {})}
+        fields = _circuit_settings(values, kind)
+        return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"curve": curve_preview(self.hass, values, kind)})
 
     async def async_step_hp_coord(self, user_input=None):
         """Heat pump coordination (0.55.0, shadow only): needs a buffer instance."""
@@ -1256,10 +1295,14 @@ class HcOptionsFlow(OptionsFlow):
         current = {**self.config_entry.data, **self.config_entry.options}
         first = getattr(self, "_circuit", {})
         errors = _circuit_errors(user_input) if user_input is not None else {}
-        if user_input is not None and not errors:
+        preview = bool(user_input and user_input.pop("circuit_preview", False))
+        if user_input is not None and not errors and not preview:
             return self.async_create_entry(data={**first, **user_input})
-        fields = _circuit_settings({**current, **(user_input or {})}, first.get("circuit_kind", current.get("circuit_kind", "radiator")))
-        return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors)
+        kind = first.get("circuit_kind", current.get("circuit_kind", "radiator"))
+        values = {**current, **first, **(user_input or {})}
+        fields = _circuit_settings(values, kind)
+        return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"curve": curve_preview(self.hass, values, kind)})
 
     async def async_step_central(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}

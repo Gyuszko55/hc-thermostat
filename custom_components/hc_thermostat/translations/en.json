@@ -200,7 +200,7 @@
       },
       "circuit_settings": {
         "title": "Mixing circuit – curve and hold",
-        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.",
+        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.\n\n**The curve of these values** (at the room target, within the limits):\n\n{curve}\n\nTick *Preview only* and submit to recompute the table without saving.",
         "data": {
           "circuit_slope": "Curve slope",
           "circuit_shift": "Curve shift",
@@ -215,7 +215,8 @@
           "circuit_confirm_s": "The difference must last",
           "circuit_min_interval_s": "At least between two changes",
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
-          "circuit_urgent": "Urgent difference: no waiting (0 = never)"
+          "circuit_urgent": "Urgent difference: no waiting (0 = never)",
+          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing"
         }
       },
       "hp_coord": {
@@ -763,7 +764,7 @@
       },
       "circuit_settings": {
         "title": "Mixing circuit – curve and hold",
-        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.",
+        "description": "The defaults depend on the circuit type. The maximum is the water's flow limit, not the floor surface limit – that protection stays on the hydraulic / PLC side.\n\n**The curve of these values** (at the room target, within the limits):\n\n{curve}\n\nTick *Preview only* and submit to recompute the table without saving.",
         "data": {
           "circuit_slope": "Curve slope",
           "circuit_shift": "Curve shift",
@@ -778,7 +779,8 @@
           "circuit_confirm_s": "The difference must last",
           "circuit_min_interval_s": "At least between two changes",
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
-          "circuit_urgent": "Urgent difference: no waiting (0 = never)"
+          "circuit_urgent": "Urgent difference: no waiting (0 = never)",
+          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing"
         }
       },
       "hp_coord": {

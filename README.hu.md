@@ -353,6 +353,13 @@ keverőkör keverőszelepként az előremenő céljával, a hőszivattyú kült�
 esetén a fatüzelésű kazán. A helyiségi zónák csak a helyiségüket hozzák (a példány nevével); a radiátoros és a
 padlófűtési körben is szereplő zóna egy helyiség mindkét hőleadóval.
 
+**Áttekintés, rendszerrajz, fűtési görbe (0.60.0).** Több példányból álló háznál a HC info panelen három nézet van: a
+rajz, az *Áttekintés* (hőforrások, puffer, keverőkörök, helyiségek, vezérlési módok, figyelmeztetések és hogy miért kér
+hőt a rendszer, egy oldalon) és a *Rendszerrajz*, amely a példányok kapcsolataiból épül (hőszivattyú → csőkígyó,
+fatüzelésű kazán, puffer-rétegek, keverőszelepek az előremenő céllal, körönként a helyiségek). A keverőkör adatlapján
+grafikonon látszik a fűtési görbe, a beállítási űrlapon pedig táblázatban, amelyet a *Csak előnézet* mentés nélkül
+újraszámol.
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

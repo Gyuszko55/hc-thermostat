@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.60.0 – 2026-11-16
+Diagnosis of a whole house in one place (the same tester's points A, B and 5.3). Information only – nothing switches
+differently.
+- **HC info: three views of the house** – *Drawing* (as before), *Overview* and *Hydraulic diagram* – above the
+  picture when the house has several instances (or for a circuit, buffer or heat pump coordination). The choice is
+  remembered; a click on any part opens that instance's details on the right.
+- **Overview, one page:** the outdoor temperature; every instance's control mode (shadow / supervised trial / active
+  writing); warnings (faults, measurement problems, outputs in conflict / not accepted / unavailable / error, a heat
+  pump "runs" reading that is not known, with its age); **why heat is asked for or not** in plain words (the heat
+  pump's reason with the circuits' need and the tank top, wood, each circuit's lasting demand and the zones asking now);
+  the heat sources (wood active / inactive, heat pump runs / stands / not known, its power reading and age, HC's ON/OFF
+  request, heat demand, flow target, reason); the tank (each layer, the existing charge % kept apart from the stored
+  heat worked out from the layers, the trend in °C/h); each mixing circuit (given-out flow target, worked out, by the
+  curve, the PLC's target now, writing status, lasting demand, usable heat of the tank, a small curve); and every room
+  (measured, target, asking, HC's command, the real relay – a difference is marked, expected in shadow mode – and its
+  mode).
+- **Hydraulic diagram from the links already set:** outdoors the heat pump on the tank's lower coil; the plant room
+  with the wood boiler (when the coordination has a wood signal), the tank with its layers, charge and kWh, each mixing
+  circuit as a mixing valve and pump with its flow target; then one column of rooms per circuit (a room on two circuits
+  is in both, marked *on 2 circuits*), zones on no circuit in a *direct* column. No new setting: it is built from
+  `hp_buffer`, `circuit_buffer`, the circuits' `zone_entities` and `wood_entity`.
+- **Heating curve of a mixing circuit:** a graph in the circuit's info (new *Heating curve* section) – the curve at the
+  room target, the curve corrected by the current room deficit, the limits, the outdoor temperature now with the
+  worked-out point, the given-out target and the PLC's target.
+- **Curve preview in the settings form:** the circuit's settings page shows a table of the flow target at −15…+15 °C
+  and now, at the room target and with 1 °C room deficit, within the limits. Tick *Preview only* and submit to
+  recompute it with the values entered – nothing is saved until it is submitted without the tick.
+
 ## 0.59.0 – 2026-11-16
 Findings of a tester on a buffer system (wood boiler and a monoblock heat pump on the tank's coil, 1000 l tank with four
 thermometers, a radiator and a floor mixing circuit run by a PLC, five room zones – the bathroom on both circuits). The

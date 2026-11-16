@@ -350,6 +350,12 @@ mixing circuit as a mixing valve with its flow target, the heat pump's outdoor u
 a wood signal – the wood boiler. Room zones bring only their room (named by the instance); a zone in a radiator and a
 floor circuit is one room with both emitters.
 
+**Overview, hydraulic diagram, heating curve (0.60.0).** For a house of several instances the HC info panel has three
+views: the drawing, an *Overview* (sources, tank, circuits, rooms, control modes, warnings and why heat is asked for, on
+one page) and a *Hydraulic diagram* built from the links between the instances (heat pump → tank coil, wood boiler,
+tank layers, mixing valves with their flow targets, the rooms of each circuit). A mixing circuit shows its heating
+curve as a graph, and its settings form shows the curve as a table that *Preview only* recomputes without saving.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

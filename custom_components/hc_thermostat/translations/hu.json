@@ -200,7 +200,7 @@
       },
       "circuit_settings": {
         "title": "Keverőkör – görbe és ritkítás",
-        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.",
+        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.\n\n**A görbe a beírt értékekkel** (a helyiség céljánál, a korlátokon belül):\n\n{curve}\n\nA *Csak előnézet* bepipálásával a beküldés nem ment, csak újraszámolja a táblázatot.",
         "data": {
           "circuit_slope": "Görbe meredeksége",
           "circuit_shift": "Görbe eltolása",
@@ -215,7 +215,8 @@
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "circuit_min_interval_s": "Két módosítás között legalább",
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment"
         }
       },
       "hp_coord": {
@@ -763,7 +764,7 @@
       },
       "circuit_settings": {
         "title": "Keverőkör – görbe és ritkítás",
-        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.",
+        "description": "Az alapértékek a kör típusától függnek. A legmagasabb cél a víz előremenő-korlátja, nem a padló felületi korlátja – az a védelem a hidraulika / PLC oldalán marad.\n\n**A görbe a beírt értékekkel** (a helyiség céljánál, a korlátokon belül):\n\n{curve}\n\nA *Csak előnézet* bepipálásával a beküldés nem ment, csak újraszámolja a táblázatot.",
         "data": {
           "circuit_slope": "Görbe meredeksége",
           "circuit_shift": "Görbe eltolása",
@@ -778,7 +779,8 @@
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "circuit_min_interval_s": "Két módosítás között legalább",
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+          "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment"
         }
       },
       "hp_coord": {

@@ -11,6 +11,12 @@ const HOUSE = import(new URL(`./hc-house-view.js${new URL(import.meta.url).searc
   console.warn("HC info: house view not loaded", e); return null;
 });
 
+// 0.60.0: the overview, the hydraulic diagram and the heating curve
+let OV = null;
+const OVP = import(new URL(`./hc-overview.js${new URL(import.meta.url).search}`, import.meta.url).href).then((m) => { OV = m; return m; }).catch((e) => {
+  console.warn("HC info: overview not loaded", e); return null;
+});
+
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 // a signed number ("+0.5", "-1"); a missing value is "–" (never "+null")
 const sgn = (v) => (v == null || v === "" || Number.isNaN(Number(v)) ? "–" : `${Number(v) >= 0 ? "+" : ""}${v}`);
@@ -427,7 +433,9 @@ class HcInfoPanel extends HTMLElement {
     let saved = null;
     try { saved = localStorage.getItem("hc-info:entry"); } catch (e) { /* private mode */ }
     this._sel = (this._list.find((x) => x.entry_id === saved) || this._list[0])?.entry_id;
-    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true, house_src: true };
+    this._open = this._open || { decision: true, presets: true, devices_in: true, devices_out: true, house_src: true, curve: true };
+    try { this._view = localStorage.getItem("hc-info:view") || "house"; } catch (e) { this._view = "house"; }
+    await OVP;
     if (await this._fromUrl()) return;
     await this._load();
   }
@@ -1134,6 +1142,8 @@ class HcInfoPanel extends HTMLElement {
         rd ? this._section("room", `${t.room}: ${rd.name}`, this._roomRows(rd), "mdi:door-open") : "",
         this._hd ? this._section("house_src", t.houseSrc, this._houseSources(), "mdi:home-lightning-bolt-outline") : "",
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
+        d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
+          + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
         d.presets ? this._section("presets", t.presets, this._presets(), "mdi:calendar-clock") : "",
         this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
         this._section("devices_out", t.devices_out, this._devices(true), "mdi:electric-switch"),
@@ -1150,14 +1160,23 @@ class HcInfoPanel extends HTMLElement {
         this._section("settings", t.settings, d.role === "standalone" || d.role === "zone" ? this._settings() : this._rows(d.config), "mdi:tune"),
         d.log ? this._section("log", t.log, this._log(), "mdi:history") : "",
       ].join("");
-      const pic = dr.house ? `<div class="houseslot"></div>` : `<svg viewBox="0 0 1000 700">${dr.svg}${this._markSvg()}</svg>`;
-      main = `${head}<div class="grid"><div class="draw"><div class="stage">${pic}<div class="cards">${dr.cards}</div></div></div>
+      // 0.60.0: house drawing | overview | hydraulic diagram – the latter two for the whole house
+      const all = [this._hd || d, ...(this._hd ? (this._members || []) : [])].filter(Boolean);
+      const multi = OV && (all.length > 1 || ["circuit", "buffer", "hp_coord"].includes(d.role));
+      const view = multi ? (this._view || "house") : "house";
+      const L2 = this._hu ? "hu" : "en";
+      const tabs = multi ? `<div class="ovtabs">${[["house", this._hu ? "Rajz" : "Drawing"], ["overview", this._hu ? "Áttekintés" : "Overview"], ["schematic", this._hu ? "Rendszerrajz" : "Hydraulic diagram"]]
+        .map(([k, n]) => `<button data-view="${k}" class="${view === k ? "sel" : ""}">${esc(n)}</button>`).join("")}</div>` : "";
+      let pic = dr.house ? `<div class="houseslot"></div>` : `<svg viewBox="0 0 1000 700">${dr.svg}${this._markSvg()}</svg>`, dcards = dr.cards;
+      if (view === "overview") { pic = `<div class="ovwrap">${OV.renderOverview(all, { lang: L2 })}</div>`; dcards = ""; }
+      else if (view === "schematic") { pic = `<div class="schwrap">${OV.renderSchematic(all, { lang: L2 })}</div>`; dcards = ""; }
+      main = `${head}<div class="grid"><div class="draw">${tabs}<div class="stage">${pic}<div class="cards">${dcards}</div></div></div>
         <div class="side">${side}</div></div>`;
     } else main = `<div class="empty">${esc(this._err || "…")}</div>`;
 
     const scroll = this.shadowRoot.querySelector(".side")?.scrollTop || 0;
     const pickScroll = this.shadowRoot.querySelector(".picks")?.scrollLeft || 0;
-    this.shadowRoot.innerHTML = `<style>${CSS}</style>
+    this.shadowRoot.innerHTML = `<style>${CSS}${OV ? OV.OV_CSS : ""}</style>
       <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1><div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
       <div class="main">${main}</div>`;
     const slot = this.shadowRoot.querySelector(".houseslot");
@@ -1171,6 +1190,12 @@ class HcInfoPanel extends HTMLElement {
       picks.scrollLeft = selPick.offsetLeft - picks.offsetLeft - 8;
     }
     this.shadowRoot.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => this._choose(b.dataset.entry, b.dataset.trv, b.dataset.room)));
+    this.shadowRoot.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => {
+      this._view = b.dataset.view;
+      try { localStorage.setItem("hc-info:view", this._view); } catch (e) { /* private mode */ }
+      this._render();
+    }));
+    this.shadowRoot.querySelectorAll(".ovwrap [data-key], .schwrap [data-key]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); this._pickPart(b.dataset.key); }));
     this.shadowRoot.querySelectorAll("details[data-sec]").forEach((el) => el.addEventListener("toggle", () => { this._open[el.dataset.sec] = el.open; }));
   }
 }
