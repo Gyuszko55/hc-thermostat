@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.67.0 – 2026-11-16
+Simpler to set up and change, after an outside review (no change in how HC regulates on weekdays).
+- **Weekend night:** an optional start and end for the nights ending on Saturday and Sunday morning (Friday and
+  Saturday evening's) – e.g. the night target from 23:30 until 08:00. Empty: as on weekdays. In *Targets and times*
+  and in *Settings*; both or neither (the form says so). The schedule, the next change, the coasting before a lowering
+  and the optimal start all follow it (`core/schedule.py`). A room's own schedule stays one window.
+- **Fine-tuning only in Advanced mode:** the *Regulation*, *Energy*, *Adjoining space*, *House* and *Measurements*
+  sections of the settings page appear only with Advanced mode switched on in the user's profile; without it the page
+  says so, and saving keeps those values unchanged.
+- **README rewritten as a manual:** by topic – getting started, everyday use, heat sources and systems, rooms, floor,
+  buffer and heat pump, house model, watching and safety, settings – instead of by version; version numbers live in
+  the CHANGELOG.
+
 ## 0.66.0 – 2026-11-16
 Watching and simpler changes, after an outside review (no change in how HC regulates).
 - **A heat source problem goes to Repairs:** no ignition, no response to the relay, short cycling, a heating fault,

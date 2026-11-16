@@ -118,6 +118,8 @@ class HcConfig:
     hours_vacation: float = 72.0
     night_start: str = "22:00"
     night_end: str = "06:00"
+    night_start_weekend: str = ""  # 0.67.0: the nights ending on Saturday / Sunday morning ("" = as on weekdays)
+    night_end_weekend: str = ""
     frost_temp: float = 7.0
     frost_hysteresis: float = 0.5
     # TPI

@@ -113,6 +113,8 @@ def controller_attributes(cfg, sup, demand: float, now) -> dict:
         "comfort_temp": cfg.target_comfort, "home_temp": cfg.target_home, "sleep_temp": cfg.target_night,
         "eco_temp": cfg.target_eco, "away_temp": cfg.target_away, "vacation_temp": cfg.target_vacation,
         "night_start": str(cfg.night_start)[:5], "night_end": str(cfg.night_end)[:5],  # HH:MM (the options store HH:MM:SS)
+        "night_start_weekend": str(cfg.night_start_weekend)[:5] or None,  # 0.67.0
+        "night_end_weekend": str(cfg.night_end_weekend)[:5] or None,
         "active_preset": sup.active_preset(now),
         "control_output": round(demand * 100, 1),  # %, the same as demand, under the Smart Thermostat's name
     }

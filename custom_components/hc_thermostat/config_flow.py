@@ -360,6 +360,32 @@ def _hpc_errors(user_input: dict) -> dict:
     return errors
 
 
+WEEKEND_KEYS = ("night_start_weekend", "night_end_weekend")
+# 0.67.0: shown only in the user's Advanced mode (profile → Advanced mode); everyday use needs the others
+ADVANCED_SECTIONS = ("regulation", "energy", "adjoining", "house", "measures")
+ADVANCED_NOTE = {"hu": "\n\nA finomhangolás (szabályozás, energia, csatlakozó tér, ház-modell, mérések) a felhasználói profil **Haladó mód** kapcsolójával jelenik meg; mentéskor ezek értékei változatlanok maradnak.",
+                 "en": "\n\nFine-tuning (regulation, energy, adjoining space, house model, measurements) appears with **Advanced mode** in your user profile; saving keeps their values."}
+
+
+def _lang_of(flow) -> str:
+    try:
+        return "hu" if str(flow.hass.config.language or "").startswith("hu") else "en"
+    except Exception:
+        return "en"
+
+
+def _advanced(flow) -> bool:
+    """0.67.0: the user's Advanced mode; a flow started without a user (an API call, a test) shows everything."""
+    ctx = getattr(flow, "context", None) or {}
+    return bool(ctx.get("show_advanced_options", True)) if isinstance(ctx, dict) else True
+
+
+def _weekend_errors(user_input: dict) -> dict:
+    """0.67.0: the weekend night needs both its start and its end (or neither)."""
+    given = [bool(user_input.get(k)) for k in WEEKEND_KEYS]
+    return {"night_end_weekend": "weekend_both"} if any(given) and not all(given) else {}
+
+
 # 0.65.2: the heat pump coordination's rules page in fold-out sections – the charging rule and the flow limits on top,
 # the classic and the demand-based charging apart, then running, season, cold weather, wood and the target's hold
 HPC_SECTIONS = {
@@ -1049,8 +1075,15 @@ class HcOptionsFlow(OptionsFlow):
     async def async_step_targets(self, user_input=None):
         """0.66.0: only the targets and the night's times, saved at once; every other setting stays."""
         current = {**self.config_entry.data, **self.config_entry.options}
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(data={**self.config_entry.options, **user_input})
+            errors = _weekend_errors(user_input)
+            if not errors:
+                data = {**self.config_entry.options, **user_input}
+                for key in WEEKEND_KEYS:  # 0.67.0: an emptied weekend time is cleared, not kept from before
+                    if not user_input.get(key):
+                        data.pop(key, None)
+                return self.async_create_entry(data=data)
         cfg = HcConfig.from_mapping({**source_defaults(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **current})
         temp = _number(5, 30, 0.5, "°C")
         return self.async_show_form(step_id="targets", data_schema=vol.Schema({
@@ -1061,7 +1094,10 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("frost_temp", default=cfg.frost_temp): _number(3, 12, 0.5, "°C"),
             vol.Required("night_start", default=cfg.night_start): TimeSelector(),
             vol.Required("night_end", default=cfg.night_end): TimeSelector(),
-        }), description_placeholders={"name": self.config_entry.title})
+            # 0.67.0: the nights ending on Saturday / Sunday morning (empty: as on weekdays)
+            vol.Optional("night_start_weekend", description={"suggested_value": current.get("night_start_weekend") or None}): TimeSelector(),
+            vol.Optional("night_end_weekend", description={"suggested_value": current.get("night_end_weekend") or None}): TimeSelector(),
+        }), errors=errors, description_placeholders={"name": self.config_entry.title})
 
     async def async_step_go_live(self, user_input=None):
         """Only the mode: shadow → active, with the usual confirmation; every other setting stays."""
@@ -1159,9 +1195,12 @@ class HcOptionsFlow(OptionsFlow):
             # 0.48.0 / 0.49.0: the fold-out sections' fields are settings like the others
             user_input = _flat(user_input, (*SETTINGS_SECTIONS, MEASURES))
             user_input[CONF_MODE] = current.get(CONF_MODE, MODE_SHADOW)  # 0.66.0: kept as it is (menu only)
+            user_input = {**getattr(self, "_hidden", {}), **user_input}  # 0.67.0: the sections not shown stay
             if current.get(CONF_ROLE) == "zone":  # 0.65.1: an emptied house name is cleared, not kept from before
                 user_input[CONF_HOME_NAME] = str(user_input.get(CONF_HOME_NAME) or "").strip()
-            if float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
+            if _weekend_errors(user_input):
+                errors = _weekend_errors(user_input)  # 0.67.0
+            elif float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
                 errors = _field_error("season_on_below", "season_order", _SETTINGS_SECTION_OF)  # 0.52.0
             elif float(user_input.get("plaus_indoor_min", 3.0)) > float(user_input.get("frost_temp", 7.0)) - 2.0:
                 errors = _field_error("plaus_indoor_min", "plaus_frost", _SETTINGS_SECTION_OF)  # 0.52.0
@@ -1196,6 +1235,9 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required("frost_temp", default=cfg.frost_temp): _number(3, 12, 0.5, "°C"),
             vol.Required("night_start", default=cfg.night_start): TimeSelector(),
             vol.Required("night_end", default=cfg.night_end): TimeSelector(),
+            # 0.67.0: the nights ending on Saturday / Sunday morning (empty: as on weekdays)
+            vol.Optional("night_start_weekend", description={"suggested_value": current.get("night_start_weekend") or None}): TimeSelector(),
+            vol.Optional("night_end_weekend", description={"suggested_value": current.get("night_end_weekend") or None}): TimeSelector(),
             vol.Required("cycle_s", default=cfg.cycle_s): _number(300, 7200, 60, "s"),
             vol.Required("min_on_s", default=cfg.min_on_s): _number(0, 3600, 30, "s"),
             vol.Required("min_off_s", default=cfg.min_off_s): _number(0, 3600, 30, "s"),
@@ -1321,7 +1363,17 @@ class HcOptionsFlow(OptionsFlow):
             fields[vol.Required("room_ki_per_hour", default=cfg.room_ki_per_hour)] = _number(0, 10, 0.1)
         # 0.49.0: the targets on top, the rest in fold-out sections by topic, the measurements last
         fields = {**_grouped(fields, _SETTINGS_SECTION_OF, SETTINGS_SECTIONS), **measures}
-        return self.async_show_form(step_id="settings", data_schema=vol.Schema(fields), errors=errors)
+        # 0.67.0: the fine-tuning sections only in the user's Advanced mode (profile); saving keeps their values
+        self._hidden = {}
+        if not _advanced(self):
+            for marker in [m for m in fields if str(m) in ADVANCED_SECTIONS]:
+                inner = getattr(fields[marker], "schema", None)
+                for key in getattr(inner, "schema", {}) or {}:
+                    if str(key) in current:
+                        self._hidden[str(key)] = current[str(key)]
+                fields.pop(marker)
+        return self.async_show_form(step_id="settings", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"advanced": "" if _advanced(self) else ADVANCED_NOTE[_lang_of(self)]})
 
     async def async_step_buffer(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}

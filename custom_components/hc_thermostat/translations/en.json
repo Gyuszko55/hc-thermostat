@@ -565,7 +565,7 @@
       },
       "settings": {
         "title": "Settings",
-        "description": "Switch to active only if nothing else controls the same output. The targets are on top, the rest folds out by topic.",
+        "description": "Switch to active only if nothing else controls the same output. The targets are on top, the rest folds out by topic.{advanced}",
         "data": {
           "target_home": "Home temperature",
           "target_night": "Sleep (night) temperature",
@@ -576,7 +576,9 @@
           "night_end": "Night end",
           "mode": "Mode",
           "confirm": "I understand: active mode switches a real device",
-          "target_cool": "Cooling target"
+          "target_cool": "Cooling target",
+          "night_start_weekend": "Weekend night starts (optional)",
+          "night_end_weekend": "Weekend night ends (optional)"
         },
         "data_description": {
           "target_home": "At home and awake. Also settable from the thermostat card.",
@@ -588,7 +590,9 @@
           "night_end": "The sleep target lasts until this; optimal start times itself to it.",
           "mode": "Shadow: works out only, to compare with the current control. Active: HC switches the device.",
           "confirm": "Must be ticked for active mode: nothing else may drive the same output.",
-          "target_cool": "The cooling target."
+          "target_cool": "The cooling target.",
+          "night_start_weekend": "For Friday and Saturday evening's night (ending on Saturday and Sunday morning). Empty: as on weekdays. Give both the start and the end.",
+          "night_end_weekend": "On Saturday and Sunday morning the sleep target lasts until this – e.g. 08:00 if you sleep longer at the weekend."
         },
         "sections": {
           "regulation": {
@@ -1463,7 +1467,9 @@
           "target_vacation": "Vacation temperature",
           "frost_temp": "Frost limit",
           "night_start": "Night start",
-          "night_end": "Night end"
+          "night_end": "Night end",
+          "night_start_weekend": "Weekend night starts (optional)",
+          "night_end_weekend": "Weekend night ends (optional)"
         },
         "data_description": {
           "target_home": "At home and awake. Also settable from the thermostat card.",
@@ -1472,7 +1478,9 @@
           "target_vacation": "In the Vacation preset – a short absence keeps the Away target.",
           "frost_temp": "It never cools below this, not even while off or with a window open.",
           "night_start": "The sleep target applies from this time.",
-          "night_end": "The sleep target lasts until this; optimal start times itself to it."
+          "night_end": "The sleep target lasts until this; optimal start times itself to it.",
+          "night_start_weekend": "For Friday and Saturday evening's night (ending on Saturday and Sunday morning). Empty: as on weekdays. Give both the start and the end.",
+          "night_end_weekend": "On Saturday and Sunday morning the sleep target lasts until this – e.g. 08:00 if you sleep longer at the weekend."
         }
       }
     },
@@ -1493,7 +1501,8 @@
       "cold_order": "The release limit must be at or above the ON limit.",
       "charge_order": "The stop charge must be above the start charge.",
       "no_output": "Writing needs at least one output entity.",
-      "wood_order": "The off threshold must be below the on threshold."
+      "wood_order": "The off threshold must be below the on threshold.",
+      "weekend_both": "The weekend night needs both a start and an end (or leave both empty)."
     }
   },
   "selector": {

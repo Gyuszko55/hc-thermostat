@@ -565,7 +565,7 @@
       },
       "settings": {
         "title": "Beállítások",
-        "description": "Éles módba csak akkor kapcsold, ha ugyanazt a kimenetet más már nem vezérli. A célok fent vannak, a többi témánként lenyitható.",
+        "description": "Éles módba csak akkor kapcsold, ha ugyanazt a kimenetet más már nem vezérli. A célok fent vannak, a többi témánként lenyitható.{advanced}",
         "data": {
           "target_home": "Otthoni hőfok",
           "target_night": "Alvás (éjszakai) hőfok",
@@ -576,7 +576,9 @@
           "night_end": "Éjszaka vége",
           "mode": "Üzemmód",
           "confirm": "Tudomásul veszem: éles módban valódi eszközt kapcsol",
-          "target_cool": "Hűtési cél"
+          "target_cool": "Hűtési cél",
+          "night_start_weekend": "Hétvégi éjszaka kezdete (nem kötelező)",
+          "night_end_weekend": "Hétvégi éjszaka vége (nem kötelező)"
         },
         "data_description": {
           "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
@@ -588,7 +590,9 @@
           "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít.",
           "mode": "Árnyék: csak számol, összevethető a mostani vezérléssel. Éles: a HC kapcsolja az eszközt.",
           "confirm": "Éles módhoz bepipálandó: ugyanazt a kimenetet más ne vezérelje.",
-          "target_cool": "Hűtési üzemben ennyire hűt."
+          "target_cool": "Hűtési üzemben ennyire hűt.",
+          "night_start_weekend": "A péntek és szombat esti éjszakára (amely szombat és vasárnap reggel ér véget). Üresen olyan, mint hétköznap. A kezdet és a vég együtt kell.",
+          "night_end_weekend": "Szombat és vasárnap reggel eddig tart az alvási hőfok – pl. 08:00, ha hétvégén tovább alszotok."
         },
         "sections": {
           "regulation": {
@@ -1463,7 +1467,9 @@
           "target_vacation": "Szabadság hőfok",
           "frost_temp": "Fagyvédelmi határ",
           "night_start": "Éjszaka kezdete",
-          "night_end": "Éjszaka vége"
+          "night_end": "Éjszaka vége",
+          "night_start_weekend": "Hétvégi éjszaka kezdete (nem kötelező)",
+          "night_end_weekend": "Hétvégi éjszaka vége (nem kötelező)"
         },
         "data_description": {
           "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
@@ -1472,7 +1478,9 @@
           "target_vacation": "Szabadság presetben – rövid távollétnél a Távolléti hőfok marad.",
           "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.",
           "night_start": "Ettől kezdve az alvási hőfok érvényes.",
-          "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít."
+          "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít.",
+          "night_start_weekend": "A péntek és szombat esti éjszakára (amely szombat és vasárnap reggel ér véget). Üresen olyan, mint hétköznap. A kezdet és a vég együtt kell.",
+          "night_end_weekend": "Szombat és vasárnap reggel eddig tart az alvási hőfok – pl. 08:00, ha hétvégén tovább alszotok."
         }
       }
     },
@@ -1493,7 +1501,8 @@
       "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
       "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
       "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
-      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál."
+      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál.",
+      "weekend_both": "A hétvégi éjszakához a kezdet és a vég is kell (vagy hagyd mindkettőt üresen)."
     }
   },
   "selector": {

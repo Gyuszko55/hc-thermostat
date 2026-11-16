@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, time, timedelta
 
+from . import schedule  # 0.67.0
 from .cooling import DewGuard
 from .fancoil import FanCoil
 from .storage import Discharge, StorageCharger, charge_fraction
@@ -324,13 +325,13 @@ class Supervisor:
             return outdoor
         return outdoor + max(model[1], 0.0) / model[0]
 
-    def _night_end_at(self, now: datetime) -> datetime | None:
+    def _night(self) -> tuple:
+        """0.67.0: the night's times with the optional weekend ones (core/schedule.py)."""
         cfg = self.cfg
-        if cfg.night_start == cfg.night_end:
-            return None
-        end = _parse_time(cfg.night_end)
-        at = now.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
-        return at if at > now else at + timedelta(days=1)
+        return cfg.night_start, cfg.night_end, cfg.night_start_weekend or None, cfg.night_end_weekend or None
+
+    def _night_end_at(self, now: datetime) -> datetime | None:
+        return schedule.night_end_at(now, *self._night())
 
     def _optimal_start(self, inputs: Inputs, base: float) -> bool:
         """0.50.0: the night target would hold until the night end, but the room has to be at the home target by
@@ -401,21 +402,11 @@ class Supervisor:
         return self._next_boundary(inputs.now)
 
     def _next_boundary(self, now: datetime) -> datetime | None:
-        """The next night start or end."""
-        cfg = self.cfg
-        candidates = []
-        for text in (cfg.night_start, cfg.night_end):
-            at = now.replace(hour=_parse_time(text).hour, minute=_parse_time(text).minute, second=0, microsecond=0)
-            if at <= now:
-                at += timedelta(days=1)
-            candidates.append(at)
-        return min(candidates) if cfg.night_start != cfg.night_end else None
+        """The next night start or end (0.67.0: the weekend night's too)."""
+        return schedule.next_boundary(now, *self._night())
 
     def _is_night(self, now: datetime) -> bool:
-        start, end, current = _parse_time(self.cfg.night_start), _parse_time(self.cfg.night_end), now.time()
-        if start <= end:
-            return start <= current < end
-        return current >= start or current < end
+        return schedule.is_night(now, *self._night())
 
     def active_preset(self, now: datetime) -> str:
         """The preset the target comes from now (0.24.0): a set preset, or for auto the presence and the schedule."""
