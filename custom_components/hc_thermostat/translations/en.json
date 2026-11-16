@@ -491,7 +491,8 @@
               "discharge_entity": "Discharge fan / damper (optional)",
               "fan_entity": "Fan coil fan (fan entity, optional)",
               "coil_temp_entity": "Coil / supply temperature (optional)",
-              "hp_busy_states": "Heat pump: values that mean defrost / hot water"
+              "hp_busy_states": "Heat pump: values that mean defrost / hot water",
+              "district_connection": "District heating connection (drawing)"
             },
             "data_description": {
               "power_idle_w": "Below this the boiler stands by. Leave the defaults (20 W / 115 W) untouched and the boiler health only learns – it judges \"no response\" / \"no flame\" by the power draw once you give your boiler's own values.",
@@ -499,7 +500,8 @@
               "load_limit_kw": "Give the zone's own power in the boiler power field (for electric heat: the heater's). If switching on would exceed the limit, the zone waits and its cycle starts later – the zones heat staggered. Counts in live mode only.",
               "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
               "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
-              "hp_busy_states": "When the defrost or hot-water signal is a mode sensor: which of its values mean the heat pump does its own work. They count besides the built-in words (on, defrost, dhw, hot_water…)."
+              "hp_busy_states": "When the defrost or hot-water signal is a mode sensor: which of its values mean the heat pump does its own work. They count besides the built-in words (on, defrost, dhw, hot_water…).",
+              "district_connection": "How the flat is connected to the building's district heating: its own flat station with a heat exchanger and heat meter, or radiators straight on the risers with heat cost allocators. Only the house drawing uses it."
             }
           },
           "energy": {
@@ -985,6 +987,12 @@
         "shadow": "Shadow – works out and shows, writes nothing",
         "trial": "Supervised trial – writes for the set hours, then back to shadow",
         "active": "Active – writes permanently"
+      }
+    },
+    "district_connection": {
+      "options": {
+        "station": "Flat station with heat exchanger",
+        "direct": "Radiators on the risers (heat cost allocators)"
       }
     }
   },

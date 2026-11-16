@@ -447,6 +447,9 @@ def _water_fields(system: str | None, source: str | None, current: dict, setting
             out.update({
                 vol.Required("return_max", default=cfg.return_max): _number(0, 70, 1, "°C"),
                 vol.Required("return_hysteresis", default=cfg.return_hysteresis): _number(1, 10, 0.5, "°C"),
+                # 0.58.0: how the flat is connected – only the house drawing uses it
+                vol.Required("district_connection", default=current.get("district_connection") or "station"):
+                    _select(("station", "direct"), "district_connection"),
             })
     return out
 
@@ -552,7 +555,7 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
               "floor_temper_offset", "floor_temper_night", "floor_temper_hysteresis", "floor_temper_room_margin",
               "floor_fallback", "floor_cooling", CONF_HUMIDITY, CONF_COOL_MODE, "dew_margin", "floor_min_cool",
               CONF_COOL_FLOW, "cool_flow", "cool_flow_max"),
-    "devices": (CONF_FLAME, CONF_BOILER_POWER, "power_idle_w", "power_burn_w", "boiler_power_kw", "load_limit_kw",
+    "devices": ("district_connection", CONF_FLAME, CONF_BOILER_POWER, "power_idle_w", "power_burn_w", "boiler_power_kw", "load_limit_kw",
                 CONF_HP_DEFROST, CONF_HP_DHW, CONF_HP_BUSY, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL),
     "energy": (CONF_HEAT_ENERGY, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY, CONF_GAS_VALUE, CONF_ENERGY_FACTOR, CONF_EXTRA_FACTOR,
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,

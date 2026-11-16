@@ -337,6 +337,16 @@ vezető helyiség, hőforrás / gáz); helyiségre vagy szelepfejre a helyiség 
 Assistant téma szerint, telefonon is elfér, „mozgás csökkentése” mellett nem mozog. A központi és a puffer-példány
 megtartja a vonalas rajzot.
 
+**Fűtési rendszerek a rajzon (0.58.0).** Minden hőforrás úgy jelenik meg, ahogy épül: a **pelletkazán** pirosan,
+tűzajtóval, mellette a pellettároló (töltöttsége a `fuel_level_entity` szerint) és az adagolócsiga; a **hőszivattyú**
+beltéri egységgel, puffertartállyal és – padlókörökkel – osztó-gyűjtővel, kint a kültéri egység a felvett
+teljesítménnyel; az **elektromos padlófűtés** (elektromos fűtő padlós rendszeren) a padlókba fektetett fűtőkábelként,
+egy kis villamos helyiség elosztójából és termosztátjából táplálva; a **hőtárolós kályhák** minden helyiségben, az
+elosztóból és a vezérelt áram mérőórájáról bekötve. **A távfűtés lakás egy társasházban**, nem önálló ház: nincs tető és
+kert, fölötte és alatta a szomszéd lakások, a falban a ház felszálló vezetékei. A bekötés a beállításokban adható meg
+(eszközök → *Távhő bekötése*): **lakásállomás** hőcserélővel és hőmennyiségmérővel, vagy **radiátorok a felszállón** –
+elzárók és a lakás hőmennyiségmérője az előszobában, minden radiátoron költségosztó.
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

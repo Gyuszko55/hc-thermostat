@@ -491,7 +491,8 @@
               "discharge_entity": "Kisütő ventilátor / csappantyú (nem kötelező)",
               "fan_entity": "Fan-coil ventilátora (fan entitás, nem kötelező)",
               "coil_temp_entity": "Hőcserélő / előremenő hőmérséklete (nem kötelező)",
-              "hp_busy_states": "Hőszivattyú: leolvasztást / melegvizet jelentő értékek"
+              "hp_busy_states": "Hőszivattyú: leolvasztást / melegvizet jelentő értékek",
+              "district_connection": "Távhő bekötése (rajz)"
             },
             "data_description": {
               "power_idle_w": "Ez alatt a kazán készenlétben van. Ha az alapértékeket (20 W / 115 W) érintetlenül hagyod, a kazán-állapot csak tanul – a „nem reagál” / „nem gyújt be” jelzést az áramfelvétel szerint csak a saját kazánod értékeivel adja.",
@@ -499,7 +500,8 @@
               "load_limit_kw": "A zóna saját teljesítményét a „Kazán teljesítménye” mezőben add meg (elektromos fűtésnél a fűtőtesté). Ha a bekapcsolás túllépné a korlátot, a zóna vár, és a ciklusa később indul – így a zónák elcsúsztatva fűtenek. Csak éles módban számít.",
               "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
               "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
-              "hp_busy_states": "Ha a leolvasztás vagy melegvíz jelzése egy mód-szenzor, annak mely értékei jelentik, hogy a hőszivattyú épp a saját dolgát végzi. A beépített szavak (on, defrost, dhw, hmv, leolvasztás…) mellett számítanak."
+              "hp_busy_states": "Ha a leolvasztás vagy melegvíz jelzése egy mód-szenzor, annak mely értékei jelentik, hogy a hőszivattyú épp a saját dolgát végzi. A beépített szavak (on, defrost, dhw, hmv, leolvasztás…) mellett számítanak.",
+              "district_connection": "Hogyan kapcsolódik a lakás a ház távfűtéséhez: saját lakásállomás hőcserélővel és hőmennyiségmérővel, vagy a radiátorok közvetlenül a felszálló vezetékeken, költségosztókkal. Csak a házrajz használja."
             }
           },
           "energy": {
@@ -985,6 +987,12 @@
         "shadow": "Árnyék – kiszámol és mutat, nem ír",
         "trial": "Felügyelt próba – a beállított óráig ír, utána vissza árnyékba",
         "active": "Éles – tartósan ír"
+      }
+    },
+    "district_connection": {
+      "options": {
+        "station": "Lakásállomás hőcserélővel",
+        "direct": "Radiátorok a felszállón (költségosztók)"
       }
     }
   },

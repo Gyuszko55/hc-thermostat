@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.58.0 – 2026-11-16
+Each heating system drawn the way it is built (house view; only the drawing changes, no decision does).
+- **District heating is a flat in a block of flats:** no roof, garden, sun or ground – the flats above and below with
+  their windows, a neighbour block in the gap, the title on a plate, the building's flow / return risers in the outer
+  wall. New option `district_connection` (settings → devices, district heating only; only the drawing uses it):
+  `station` (default) – a flat station with a plate heat exchanger and the heat meter on top, fed from the risers;
+  `direct` – radiators straight on the risers: shut-off valves and the flat's heat meter (with today's kWh) in the
+  hall with the entrance door, a heat cost allocator on every radiator, no pump or expansion tank.
+- **Pellet boiler:** red body with its fire door (the flame inside), the pellet store beside it with its level
+  (`fuel_level_entity`, %) and the feed screw.
+- **Heat pump / any water system with floor loops:** the floor heating manifold (flow and return bars with their
+  loop valves) in the plant room when there is room; the buffer tank as before.
+- **Electric floor heating** (electric heater on a floor system): the rooms get heating cables laid in a spiral in the
+  floor (new emitter `efloor`), fed from a small electrical room with the distribution board and the floor thermostat,
+  one cable per room; the plant label reads *Electric floor heating*.
+- **Storage heaters:** a storage heater cabinet (outlet grille, warm air rising) in every room of the instance, wired
+  from the board and the meter of the controlled tariff (phase and neutral).
+- The flow / return pills also use the measured `flow_temp_entity` / `return_temp_entity` when the decision has none.
+
 ## 0.57.1 – 2026-11-15
 Fixes from an outside review of 0.57.0, in the parts that write to a device – before anything is written live.
 - **Heat pump running signal by its unit:** a number counts as "runs" only with a unit HC understands – W > 100,

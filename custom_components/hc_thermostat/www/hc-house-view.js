@@ -39,13 +39,15 @@
 //     power: { value, unit } | null,       // electrical power of the device
 //     gas: { now: m³/h | null, nowEstimated: bool, today: m³ | null, total: m³ | null } | null,
 //     energy: { today: kWh | null, total: kWh | null } | null,
+//     connection: "station" | "direct" | null,  // district heating: flat station with a heat exchanger / radiators on the risers
+//     fuelLevel: % | null,                 // pellet store
 //     fault: bool, health: "ok" | …,
 //   },
 //   rooms: [{
 //     key: "konyha", name: "Konyha", kind: "living"|"bed"|"kids"|"kitchen"|"dining"|"bath"|"wc"|"hall"|"office"|"storage"|"terrace"|"generic",
 //     floor: level | null,                 // HA floor level; null -> automatic rows
 //     temp, target,                        // room reading / room target (null = follows the house)
-//     emitter: "radiator" | "floor" | "fan_coil" | "ac" | "electric" | "storage" | "none",
+//     emitter: "radiator" | "floor" | "fan_coil" | "ac" | "electric" | "efloor" | "storage" | "none",  // efloor: heating cable (0.58.0)
 //     heating: bool,                       // this room's emitter receives heat now (branch animation, glow)
 //     leading: bool,                       // this room drives the heat source (HC thermostat)
 //     zone: bool,                          // separate zone (e.g. terrace coupled via a door)
@@ -68,7 +70,7 @@ const TXT = {
     burning: "ég", idle: "áll", running: "üzemel", off: "ki", outdoor: "Kint", avg: "24 h átl.", open: "nyitva",
     v_heating: "nyit", v_idle: "zárva", v_off: "ki", leading: "vezető", demand: "igény", home: "otthon", away: "távol",
     vacation: "szabadság", nobody: "senki", shadow: "árnyék", fault: "HIBA", zone: "zóna", buffer: "puffer", pump: "szivattyú",
-    follows: "házat követi", door: "ajtó nyitva", unit: "egység", estimated: "becsült",
+    follows: "házat követi", door: "ajtó nyitva", unit: "egység", estimated: "becsült", efloor: "Elektromos padlófűtés",
     kinds: { gas_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán",
       pellet_boiler: "Pelletkazán", district_heating: "Távhő", external_heat: "Külső hőtermelő", buffer: "Puffertartály", air_conditioner: "Klíma",
       electric_heater: "Villanyfűtő", storage_heater: "Hőtárolós kályha" },
@@ -78,7 +80,7 @@ const TXT = {
     burning: "burning", idle: "idle", running: "running", off: "off", outdoor: "Outdoor", avg: "24 h avg", open: "open",
     v_heating: "open", v_idle: "closed", v_off: "off", leading: "leading", demand: "demand", home: "home", away: "away",
     vacation: "vacation", nobody: "nobody", shadow: "shadow", fault: "FAULT", zone: "zone", buffer: "buffer", pump: "pump",
-    follows: "follows house", door: "door open", unit: "unit", estimated: "estimated",
+    follows: "follows house", door: "door open", unit: "unit", estimated: "estimated", efloor: "Electric floor heating",
     kinds: { gas_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler",
       pellet_boiler: "Pellet boiler", district_heating: "District heating", external_heat: "External heat source", buffer: "Buffer tank", air_conditioner: "Air conditioner",
       electric_heater: "Electric heater", storage_heater: "Storage heater" },
@@ -238,13 +240,16 @@ export function fromInfo(info, x = {}) {
   const source = {
     kind, name: relayE?.name || null, running, flame, pump,
     modulation: kind === "modulating_boiler" && running ? clamp(num(dec.demand) ?? 0.5, 0.15, 1) : null,
-    flow: x.flow ?? num(inp.flow?.value) ?? null,
-    return: x.return ?? num(inp.return_temp?.value) ?? null,
+    flow: x.flow ?? num(inp.flow?.value) ?? num(info.measures?.flow_temp) ?? null,
+    return: x.return ?? num(inp.return_temp?.value) ?? num(info.measures?.return_temp) ?? null,
     flowTarget: num(dec.flow_setpoint) ?? num(det.flow) ?? (fsE ? num(fsE.state) : null),
     buffer: info.role === "buffer" || !!x.buffer, bufferTemp: x.bufferTemp ?? null,
     mode: det.ac_mode || det.mode || (dec.external?.hvac) || "heat",
     unitTarget: num(det.setpoint) ?? num(info.state?.ac?.sent), unitTemp: num(det.unit_temp ?? inp.unit_temp),
     power, gas, energy,
+    // 0.58.0: how a district-heated flat is connected (only the drawing uses it); the pellet store's level
+    connection: kind === "district_heating" ? (conf.district_connection === "direct" ? "direct" : "station") : null,
+    fuelLevel: num(info.measures?.fuel_level),
     fault: !!(dec.fault || info.live?.fault), health: info.health?.state || null,
   };
 
@@ -268,7 +273,7 @@ export function fromInfo(info, x = {}) {
     return match(name) || match(eid);
   };
   const emitterFor = (rk) => {
-    if (ROOM_UNIT_KINDS.includes(kind)) return "none";
+    if (ROOM_UNIT_KINDS.includes(kind)) return kind === "electric_heater" && sys.startsWith("floor") ? "efloor" : kind === "storage_heater" ? "storage" : "none";
     if (sys === "fan_coil") return "fan_coil";
     if (sys.startsWith("floor")) return "floor";
     if (sys.startsWith("mixed")) return ["bath", "hall", "kitchen", "wc"].includes(rk) ? "floor" : "radiator";
@@ -328,7 +333,8 @@ export function fromInfo(info, x = {}) {
   lead.target = num(dec.target) ?? num(cl.temperature);
   lead.thermostat = { temp: lead.temp, target: lead.target, hc: true };
   if (ROOM_UNIT_KINDS.includes(kind)) {
-    lead.emitter = kind === "air_conditioner" ? "ac" : kind === "storage_heater" ? "storage" : "electric";
+    lead.emitter = kind === "air_conditioner" ? "ac" : kind === "storage_heater" ? "storage"
+      : kind === "electric_heater" && sys.startsWith("floor") ? "efloor" : "electric";  // 0.58.0: a heating cable in the floor
     lead.unit = { target: source.unitTarget, temp: source.unitTemp, running, power };
   }
 
@@ -508,6 +514,12 @@ export function renderHouse(vm, opts = {}) {
   const GAS_KINDS = ["gas_boiler", "modulating_boiler"];
   const gasSrc = plant.find((q) => GAS_KINDS.includes(q.kind)) || null;
   const hyd = isHydronic(vm);
+  // 0.58.0: district heating is a flat in a block of flats (no roof, garden or chimney; the building's risers in the
+  // wall); electric floors and storage heaters get an electrical room with the board and a cable to every room
+  const apt = src0.kind === "district_heating";
+  const direct = apt && src0.connection === "direct";
+  const efl = (vm.rooms || []).some((r) => r.emitter === "efloor"), sto = (vm.rooms || []).some((r) => r.emitter === "storage");
+  const elec = !hyd && (efl || sto);
   const out = [], defs = [], over = []; // over = labels drawn on top of everything
   const pipesBase = [], pipesAnim = [];
   roomOverlays.length = 0;
@@ -518,7 +530,7 @@ export function renderHouse(vm, opts = {}) {
   // ---- grid ----
   const Cmax = clamp(Math.floor(width / 185), 2, 5);
   const cells = rooms.map((r) => ({ room: r }));
-  const util = hyd ? { util: true } : null;
+  const util = hyd ? { util: true } : elec ? { util: true, elec: true } : null;
   let rowsBU = []; // bottom-up
   if (rooms.some((r) => r.floor != null)) {
     const lv = [...new Set(rooms.map((r) => r.floor ?? 0))].sort((a, b) => a - b);
@@ -552,7 +564,7 @@ export function renderHouse(vm, opts = {}) {
   const hpSide = hasHP ? (hasGas && hyd ? "R" : "L") : null;  // 0.53.0: with a gas meter on the left the HP goes right
   if ((hpSide === "L" || (hasGas && hyd)) && acSide === "L") acSide = "R"; // left side is taken by the HP unit / gas meter
   const wideM = narrow ? 92 : 108;
-  const OL = hpSide === "L" || acSide === "L" ? wideM : hasGas ? 40 : 22;
+  const OL = hpSide === "L" || acSide === "L" ? wideM : hasGas ? 40 : apt ? 44 : 22;
   const OR = acSide === "R" || hpSide === "R" ? wideM : 22;
   const innerW = C * R + (C - 1) * T;
   const X0 = OL, X1 = X0 + EW + innerW + EW, houseW = X1 - X0;
@@ -582,6 +594,7 @@ export function renderHouse(vm, opts = {}) {
     const frl = Math.max(0, (Xc - 52) / (Xc - X0 + ov));
     apexY = Math.max(apexY, 56 - frl * (RH + 12) + 4);
   }
+  if (apt) apexY = Math.max(10 + stackH + 10, 76 * FS) - RH;  // the flat above instead of a roof
   const eaveY = apexY + RH;
   const rowY = (i) => eaveY + S + i * (H + S);
   const nR = rows.length;
@@ -594,7 +607,7 @@ export function renderHouse(vm, opts = {}) {
   if (isNum(gs.total)) parts.push(`${L.total} ${fmt(gs.total, lang, gs.total >= 100 ? 0 : 1)} m³`);
   const gasLine = `${L.gas}: ${parts.join(" · ")}`;
   const gas2 = hasGas && tw(gasLine, 12 * FS, 600) + 30 >= W - (X0 - 8) - 10;
-  const Ht = yG + SF + (hasGas ? (gas2 ? 76 : 48) : 34);
+  const Ht = yG + SF + (hasGas ? (gas2 ? 76 : 48) : apt ? 54 : 34);
   const night = !!vm.night;
 
   // per-row cell geometry
@@ -617,6 +630,7 @@ export function renderHouse(vm, opts = {}) {
   <linearGradient id="${P}radh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4ee"/><stop offset=".55" stop-color="#ffc2a6"/><stop offset="1" stop-color="#ff8a65"/></linearGradient>
   <linearGradient id="${P}oil" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcc80"/><stop offset="1" stop-color="#ef6c00"/></linearGradient>
   <linearGradient id="${P}tank" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b71c1c"/><stop offset=".35" stop-color="#ef5350"/><stop offset="1" stop-color="#8e1414"/></linearGradient>
+  <linearGradient id="${P}pel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ef5350"/><stop offset=".65" stop-color="#c62828"/><stop offset="1" stop-color="#8e1414"/></linearGradient>
   <linearGradient id="${P}steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9aa3ab"/><stop offset=".35" stop-color="#e7ebee"/><stop offset="1" stop-color="#8a939b"/></linearGradient>
   <linearGradient id="${P}gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="gl1"/><stop offset="1" class="gl2"/></linearGradient>
   <radialGradient id="${P}glow"><stop offset="0" stop-color="#ff9800" stop-opacity=".55"/><stop offset="1" stop-color="#ff9800" stop-opacity="0"/></radialGradient>
@@ -627,7 +641,8 @@ export function renderHouse(vm, opts = {}) {
 
   // ---- sky, sun/moon, ground ----
   out.push(`<rect x="0" y="0" width="${W}" height="${Ht}" fill="url(#${P}sky)"/>`);
-  if (night) {
+  if (apt) drawBlock();
+  else if (night) {
     let s = 7;
     const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
     for (let i = 0; i < 26; i++) {
@@ -639,18 +654,18 @@ export function renderHouse(vm, opts = {}) {
     out.push(`<circle cx="36" cy="36" r="34" fill="url(#${P}sun)"/><circle cx="36" cy="36" r="12" fill="#ffd54f"/>`);
   }
   // ground
-  out.push(`<rect x="0" y="${yG - 2}" width="${W}" height="${Ht - yG + 2}" class="soil"/>
+  if (!apt) out.push(`<rect x="0" y="${yG - 2}" width="${W}" height="${Ht - yG + 2}" class="soil"/>
     <path d="M0,${yG - 4} Q${W * 0.25},${yG - 9} ${W * 0.5},${yG - 4} T${W},${yG - 4} V${yG + 8} H0Z" class="grass"/>`);
   // bushes
   const bush = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><ellipse cx="0" cy="-8" rx="16" ry="11" class="bush2"/><ellipse cx="-9" cy="-5" rx="10" ry="8" class="bush"/><ellipse cx="9" cy="-6" rx="11" ry="9" class="bush"/></g>`;
-  if (OR < 60) out.push(bush(X1 + 6, yG + 1, 0.9));
-  if (OL < 60) out.push(bush(X0 - 4, yG + 1, 0.8));
+  if (OR < 60 && !apt) out.push(bush(X1 + 6, yG + 1, 0.9));
+  if (OL < 60 && !apt) out.push(bush(X0 - 4, yG + 1, 0.8));
 
   // ---- house body ----
   out.push(`<rect x="${X0}" y="${eaveY}" width="${houseW}" height="${yG + SF - eaveY}" class="wallx" filter="url(#${P}sh)"/>`);
   // attic / gable
   const gI = 16;
-  out.push(`<path d="M${X0 + gI},${eaveY} L${Xc},${apexY + 16} L${X1 - gI},${eaveY} Z" class="attic"/>`);
+  if (!apt) out.push(`<path d="M${X0 + gI},${eaveY} L${Xc},${apexY + 16} L${X1 - gI},${eaveY} Z" class="attic"/>`);
   // slabs
   for (let i = -1; i < nR; i++) {
     const y = i < 0 ? eaveY : slabY(i);
@@ -659,9 +674,9 @@ export function renderHouse(vm, opts = {}) {
   }
   // roof
   const th = 13;
-  out.push(`<path d="M${X0 - ov},${eaveY + 8} L${Xc},${apexY - 4} L${X1 + ov},${eaveY + 8} L${X1 + ov - 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X0 - ov + 6},${eaveY + 8 + th} Z" fill="url(#${P}roof)"/>`);
-  out.push(`<path d="M${X0 - ov},${eaveY + 8} L${Xc},${apexY - 4} L${X1 + ov},${eaveY + 8} L${X1 + ov - 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X0 - ov + 6},${eaveY + 8 + th} Z" fill="url(#${P}tiles)" opacity=".5"/>`);
-  out.push(`<path d="M${X0 - ov + 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X1 + ov - 6},${eaveY + 8 + th}" class="fascia"/>`);
+  if (!apt) out.push(`<path d="M${X0 - ov},${eaveY + 8} L${Xc},${apexY - 4} L${X1 + ov},${eaveY + 8} L${X1 + ov - 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X0 - ov + 6},${eaveY + 8 + th} Z" fill="url(#${P}roof)"/>`);
+  if (!apt) out.push(`<path d="M${X0 - ov},${eaveY + 8} L${Xc},${apexY - 4} L${X1 + ov},${eaveY + 8} L${X1 + ov - 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X0 - ov + 6},${eaveY + 8 + th} Z" fill="url(#${P}tiles)" opacity=".5"/>`);
+  if (!apt) out.push(`<path d="M${X0 - ov + 6},${eaveY + 8 + th} L${Xc},${apexY - 4 + th + 3} L${X1 + ov - 6},${eaveY + 8 + th}" class="fascia"/>`);
 
   // ---- rooms & plant room ----
   for (const g of geo) {
@@ -708,6 +723,28 @@ export function renderHouse(vm, opts = {}) {
       over.push(pill(plx, fy - 13, t, { cls: "pf", anchor: "middle", key: "source", size: narrow ? 11 : 11.5, dashed: fl == null }));
     }
     if (rt != null) over.push(pill(plx, ry + 14, `▼ ${deg(rt, lang)}`, { cls: "pr", anchor: "middle", key: "source", size: narrow ? 11 : 11.5 }));
+  }
+  // 0.58.0: the building's district heating risers in the outer wall of the flat
+  if (apt) {
+    const xf = X0 - 12, xr = X0 - 4, prim = !!src0.running || flowing;
+    pipe(`M${xf},0 V${Ht}`, "f", prim);
+    pipe(`M${xr},${Ht} V0`, "r", prim);
+  }
+  // 0.58.0: electric floor / storage heaters: one cable from the board to every room
+  if (elec && ug && ug.board) {
+    const cx = ug.board.cx, y0 = yFl(ug.row), tg = geo.filter((g) => g.cable);
+    if (tg.length) {
+      cable(`M${ug.board.x},${ug.board.y} V${y0} H${cx}`, tg.some((g) => g.cable.on), sto ? "storage" : "efloor");
+      tg.forEach((g, i) => {
+        const c = g.cable, yy = yFl(g.row) + (i % 3) * 2.5;
+        cable(`M${cx},${y0} V${yy} H${c.x} V${c.y}`, c.on, c.kind);
+      });
+    }
+  }
+  function cable(d, on, kind) {
+    if (kind === "storage") pipesBase.push(`<path d="${d}" class="cab cab-l" transform="translate(-1.6,-1.6)"/><path d="${d}" class="cab cab-n" transform="translate(1.6,1.6)"/>`);
+    else pipesBase.push(`<path d="${d}" class="cab cab-h"/>`);
+    if (on) pipesAnim.push(`<path d="${d}" class="fl fl-c a-fl"/>`);
   }
   function pipe(d, kind, anim) {
     pipesBase.push(`<path d="${d}" class="pp pp-${kind}"/>`);
@@ -777,7 +814,8 @@ export function renderHouse(vm, opts = {}) {
   }
 
   // ---- gable: title, status, presence ----
-  {
+  if (apt) drawPlate();
+  else {
     const g = [];
     const atticW = (y) => (y - (apexY + 16)) / (eaveY - apexY - 16) * (houseW - 2 * gI);
     const ty = apexY + RH * 0.6, maxW = atticW(ty - 8 * FS) - 4;
@@ -860,16 +898,19 @@ export function renderHouse(vm, opts = {}) {
   }
 
   function drawUtility(g) {
+    if (g.cell.elec) return drawElec(g);
     const b = roomBox(g, "util");
     // 0.53.0: every water-heating source of the house side by side (the host's first), one expansion tank
     const list = plant.length ? plant : [src];
     const n = list.length;
+    if (direct && n === 1) return drawDirect(g, b, list);
     const bw = n > 1 ? (narrow ? 38 : 44) : (narrow ? 50 : 56), bh = n > 1 ? 62 : 74, gap = n > 2 ? 8 : 12;
     const bx = b.x0 + I + 8, by = b.y0 + CD + 16 + (n > 1 ? 28 : 0);  // several: below the two label lines
     g.box = { x: bx, y: by, w: bw, h: bh };
     g.yFH = by + bh + 16; g.yRH = by + bh + 30; g.yGas = b.yB - 14;
     const anyOn = list.some((q) => q.running);
     const parts = [], extra = [];
+    let siloW = 0;
     const rx1 = bx + 10, fx1 = bx + bw - 10;
     const rfx = b.x0 + b.w - 26, rrx = b.x0 + b.w - 14;
     // boiler <-> riser connections (drawn as pipes so they animate)
@@ -884,11 +925,12 @@ export function renderHouse(vm, opts = {}) {
         pipe(`M${x + 8},${g.yRH} V${by + bh}`, "r", flowing && (q.pump || on));
       }
       if (on) p2.push(`<ellipse cx="${x + bw / 2}" cy="${by + bh * 0.6}" rx="${bw}" ry="${bh * 0.7}" fill="url(#${P}glow)" class="a-pulse"/>`);
-      p2.push(`<rect x="${x}" y="${by}" width="${bw}" height="${bh}" rx="6" fill="url(#${P}boiler)" class="unit" filter="url(#${P}sh)"/>
+      p2.push(`<rect x="${x}" y="${by}" width="${bw}" height="${bh}" rx="6" fill="url(#${P}${k === "pellet_boiler" ? "pel" : k === "district_heating" ? "steel" : "boiler"})" class="unit" filter="url(#${P}sh)"/>
         <rect x="${x + 6}" y="${by + 10}" width="${bw - 12}" height="15" rx="2.5" class="lcd"/>`);
       const disp = isNum(q.flow) ? deg(q.flow, lang) : isNum(q.flowTarget) && on ? deg(q.flowTarget, lang) : on ? "ON" : "– –";
       p2.push(`<text x="${x + bw / 2}" y="${by + 21.5}" class="lcdt" text-anchor="middle">${esc(disp)}</text>`);
       const cy = by + bh * 0.66;
+      if (k === "pellet_boiler") p2.push(`<rect x="${x + 7}" y="${by + bh * 0.42}" width="${bw - 14}" height="${bh * 0.48}" rx="3" class="pwin ${on ? "on" : ""}"/>`);  // the fire door
       if (["gas_boiler", "modulating_boiler", "pellet_boiler"].includes(k)) {
         const sc = (on ? 0.8 + 0.6 * (q.modulation ?? 1) : 0.9) * (n > 1 ? 0.85 : 1);
         p2.push(`<g transform="translate(${x + bw / 2},${cy}) scale(${sc.toFixed(2)})"><path d="M0,-12 C6,-5 10,-1 8,5 C6,11 -6,11 -8,5 C-10,-1 -4,-2 -2,-8 C0,-4 2,-3 0,-12Z" class="${on ? "flame a-flk" : "flame0"}"/>${on ? `<path d="M0,-3 C3,0 4,2 3,5 C2,7 -2,7 -3,5 C-4,2 -1,1 0,-3Z" fill="#fff59d" class="a-flk"/>` : ""}</g>`);
@@ -898,8 +940,23 @@ export function renderHouse(vm, opts = {}) {
         p2.push(`<g transform="translate(${x + bw / 2},${cy})"><circle r="9" class="hpico ${on ? "on" : ""}"/><path d="M-4,2 L0,-4 L4,2" class="hparr"/></g>`);
       } else if (k === "district_heating") {
         for (let j = 0; j < 6; j++) p2.push(`<rect x="${x + 7 + j * ((bw - 14) / 6)}" y="${by + 32}" width="${(bw - 14) / 6 - 2}" height="${bh - 40}" class="hex ${on ? "on" : ""}"/>`);
+        if (apt && i === 0) {  // 0.58.0: flat station – primary from the building's risers, the heat meter on top
+          pipe(`M${X0 - 12},${by + 30} H${x}`, "f", on || flowing);
+          pipe(`M${x},${by + bh - 10} H${X0 - 4}`, "r", on || flowing);
+          const mw = bw * 0.7, mx = x + (bw - mw) / 2;
+          p2.push(`<rect x="${mx}" y="${by - 17}" width="${mw}" height="15" rx="2.5" class="hmeter" filter="url(#${P}sh)"/><rect x="${mx + 3}" y="${by - 14}" width="${mw - 6}" height="7" rx="1" class="lcd"/><rect x="${x + bw / 2 - 1.5}" y="${by - 3}" width="3" height="4" class="radl2"/>`);
+        }
       }
-      if (big && n === 1) p2.push(`<rect x="${x + bw}" y="${by + 6}" width="14" height="30" rx="2" class="unit"/>`);
+      if (big && n === 1) {  // 0.58.0: the pellet store with its level and the feed screw
+        const sw = narrow ? 24 : 30, sx = x + bw + 8, sy = by + 4, sh = 44, cone = sh * 0.34, box = sh - cone;
+        const lv = isNum(q.fuelLevel) ? clamp(q.fuelLevel / 100, 0, 1) : null, fl = lv ?? 0.6;
+        siloW = sw + 10;
+        p2.push(`<path d="M${sx + sw / 2},${sy + sh} V${by + bh - 12} H${x + bw}" class="auger"/>`);
+        p2.push(`<line x1="${sx + 3}" y1="${sy + box}" x2="${sx + 3}" y2="${b.yB}" class="leg"/><line x1="${sx + sw - 3}" y1="${sy + box}" x2="${sx + sw - 3}" y2="${b.yB}" class="leg"/>`);
+        p2.push(`<path d="M${sx},${sy} H${sx + sw} V${sy + box} L${sx + sw * 0.62},${sy + sh} H${sx + sw * 0.38} L${sx},${sy + box} Z" class="silo" filter="url(#${P}sh)"/>`);
+        if (fl > 0) p2.push(`<path d="M${sx + 2},${sy + 2 + (box - 2) * (1 - fl)} H${sx + sw - 2} V${sy + box} L${sx + sw * 0.6},${sy + sh - 2} H${sx + sw * 0.4} L${sx + 2},${sy + box} Z" class="pell"/>`);
+        if (lv != null) p2.push(`<text x="${sx + sw / 2}" y="${sy - 4}" class="tiny" text-anchor="middle">${esc(Math.round(lv * 100) + " %")}</text>`);
+      }
       // flue: the host's first source through the wall as before, the others straight up
       if (i === 0 && GAS_KINDS.includes(k)) {
         const fy = by + 7, ex = X0 - 12;
@@ -916,22 +973,85 @@ export function renderHouse(vm, opts = {}) {
       else extra.push(`<g class="hs" data-key="member:${esc(q.entry || "")}" role="button" tabindex="0"><title>${esc(`${q.title || ""} – ${L.kinds[k] || k}`)}</title>${p2.join("")}</g>`);
     });
     // expansion tank (+ buffer tank) after the last source
-    const lastX = bx + (n - 1) * (bw + gap) + bw;
+    const lastX = bx + (n - 1) * (bw + gap) + bw + siloW;
     const tx = lastX + 10, ty = by + 26;
+    let used = lastX;
+    if (tx + 16 < rfx - 4) used = tx + 16;
     if (tx + 16 < rfx - 4) parts.push(`<path d="M${tx + 8},${ty + 40} V${g.yRH}" class="pp pp-r" style="stroke-width:3"/><rect x="${tx}" y="${ty}" width="16" height="40" rx="8" fill="url(#${P}tank)" filter="url(#${P}sh)"/>`);
     const bufSrc = list.find((q) => q.buffer);
     if (bufSrc && b.w > 150) {
       const cx = tx + 26, cw = Math.min(30, rfx - cx - 10);
       if (cw > 18) parts.push(`<rect x="${cx}" y="${by - 4}" width="${cw}" height="${bh + 8}" rx="${cw / 2.6}" fill="url(#${P}steel)" filter="url(#${P}sh)"/>${isNum(bufSrc.bufferTemp) ? `<text x="${cx + cw / 2}" y="${by + bh / 2}" class="tiny" text-anchor="middle">${esc(deg(bufSrc.bufferTemp, lang))}</text>` : ""}`);
+      if (cw > 18) used = cx + cw;
+    }
+    // 0.58.0: the floor heating's manifold (flow and return bars with their loop valves) when there is room for it
+    if (rooms.some((r) => r.emitter === "floor")) {
+      const mw = narrow ? 30 : 36, mx = rfx - mw - 10;
+      if (mx - used > 4) {
+        for (const [yy, c] of [[by + 44, "manif"], [by + 62, "manir"]]) {
+          parts.push(`<rect x="${mx}" y="${yy}" width="${mw}" height="6" rx="3" class="mani"/>`);
+          for (let j = 0; j < 5; j++) parts.push(`<rect x="${mx + 3 + j * (mw - 8) / 4}" y="${yy - 5}" width="3" height="5" class="${c}"/>`);
+        }
+        parts.push(`<path d="M${mx + mw},${by + 47} H${rfx}" class="pp pp-f" style="stroke-width:3"/><path d="M${mx + mw},${by + 65} H${rrx}" class="pp pp-r" style="stroke-width:3"/>`);
+      }
     }
     // pump on the return stub
     const py = by + bh + 14;
     roomOverlays.push(`<g transform="translate(${rx1},${py})"><circle r="8" class="pump" filter="url(#${P}sh)"/><g class="${flowing ? "a-spin" : ""}"><path d="M0,-5 L1.5,0 L0,5 L-1.5,0Z M-5,0 L0,1.5 L5,0 L0,-1.5Z" class="rotor"/></g></g>`);
-    // status labels: one source as before; several: their names, then their states
-    const stOf = (q) => ROOM_UNIT_KINDS.includes(q.kind) ? "" : [...GAS_KINDS, "pellet_boiler"].includes(q.kind) ? (q.running ? L.burning : L.idle) : (q.running ? L.running : L.idle);
+    plantLabels(b, list, parts, extra);
+  }
+
+  // 0.58.0: a district-heated flat with its radiators straight on the building's risers: shut-off valves and the
+  // flat's heat meter in the hall, no exchanger, pump or expansion tank (the building has them)
+  function drawDirect(g, b, list) {
+    const parts = [];
+    const by = b.y0 + CD + 16;
+    g.box = { x: b.x0 + I + 8, y: by, w: 40, h: 60 };
+    g.yFH = b.y0 + CD + 24; g.yRH = b.y0 + CD + 38; g.yGas = b.yB - 14;
+    const rfx = b.x0 + b.w - 26, rrx = b.x0 + b.w - 14, xf = X0 - 12, xr = X0 - 4;
+    pipe(`M${xf},${g.yFH} H${rfx}`, "f", flowing);
+    pipe(`M${rrx},${g.yRH} H${xr}`, "r", flowing);
+    const vx = b.x0 + I + 4, mx = b.x0 + I + 30, mw = 30;
+    parts.push(`<circle cx="${vx}" cy="${g.yFH}" r="4" class="mani"/><circle cx="${vx}" cy="${g.yRH}" r="4" class="mani"/>`);
+    parts.push(`<rect x="${mx + mw / 2 - 1.5}" y="${g.yRH + 2}" width="3" height="8" class="radl2"/><rect x="${mx}" y="${g.yRH + 8}" width="${mw}" height="20" rx="3" class="hmeter" filter="url(#${P}sh)"/><rect x="${mx + 3}" y="${g.yRH + 12}" width="${mw - 6}" height="8" rx="1" class="lcd"/>`);
+    const e = list[0].energy;
+    if (e && isNum(e.total)) labels2(mx + mw / 2, g.yRH + 38, `${tn(e.total, lang, e.total >= 100 ? 0 : 1)} kWh`);
+    // the flat's entrance door
+    const dw = narrow ? 30 : 34, dh = Math.min(64, b.yB - g.yRH - 40), dx = b.x0 + b.w * 0.58 - dw / 2;
+    parts.push(`<rect x="${dx}" y="${b.yB - dh}" width="${dw}" height="${dh}" rx="1.5" class="door"/><circle cx="${dx + dw - 6}" cy="${b.yB - dh / 2}" r="1.8" class="knob"/>`);
+    plantLabels(b, list, parts, []);
+  }
+  function labels2(x, y, t) { roomOverlays.push(pill(x, y, t, { cls: "poff2", anchor: "middle", size: 10, key: "source" })); }
+
+  // 0.58.0: electric floor heating / storage heaters – the distribution board (and the meter of the controlled tariff)
+  function drawElec(g) {
+    const b = roomBox(g, "util");
+    const parts = [], on = !!src0.running;
+    const by = b.y0 + CD + 16;
+    let bx = b.x0 + I + 8;
+    if (sto) {  // the meter of the controlled (night) tariff
+      parts.push(`<rect x="${bx}" y="${by + 6}" width="26" height="38" rx="3" class="emeter" filter="url(#${P}sh)"/><rect x="${bx + 4}" y="${by + 11}" width="18" height="8" rx="1" class="lcd"/><circle cx="${bx + 13}" cy="${by + 32}" r="3" class="${on ? "led on" : "led"}"/>`);
+      bx += 34;
+    }
+    const bw = narrow ? 40 : 46, bh = 62;
+    parts.push(`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" class="eboard" filter="url(#${P}sh)"/><path d="M${bx + bw / 2},${by + 5} l5,9 h-10z" class="warn"/>`);
+    for (let r = 0; r < 2; r++) for (let j = 0; j < 5; j++)
+      parts.push(`<rect x="${bx + 5 + j * (bw - 10) / 5}" y="${by + 22 + r * 18}" width="${(bw - 10) / 5 - 1.5}" height="12" rx="1" class="brk${j === 0 ? " main" : ""}"/>`);
+    if (efl && !sto) {  // the floor thermostat / contactor box
+      const cx0 = bx + bw + 8;
+      parts.push(`<rect x="${cx0}" y="${by + 10}" width="28" height="24" rx="4" class="tstat" filter="url(#${P}sh)"/><rect x="${cx0 + 3}" y="${by + 13}" width="22" height="9" rx="1.5" class="lcd"/><text x="${cx0 + 14}" y="${by + 20.5}" class="lcdt" style="font-size:7px" text-anchor="middle">${on ? "ON" : "– –"}</text>`);
+    }
+    g.board = { x: bx + bw / 2, y: by + bh, cx: b.x0 + b.w - 20 };
+    plantLabels(b, [src0], parts, []);
+  }
+
+  // status labels of the plant room: one source as before; several: their names, then their states
+  function plantLabels(b, list, parts, extra) {
+    const n = list.length, anyOn = list.some((q) => q.running);
+    const stOf = (q) => ROOM_UNIT_KINDS.includes(q.kind) && !elec ? "" : [...GAS_KINDS, "pellet_boiler"].includes(q.kind) ? (q.running ? L.burning : L.idle) : (q.running ? L.running : L.idle);
     const lx = b.x1 - I - 4, ly = b.y0 + CD + 13;
     const maxW = b.w - 2 * I - 8;
-    const name = n > 1 ? list.map((q) => L.kinds[q.kind] || q.kind).join(" + ") : (L.kinds[src.kind] || src.kind);
+    const name = n > 1 ? list.map((q) => L.kinds[q.kind] || q.kind).join(" + ") : efl && src.kind === "electric_heater" ? L.efloor : (L.kinds[src.kind] || src.kind);
     const fsz = n > 1 ? 10.5 : 11.5;
     roomOverlays.push(pill(lx, ly, fit(name, fsz, maxW - 20, 700), { cls: anyOn ? "pon" : "poff", anchor: "end", size: fsz, weight: 700 }));
     const st2 = n > 1 ? [list.map(stOf).join(" · ")] : [stOf(src)];
@@ -967,6 +1087,8 @@ export function renderHouse(vm, opts = {}) {
           parts.push(`<rect x="${x}" y="${ry}" width="${rw}" height="${rh}" rx="3" fill="url(#${P}${hot ? "radh" : "radc"})" class="rad"/>`);
           for (let c = x + 5; c < x + rw - 3; c += 5) parts.push(`<line x1="${c}" y1="${ry + 3}" x2="${c}" y2="${ry + rh - 3}" class="radl"/>`);
           parts.push(`<rect x="${x + 2}" y="${b.yB - 7}" width="3" height="5" class="radl2"/><rect x="${x + rw - 5}" y="${b.yB - 7}" width="3" height="5" class="radl2"/>`);
+          // 0.58.0: radiators on the building's risers carry a heat cost allocator
+          if (direct) parts.push(`<rect x="${x + rw / 2 - 7}" y="${ry + rh / 2 - 7}" width="14" height="13" rx="2" class="alloc"/><rect x="${x + rw / 2 - 4.5}" y="${ry + rh / 2 - 4.5}" width="9" height="5" rx="1" class="alloclcd"/>`);
         }
         if (hot) for (let s = 0; s < 3; s++) parts.push(`<path d="M${x + rw * (0.25 + s * 0.25)},${ry - 4} q-3,-5 0,-10 q3,-5 0,-10" class="shim a-rise" style="animation-delay:${(-s * 0.7).toFixed(1)}s"/>`);
         // valve + TRV head (left top)
@@ -1003,6 +1125,21 @@ export function renderHouse(vm, opts = {}) {
       if (r.heating) parts.push(`<path d="M${b.x0 + I},${b.yB} H${b.x1 - I} L${b.x1},${b.y1} H${b.x0} Z" class="ufhglow a-pulse"/>`);
       g.branch.push({ fx: start[0], rx: P2(u1 + 0.02, 1)[0], fpath: `M${start[0]},${yFl(rowI)} V${b.y1}`, rpath: `M${P2(u1 + 0.02, 1)[0]},${b.y1} V${yRt(rowI)}` });
       slotL = b.x1 - I; // free
+    } else if (em === "efloor") {
+      // 0.58.0: an electric heating cable laid as a spiral in the floor, fed from the board
+      const P2 = (u, v) => [lerp(lerp(b.x0 + I, b.x0, v), lerp(b.x1 - I, b.x1, v), u), lerp(b.yB, b.y1, v)];
+      let u0 = 0.05, u1 = 0.95, v0 = 0.12, v1 = 0.9;
+      const pts = [P2(u0, 1)];
+      for (let k = 0; k < 3; k++) {
+        pts.push(P2(u0, v0), P2(u1, v0), P2(u1, v1), P2(u0 + 0.05, v1));
+        u0 += 0.05; u1 -= 0.05; v0 += 0.13; v1 -= 0.13;
+      }
+      const d = "M" + pts.map((q) => `${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" L");
+      if (r.heating) parts.push(`<path d="M${b.x0 + I},${b.yB} H${b.x1 - I} L${b.x1},${b.y1} H${b.x0} Z" class="ufhglow a-pulse"/>`);
+      parts.push(`<path d="${d}" class="efl"/>`);
+      if (r.heating) parts.push(`<path d="${d}" class="fl fl-c a-fl"/>`);
+      g.cable = { x: pts[0][0], y: b.y1, kind: "efloor", on: !!r.heating };
+      slotL = b.x1 - I;
     } else if (em === "ac") {
       const uw = narrow ? 58 : 66, ux = b.x1 - I - 10 - uw, uy = b.y0 + CD + 30;
       const on = r.unit?.running ?? r.heating;
@@ -1027,14 +1164,16 @@ export function renderHouse(vm, opts = {}) {
         const n = 6, fw = ew / n;
         for (let i = 0; i < n; i++) parts.push(`<rect x="${ex + i * fw + 0.6}" y="${ey}" width="${fw - 1.2}" height="${eh}" rx="${fw / 2.2}" ${on ? `fill="url(#${P}oil)"` : ""} class="oil ${on ? "on" : ""}"/>`);
         parts.push(`<rect x="${ex + 3}" y="${ey + eh - 2}" width="${ew - 6}" height="4" rx="2" class="oilb"/><circle cx="${ex + 6}" cy="${b.yB}" r="2.4" class="oilb"/><circle cx="${ex + ew - 6}" cy="${b.yB}" r="2.4" class="oilb"/>`);
-      } else {
-        parts.push(`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" rx="4" class="stor ${on ? "on" : ""}"/>`);
-        for (let i = 0; i < 4; i++) parts.push(`<line x1="${ex + 6}" y1="${ey + 8 + i * 8}" x2="${ex + ew - 6}" y2="${ey + 8 + i * 8}" class="radl"/>`);
+      } else {  // 0.58.0: a storage heater cabinet – top cover, outlet grille below, warm air rising when it gives heat
+        parts.push(`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" rx="4" class="stor ${on ? "on" : ""}" filter="url(#${P}sh)"/><rect x="${ex}" y="${ey}" width="${ew}" height="6" rx="3" class="stort"/>`);
+        for (let i = 0; i < 6; i++) parts.push(`<line x1="${ex + 6 + i * (ew - 12) / 5}" y1="${ey + eh - 12}" x2="${ex + 6 + i * (ew - 12) / 5}" y2="${ey + eh - 4}" class="storg"/>`);
+        if (on) for (let s = 0; s < 3; s++) parts.push(`<path d="M${ex + ew * (0.25 + s * 0.25)},${ey - 3} q-3,-5 0,-10 q3,-5 0,-10 m-3.5,3.5 l3.5,-3.5 l3.5,3.5" class="harr a-rise" style="animation-delay:${(-s * 0.7).toFixed(1)}s"/>`);
+        if (elec) g.cable = { x: ex + ew / 2, y: ey + eh, kind: "storage", on: !!on };
       }
-      // cord to the socket
-      const sx = b.x1 - I - 3;
-      parts.push(`<path d="M${ex + ew},${ey + eh - 8} q8,0 ${sx - ex - ew - 2},-12" class="cord"/><rect x="${sx - 5}" y="${ey + eh - 26}" width="7" height="10" rx="2" class="sock"/>`);
-      if (on) for (let s = 0; s < 3; s++) parts.push(`<path d="M${ex + ew * (0.25 + s * 0.25)},${ey - 4} q-3,-5 0,-10 q3,-5 0,-10" class="shim a-rise" style="animation-delay:${(-s * 0.7).toFixed(1)}s"/>`);
+      // cord to the socket (a storage heater wired from the board has none)
+      const sx = b.x1 - I - 3, wired = em === "storage" && elec;
+      if (!wired) parts.push(`<path d="M${ex + ew},${ey + eh - 8} q8,0 ${sx - ex - ew - 2},-12" class="cord"/><rect x="${sx - 5}" y="${ey + eh - 26}" width="7" height="10" rx="2" class="sock"/>`);
+      if (on && em !== "storage") for (let s = 0; s < 3; s++) parts.push(`<path d="M${ex + ew * (0.25 + s * 0.25)},${ey - 4} q-3,-5 0,-10 q3,-5 0,-10" class="shim a-rise" style="animation-delay:${(-s * 0.7).toFixed(1)}s"/>`);
       const p = r.unit?.power;
       if (p && isNum(p.value)) labels.push(pill(ex + ew / 2, ey - 30, `${tn(p.value, lang, p.value < 10 ? 1 : 0)} ${p.unit}`, { cls: on ? "pon2" : "poff2", anchor: "middle", size: 10.5 }));
       slotL = ex - 8;
@@ -1068,7 +1207,7 @@ export function renderHouse(vm, opts = {}) {
         const pw = ex.unit?.power;
         if (pw && isNum(pw.value)) labels.push(pill(exx + ew / 2, ey - 12, `${tn(pw.value, lang, pw.value < 10 ? 1 : 0)} ${pw.unit}`, { cls: on ? "pon2" : "poff2", anchor: "middle", size: 10, key: kx }));
         slotL = exx - 8;
-      } else if (ex.emitter === "floor" && on) {
+      } else if ((ex.emitter === "floor" || ex.emitter === "efloor") && on) {
         p3.push(`<path d="M${b.x0 + I},${b.yB} H${b.x1 - I} L${b.x1},${b.y1} H${b.x0} Z" class="ufhglow a-pulse"/>`);
       }
       if (p3.length) parts.push(`<g class="hs" data-key="${kx}" role="button" tabindex="0"><title>${esc(ex.title || "")}</title>${p3.join("")}</g>`);
@@ -1090,16 +1229,17 @@ export function renderHouse(vm, opts = {}) {
       } else {
         parts.push(`<line x1="${wx + ww / 2}" y1="${wy}" x2="${wx + ww / 2}" y2="${wy + wh}" class="mull"/><line x1="${wx}" y1="${wy + wh * 0.45}" x2="${wx + ww}" y2="${wy + wh * 0.45}" class="mull"/>`);
       }
-      if (slotL === right || em === "floor" || em === "none" || em === "ac") slotL = Math.min(slotL, wx - 10);
+      if (slotL === right || em === "floor" || em === "efloor" || em === "none" || em === "ac") slotL = Math.min(slotL, wx - 10);
     }
 
     // ---- furniture ----
-    const fx0 = b.x0 + I + 6, fx1 = (em === "none" || em === "floor" || em === "ac") ? b.x1 - I - 6 : Math.min(slotL, b.x1 - I - 6) - 4;
+    const open_ = em === "none" || em === "floor" || em === "efloor" || em === "ac";
+    const fx0 = b.x0 + I + 6, fx1 = open_ ? b.x1 - I - 6 : Math.min(slotL, b.x1 - I - 6) - 4;
     const fw = fx1 - fx0;
     if (fw > 30) {
-      const s = clamp(fw / 100, 0.55, em === "none" || em === "floor" || em === "ac" ? 1.25 : 1);
+      const s = clamp(fw / 100, 0.55, open_ ? 1.25 : 1);
       const fwid = 100 * s;
-      const fx = em === "none" || em === "floor" || em === "ac" ? fx0 + (fw - fwid) * 0.15 : fx0 + Math.max(0, fw - fwid) * 0.5;
+      const fx = open_ ? fx0 + (fw - fwid) * 0.15 : fx0 + Math.max(0, fw - fwid) * 0.5;
       parts.push(`<g transform="translate(${fx.toFixed(1)},${(b.yB - 60 * s).toFixed(1)}) scale(${s.toFixed(3)})" class="furn">${FURN[r.kind] ? FURN[r.kind]() : FURN.generic()}</g>`);
     }
 
@@ -1151,6 +1291,49 @@ export function renderHouse(vm, opts = {}) {
       <circle cx="${cx}" cy="${cy}" r="${fr + 3}" class="grill"/><g transform="translate(${cx},${cy})"><g class="${on ? "a-spin-f" : ""}">${blades}</g><circle r="3" class="hub"/></g>
       <rect x="${mirror ? x + w * 0.08 : x + w * 0.78}" y="${y + 8}" width="${w * 0.14}" height="${h - 16}" rx="2" class="oduside"/>${air}</g>`;
   }
+
+  // 0.58.0: a flat in a block – the facade around it, the flats above and below with their windows, a neighbour block
+  // far away in the gap on the left
+  function drawBlock() {
+    const fx = X0 - 18;
+    if (fx > 8) {
+      out.push(`<rect x="3" y="${(eaveY * 0.55).toFixed(1)}" width="${fx - 6}" height="${Ht}" class="far"/>`);
+      for (let y = eaveY * 0.55 + 8; y < Ht - 6; y += 16) out.push(`<rect x="7" y="${y.toFixed(1)}" width="${Math.max(3, fx - 14)}" height="7" class="farw"/>`);
+    }
+    out.push(`<rect x="${fx}" y="0" width="${W - fx}" height="${Ht}" class="fac"/>`);
+    const wins = (y, h) => {
+      if (h < 8) return;
+      const nW = Math.max(2, Math.round((X1 - X0) / 160)), step = (X1 - X0) / nW;
+      for (let i = 0; i < nW; i++) {
+        const wx = X0 + step * i + step * 0.2, ww = step * 0.6;
+        out.push(`<rect x="${wx.toFixed(1)}" y="${y.toFixed(1)}" width="${ww.toFixed(1)}" height="${h.toFixed(1)}" fill="url(#${P}gl)" class="fwin"/><line x1="${(wx + ww / 2).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(wx + ww / 2).toFixed(1)}" y2="${(y + h).toFixed(1)}" class="mull"/>`);
+      }
+    };
+    wins(Math.max(4, eaveY - 36), 26);           // the flat above
+    wins(yG + SF + 10, Math.min(30, Ht - yG - SF - 16));  // the flat below
+    for (const y of [eaveY - 1, yG + SF + 1]) out.push(`<line x1="${fx}" y1="${y}" x2="${W}" y2="${y}" class="facj"/>`);
+    out.push(`<line x1="${X1 + 6}" y1="0" x2="${X1 + 6}" y2="${Ht}" class="facj"/>`);
+  }
+
+  function drawPlate() {
+    const bits = [];
+    if (isNum(vm.target)) bits.push(`${L.target} ${tn(vm.target, lang)} °C`);
+    if (isNum(vm.demand) && hyd) bits.push(`${L.demand} ${Math.round(vm.demand * 100)} %`);
+    if (vm.mode === "shadow") bits.unshift(L.shadow);
+    if (src.fault) bits.unshift(L.fault);
+    const maxW = Math.max(110, W - stackW - 28 - (X0 + 2));
+    const t1 = fit(vm.title, 15 * FS, maxW - 24, 700), sub = bits.length ? fit(bits.join(" · "), 12 * FS, maxW - 24) : "";
+    const pw = Math.min(maxW, Math.max(tw(t1, 15 * FS, 700), sub ? tw(sub, 12 * FS, 400) : 0) + 24);
+    const px = X0 + 2, py = 10, ph = 26 * FS + (sub ? 18 * FS : 0) + (isNum(vm.demand) && hyd ? 9 : 0);
+    const g = [`<rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="10" class="plate" filter="url(#${P}sh)"/>`,
+      `<text x="${px + 12}" y="${py + 20 * FS}" class="ttl">${esc(t1)}</text>`];
+    if (sub) g.push(`<text x="${px + 12}" y="${py + 38 * FS}" class="sub">${esc(sub)}</text>`);
+    if (isNum(vm.demand) && hyd) {
+      const bw = Math.min(110, pw - 24), by = py + ph - 9;
+      g.push(`<rect x="${px + 12}" y="${by}" width="${bw}" height="4" rx="2" class="bar0"/><rect x="${px + 12}" y="${by}" width="${(bw * clamp(vm.demand, 0, 1)).toFixed(1)}" height="4" rx="2" class="bar1"/>`);
+    }
+    over.push(`<g class="hs" data-key="hc" role="button" tabindex="0" aria-label="${esc(vm.title)}"><title>${esc(vm.subtitle || vm.title)}</title>${g.join("")}<rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="10" class="hit"/></g>`);
+  }
 }
 const roomOverlays = []; // filled during render (reset per call below)
 
@@ -1199,6 +1382,7 @@ const CSS = `
   --pill: rgba(255,255,255,.94); --pillS: rgba(0,0,0,.14); --ptext:#1f2328; --psub:#5b6168;
   --f1:#e2d3bd; --f2:#a88a68; --f3:#8fb5c9; --f4:#f5efe6; --fl1:#a88a68; --gl1:#bfe3fa; --gl2:#e9f6ff; --wframe:#ffffff; --tub:#ffffff; --tubE:#b9c2ca;
   --flow:#e53935; --flowE:#9e1d1b; --ret:#1e88e5; --retE:#0d4f8f; --hl:rgba(255,255,255,.45);
+  --fac:#e7dccb; --far:#c9d3dc;
   --pf:#c62828; --pr:#1565c0; --lcd:#1b2a33; --lcdt:#7fe0ff; --tsb:#ffffff; --tsE:#c9cfd4; --stars:#fff; --moonbite:#26375e;
 }
 :host([dark]) {
@@ -1209,6 +1393,7 @@ const CSS = `
   --pill: rgba(32,34,37,.92); --pillS: rgba(255,255,255,.16); --ptext:#eceff1; --psub:#b0b7bd;
   --f1:#6b5b47; --f2:#4b3d2e; --f3:#4f6e80; --f4:#8d8274; --fl1:#4b3d2e; --gl1:#355575; --gl2:#557ba0; --wframe:#c9c4bc; --tub:#d9dde0; --tubE:#8a9298;
   --flow:#ef5350; --flowE:#7f1715; --ret:#42a5f5; --retE:#0b3f73; --hl:rgba(255,255,255,.28);
+  --fac:#4a443d; --far:#2c3a4d;
   --pf:#ff8a80; --pr:#82b1ff; --tsb:#e3e6e8; --tsE:#7d858c; --moonbite:#1b2a48;
 }
 .wrap { position:relative; width:100%; }
@@ -1292,6 +1477,24 @@ svg.narrow .tsv { font-size:15px; } svg.narrow .tst { font-size:11.5px; } svg.na
 .furn .jar { fill:#ffcc80; } .furn .jar2 { fill:#a5d6a7; } .furn .toy1 { fill:#ef9a9a; } .furn .toy2 { fill:#90caf9; } .furn .toy3 { fill:#c5a37a; }
 .odu { fill:#f3f4f5; stroke:#b7bec4; } .grill { fill:#37474f; } .blade { fill:#b0bec5; } .hub { fill:#eceff1; } .oduside { fill:#dfe3e6; } .pad { fill:#9e9e9e; }
 .tiny { fill:#263238; font-size:9px; font-weight:700; }
+:host([dark]) .tiny { fill:#eceff1; }
+/* 0.58.0: block of flats, pellet store, flat station, manifold, electric floor, board, storage heater */
+.fac { fill:var(--fac); } .far { fill:var(--far); } .farw { fill: color-mix(in srgb, var(--gl1) 70%, #fff); opacity:.7; }
+.fwin { stroke:var(--wframe); stroke-width:2.5; } .facj { stroke: rgba(0,0,0,.14); stroke-width:1.2; }
+.plate { fill:var(--pill); stroke:var(--pillS); }
+.pwin { fill:#2b1d16; stroke:#5d4037; stroke-width:1.2; } .pwin.on { fill:#4e2410; }
+.silo { fill:#eceff1; stroke:#90a4ae; stroke-width:1.2; } .pell { fill:#c9a16b; } .leg { stroke:#90a4ae; stroke-width:2; }
+.auger { fill:none; stroke:#b0bec5; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
+.hmeter { fill:#fafafa; stroke:#9aa3ab; } .alloc { fill:#fafafa; stroke:#9aa3ab; stroke-width:.8; } .alloclcd { fill:#c5e1a5; }
+.door { fill:#8d5a3b; stroke:#5d3a24; } .knob { fill:#d7ccc8; }
+.mani { fill:#c9a227; stroke:#8d6e00; stroke-width:.6; } .manif { fill:#e53935; } .manir { fill:#1e88e5; }
+.efl { fill:none; stroke:#e53935; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.cab { fill:none; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; } .cab-h { stroke:#e53935; } .cab-l { stroke:#ef6c00; } .cab-n { stroke:#1e88e5; }
+.fl-c { stroke:#fff3e0; stroke-width:1.5; }
+.eboard { fill:#fafafa; stroke:#9aa3ab; } .brk { fill:#1e5aa8; } .brk.main { fill:#37474f; } .warn { fill:#ffca28; stroke:#5d4037; stroke-width:.6; }
+.emeter { fill:#37474f; stroke:#263238; } .led { fill:#78909c; } .led.on { fill:#ff7043; }
+.stort { fill: color-mix(in srgb, #8d6e63 45%, #d7ccc8); } .storg { stroke:#6d4c41; stroke-width:1.4; }
+.harr { fill:none; stroke:#ff7043; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; opacity:0; }
 /* animations (only when the motion preference allows) */
 @keyframes hvfl { to { stroke-dashoffset:-14; } }
 @keyframes hvspin { to { transform: rotate(360deg); } }
@@ -1315,12 +1518,12 @@ svg.narrow .tsv { font-size:15px; } svg.narrow .tst { font-size:11.5px; } svg.na
   .a-air, .a-air2 { animation: hvair 1.1s linear infinite; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shim, .cold { opacity:.7; } .puff { opacity:.5; }
+  .shim, .cold, .harr { opacity:.7; } .puff { opacity:.5; }
 }
 :host([reduced-motion]) .a-fl, :host([reduced-motion]) .a-spin, :host([reduced-motion]) .a-spin-f, :host([reduced-motion]) .a-rise,
 :host([reduced-motion]) .a-rise2, :host([reduced-motion]) .a-puff, :host([reduced-motion]) .a-pulse, :host([reduced-motion]) .a-flk,
 :host([reduced-motion]) .a-tw, :host([reduced-motion]) .a-air, :host([reduced-motion]) .a-air2 { animation:none !important; }
-:host([reduced-motion]) .shim, :host([reduced-motion]) .cold { opacity:.7; } :host([reduced-motion]) .puff { opacity:.5; }
+:host([reduced-motion]) .shim, :host([reduced-motion]) .cold, :host([reduced-motion]) .harr { opacity:.7; } :host([reduced-motion]) .puff { opacity:.5; }
 .a-spin, .a-spin-f { transform-box: fill-box; transform-origin: center; }
 `;
 

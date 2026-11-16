@@ -334,6 +334,16 @@ card (outdoor, HC controller, leading room, heat source / gas); a room or a TRV 
 Light / dark follows the Home Assistant theme, it fits a phone, and it stays still with "reduce motion". Central and
 buffer instances keep the line drawing.
 
+**Heating systems in the drawing (0.58.0).** Each heat source is drawn the way it is built: a **pellet boiler** red with
+its fire door, the pellet store beside it (its level from `fuel_level_entity`) and the feed screw; a **heat pump** with
+its indoor unit, the buffer tank and – with floor loops – the manifold, its outdoor unit outside showing the power it
+draws; an **electric floor** (electric heater on a floor system) as heating cables laid in the floors, fed from the
+distribution board and its thermostat in a small electrical room; **storage heaters** in every room, wired from the board
+and the meter of the controlled tariff. **District heating is a flat in a block of flats**, not a house: no roof or
+garden, the flats above and below, the building's risers in the outer wall. Its connection is set in the options
+(devices → *District heating connection*): a **flat station** with a heat exchanger and its heat meter, or **radiators
+on the risers** – shut-off valves and the flat's heat meter in the hall, a heat cost allocator on every radiator.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is
