@@ -381,6 +381,11 @@ heat pump coordination still gets the uncapped demand; the shortfall is shown. T
 rounded up to 0.5 °C or whole °C. The info panel draws the heat pump's raw, given-out, sent and reported targets and
 its measured water over 24 hours. A house name can be set on the buffer, circuit and heat pump instances too.
 
+**Demand-based tank charging (0.65.0).** Besides the classic rule (start when the tank top falls under the circuits'
+need or the charge under a threshold) the heat pump coordination works out a demand rule: start while the top still
+has a settable reserve above the need, stop only when a lower layer reaches the need + a stop margin (never above what
+the coil can reach). Both are shown side by side; a setting picks the one that drives (classic by default).
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

@@ -35,6 +35,7 @@ from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
 from .core.wood import WoodConfig
 from .core.output_guard import ROUND_MODES  # 0.64.0
+from .core.hp_coord import CHARGE_MODES, STOP_LAYERS  # 0.65.0
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig, MixingCircuit
 from .core.hp_coord import HpConfig
 from .core.room_model import OWN, rooms_options
@@ -326,6 +327,13 @@ def _hpc_settings(current: dict) -> dict:
     return dict([
         n("hp_flow_min", 15, 50, 1, "°C"), n("hp_flow_max", 25, 70, 1, "°C"), n("hp_reserve", 0, 15, 0.5, "°C"),
         n("hp_offset", -8, 8, 0.5, "°C"), n("hp_hyst", 0.5, 10, 0.5, "°C"),
+        # 0.65.0: demand-based charging – which rule drives, and its start / stop points
+        (vol.Required("hp_charge_mode", default=cfg.hp_charge_mode if cfg.hp_charge_mode in CHARGE_MODES else "classic"),
+         _select(list(CHARGE_MODES), "hp_charge_mode")),
+        n("hp_start_margin", 0, 15, 0.5, "°C"), n("hp_start_kwh", 0, 100, 0.5, "kWh"),
+        (vol.Required("hp_stop_layer", default=cfg.hp_stop_layer if cfg.hp_stop_layer in STOP_LAYERS else "lower"),
+         _select(list(STOP_LAYERS), "hp_stop_layer")),
+        n("hp_stop_margin", 0, 15, 0.5, "°C"), n("hp_coil_dt", 0, 15, 0.5, "°C"),
         n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"), b("hp_charge_needs_demand"),
         n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
         b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),

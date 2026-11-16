@@ -35,6 +35,24 @@ Heat demand in detail (all thresholds settable; percentages only when the tank h
   a low charge alone then starts nothing, and with no demand a heating stops on the temperatures alone;
 - `hp_min_on_s` / `hp_min_off_s` hold the enable request (not the cold-weather ON and not a fail-safe ON).
 
+0.65.0 – demand-based charging (`hp_charge_mode` = `demand`; `classic`, the rules above, by default). The tester's
+live system (1000 l stratified tank, 10 kW heat pump on the lower coil) showed the classic start too late: with the
+top at 37 °C and the need at 34.5 °C nothing started, though the tank was nearly spent below and the coil's heat takes
+long to reach the top. In demand mode the percentages are only information; the start and the stop go by the need:
+- need (T_need) = the highest demanded (not tank-capped) target of the circuits with a lasting demand + their margin;
+- reserve: in °C the top − T_need; in kWh Σ layer litres × 1.163 Wh/(l·K) × max(layer − T_need, 0) (with the volume);
+- start when the top < T_need + `hp_start_margin` (3 °C), or the kWh reserve < `hp_start_kwh` (0 = not used);
+- stop when the `hp_stop_layer` (the lower middle sensor by default; the nearest measured one above it when missing)
+  is at least T_need + `hp_stop_margin` (3 °C) – a usable reserve in the upper part, not only a warm top; that stop
+  temperature is never above the flow target asked of the heat pump − `hp_coil_dt` (3 °C), so HC never waits for a
+  tank the coil cannot reach (and never below T_need);
+- with no lasting demand a running charge stops and nothing starts (a low percentage alone starts nothing);
+- frost, wood first, the cold-weather ON, the long no-demand stop, summer mode and the min on / off stay as they are;
+- a tank with no circuit linked (its own zones only) keeps the classic rules.
+Both are worked out every step, each with its own hysteresis, and both are shown (`classic`, `demand_charge`), so the
+one not driving can be compared in shadow; the estimated hours until the top reaches T_need (from the tank's trend)
+are shown only.
+
 Automatic summer / winter mode (`hp_auto_summer`, off – 0.57.0): not a date and not only the outdoor temperature, but
 the house's own demand. After `hp_summer_after_h` (24 h) with no circuit / zone demand at all, the coordination goes
 into summer mode: no heating for the tank – no low-charge start, no standby ON, a running heating stops; the target
@@ -92,6 +110,12 @@ class HpConfig:
     hp_exercise_weekday: int = 0  # 0 = Monday
     hp_exercise_hour: int = 10
     hp_exercise_min: float = 10.0
+    hp_charge_mode: str = "classic"  # 0.65.0: classic | demand (which rule drives; both are shown)
+    hp_start_margin: float = 3.0  # 0.65.0 demand: start when the top < need + this
+    hp_start_kwh: float = 0.0  # 0.65.0 demand: start when the usable reserve above the need < this kWh (0 = not used)
+    hp_stop_layer: str = "lower"  # 0.65.0 demand: the layer that must reach need + hp_stop_margin
+    hp_stop_margin: float = 3.0  # 0.65.0 demand
+    hp_coil_dt: float = 3.0  # 0.65.0 demand: the tank stays this much under the heat pump's flow target
     hp_deadband: float = 2.0
     hp_confirm_s: float = 600.0
     hp_min_interval_s: float = 2700.0
@@ -129,6 +153,7 @@ class HpInputs:
     hp_running: bool | None = None  # the heat pump runs now (None: not known)
     hp_running_age_s: float | None = None  # 0.59.0: seconds since that reading was reported
     offset: float | None = None  # the manual offset now (the number entity)
+    layers: tuple = ()  # 0.65.0: (name, °C or None, litres or None, measured) top first
 
 
 @dataclass(frozen=True)
@@ -151,7 +176,12 @@ class HpDecision:
 ZONE_HOLD_S = 1800.0  # 0.57.1: as a circuit's `circuit_hold_s`
 
 REASONS = ["fail_safe_on", "no_outdoor", "no_buffer", "cold_on", "frost", "low_charge", "heat_needed", "heating",
-           "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off"]
+           "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off",
+           # 0.65.0 demand-based charging
+           "reserve_low", "reserve_low_kwh", "charging_reserve", "reserve_ok", "reserve_full", "no_demand"]
+CHARGE_MODES = ("classic", "demand")
+STOP_LAYERS = ("top", "upper", "lower", "bottom")
+WH_PER_L_K = 1.163
 
 
 class HeatPumpCoordinator:
@@ -160,6 +190,7 @@ class HeatPumpCoordinator:
         self.hold = SetpointHold(self.cfg.hold())
         self.enable = False
         self.heating = False  # the heat demand (A), with its own hysteresis
+        self.alt_heating = False  # 0.65.0: the latch of the rule not driving (shown for comparison)
         self.last_change: datetime | None = None  # of the enable request
         self.cold_latched = False
         self.warm_since: datetime | None = None  # outdoor above the release limit since
@@ -231,8 +262,10 @@ class HeatPumpCoordinator:
         needs = [c.target + c.margin for c in i.circuits if c.demand and c.target is not None]
         return round(max(needs), 1) if needs else None
 
-    def _heat(self, i: HpInputs, need: float | None, wood: str, demand: bool = True) -> tuple[bool, str]:
+    def _heat(self, i: HpInputs, need: float | None, wood: str, demand: bool = True,
+              heating: bool | None = None) -> tuple[bool, str]:
         cfg = self.cfg
+        heating = self.heating if heating is None else heating
         frost = i.top is not None and i.top <= i.frost_top
         # 0.59.0: with `hp_charge_needs_demand` the charge percentage only counts while a room / circuit asks for heat
         by_charge = demand or not cfg.hp_charge_needs_demand
@@ -245,7 +278,7 @@ class HeatPumpCoordinator:
             return False, "wood"
         if low:
             return True, "low_charge"
-        if self.heating:
+        if heating:
             if need is not None and i.top < need + cfg.hp_hyst:
                 return True, "heating"
             if by_charge and cfg.hp_charge_off > 0 and i.charge is not None and i.charge < cfg.hp_charge_off:
@@ -256,6 +289,59 @@ class HeatPumpCoordinator:
                 return False, "wood"  # another source charges the tank: let it
             return True, "heat_needed"
         return False, "off"
+
+    def reserve(self, i: HpInputs, need: float | None, flow: float | None) -> dict:
+        """0.65.0: the tank's reserve over the need, and the demand rule's start / stop points (information too)."""
+        cfg = self.cfg
+        out: dict = {"need": need}
+        if need is None or i.top is None:
+            return out
+        out["reserve_c"] = round(i.top - need, 1)
+        layers = [lv for lv in i.layers if lv[1] is not None]
+        if layers and all(lv[2] for lv in layers):
+            out["reserve_kwh"] = round(sum(lv[2] * WH_PER_L_K * max(lv[1] - need, 0.0) for lv in layers) / 1000, 2)
+        out["start_below"] = round(need + cfg.hp_start_margin, 1)
+        stop = need + cfg.hp_stop_margin
+        if flow is not None:
+            stop = min(stop, flow - cfg.hp_coil_dt)  # (E) the coil cannot make the tank warmer than this
+        out["stop_at"] = round(max(stop, need), 1)
+        order = [n for n in STOP_LAYERS if any(lv[0] == n for lv in i.layers)]
+        want = cfg.hp_stop_layer if cfg.hp_stop_layer in STOP_LAYERS else "lower"
+        names = list(STOP_LAYERS)
+        pick = None
+        for n in reversed(names[:names.index(want) + 1]):  # the layer, else the nearest measured one above it
+            lv = next((x for x in i.layers if x[0] == n and x[1] is not None and (len(x) < 4 or x[3])), None)
+            if lv is not None:
+                pick = lv
+                break
+        out["stop_layer"] = pick[0] if pick else "top"
+        out["stop_layer_temp"] = round(pick[1], 1) if pick else round(i.top, 1)
+        out["layers_seen"] = order
+        if i.trend_c_h is not None and i.trend_c_h < -0.05:
+            out["hours_left"] = round(max(i.top - need, 0.0) / -i.trend_c_h, 2)
+        return out
+
+    def _heat_demand(self, i: HpInputs, need: float | None, wood: str, demand: bool, heating: bool,
+                     res: dict) -> tuple[bool, str]:
+        """0.65.0: the demand-based charging rule (see the module text)."""
+        cfg = self.cfg
+        if i.top is not None and i.top <= i.frost_top:
+            return True, "frost"
+        if cfg.hp_wood_first and wood in ("certain", "likely"):
+            return False, "wood"
+        if need is None or not demand:
+            return False, "no_demand"
+        if heating:
+            if res["stop_layer_temp"] < res["stop_at"]:
+                return True, "charging_reserve"
+            return False, "reserve_full"
+        if wood in ("certain", "likely"):
+            return False, "wood"
+        if i.top < res["start_below"]:
+            return True, "reserve_low"
+        if cfg.hp_start_kwh > 0 and res.get("reserve_kwh") is not None and res["reserve_kwh"] < cfg.hp_start_kwh:
+            return True, "reserve_low_kwh"
+        return False, "reserve_ok"
 
     def _switch(self, now: datetime, want: bool, force: bool) -> str | None:
         """Min on / off of the enable request; `force` (cold ON, fail-safe) ignores them."""
@@ -287,10 +373,28 @@ class HeatPumpCoordinator:
         demand_now = any(c.demand for c in i.circuits) or zones_lasting
         asking = any(c.demand if c.asking is None else c.asking for c in i.circuits) or i.zones_asking
         season = self._season(now, demand_now, asking)
+        # 0.65.0: both charging rules, each with its own latch; `hp_charge_mode` says which one drives
+        mode = cfg.hp_charge_mode if cfg.hp_charge_mode in CHARGE_MODES else "classic"
+        if mode == "demand" and not i.circuits:
+            mode = "classic"  # a tank with only its own zones: no circuit need to charge by
+            details["charge_mode_fallback"] = True
+        flow = None if need is None else max(cfg.hp_flow_min, min(cfg.hp_flow_max, need + cfg.hp_reserve + offset))
+        res = self.reserve(i, need, flow)
+        details["charge_mode"] = mode
         if i.top is None:
             heat, why = self.heating, "no_buffer"
         else:
-            heat, why = self._heat(i, need, wood, demand_now)
+            latch_c = self.heating if mode == "classic" else self.alt_heating
+            latch_d = self.heating if mode == "demand" else self.alt_heating
+            c_heat, c_why = self._heat(i, need, wood, demand_now, latch_c)
+            d_heat, d_why = self._heat_demand(i, need, wood, demand_now, latch_d, res) if "stop_at" in res \
+                else (latch_d if need is not None else False, "no_demand" if need is None else "no_buffer")
+            details["classic"] = {"heat": c_heat, "why": c_why}
+            details["demand_charge"] = {"heat": d_heat, "why": d_why, **res}
+            if mode == "demand":
+                heat, why, self.alt_heating = d_heat, d_why, c_heat
+            else:
+                heat, why, self.alt_heating = c_heat, c_why, d_heat
             if (self.cfg.hp_charge_needs_demand and not demand_now and self.cfg.hp_charge_on > 0 and i.charge is not None
                     and i.charge <= self.cfg.hp_charge_on):
                 details["low_charge_waits"] = True  # 0.59.0: a low charge, but no room asks – no start for it
@@ -331,7 +435,7 @@ class HeatPumpCoordinator:
             if why == "wood":
                 reason = "wood" if not idle else reason
         else:
-            want, reason = False, why if why in ("wood",) else "off"
+            want, reason = False, why if why in ("wood", "no_demand", "reserve_ok", "reserve_full") else "off"
         held = self._switch(now, want, force)
         if held:
             reason = held
@@ -353,7 +457,7 @@ class HeatPumpCoordinator:
     # --- restart ----------------------------------------------------------------------------------------------
     def state(self, now: datetime) -> dict:
         iso = lambda d: d.isoformat() if d else None  # noqa: E731
-        return {"hold": self.hold.state(now), "enable": self.enable, "heating": self.heating,
+        return {"hold": self.hold.state(now), "enable": self.enable, "heating": self.heating, "alt_heating": self.alt_heating,
                 "last_change": iso(self.last_change), "cold_latched": self.cold_latched,
                 "warm_since": iso(self.warm_since), "last_demand": iso(self.last_demand),
                 "summer": self.summer, "summer_since": iso(self.summer_since), "last_room": iso(self.last_room),
@@ -368,6 +472,7 @@ class HeatPumpCoordinator:
         self.hold.restore(data.get("hold") or {}, now)
         self.enable = bool(data.get("enable", False))
         self.heating = bool(data.get("heating", False))
+        self.alt_heating = bool(data.get("alt_heating", False))
         self.cold_latched = bool(data.get("cold_latched", False)) and self.cfg.hp_cold_on
         self.last_change, self.warm_since, self.last_demand = when("last_change"), when("warm_since"), when("last_demand")
         self.summer = bool(data.get("summer", False)) and self.cfg.hp_auto_summer

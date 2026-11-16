@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.65.0 – 2026-11-16
+**Demand-based tank charging** (`hp_charge_mode`), after the tester's live case: at 18:58 with 5 °C outside the top was
+37.0 °C, the layers below 36.6 / 35.9 / 28.5 °C, the charge 9 %, both circuits asking, the need 34.5 °C – and the heat
+pump stayed off, because the classic rule starts only when the top falls under the need (or the charge under
+`hp_charge_on`). With the heat pump on the lower coil of a 1000 l stratified tank its heat reaches the top late, so
+that start comes too late.
+- **Two rules, both worked out every step, each with its own hysteresis;** `hp_charge_mode` picks the one that drives
+  (`classic` – the rules so far – by default; `demand`). The info panel and the overview show both, so they can be
+  compared in shadow first.
+- **Demand rule:** the need is the circuits' demanded (not tank-capped) target + margin. The reserve is the top − need
+  (°C) and Σ layer litres × 1.163 × max(layer − need, 0) (kWh, with the tank's volume). It **starts** when the top <
+  need + `hp_start_margin` (3 °C) or the kWh reserve < `hp_start_kwh` (0 = not used), and **stops** only when
+  `hp_stop_layer` (the lower middle sensor; the nearest measured one above when missing) reaches need +
+  `hp_stop_margin` (3 °C) – a usable reserve in the upper part, not just a warm top. That stop point is never above the
+  heat pump's flow target − `hp_coil_dt` (3 °C), so HC never waits for a tank the coil cannot reach, and never under
+  the need. With no lasting demand nothing starts and a charge stops; the percentage is information only. Frost, wood
+  first, the cold-weather ON, the no-demand stop, summer mode and the min on / off are unchanged. A tank with only its
+  own zones (no circuit) keeps the classic rule.
+- **Shown:** the driving rule, both rules' decision and reason, the reserve (°C, kWh), the start and stop points, the
+  stop layer's temperature, and the estimated hours until the top reaches the need from the tank's trend (information
+  only – timing the start by it is the next step).
+
 ## 0.64.1 – 2026-11-16
 - **Update safety: the tank cap (`circuit_tank_cap`) is off by default.** In 0.64.0 it came on by itself for every
   circuit linked to a buffer, so for a circuit already writing to a PLC the update alone could change the live

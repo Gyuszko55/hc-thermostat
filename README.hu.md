@@ -387,6 +387,12 @@ hőszivattyúnak kiírt cél 0,5 °C-ra vagy egész fokra felfelé kerekíthető
 hőszivattyú nyers, kiadott, kiküldött és visszajelzett célját, valamint a mért vizet. Háznév a puffer, a keverőkör és a
 hőszivattyú beállításaiban is megadható.
 
+**Igény szerinti puffertöltés (0.65.0).** A klasszikus szabály (indul, ha a puffer teteje a körök igénye alá esik,
+vagy a töltöttség a küszöb alá) mellett a hőszivattyú-koordináció egy igény szerinti szabályt is számol: akkor indít,
+amikor a tetőnek még van állítható tartaléka az igény fölött, és csak akkor áll le, ha egy alsóbb réteg is eléri az
+igény + leállítási tartalékot (legfeljebb amit a csőkígyó el tud érni). A kettő egymás mellett látszik; egy beállítás
+dönti el, melyik vezérel (alapból a klasszikus).
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

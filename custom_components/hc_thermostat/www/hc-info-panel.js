@@ -91,7 +91,10 @@ const REASON = {
     // 0.55.0: heat pump coordination
     fail_safe_on: "ON: nincs kinti mérés (biztonsági)", no_outdoor: "Nincs kinti mérés: változatlan", no_buffer: "Nincs pufferhőfok: változatlan",
     cold_on: "ON: hideg idő", low_charge: "Alacsony puffer-töltöttség", heat_needed: "Hő kell", wood: "Más hőforrás tölti a puffert",
-    summer: "Nyári üzem: nem fűt", idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény" },
+    summer: "Nyári üzem: nem fűt", idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény",
+    // 0.65.0: demand-based charging
+    reserve_low: "Kevés a tartalék – tölt", reserve_low_kwh: "Kevés a hő-tartalék (kWh) – tölt", charging_reserve: "Tartalékot tölt",
+    reserve_ok: "Van elég tartalék", reserve_full: "Feltöltve – megvan a tartalék", no_demand: "Nincs tartós hőigény" },
   en: {},
 };
 
@@ -1045,6 +1048,17 @@ class HcInfoPanel extends HTMLElement {
         return [[hu ? "Kiküldve" : "Sent", o.sent != null ? `${this._deg(o.sent)} · ${rnd}` : `– · ${rnd}`],
           [hu ? "A hőszivattyú beállítása" : "The unit's setpoint", repV != null && repV !== "" ? this._deg(repV) : null]]; })(),
       [hu ? "Mért víz (hőszivattyú)" : "Measured water (heat pump)", d.water != null ? this._deg(d.water) : null],
+      // 0.65.0: the two charging rules side by side and the reserve over the need
+      ...(() => { const mode = det.charge_mode || "classic", dc = det.demand_charge || {}, cl = det.classic || {};
+        const mn = { classic: hu ? "klasszikus" : "classic", demand: hu ? "igény szerinti" : "by demand" };
+        const onoff = (x) => (x && x.why ? `${x.heat ? (hu ? "tölt" : "charges") : (hu ? "nem tölt" : "no charge")} – ${this._reason(x.why)}` : null);
+        return [[hu ? "Töltési szabály (vezérel)" : "Charging rule (driving)", mn[mode] || mode, true],
+          [`${hu ? "Klasszikus" : "Classic"}${mode === "classic" ? " ●" : ""}`, onoff(cl), mode === "classic" && !!cl.heat],
+          [`${hu ? "Igény szerinti" : "By demand"}${mode === "demand" ? " ●" : ""}`, onoff(dc), mode === "demand" && !!dc.heat],
+          [hu ? "Tartalék az igény fölött" : "Reserve above the need", dc.reserve_c != null ? `${this._num(dc.reserve_c, 1)} °C${dc.reserve_kwh != null ? ` · ${this._num(dc.reserve_kwh, 1)} kWh` : ""}` : null],
+          [hu ? "Indul, ha a teteje alá esik" : "Starts when the top drops under", dc.start_below != null ? `${this._deg(dc.start_below)}${cfg.hp_start_kwh > 0 ? ` ${hu ? "vagy" : "or"} < ${this._num(cfg.hp_start_kwh, 1)} kWh` : ""}` : null],
+          [hu ? "Leáll, ha a réteg eléri" : "Stops when the layer reaches", dc.stop_at != null ? `${({ top: hu ? "teteje" : "top", upper: hu ? "felső közép" : "upper middle", lower: hu ? "alsó közép" : "lower middle", bottom: hu ? "alja" : "bottom" })[dc.stop_layer] || dc.stop_layer} ${this._deg(dc.stop_layer_temp)} → ${this._deg(dc.stop_at)}` : null],
+          [hu ? "Becsült idő a tartalék fogyásáig" : "Estimated time until the reserve is used", dc.hours_left != null ? `~${this._num(dc.hours_left, 1)} ${hu ? "óra (a puffer trendjéből, csak tájékoztató)" : "h (from the tank trend, information only)"}` : null]]; })(),
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Visszatartás" : "Hold", this._reason(dec.hold_reason)],
       [hu ? "Körök igénye (+ ráhagyás)" : "Circuits' need (+ margin)", dec.need != null ? this._deg(dec.need) : null],

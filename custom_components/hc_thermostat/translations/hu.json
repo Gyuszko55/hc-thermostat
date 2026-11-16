@@ -288,7 +288,16 @@
           "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
           "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
           "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
-          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
+          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált",
+          "hp_charge_mode": "Puffertöltés szabálya",
+          "hp_start_margin": "Igény szerinti: indítási tartalék (tető < igény + ennyi)",
+          "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
+          "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
+          "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
+          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+        },
+        "data_description": {
+          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók."
         }
       }
     },
@@ -894,7 +903,16 @@
           "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
           "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
           "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
-          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
+          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált",
+          "hp_charge_mode": "Puffertöltés szabálya",
+          "hp_start_margin": "Igény szerinti: indítási tartalék (tető < igény + ennyi)",
+          "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
+          "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
+          "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
+          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+        },
+        "data_description": {
+          "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók."
         }
       }
     },
@@ -1062,6 +1080,20 @@
         "device": "A készülék lépésköze szerint (legközelebbi)",
         "half_up": "0,5 °C-ra felfelé",
         "whole_up": "Egész fokra felfelé"
+      }
+    },
+    "hp_charge_mode": {
+      "options": {
+        "classic": "Klasszikus (tető az igény alatt, töltöttségi %)",
+        "demand": "Igény szerinti (tartalék az igény fölött)"
+      }
+    },
+    "hp_stop_layer": {
+      "options": {
+        "top": "Teteje",
+        "upper": "Felső közép",
+        "lower": "Alsó közép",
+        "bottom": "Alja"
       }
     }
   },
@@ -1242,7 +1274,13 @@
           "standby": "Készenlét (ON, nem fűt)",
           "off": "Nincs igény",
           "min_on": "Minimális futás",
-          "min_off": "Minimális szünet"
+          "min_off": "Minimális szünet",
+          "reserve_low": "Kevés a tartalék – töltés",
+          "reserve_low_kwh": "Kevés a hő-tartalék (kWh) – töltés",
+          "charging_reserve": "Tartalékot tölt",
+          "reserve_ok": "Van elég tartalék",
+          "reserve_full": "Feltöltve – a tartalék megvan",
+          "no_demand": "Nincs tartós hőigény"
         }
       },
       "hp_target": {

@@ -86,6 +86,15 @@ def on_state(hass, entity_id: str | None, now: datetime | None = None) -> bool |
     return runs
 
 
+def _layers(stock) -> tuple:
+    """0.65.0: the tank's layers for the demand-based charging: (name, °C, litres, measured), top first."""
+    if stock is None:
+        return ()
+    vol = getattr(stock, "volume_l", None) or 0
+    return tuple((l.name, l.temp, round(l.share * vol, 1) if vol else None, bool(l.measured))
+                 for l in getattr(stock, "layers", ()) or ())
+
+
 class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
     def __init__(self, hass: HomeAssistant, entry) -> None:
         super().__init__(hass, _LOGGER, config_entry=entry, name=f"{DOMAIN}_hp_coord", update_interval=_INTERVAL)
@@ -166,7 +175,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                         wood_signal=self._wood_signal(now),
                         hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now),
                         hp_running_age_s=self._running_age(now),
-                        offset=self.offset)
+                        offset=self.offset,
+                        layers=_layers(stock))
 
     def _wood_signal(self, now: datetime) -> bool | None:
         """The wood signal: a direct contact first; else (0.61.0) the wood boiler's thermometer by two thresholds."""

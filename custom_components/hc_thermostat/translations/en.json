@@ -288,7 +288,16 @@
           "hp_urgent": "Urgent difference: no waiting (0 = never)",
           "wood_on_above": "Wood active when the boiler is at least",
           "wood_off_below": "Wood inactive when the boiler is at most",
-          "wood_confirm_s": "Lasting this long before it changes"
+          "wood_confirm_s": "Lasting this long before it changes",
+          "hp_charge_mode": "Tank charging rule",
+          "hp_start_margin": "Demand: start margin (top < need + this)",
+          "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
+          "hp_stop_layer": "Demand: the layer that decides the stop",
+          "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
+          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+        },
+        "data_description": {
+          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow."
         }
       }
     },
@@ -894,7 +903,16 @@
           "hp_urgent": "Urgent difference: no waiting (0 = never)",
           "wood_on_above": "Wood active when the boiler is at least",
           "wood_off_below": "Wood inactive when the boiler is at most",
-          "wood_confirm_s": "Lasting this long before it changes"
+          "wood_confirm_s": "Lasting this long before it changes",
+          "hp_charge_mode": "Tank charging rule",
+          "hp_start_margin": "Demand: start margin (top < need + this)",
+          "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
+          "hp_stop_layer": "Demand: the layer that decides the stop",
+          "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
+          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+        },
+        "data_description": {
+          "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow."
         }
       }
     },
@@ -1062,6 +1080,20 @@
         "device": "The device's own step (nearest)",
         "half_up": "Up to 0.5 °C",
         "whole_up": "Up to whole °C"
+      }
+    },
+    "hp_charge_mode": {
+      "options": {
+        "classic": "Classic (top under the need, charge %)",
+        "demand": "By demand (reserve above the need)"
+      }
+    },
+    "hp_stop_layer": {
+      "options": {
+        "top": "Top",
+        "upper": "Upper middle",
+        "lower": "Lower middle",
+        "bottom": "Bottom"
       }
     }
   },
@@ -1242,7 +1274,13 @@
           "standby": "Standby (ON, no heating)",
           "off": "No demand",
           "min_on": "Minimum run",
-          "min_off": "Minimum pause"
+          "min_off": "Minimum pause",
+          "reserve_low": "Low reserve – charging",
+          "reserve_low_kwh": "Low heat reserve (kWh) – charging",
+          "charging_reserve": "Charging the reserve",
+          "reserve_ok": "Enough reserve",
+          "reserve_full": "Charged – the reserve is there",
+          "no_demand": "No lasting heat demand"
         }
       },
       "hp_target": {

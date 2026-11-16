@@ -40,7 +40,10 @@ export const OV_TXT = {
       cold_on: "hideg idő miatt ON", frost: "puffer fagyvédelem", low_charge: "alacsony puffer-töltöttség", heat_needed: "a puffer teteje a körök igénye alatt",
       heating: "fűt, amíg a puffer teteje el nem éri az igény + hiszterézist", charging: "tölt a kikapcsolási töltöttségig",
       wood: "a fa tölti a puffert – a hőszivattyú vár", summer: "nyári üzem", idle_off: "régóta nincs igény – OFF", standby: "készenlét (ON, nem fűt)",
-      off: "nincs igény", min_on: "minimális futásidő tartja", min_off: "minimális szünet tartja" },
+      off: "nincs igény", min_on: "minimális futásidő tartja", min_off: "minimális szünet tartja",
+      reserve_low: "kevés a tartalék az igény fölött – tölt", reserve_low_kwh: "kevés a hő-tartalék (kWh) – tölt", charging_reserve: "tartalékot tölt a leállítási rétegig",
+      reserve_ok: "van elég tartalék az igény fölött", reserve_full: "feltöltve – a tartalék megvan", no_demand: "nincs tartós hőigény" },
+    chMode: { classic: "klasszikus", demand: "igény szerinti" }, reserve: "tartalék", other: "a másik szabály",
   },
   en: {
     system: "System", why: "Why is heat asked for, or not?", sources: "Heat sources", tank: "Buffer tank", circuits: "Mixing circuits",
@@ -67,7 +70,10 @@ export const OV_TXT = {
       cold_on: "ON for cold weather", frost: "tank frost protection", low_charge: "low tank charge", heat_needed: "the tank top is below the circuits' need",
       heating: "heats until the tank top reaches the need + hysteresis", charging: "charges up to the stop charge",
       wood: "wood charges the tank – the heat pump waits", summer: "summer mode", idle_off: "no demand for long – OFF", standby: "standby (ON, not heating)",
-      off: "no demand", min_on: "held by the minimum run", min_off: "held by the minimum pause" },
+      off: "no demand", min_on: "held by the minimum run", min_off: "held by the minimum pause",
+      reserve_low: "low reserve above the need – charging", reserve_low_kwh: "low heat reserve (kWh) – charging", charging_reserve: "charging the reserve up to the stop layer",
+      reserve_ok: "enough reserve above the need", reserve_full: "charged – the reserve is there", no_demand: "no lasting heat demand" },
+    chMode: { classic: "classic", demand: "by demand" }, reserve: "reserve", other: "the other rule",
   },
 };
 
@@ -173,6 +179,11 @@ export function renderOverview(all, opts = {}) {
     src.push(row(`· ${T.request}`, `${d.enable ? T.on : T.offv} · ${T.demand}: ${d.heat_demand ? T.yes : T.no}`));
     src.push(row(`· ${T.flowTarget}`, deg(d.target, lang)));
     src.push(row(`· ${T.reason}`, esc(T.hpWhy[d.reason] || d.reason || "–")));
+    // 0.65.0: the reserve over the need and what the rule not driving would do
+    const dc = det.demand_charge || {}, mode = det.charge_mode || "classic";
+    if (isNum(num(dc.reserve_c))) src.push(row(`· ${T.reserve}`, `${fx(num(dc.reserve_c), lang)} °C${isNum(num(dc.reserve_kwh)) ? ` · ${fx(num(dc.reserve_kwh), lang)} kWh` : ""}${isNum(num(dc.hours_left)) ? ` · ~${fx(num(dc.hours_left), lang)} h` : ""}`));
+    const alt = mode === "demand" ? det.classic : det.demand_charge;
+    if (alt && alt.why) src.push(row(`· ${T.other} (${T.chMode[mode === "demand" ? "classic" : "demand"]})`, `${alt.heat ? T.on : T.offv} – ${esc(T.hpWhy[alt.why] || alt.why)}`));
   }
   for (const c of m.centrals) src.push(row(short(c.title), `${c.decision?.output ? T.on : T.offv} · ${esc(c.decision?.reason || "")}`));
   if (src.length) cards.push(card(T.sources, src.join(""), m.hps[0] ? `member:${m.hps[0].entry_id}` : ""));
