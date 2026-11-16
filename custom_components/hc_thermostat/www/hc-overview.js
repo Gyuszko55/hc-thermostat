@@ -42,7 +42,7 @@ export const OV_TXT = {
       wood: "a fa tölti a puffert – a hőszivattyú vár", summer: "nyári üzem", idle_off: "régóta nincs igény – OFF", standby: "készenlét (ON, nem fűt)",
       off: "nincs igény", min_on: "minimális futásidő tartja", min_off: "minimális szünet tartja",
       reserve_low: "kevés a tartalék az igény fölött – tölt", reserve_low_kwh: "kevés a hő-tartalék (kWh) – tölt", charging_reserve: "tartalékot tölt a leállítási rétegig",
-      reserve_ok: "van elég tartalék az igény fölött", reserve_full: "feltöltve – a tartalék megvan", no_demand: "nincs tartós hőigény" },
+      reserve_ok: "van elég tartalék az igény fölött", reserve_full: "feltöltve – a tartalék megvan", no_demand: "nincs tartós hőigény", reserve_runs_out: "a fogyás üteme szerint hamarosan elfogy a tartalék – tölt" },
     chMode: { classic: "klasszikus", demand: "igény szerinti" }, reserve: "tartalék", other: "a másik szabály",
   },
   en: {
@@ -72,7 +72,7 @@ export const OV_TXT = {
       wood: "wood charges the tank – the heat pump waits", summer: "summer mode", idle_off: "no demand for long – OFF", standby: "standby (ON, not heating)",
       off: "no demand", min_on: "held by the minimum run", min_off: "held by the minimum pause",
       reserve_low: "low reserve above the need – charging", reserve_low_kwh: "low heat reserve (kWh) – charging", charging_reserve: "charging the reserve up to the stop layer",
-      reserve_ok: "enough reserve above the need", reserve_full: "charged – the reserve is there", no_demand: "no lasting heat demand" },
+      reserve_ok: "enough reserve above the need", reserve_full: "charged – the reserve is there", no_demand: "no lasting heat demand", reserve_runs_out: "at this pace the reserve runs out soon – charging" },
     chMode: { classic: "classic", demand: "by demand" }, reserve: "reserve", other: "the other rule",
   },
 };

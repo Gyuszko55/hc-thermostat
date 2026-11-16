@@ -125,4 +125,4 @@ def test_reasons_texts_and_form():
     assert "Tartalék az igény fölött" in js and "Töltési szabály (vezérel)" in js
     ov = (BASE / "www" / "hc-overview.js").read_text()
     assert "charging_reserve:" in ov and "chMode:" in ov
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0")

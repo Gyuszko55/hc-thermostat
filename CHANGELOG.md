@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.68.0 – 2026-11-16
+**Demand-based tank charging, second step: the start timed by the pace of use** (`hp_lead_min`, 60 minutes; 0 = off).
+In the demand rule the heat pump also starts when the tank cools steadily – its mean by at least 0.2 °C/h – and at
+that pace its top would fall under the need within the lead time: the heat of the lower coil takes that long to reach
+the top, so waiting for the reserve margin alone can be too late with a large draw. New reason `reserve_runs_out`
+("the reserve runs out soon – charging"); the info panel shows the estimated time left and the lead time. The classic
+rule is unchanged; both are still shown side by side.
+
 ## 0.67.0 – 2026-11-16
 Simpler to set up and change, after an outside review (no change in how HC regulates on weekdays).
 - **Weekend night:** an optional start and end for the nights ending on Saturday and Sunday morning (Friday and

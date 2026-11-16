@@ -237,8 +237,9 @@ ideje – saját rövid menüpontja van: *Célok és időzítés*.
 **Igény szerinti puffertöltés.** A klasszikus szabály (indul, ha a puffer teteje a körök igénye alá esik,
 vagy a töltöttség a küszöb alá) mellett a hőszivattyú-koordináció egy igény szerinti szabályt is számol: akkor indít,
 amikor a tetőnek még van állítható tartaléka az igény fölött, és csak akkor áll le, ha egy alsóbb réteg is eléri az
-igény + leállítási tartalékot (legfeljebb amit a csőkígyó el tud érni). A kettő egymás mellett látszik; egy beállítás
-dönti el, melyik vezérel (alapból a klasszikus).
+igény + leállítási tartalékot (legfeljebb amit a csőkígyó el tud érni). Előbb is indít, ha a puffer egyenletesen hűl,
+és ezzel az ütemmel a tartalék a hőszivattyú előfutási idején belül (alapból 60 perc) elfogyna – ennyi idő kell, mire
+a csőkígyó hője felér. A kettő egymás mellett látszik; egy beállítás dönti el, melyik vezérel (alapból a klasszikus).
 
 ## Hőforrások és rendszerek
 

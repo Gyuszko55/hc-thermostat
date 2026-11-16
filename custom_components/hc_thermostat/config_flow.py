@@ -333,7 +333,7 @@ def _hpc_settings(current: dict) -> dict:
         n("hp_start_margin", 0, 15, 0.5, "°C"), n("hp_start_kwh", 0, 100, 0.5, "kWh"),
         (vol.Required("hp_stop_layer", default=cfg.hp_stop_layer if cfg.hp_stop_layer in STOP_LAYERS else "lower"),
          _select(list(STOP_LAYERS), "hp_stop_layer")),
-        n("hp_stop_margin", 0, 15, 0.5, "°C"), n("hp_coil_dt", 0, 15, 0.5, "°C"),
+        n("hp_stop_margin", 0, 15, 0.5, "°C"), n("hp_coil_dt", 0, 15, 0.5, "°C"), n("hp_lead_min", 0, 240, 5, "min"),
         n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"), b("hp_charge_needs_demand"),
         n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
         b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),
@@ -389,7 +389,7 @@ def _weekend_errors(user_input: dict) -> dict:
 # 0.65.2: the heat pump coordination's rules page in fold-out sections – the charging rule and the flow limits on top,
 # the classic and the demand-based charging apart, then running, season, cold weather, wood and the target's hold
 HPC_SECTIONS = {
-    "charge_demand": ("hp_start_margin", "hp_start_kwh", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"),
+    "charge_demand": ("hp_start_margin", "hp_start_kwh", "hp_lead_min", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"),
     "charge_classic": ("hp_hyst", "hp_charge_on", "hp_charge_off", "hp_charge_needs_demand"),
     "running": ("hp_min_on_s", "hp_min_off_s", "hp_standby", "hp_idle_off", "hp_idle_hours"),
     "season": ("hp_auto_summer", "hp_summer_after_h", "hp_winter_after_s", "hp_exercise", "hp_exercise_weekday",

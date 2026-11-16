@@ -46,12 +46,14 @@ long to reach the top. In demand mode the percentages are only information; the 
   is at least T_need + `hp_stop_margin` (3 °C) – a usable reserve in the upper part, not only a warm top; that stop
   temperature is never above the flow target asked of the heat pump − `hp_coil_dt` (3 °C), so HC never waits for a
   tank the coil cannot reach (and never below T_need);
+- 0.68.0: it also starts when the tank cools steadily (the tank mean by at least 0.2 °C/h) and at that pace the top
+  reaches T_need within `hp_lead_min` (60 minutes; 0 = off) – the time the coil's heat needs to reach the top;
 - with no lasting demand a running charge stops and nothing starts (a low percentage alone starts nothing);
 - frost, wood first, the cold-weather ON, the long no-demand stop, summer mode and the min on / off stay as they are;
 - a tank with no circuit linked (its own zones only) keeps the classic rules.
 Both are worked out every step, each with its own hysteresis, and both are shown (`classic`, `demand_charge`), so the
 one not driving can be compared in shadow; the estimated hours until the top reaches T_need (from the tank's trend)
-are shown only.
+were shown only until 0.68.0; since then they time the start (above).
 
 Automatic summer / winter mode (`hp_auto_summer`, off – 0.57.0): not a date and not only the outdoor temperature, but
 the house's own demand. After `hp_summer_after_h` (24 h) with no circuit / zone demand at all, the coordination goes
@@ -116,6 +118,7 @@ class HpConfig:
     hp_stop_layer: str = "lower"  # 0.65.0 demand: the layer that must reach need + hp_stop_margin
     hp_stop_margin: float = 3.0  # 0.65.0 demand
     hp_coil_dt: float = 3.0  # 0.65.0 demand: the tank stays this much under the heat pump's flow target
+    hp_lead_min: float = 60.0  # 0.68.0 demand: start when the reserve runs out within this (from the trend; 0 = off)
     hp_deadband: float = 2.0
     hp_confirm_s: float = 600.0
     hp_min_interval_s: float = 2700.0
@@ -178,8 +181,10 @@ ZONE_HOLD_S = 1800.0  # 0.57.1: as a circuit's `circuit_hold_s`
 REASONS = ["fail_safe_on", "no_outdoor", "no_buffer", "cold_on", "frost", "low_charge", "heat_needed", "heating",
            "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off",
            # 0.65.0 demand-based charging
-           "reserve_low", "reserve_low_kwh", "charging_reserve", "reserve_ok", "reserve_full", "no_demand"]
+           "reserve_low", "reserve_low_kwh", "charging_reserve", "reserve_ok", "reserve_full", "no_demand",
+           "reserve_runs_out"]  # 0.68.0
 CHARGE_MODES = ("classic", "demand")
+TREND_MIN_C_H = 0.2  # 0.68.0: a slower cooling (°C/h of the tank mean) is no trend to time the start by
 STOP_LAYERS = ("top", "upper", "lower", "bottom")
 WH_PER_L_K = 1.163
 
@@ -319,6 +324,8 @@ class HeatPumpCoordinator:
         out["layers_seen"] = order
         if i.trend_c_h is not None and i.trend_c_h < -0.05:
             out["hours_left"] = round(max(i.top - need, 0.0) / -i.trend_c_h, 2)
+        if self.cfg.hp_lead_min > 0:
+            out["lead_min"] = self.cfg.hp_lead_min  # 0.68.0: the start by the trend
         return out
 
     def _heat_demand(self, i: HpInputs, need: float | None, wood: str, demand: bool, heating: bool,
@@ -341,6 +348,11 @@ class HeatPumpCoordinator:
             return True, "reserve_low"
         if cfg.hp_start_kwh > 0 and res.get("reserve_kwh") is not None and res["reserve_kwh"] < cfg.hp_start_kwh:
             return True, "reserve_low_kwh"
+        # 0.68.0: the tank cools steadily (at least TREND_MIN_C_H) and at this pace the top reaches the need within the
+        # heat pump's lead time – start now, so the coil's heat is up there in time
+        if (cfg.hp_lead_min > 0 and i.trend_c_h is not None and i.trend_c_h <= -TREND_MIN_C_H
+                and res.get("hours_left") is not None and res["hours_left"] * 60 <= cfg.hp_lead_min):
+            return True, "reserve_runs_out"
         return False, "reserve_ok"
 
     def _switch(self, now: datetime, want: bool, force: bool) -> str | None:

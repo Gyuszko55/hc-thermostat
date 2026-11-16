@@ -352,7 +352,8 @@
           "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
           "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
           "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
-          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
+          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
         },
         "data_description": {
           "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
@@ -394,7 +395,8 @@
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
           "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
           "hp_max_rise": "Felfelé fokozatosan lép.",
-          "hp_urgent": "Ekkora eltérésnél nem vár."
+          "hp_urgent": "Ekkora eltérésnél nem vár.",
+          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
         },
         "sections": {
           "charge_demand": {
@@ -404,14 +406,16 @@
               "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
               "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
               "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
-              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
+              "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
             },
             "data_description": {
               "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
               "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
               "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
               "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
-              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet."
+              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
+              "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
             }
           },
           "charge_classic": {
@@ -1291,7 +1295,8 @@
           "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
           "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
           "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
-          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+          "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
+          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
         },
         "data_description": {
           "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
@@ -1333,7 +1338,8 @@
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
           "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
           "hp_max_rise": "Felfelé fokozatosan lép.",
-          "hp_urgent": "Ekkora eltérésnél nem vár."
+          "hp_urgent": "Ekkora eltérésnél nem vár.",
+          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
         },
         "sections": {
           "charge_demand": {
@@ -1343,14 +1349,16 @@
               "hp_start_kwh": "Igény szerinti: indul, ha a hő-tartalék ez alá esik (kWh, 0 = nem használja)",
               "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
               "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
-              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)"
+              "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
+              "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
             },
             "data_description": {
               "hp_start_margin": "Indul, amíg a tetőnek még van ennyi tartaléka az igény fölött – a csőkígyó hője lassan ér fel.",
               "hp_start_kwh": "A tartály térfogatával: akkor is indul, ha az igény fölötti hő ennyi kWh alá fogy.",
               "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
               "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
-              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet."
+              "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
+              "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
             }
           },
           "charge_classic": {
@@ -1879,7 +1887,8 @@
           "charging_reserve": "Tartalékot tölt",
           "reserve_ok": "Van elég tartalék",
           "reserve_full": "Feltöltve – a tartalék megvan",
-          "no_demand": "Nincs tartós hőigény"
+          "no_demand": "Nincs tartós hőigény",
+          "reserve_runs_out": "Hamarosan elfogy a tartalék – tölt"
         }
       },
       "hp_target": {

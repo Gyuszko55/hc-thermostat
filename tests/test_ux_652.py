@@ -19,7 +19,7 @@ def test_hp_rules_page_in_sections():
     inside = {k for keys in cf.HPC_SECTIONS.values() for k in keys}
     assert inside | {"hp_charge_mode", "hp_flow_min", "hp_flow_max", "hp_reserve", "hp_offset"} == {str(k) for k in cf._hpc_settings({})}
     assert set(cf.HPC_SECTIONS["charge_classic"]) == {"hp_hyst", "hp_charge_on", "hp_charge_off", "hp_charge_needs_demand"}
-    assert set(cf.HPC_SECTIONS["charge_demand"]) == {"hp_start_margin", "hp_start_kwh", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"}
+    assert set(cf.HPC_SECTIONS["charge_demand"]) == {"hp_start_margin", "hp_start_kwh", "hp_lead_min", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"}  # 0.68.0: + lead
 
 
 def test_section_errors_go_above_the_form():

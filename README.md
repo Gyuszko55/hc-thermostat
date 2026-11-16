@@ -233,7 +233,9 @@ night's times – has its own short menu item, *Targets and times*.
 **Demand-based tank charging.** Besides the classic rule (start when the tank top falls under the circuits'
 need or the charge under a threshold) the heat pump coordination works out a demand rule: start while the top still
 has a settable reserve above the need, stop only when a lower layer reaches the need + a stop margin (never above what
-the coil can reach). Both are shown side by side; a setting picks the one that drives (classic by default).
+the coil can reach). It also starts early when the tank cools steadily and at that pace the reserve would run out
+within the heat pump's lead time (60 minutes by default) – the coil's heat needs that long to reach the top. Both rules
+are shown side by side; a setting picks the one that drives (classic by default).
 
 ## Heat sources and systems
 

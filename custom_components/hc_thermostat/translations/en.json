@@ -352,7 +352,8 @@
           "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
           "hp_stop_layer": "Demand: the layer that decides the stop",
           "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
-          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
+          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
         },
         "data_description": {
           "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
@@ -394,7 +395,8 @@
           "hp_confirm_s": "The difference must last this long.",
           "hp_min_interval_s": "At least this long between two changes.",
           "hp_max_rise": "Rises step by step.",
-          "hp_urgent": "A difference this large does not wait."
+          "hp_urgent": "A difference this large does not wait.",
+          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
         },
         "sections": {
           "charge_demand": {
@@ -404,14 +406,16 @@
               "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
               "hp_stop_layer": "Demand: the layer that decides the stop",
               "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
-              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
+              "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
             },
             "data_description": {
               "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
               "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
               "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
               "hp_stop_margin": "How far above the need the stop layer must be.",
-              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more."
+              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
+              "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
             }
           },
           "charge_classic": {
@@ -1291,7 +1295,8 @@
           "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
           "hp_stop_layer": "Demand: the layer that decides the stop",
           "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
-          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+          "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
+          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
         },
         "data_description": {
           "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
@@ -1333,7 +1338,8 @@
           "hp_confirm_s": "The difference must last this long.",
           "hp_min_interval_s": "At least this long between two changes.",
           "hp_max_rise": "Rises step by step.",
-          "hp_urgent": "A difference this large does not wait."
+          "hp_urgent": "A difference this large does not wait.",
+          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
         },
         "sections": {
           "charge_demand": {
@@ -1343,14 +1349,16 @@
               "hp_start_kwh": "Demand: start when the heat reserve drops below (kWh, 0 = not used)",
               "hp_stop_layer": "Demand: the layer that decides the stop",
               "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
-              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)"
+              "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
+              "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
             },
             "data_description": {
               "hp_start_margin": "Starts while the top still has this much reserve above the need – the coil's heat reaches the top slowly.",
               "hp_start_kwh": "With the tank's volume: also starts when the heat above the need falls under this.",
               "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
               "hp_stop_margin": "How far above the need the stop layer must be.",
-              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more."
+              "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
+              "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
             }
           },
           "charge_classic": {
@@ -1879,7 +1887,8 @@
           "charging_reserve": "Charging the reserve",
           "reserve_ok": "Enough reserve",
           "reserve_full": "Charged – the reserve is there",
-          "no_demand": "No lasting heat demand"
+          "no_demand": "No lasting heat demand",
+          "reserve_runs_out": "The reserve runs out soon – charging"
         }
       },
       "hp_target": {

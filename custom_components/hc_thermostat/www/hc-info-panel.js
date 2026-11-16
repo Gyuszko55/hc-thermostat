@@ -94,7 +94,8 @@ const REASON = {
     summer: "Nyári üzem: nem fűt", idle_off: "OFF: régóta nincs igény", standby: "Készenlét (ON, nem fűt)", off: "Nincs igény",
     // 0.65.0: demand-based charging
     reserve_low: "Kevés a tartalék – tölt", reserve_low_kwh: "Kevés a hő-tartalék (kWh) – tölt", charging_reserve: "Tartalékot tölt",
-    reserve_ok: "Van elég tartalék", reserve_full: "Feltöltve – megvan a tartalék", no_demand: "Nincs tartós hőigény" },
+    reserve_ok: "Van elég tartalék", reserve_full: "Feltöltve – megvan a tartalék", no_demand: "Nincs tartós hőigény",
+    reserve_runs_out: "Hamarosan elfogy a tartalék – tölt" },
   en: {},
 };
 
@@ -163,7 +164,7 @@ const KEY_HU = {
   charge_mode_fallback: "Klasszikus (nincs keverőkör)", lasting: "Tartós igényű zónák", asking: "Most kérő zónák", t_room: "Görbe helyiség-célja",
   deficit: "Helyiséghiány (°C)", correction: "Helyiség-korrekció (°C)", changed: "A cél most módosult", room_from: "Helyiség-cél forrása",
   no_outdoor: "Nincs kinti mérés", demand_target: "Igényelt előremenő", cap: "Puffer-korlát", cap_state: "Korlát állapota",
-  shortfall: "Hiányzó hőmérséklet (°C)", exercise_due: "Átmozgatás esedékes",
+  shortfall: "Hiányzó hőmérséklet (°C)", exercise_due: "Átmozgatás esedékes", lead_min: "Előindítás a fogyás szerint (perc)",
 };
 // English labels of the same generic rows (entity keys stay as they are)
 const KEY_EN = {
@@ -189,7 +190,7 @@ const KEY_EN = {
   charge_mode_fallback: "Classic (no mixing circuit)", lasting: "Zones with lasting demand", asking: "Zones asking now", t_room: "Curve's room target",
   deficit: "Room deficit (°C)", correction: "Room correction (°C)", changed: "Target just changed", room_from: "Room target from",
   no_outdoor: "No outdoor reading", demand_target: "Demanded flow", cap: "Tank cap", cap_state: "Cap state",
-  shortfall: "Shortfall (°C)", exercise_due: "Exercise due",
+  shortfall: "Shortfall (°C)", exercise_due: "Exercise due", lead_min: "Start ahead by the pace of use (min)",
 };
 // why the output was held (Decision.limited_by)
 const LIMITED = {
@@ -1116,7 +1117,7 @@ class HcInfoPanel extends HTMLElement {
           [hu ? "Tartalék az igény fölött" : "Reserve above the need", dc.reserve_c != null ? `${this._num(dc.reserve_c, 1)} °C${dc.reserve_kwh != null ? ` · ${this._num(dc.reserve_kwh, 1)} kWh` : ""}` : null],
           [hu ? "Indul, ha a teteje alá esik" : "Starts when the top drops under", dc.start_below != null ? `${this._deg(dc.start_below)}${cfg.hp_start_kwh > 0 ? ` ${hu ? "vagy" : "or"} < ${this._num(cfg.hp_start_kwh, 1)} kWh` : ""}` : null],
           [hu ? "Leáll, ha a réteg eléri" : "Stops when the layer reaches", dc.stop_at != null ? `${({ top: hu ? "teteje" : "top", upper: hu ? "felső közép" : "upper middle", lower: hu ? "alsó közép" : "lower middle", bottom: hu ? "alja" : "bottom" })[dc.stop_layer] || dc.stop_layer} ${this._deg(dc.stop_layer_temp)} → ${this._deg(dc.stop_at)}` : null],
-          [hu ? "Becsült idő a tartalék fogyásáig" : "Estimated time until the reserve is used", dc.hours_left != null ? `~${this._num(dc.hours_left, 1)} ${hu ? "óra (a puffer trendjéből, csak tájékoztató)" : "h (from the tank trend, information only)"}` : null]]; })(),
+          [hu ? "Becsült idő a tartalék fogyásáig" : "Estimated time until the reserve is used", dc.hours_left != null ? `~${this._num(dc.hours_left, 1)} ${hu ? "óra (a puffer trendjéből)" : "h (from the tank trend)"}${dc.lead_min ? ` · ${hu ? "indít, ha" : "starts under"} ${this._num(dc.lead_min / 60, 1)} ${hu ? "óra alá esik" : "h"}` : ""}` : null]]; })(),
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Visszatartás" : "Hold", this._reason(dec.hold_reason)],
       [hu ? "Körök igénye (+ ráhagyás)" : "Circuits' need (+ margin)", dec.need != null ? this._deg(dec.need) : null],
