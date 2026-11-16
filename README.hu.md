@@ -360,6 +360,12 @@ fatüzelésű kazán, puffer-rétegek, keverőszelepek az előremenő céllal, k
 grafikonon látszik a fűtési görbe, a beállítási űrlapon pedig táblázatban, amelyet a *Csak előnézet* mentés nélkül
 újraszámol.
 
+**Pufferes beállítás és fatüzelés hőmérőből (0.61.0).** A HC setup panelen külön *Pufferes rendszer* útvonal van: a
+puffert, a csőkígyós hőszivattyút, a fatüzelést, a radiátoros / padlófűtési kört és a helyiségeket (a két körön lévő
+helyiség egy zóna) egyszer kell leírni, a HC létrehozza és összeköti a helyiségzónákat, a puffert, a köröket és a
+hőszivattyú-koordinációt, árnyék módban. A fatüzelés közvetlen jel nélkül a kazán hőmérőjéből is felismerhető, két
+küszöbbel és megerősítési idővel (`wood_temp_entity`).
+
 ## Padlótemperálás (0.35.0)
 
 - Választható kényelmi funkció padlófűtéshez (vizes vagy elektromos, TPI / PID / on-off, padlószenzorral): amíg a

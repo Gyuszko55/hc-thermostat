@@ -77,6 +77,8 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_apply)
     websocket_api.async_register_command(hass, ws_trv)
     websocket_api.async_register_command(hass, ws_rooms)
+    from .system_setup import ws_system  # 0.61.0: the buffer system setup path
+    websocket_api.async_register_command(hass, ws_system)
 
 
 INFO_URL = "hc-info"

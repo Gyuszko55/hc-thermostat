@@ -26,7 +26,8 @@ export const OV_TXT = {
     stored: "becsült tárolt hő (rétegekből)", trend: "trend", charging: "töltődik", emptying: "merül", steady: "állandó",
     top: "teteje", bottom: "alja", meas: "mért", tgt: "cél", ask: "kér", cmd: "HC parancs", relay: "valódi relé",
     differs: "eltér (árnyékban rendben)", room: "Helyiség", stale: "elavult", min: "perc", s: "mp", need: "a körök igénye",
-    whyNoHeat: "Most nincs hőigény.", sharedRoom: "2 körön", woodLv: { certain: "biztos", likely: "valószínű", possible: "lehetséges", none: "nincs" },
+    whyNoHeat: "Most nincs hőigény.", kinds: { onoff_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő", storage_heater: "Hőtárolós kályha", district_heating: "Távhő", pellet_boiler: "Pelletkazán", external_heat: "Külső hőtermelő" },
+    burning: "ég", idle: "áll", unitsCol: "Helyiségi egységek", unheated: "nem fűti", sharedRoom: "2 körön", woodBy: "a kazán hőmérője szerint", woodPending: "vált:", woodLv: { certain: "biztos", likely: "valószínű", possible: "lehetséges", none: "nincs" },
     wst: { shadow: "nem ír (árnyék)", none: "nincs kimenet", in_sync: "egyezik", write: "ír", confirming: "visszaigazolásra vár", grace: "indulási türelem", keepalive: "frissítés", conflict: "ütközés", not_accepted: "nem fogadja el", unavailable: "nem elérhető", no_value: "nincs érték", error: "hiba" }, plant: "KAZÁNHÁZ", outside: "KÜLTÉR", house: "HELYISÉGEK",
     coil: "csőkígyó", mixer: "keverő + szivattyú", direct: "közvetlenül", normal: "normál görbe", corrected: "helyiséghiánnyal",
     limits: "korlátok", now: "most", given: "kiadott cél", outdoorAxis: "kinti hőmérséklet (°C)", flowAxis: "előremenő (°C)",
@@ -48,7 +49,8 @@ export const OV_TXT = {
     stored: "estimated stored heat (layers)", trend: "trend", charging: "charging", emptying: "emptying", steady: "steady",
     top: "top", bottom: "bottom", meas: "measured", tgt: "target", ask: "asks", cmd: "HC command", relay: "real relay",
     differs: "differs (fine in shadow)", room: "Room", stale: "stale", min: "min", s: "s", need: "the circuits' need",
-    whyNoHeat: "No heat demand now.", sharedRoom: "on 2 circuits", woodLv: { certain: "certain", likely: "likely", possible: "possible", none: "none" },
+    whyNoHeat: "No heat demand now.", kinds: { onoff_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler", air_conditioner: "Air conditioner", electric_heater: "Electric heater", storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler", external_heat: "External heat source" },
+    burning: "burning", idle: "idle", unitsCol: "Room units", unheated: "not heated", sharedRoom: "on 2 circuits", woodBy: "by the boiler's thermometer", woodPending: "changing:", woodLv: { certain: "certain", likely: "likely", possible: "possible", none: "none" },
     wst: { shadow: "not writing (shadow)", none: "no output", in_sync: "in sync", write: "writing", confirming: "awaiting confirmation", grace: "start grace", keepalive: "keep-alive", conflict: "conflict", not_accepted: "not accepted", unavailable: "unavailable", no_value: "no value", error: "error" }, plant: "PLANT ROOM", outside: "OUTDOORS", house: "ROOMS",
     coil: "coil", mixer: "mixer + pump", direct: "direct", normal: "normal curve", corrected: "with room deficit",
     limits: "limits", now: "now", given: "given-out target", outdoorAxis: "outdoor temperature (°C)", flowAxis: "flow (°C)",
@@ -144,10 +146,11 @@ export function renderOverview(all, opts = {}) {
   const src = [];
   for (const h of m.hps) {
     const d = h.decision || {}, det = d.details || {}, conf = h.conf || {};
-    if (conf.wood_entity) {
-      const we = ent(h, "wood_entity");
+    if (conf.wood_entity || conf.wood_temp_entity) {
+      const we = ent(h, "wood_entity") || ent(h, "wood_temp_entity"), wi = h.wood || {};
       const wood = d.wood === "certain" || d.wood === "likely" || h.inputs?.wood_signal === true;
-      src.push(row(T.wood, `${wood ? `<span class="hot">${esc(T.active_)}</span>` : esc(T.inactive)}${we ? ` <small>(${esc(we.state)})</small>` : ""}`));
+      src.push(row(T.wood, `${wood ? `<span class="hot">${esc(T.active_)}</span>` : esc(T.inactive)}${we ? ` <small>(${esc(we.state)}${we.unit ? " " + esc(we.unit) : ""})</small>` : ""}`));
+      if (wi.by === "temp") src.push(row(`· ${T.woodBy}`, esc(`≥ ${fx(wi.on_above, lang, 0)} °C ${T.on} · ≤ ${fx(wi.off_below, lang, 0)} °C ${T.offv}${wi.pending ? ` · ${T.woodPending} ${wi.pending.to ? T.on : T.offv} (${Math.round(wi.pending.for_s / 60)}/${Math.round(wi.confirm_s / 60)} ${T.min})` : ""}`)));
     }
     const run = det.hp_running === true ? T.runs : det.hp_running === false ? T.stands : T.unknown;
     const pe = ent(h, "hp_running_entity");
@@ -241,12 +244,16 @@ export function curveSvg(cfg, st = {}, opts = {}) {
 }
 
 // ---------------------------------------------------------------- the hydraulic diagram
+const ROOM_UNITS = ["air_conditioner", "electric_heater", "storage_heater"];
+
 export function renderSchematic(all, opts = {}) {
-  const lang = opts.lang === "en" ? "en" : "hu", T = OV_TXT[lang];
   const m = collect(all);
+  // 0.61.0: a house without a buffer tank (a boiler with its rooms, air conditioners, heaters) is drawn too
+  if (!m.tanks.length && !m.circuits.length && !m.hps.length) return renderPlainSchematic(m, opts);
+  const lang = opts.lang === "en" ? "en" : "hu", T = OV_TXT[lang];
   const g = [], W = 1000;
   const hp = m.hps[0] || null, tank = m.tanks[0] || null;
-  const wood = hp && (hp.conf || {}).wood_entity;
+  const wood = hp && ((hp.conf || {}).wood_entity || (hp.conf || {}).wood_temp_entity);
   const woodOn = hp && (hp.decision?.wood === "certain" || hp.decision?.wood === "likely" || hp.inputs?.wood_signal === true);
   const hpOn = hp && hp.decision?.details?.hp_running === true;
   const box = (x, y, w, h, t, cls = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="sbox ${cls}"/><text x="${x + 10}" y="${y + 18}" class="slab">${esc(t)}</text>`;
@@ -311,6 +318,72 @@ export function renderSchematic(all, opts = {}) {
       const z = r.info, d2 = z?.decision || {}, y = 110 + j * 46;
       const shared = z && (z.circuits || []).length > 1;
       g.push(`<g class="hs" ${key(z)}><rect x="${cx}" y="${y}" width="${cw}" height="38" rx="8" class="sroom ${d2.output ? "on" : ""}"/><text x="${cx + 10}" y="${y + 16}" class="sname">${esc(short(z?.title || r.eid))}${shared ? `<tspan class="ssh"> · ${esc(T.sharedRoom)}</tspan>` : ""}</text><text x="${cx + 10}" y="${y + 31}" class="ssm">${esc(`${deg(num(d2.indoor), lang)} → ${deg(num(d2.target), lang)}`)}</text></g>`);
+    });
+  });
+  return `<svg class="hcsch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.plant)}">${g.join("")}</svg>`;
+}
+
+function renderPlainSchematic(m, opts) {
+  const lang = opts.lang === "en" ? "en" : "hu", T = OV_TXT[lang];
+  const g = [];
+  const key = (i) => (i ? `data-key="member:${esc(i.entry_id)}"` : "");
+  const pipe = (d, hot, on) => `<path d="${d}" class="sp ${hot ? "sf" : "sr"} ${on ? "son" : ""}"/>`;
+  const box = (x, y, w, h, t) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="sbox"/><text x="${x + 10}" y="${y + 18}" class="slab">${esc(t)}</text>`;
+  const kindOf = (i) => i.heat_source || "onoff_boiler";
+  const runs = (i) => !!(i.actual ?? i.decision?.output);
+  const units = m.zones.filter((z) => ROOM_UNITS.includes(kindOf(z)));
+  const sources = m.zones.filter((z) => !ROOM_UNITS.includes(kindOf(z)) && kindOf(z) !== "external_heat" && (z.role || "standalone") !== "zone");
+  const zonesOnly = m.zones.filter((z) => !units.includes(z) && !sources.includes(z));
+  const roomsOf = (i) => {
+    const list = (i.room_list || []).length ? i.room_list : [{ name: short(i.title), leading: true }];
+    return list.map((r) => {
+      const lead = !!r.leading, heated = r.heated !== false;
+      return { name: r.name, temp: lead ? num(i.decision?.indoor) ?? num(r.temperature) : num(r.temperature),
+        target: heated ? (lead ? num(i.decision?.target) : num(r.target) ?? num(i.decision?.target)) : null,
+        on: heated && runs(i), sub: heated ? "" : T.unheated, key: i };
+    });
+  };
+  const cols = [
+    ...sources.map((i) => ({ title: short(i.title), src: i, rooms: roomsOf(i) })),
+    ...(units.length ? [{ title: T.unitsCol, rooms: units.map((u) => ({ ...roomsOf(u)[0], sub: T.kinds[kindOf(u)] || kindOf(u), tip: short(u.title), on: runs(u), key: u })) }] : []),
+    ...(zonesOnly.length ? [{ title: T.direct, rooms: zonesOnly.map((z) => ({ ...roomsOf(z)[0], key: z })) }] : []),
+  ];
+  const acs = units.filter((u) => kindOf(u) === "air_conditioner"), hpsOut = sources.filter((i) => kindOf(i) === "heat_pump");
+  const outN = acs.length + hpsOut.length;
+  const px = 200, pw = sources.length ? 230 : 0, rx0 = (pw ? px + pw : 190) + 24, colW = 200;
+  const W = Math.max(760, rx0 + cols.length * colW + 10);
+  const maxRooms = Math.max(1, ...cols.map((c) => c.rooms.length));
+  const H = Math.max(260, 110 + Math.max(maxRooms * 46, sources.length * 96, outN * 70) + 30);
+  // outdoors: the outdoor temperature, AC outdoor units, a heat pump's outdoor unit
+  g.push(box(10, 40, 170, Math.max(150, 70 + outN * 70), T.outside));
+  if (isNum(m.outdoor)) g.push(`<text x="20" y="${40 + 40}" class="sval">${esc(`${T.outdoor} ${deg(m.outdoor, lang)}`)}</text>`);
+  [...hpsOut, ...acs].forEach((u, j) => {
+    const y = 95 + j * 70, on = runs(u);
+    g.push(`<g class="hs" ${key(u)}><rect x="30" y="${y}" width="130" height="56" rx="6" class="sdev ${on ? "on" : ""}"/><circle cx="52" cy="${y + 28}" r="15" class="sfan"/><text x="112" y="${y + 24}" class="ssm" text-anchor="middle">${esc(T.kinds[kindOf(u)] || "")}</text><text x="112" y="${y + 41}" class="ssm" text-anchor="middle">${esc(on ? T.runs : T.stands)}</text></g>`);
+  });
+  // plant room: each water heating source
+  if (pw) {
+    g.push(box(px, 40, pw, H - 60, T.plant));
+    sources.forEach((i, j) => {
+      const y = 70 + j * 96, on = runs(i), k = kindOf(i), d = i.decision || {};
+      const burner = ["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(k);
+      g.push(`<g class="hs" ${key(i)}><rect x="${px + 20}" y="${y}" width="${pw - 40}" height="80" rx="8" class="sdev ${on ? "on" : ""}"/>
+        <text x="${px + 32}" y="${y + 20}" class="sname">${esc(T.kinds[k] || k)}</text><text x="${px + 32}" y="${y + 37}" class="ssm">${esc(short(i.title))}</text>
+        <text x="${px + 32}" y="${y + 56}" class="sval">${esc(`${on ? (burner ? T.burning : T.runs) : (burner ? T.idle : T.stands)}${isNum(num(d.flow_setpoint)) ? ` · ${T.flowTarget} ${deg(num(d.flow_setpoint), lang)}` : ""}`)}</text>
+        ${on && burner ? `<path transform="translate(${px + pw - 44},${y + 46}) scale(1.4)" d="M0,-12 C6,-5 10,-1 8,5 C6,11 -6,11 -8,5 C-10,-1 -4,-2 -2,-8 C0,-4 2,-3 0,-12Z" class="sflame"/>` : ""}</g>`);
+    });
+  }
+  // the rooms per source
+  cols.forEach((col, k) => {
+    const cx = rx0 + k * colW, cw = colW - 14;
+    g.push(`<text x="${cx + cw / 2}" y="62" class="slab" text-anchor="middle">${esc(col.title)}</text>`);
+    if (col.src) {
+      const j = sources.indexOf(col.src), on = runs(col.src), sy = 70 + j * 96;
+      g.push(pipe(`M${px + pw - 20},${sy + 30} H${px + pw + 6 + k * 4} V${84 + k * 4} H${cx + 6} V110`, true, on));
+    }
+    col.rooms.forEach((r, j) => {
+      const y = 110 + j * 46;
+      g.push(`<g class="hs" ${key(r.key)}><title>${esc(r.tip || short(r.key?.title || ""))}</title><rect x="${cx}" y="${y}" width="${cw}" height="38" rx="8" class="sroom ${r.on ? "on" : ""}"/><text x="${cx + 10}" y="${y + 16}" class="sname">${esc(r.name)}${r.sub ? `<tspan class="ssh"> · ${esc(r.sub)}</tspan>` : ""}</text><text x="${cx + 10}" y="${y + 31}" class="ssm">${esc(`${deg(r.temp, lang)}${isNum(r.target) ? ` → ${deg(r.target, lang)}` : ""}`)}</text></g>`);
     });
   });
   return `<svg class="hcsch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.plant)}">${g.join("")}</svg>`;

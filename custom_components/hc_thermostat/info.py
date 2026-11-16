@@ -83,6 +83,7 @@ def _instance(hass, entry) -> dict:
         return {**base, "mode": c.write.mode, "write": jsonable(c.write.info(c.data.now)) if c.data else {},
                 "outputs": jsonable(c.outputs()), "decision": jsonable(c.data), "config": jsonable(c.hp.cfg),
                 "inputs": jsonable(c.inputs(c.data.now)) if c.data else None, "offset": c.offset,
+                "wood": jsonable(c.wood_info(c.data.now)) if c.data and hasattr(c, "wood_info") else None,
                 "state": jsonable(c.hp.state(c.data.now)) if c.data else {}}
     if role in ("central", "buffer"):
         d = c.data

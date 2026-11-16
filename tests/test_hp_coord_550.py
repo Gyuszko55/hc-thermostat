@@ -219,7 +219,7 @@ def test_translations_and_shadow_only():
         assert {"hp_enable", "hp_heat_demand"} <= set(tr["entity"]["binary_sensor"])
         assert "hp_offset" in tr["entity"]["number"]
         fields = set(tr["config"]["step"]["hp_coord_settings"]["data"])
-        assert fields == {k for k in hpc.HpConfig.__dataclass_fields__}
+        assert fields == {k for k in hpc.HpConfig.__dataclass_fields__} | {"wood_on_above", "wood_off_below", "wood_confirm_s"}  # 0.61.0
     for name in ("hp_coord_coordinator.py", "core/hp_coord.py", "number.py"):
         assert "async_call" not in (BASE / name).read_text("utf8")  # 0.55.0: no service call at all
 
@@ -233,8 +233,8 @@ def test_config_flow_forms_and_no_name_clash():
     cf = importlib.import_module("hc_thermostat.config_flow")
     hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda d: []))
     keys = {str(k) for k in cf._hpc_settings({})}
-    assert keys == set(hpc.HpConfig.__dataclass_fields__)
-    assert {str(k) for k in cf._hpc_fields(hass, {})} == {"hp_buffer", "outdoor_entity", "hp_running_entity", "wood_entity",
+    assert keys == set(hpc.HpConfig.__dataclass_fields__) | {"wood_on_above", "wood_off_below", "wood_confirm_s"}  # 0.61.0: wood by temperature
+    assert {str(k) for k in cf._hpc_fields(hass, {})} == {"hp_buffer", "outdoor_entity", "hp_running_entity", "wood_entity", "wood_temp_entity",
                                                          "hp_target_entity", "hp_switch_entity", "hp_demand_entity",  # 0.56.0
                                                          "hp_summer_entity", "hp_exercise_entity"}  # 0.57.0
     assert cf._hpc_errors({"hp_flow_min": 25, "hp_flow_max": 55, "hp_cold_on_below": 5, "hp_cold_release_above": 7,

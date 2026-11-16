@@ -356,6 +356,12 @@ one page) and a *Hydraulic diagram* built from the links between the instances (
 tank layers, mixing valves with their flow targets, the rooms of each circuit). A mixing circuit shows its heating
 curve as a graph, and its settings form shows the curve as a table that *Preview only* recomputes without saving.
 
+**Buffer system setup and wood by temperature (0.61.0).** The HC setup panel has a *Buffer system* path: describe the
+tank, the heat pump on its coil, wood, the radiator / floor circuits and the rooms (a room on both circuits is one zone)
+once, and HC creates the room zones, the tank, the circuits and the heat pump coordination, linked and in shadow mode.
+Wood firing can be told from the wood boiler's thermometer with two thresholds and a confirmation time
+(`wood_temp_entity`), when there is no direct signal.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

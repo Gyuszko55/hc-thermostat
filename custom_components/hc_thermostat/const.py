@@ -52,6 +52,7 @@ CONF_BUFFER_CHARGE = "buffer_charge_entity"  # 0.54.0: an existing charge percen
 CONF_HP_BUFFER = "hp_buffer"  # 0.55.0: heat pump coordination -> the buffer instance (entry id) it charges
 CONF_HP_RUNNING = "hp_running_entity"  # 0.55.0: whether the heat pump runs now (binary / climate / power W)
 CONF_WOOD = "wood_entity"  # 0.55.0: a wood boiler signal (on while it fires)
+CONF_WOOD_TEMP = "wood_temp_entity"  # 0.61.0: the wood boiler's thermometer (wood told by two thresholds)
 CONF_CIRCUIT_OUTPUT = "circuit_output_entity"  # 0.56.0: where the circuit's flow target is written (PLC number)
 CONF_HP_SWITCH = "hp_switch_entity"  # 0.56.0: the heat pump's ON/OFF (switch / input_boolean / climate)
 CONF_HP_TARGET_OUT = "hp_target_entity"  # 0.56.0: the heat pump's flow target (number / input_number / climate)

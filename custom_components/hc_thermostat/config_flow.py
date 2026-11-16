@@ -19,7 +19,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -33,6 +33,7 @@ from .core.floor import COVERINGS, PROBES, covering_of
 from .core.model import HcConfig
 from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
+from .core.wood import WoodConfig
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig, MixingCircuit
 from .core.hp_coord import HpConfig
 from .core.room_model import OWN, rooms_options
@@ -294,6 +295,8 @@ def _hpc_fields(hass, current: dict) -> dict:
         vol.Required(CONF_OUTDOOR, default=current.get(CONF_OUTDOOR)) if current.get(CONF_OUTDOOR) else vol.Required(CONF_OUTDOOR): _ent(CONF_OUTDOOR, "sensor", "weather"),
         vol.Optional(CONF_HP_RUNNING, description={"suggested_value": current.get(CONF_HP_RUNNING)}): _entity("binary_sensor", "switch", "input_boolean", "climate", "sensor"),
         vol.Optional(CONF_WOOD, description={"suggested_value": current.get(CONF_WOOD)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
+        # 0.61.0: without a direct signal, wood is told from the wood boiler's thermometer (two thresholds)
+        vol.Optional(CONF_WOOD_TEMP, description={"suggested_value": current.get(CONF_WOOD_TEMP)}): _ent(CONF_WOOD_TEMP, "sensor"),
         **_outputs("hp_coord", current),
     }
 
@@ -304,6 +307,8 @@ def _hpc_settings(current: dict) -> dict:
     cfg = HpConfig.from_conf(current)
     n = lambda k, lo, hi, st, u="": (vol.Required(k, default=getattr(cfg, k)), _number(lo, hi, st, u))  # noqa: E731
     b = lambda k: (vol.Required(k, default=getattr(cfg, k)), BooleanSelector())  # noqa: E731
+    wcfg = WoodConfig.from_conf(current)
+    w = lambda k, lo, hi, st, u="": (vol.Required(k, default=getattr(wcfg, k)), _number(lo, hi, st, u))  # noqa: E731
     return dict([
         n("hp_flow_min", 15, 50, 1, "°C"), n("hp_flow_max", 25, 70, 1, "°C"), n("hp_reserve", 0, 15, 0.5, "°C"),
         n("hp_offset", -8, 8, 0.5, "°C"), n("hp_hyst", 0.5, 10, 0.5, "°C"),
@@ -314,6 +319,7 @@ def _hpc_settings(current: dict) -> dict:
         b("hp_exercise"), n("hp_exercise_weekday", 0, 6, 1), n("hp_exercise_hour", 0, 23, 1, "h"), n("hp_exercise_min", 1, 120, 1, "min"),
         b("hp_cold_on"), n("hp_cold_on_below", -10, 15, 0.5, "°C"), n("hp_cold_release_above", -10, 20, 0.5, "°C"),
         n("hp_cold_release_s", 0, 21600, 300, "s"), n("hp_wood_rise", 0.5, 20, 0.5, "°C/h"), b("hp_wood_first"),
+        w("wood_on_above", 30, 95, 1, "°C"), w("wood_off_below", 25, 90, 1, "°C"), w("wood_confirm_s", 0, 3600, 60, "s"),
         n("hp_deadband", 0.5, 6, 0.5, "°C"), n("hp_confirm_s", 0, 3600, 60, "s"), n("hp_min_interval_s", 0, 14400, 300, "s"),
         n("hp_max_rise", 0, 20, 0.5, "°C"), n("hp_urgent", 0, 20, 0.5, "°C"),
     ])
@@ -325,6 +331,8 @@ def _hpc_errors(user_input: dict) -> dict:
         errors["hp_flow_max"] = "circuit_order"
     if user_input["hp_cold_release_above"] < user_input["hp_cold_on_below"]:
         errors["hp_cold_release_above"] = "cold_order"
+    if "wood_on_above" in user_input and user_input["wood_off_below"] >= user_input["wood_on_above"]:
+        errors["wood_off_below"] = "wood_order"
     if user_input["hp_charge_off"] and user_input["hp_charge_on"] and user_input["hp_charge_off"] <= user_input["hp_charge_on"]:
         errors["hp_charge_off"] = "charge_order"
     return errors

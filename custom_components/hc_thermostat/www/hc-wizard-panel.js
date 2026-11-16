@@ -214,6 +214,12 @@ const DRAW = {
   room_unit: () => `<rect x="20" y="18" width="80" height="24" rx="8"/><line x1="30" y1="36" x2="90" y2="36"/><path d="M40,50 q5,6 0,12 M60,50 q5,6 0,12 M80,50 q5,6 0,12" fill="none"/>`,
 };
 
+// 0.61.0: the buffer system path (loaded with this file's own ?v=)
+let SYS = null;
+const SYSP = import(new URL(`./hc-system-setup.js${new URL(import.meta.url).search}`, import.meta.url).href).then((m) => { SYS = m; return m; }).catch((e) => {
+  console.warn("HC setup: buffer system path not loaded", e); return null;
+});
+
 class HcWizardPanel extends HTMLElement {
   constructor() {
     super();
@@ -242,6 +248,7 @@ class HcWizardPanel extends HTMLElement {
       this._error = this._t.load_error + " " + (e.message || "");
     }
     await this._ensureForm();
+    await SYSP;
     this._render();
   }
   async _ensureForm() {
@@ -623,11 +630,13 @@ class HcWizardPanel extends HTMLElement {
     let body = "";
     if (this._error && !this._start) body = `<p class="err">${esc(this._error)}</p>`;
     else if (!this._start) body = `<p class="hint">…</p>`;
+    else if (this._sysMode && this._sys) body = `<div id="sysroot" style="display:grid;gap:18px">${this._sys.html()}</div>`;
     else if (this._done) body = this._renderDone();
     else body = this._renderStep();
     this.shadowRoot.innerHTML = `<style>${css}</style>${head}<div class="wrap body">${body}</div>`;
     const mb = this.shadowRoot.querySelector("ha-menu-button");
     if (mb) { mb.hass = this._hass; mb.narrow = this._narrow; }
+    if (this._sysMode && this._sys) { this._sys.bind(this.shadowRoot); return; }
     this._bind();
   }
   _stepsBar() {
@@ -647,6 +656,7 @@ class HcWizardPanel extends HTMLElement {
       const entries = (st.entries || []).filter((e) => e.role === "standalone");
       return top + `<div class="grid">
         <button class="opt ${this._picked === null ? "sel" : ""}" data-entry=""><ha-icon icon="mdi:plus-circle-outline"></ha-icon><b>${t.new_inst}</b><small>${t.new_hint}</small></button>
+        ${SYS ? `<button class="opt" id="sysopen"><ha-icon icon="mdi:water-boiler"></ha-icon><b>${esc(SYS.SYS_TXT[this._lang.startsWith("hu") ? "hu" : "en"].title)}</b><small>${esc(SYS.SYS_TXT[this._lang.startsWith("hu") ? "hu" : "en"].hint)}</small></button>` : ""}
         ${entries.map((e) => `<button class="opt ${this._picked === e.entry_id ? "sel" : ""}" data-entry="${esc(e.entry_id)}">
           <span class="mode">${esc(t.mode[e.mode] || e.mode)}</span><ha-icon icon="${SOURCE_ICON[e.heat_source] || "mdi:thermostat"}"></ha-icon>
           <b>${esc(e.title)}</b><small>${t.existing} · ${esc((t.sources[e.heat_source] || [e.heat_source])[0])} · ${esc((t.controls[e.control] || [e.control])[0])}</small></button>`).join("")}
@@ -791,6 +801,7 @@ class HcWizardPanel extends HTMLElement {
     r.getElementById("back")?.addEventListener("click", () => this._go(-1));
     r.getElementById("next")?.addEventListener("click", () => this._go(1));
     r.getElementById("save")?.addEventListener("click", () => this._save());
+    r.getElementById("sysopen")?.addEventListener("click", () => { this._sys = this._sys || new SYS.SystemSetup(this); this._sysMode = true; this._render(); });
     r.getElementById("start_active")?.addEventListener("change", (e) => { s.start_active = e.target.checked; this._render(); });
     r.getElementById("again")?.addEventListener("click", () => { this._done = null; this._step = 0; this._picked = undefined; this._load(); });
     r.querySelectorAll("[data-entry]").forEach((b) => b.addEventListener("click", () => this._pickEntry(b.dataset.entry || null)));

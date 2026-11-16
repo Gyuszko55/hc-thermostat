@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.61.0 – 2026-11-16
+The tester's last two points (5.2 and 5.7), and a fix of the 0.60.0 hydraulic diagram.
+- **Buffer system setup path (HC setup panel → *Buffer system*):** the real system is described once – home name,
+  whether a heat pump heats the tank through its coil, wood (none / a direct signal / the boiler's thermometer), the
+  radiator and / or floor mixing circuit; then the devices (outdoor thermometer, the tank's up to four thermometers,
+  an existing charge %, volume, base temperature; the heat pump's running signal and – for later – its ON/OFF and
+  target; the wood signal or thermometer with its thresholds; the PLC setpoints of the circuits, optional); then the
+  rooms, as many as needed, each with its thermometer and zone valve relay (or an existing HC zone) and the circuits it
+  is on. A room on both circuits (a bathroom with radiator and floor) is **one** zone with one thermostat. The summary
+  lists what will be made; *Create* makes every instance in order and links them: the room zones (TPI on their valves,
+  heat source with its own control), the buffer tank (its zones: every room; no relay of its own), one mixing circuit
+  per type with its rooms and the tank, the heat pump coordination on the tank. All start in shadow mode with the same
+  home name, so HC info shows them as one house. New websocket `hc_thermostat/wizard/system` (admin only); nothing
+  is switched or written.
+- **Wood told from the wood boiler's thermometer (heat pump coordination, option):** `wood_temp_entity` with
+  `wood_on_above` (65 °C), `wood_off_below` (60 °C) and `wood_confirm_s` (5 min): active once the boiler is at the
+  upper threshold or warmer for the confirmation time, inactive once at the lower one or colder for as long; between
+  them the last state holds; the first reading decides at once; no reading, or one older than an hour, is "not known".
+  A direct wood signal (`wood_entity`) stays the first choice. The overview shows the thresholds and a pending change;
+  the drawings show the wood boiler for it too. No helper or automation is needed for it any more.
+- **Hydraulic diagram of a house without a buffer system:** 0.60.0 drew only tanks, circuits and heat pump
+  coordinations, so an ordinary house (a gas boiler with its rooms, an air conditioner, an oil heater) got empty
+  boxes. Now the plant room shows each water heating source (its kind, burning / idle, flow target), outdoors the
+  air conditioners' and heat pumps' outdoor units and the outdoor temperature, and a column of rooms per source (its
+  room list; a room it does not heat marked), the room units (air conditioner, heater) in a column of their own.
+
 ## 0.60.0 – 2026-11-16
 Diagnosis of a whole house in one place (the same tester's points A, B and 5.3). Information only – nothing switches
 differently.

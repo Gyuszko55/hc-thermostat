@@ -198,7 +198,7 @@ function hpSources(mi) {
   const running = det.hp_running === true;
   out.push({ kind: "heat_pump", running, pump: running, flowTarget: num(d.target), power, coil: true,
     entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "shadow", fault: false });
-  if (conf.wood_entity) {
+  if (conf.wood_entity || conf.wood_temp_entity) {  // 0.61.0: or the wood boiler's thermometer
     const wood = d.wood === "certain" || d.wood === "likely" || mi.inputs?.wood_signal === true;
     out.unshift({ kind: "wood_boiler", running: wood, pump: wood, entry: mi.entry_id, title: mi.title || "", mode: mi.mode || "shadow", fault: false });
   }

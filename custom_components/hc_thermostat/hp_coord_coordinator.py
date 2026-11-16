@@ -23,8 +23,10 @@ from homeassistant.util import dt as dt_util
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
 from .const import (CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
-                    CONF_WOOD, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
+                    CONF_WOOD, CONF_WOOD_TEMP, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
+from .core.wood import WoodConfig, WoodDetector
+from .units import state_value_c
 from .output_writer import OutputWriter, WriteControl
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,6 +103,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         self.out_exercise = OutputWriter(hass, data.get(CONF_HP_EXERCISE_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self._started = dt_util.now()
         self.hp = HeatPumpCoordinator(HpConfig.from_conf(data))
+        self.wood = WoodDetector(WoodConfig.from_conf(data))  # 0.61.0: wood from the boiler's thermometer
+        self.wood_temp: float | None = None
         self.offset: float | None = None  # the number entity's value (restored by it)
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._last_save = dt_util.now()
@@ -146,10 +150,36 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                         charge=stock.charge if stock is not None else None,
                         trend_c_h=trend.get("c_per_h"), circuits=tuple(circuits), zones_asking=zones_asking,
                         frost_top=frost,
-                        wood_signal=on_state(self.hass, self.conf.get(CONF_WOOD), now) if self.conf.get(CONF_WOOD) else None,
+                        wood_signal=self._wood_signal(now),
                         hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now),
                         hp_running_age_s=self._running_age(now),
                         offset=self.offset)
+
+    def _wood_signal(self, now: datetime) -> bool | None:
+        """The wood signal: a direct contact first; else (0.61.0) the wood boiler's thermometer by two thresholds."""
+        if self.conf.get(CONF_WOOD):
+            return on_state(self.hass, self.conf.get(CONF_WOOD), now)
+        eid = self.conf.get(CONF_WOOD_TEMP)
+        if not eid:
+            return None
+        state = self.hass.states.get(eid)
+        temp = state_value_c(state) if state is not None and state.state not in ("unavailable", "unknown") else None
+        if temp is not None:
+            age = reading_age_s(state, now)
+            if age is not None and age > 3600:  # a dead thermometer keeps its value: not trusted after an hour
+                temp = None
+        self.wood_temp = temp
+        return self.wood.step(now, temp)
+
+    def wood_info(self, now: datetime) -> dict:
+        """0.61.0: where the wood signal comes from, for the info panel."""
+        by = "signal" if self.conf.get(CONF_WOOD) else "temp" if self.conf.get(CONF_WOOD_TEMP) else None
+        out = {"by": by}
+        if by == "temp":
+            cfg = self.wood.cfg
+            out.update(temp=self.wood_temp, on_above=cfg.wood_on_above, off_below=cfg.wood_off_below,
+                       confirm_s=cfg.wood_confirm_s, **self.wood.info(now))
+        return out
 
     def _running_age(self, now: datetime) -> float | None:
         """0.59.0: how old the "runs" reading is (shown next to it)."""

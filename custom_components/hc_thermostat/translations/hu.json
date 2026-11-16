@@ -231,7 +231,8 @@
           "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
           "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)",
           "hp_summer_entity": "Nyári üzem jel a PLC-nek (switch / input_boolean, nem kötelező)",
-          "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)"
+          "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)",
+          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)"
         }
       },
       "hp_coord_settings": {
@@ -268,7 +269,10 @@
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "hp_min_interval_s": "Két módosítás között legalább",
           "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+          "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
+          "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
+          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
         }
       }
     },
@@ -282,7 +286,8 @@
       "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie.",
       "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
       "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
-      "no_output": "Az íráshoz legalább egy kimeneti entitás kell."
+      "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
+      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
@@ -800,7 +805,8 @@
           "confirm": "Tudomásul veszem: a HC valódi alapjelet ír / valódi eszközt kapcsol (egy célnak egy írója legyen – a PLC ne írja ugyanazt a regisztert)",
           "trial_hours": "A felügyelt próba hossza",
           "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
-          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól"
+          "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
+          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)"
         }
       },
       "hp_coord_settings": {
@@ -837,7 +843,10 @@
           "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
           "hp_min_interval_s": "Két módosítás között legalább",
           "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+          "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+          "wood_on_above": "Fatüzelés aktív, ha a kazán legalább",
+          "wood_off_below": "Fatüzelés inaktív, ha a kazán legfeljebb",
+          "wood_confirm_s": "Ennyi ideig tartson, mielőtt vált"
         }
       }
     },
@@ -857,7 +866,8 @@
       "circuit_order": "A legmagasabb előremenő célnak a legalacsonyabb fölött kell lennie.",
       "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
       "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
-      "no_output": "Az íráshoz legalább egy kimeneti entitás kell."
+      "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
+      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál."
     }
   },
   "selector": {

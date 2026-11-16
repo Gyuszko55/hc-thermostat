@@ -231,7 +231,8 @@
           "hp_switch_entity": "Heat pump ON/OFF (switch / input_boolean / climate, optional)",
           "hp_demand_entity": "Heat demand signal (switch / input_boolean, optional)",
           "hp_summer_entity": "Summer mode signal for a PLC (switch / input_boolean, optional)",
-          "hp_exercise_entity": "Exercise due signal for a PLC (switch / input_boolean, optional)"
+          "hp_exercise_entity": "Exercise due signal for a PLC (switch / input_boolean, optional)",
+          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)"
         }
       },
       "hp_coord_settings": {
@@ -268,7 +269,10 @@
           "hp_confirm_s": "The difference must last",
           "hp_min_interval_s": "At least between two changes",
           "hp_max_rise": "Rise at most per change (0 = no limit)",
-          "hp_urgent": "Urgent difference: no waiting (0 = never)"
+          "hp_urgent": "Urgent difference: no waiting (0 = never)",
+          "wood_on_above": "Wood active when the boiler is at least",
+          "wood_off_below": "Wood inactive when the boiler is at most",
+          "wood_confirm_s": "Lasting this long before it changes"
         }
       }
     },
@@ -282,7 +286,8 @@
       "circuit_order": "The highest flow target must be above the lowest.",
       "cold_order": "The release limit must be at or above the ON limit.",
       "charge_order": "The stop charge must be above the start charge.",
-      "no_output": "Writing needs at least one output entity."
+      "no_output": "Writing needs at least one output entity.",
+      "wood_order": "The off threshold must be below the on threshold."
     },
     "abort": {
       "already_configured": "An instance with this name already exists.",
@@ -800,7 +805,8 @@
           "confirm": "I understand: HC writes a real setpoint / switches a real device (one writer per target – the PLC must not write the same register)",
           "trial_hours": "Length of the supervised trial",
           "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
-          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells"
+          "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
+          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)"
         }
       },
       "hp_coord_settings": {
@@ -837,7 +843,10 @@
           "hp_confirm_s": "The difference must last",
           "hp_min_interval_s": "At least between two changes",
           "hp_max_rise": "Rise at most per change (0 = no limit)",
-          "hp_urgent": "Urgent difference: no waiting (0 = never)"
+          "hp_urgent": "Urgent difference: no waiting (0 = never)",
+          "wood_on_above": "Wood active when the boiler is at least",
+          "wood_off_below": "Wood inactive when the boiler is at most",
+          "wood_confirm_s": "Lasting this long before it changes"
         }
       }
     },
@@ -857,7 +866,8 @@
       "circuit_order": "The highest flow target must be above the lowest.",
       "cold_order": "The release limit must be at or above the ON limit.",
       "charge_order": "The stop charge must be above the start charge.",
-      "no_output": "Writing needs at least one output entity."
+      "no_output": "Writing needs at least one output entity.",
+      "wood_order": "The off threshold must be below the on threshold."
     }
   },
   "selector": {
