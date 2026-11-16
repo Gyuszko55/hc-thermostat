@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.const import PERCENTAGE, UnitOfPower
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower
 
 from .const import CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_ROLE, CONF_ROOM_TRVS, CONF_ROOMS
 from .core.cost import ADVICE_TEXT
@@ -129,6 +129,7 @@ class HcHeatLoss(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "heat_loss")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # 0.66.0: not for everyday use
 
     @property
     def native_value(self) -> float | None:
@@ -191,6 +192,7 @@ class HcTimeConstant(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "time_constant")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # 0.66.0: not for everyday use
 
     @property
     def native_value(self) -> float | None:
@@ -218,6 +220,11 @@ class HcSourceAdvice(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "source_advice")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # 0.66.0
+        # 0.66.0: without any price it has nothing to say – new installs get it switched off (it can be switched on)
+        conf = coordinator.conf
+        self._attr_entity_registry_enabled_default = any(conf.get(k) for k in (
+            "boiler_price_entity", "other_price_entity", "boiler_price", "other_price"))
 
     @property
     def native_value(self) -> str:
@@ -263,6 +270,7 @@ class HcAgreement(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "agreement")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # 0.66.0: not for everyday use
 
     @property
     def native_value(self) -> float | None:
@@ -278,6 +286,7 @@ class HcLearned(HcEntity, SensorEntity):
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "learned")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # 0.66.0: not for everyday use
 
     @property
     def native_value(self) -> float:

@@ -83,6 +83,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(async_track_renames(hass, entry))  # 0.51.1: a renamed entity is followed
     # 0.51.1: the instance's Repairs entry goes with it (a reload builds it again when the problem is still there)
     entry.async_on_unload(lambda: ir.async_delete_issue(hass, DOMAIN, f"sensor_problem_{entry.entry_id}"))
+    entry.async_on_unload(lambda: ir.async_delete_issue(hass, DOMAIN, f"source_problem_{entry.entry_id}"))  # 0.66.0
 
     async def _save(_event) -> None:
         await coordinator.async_save()

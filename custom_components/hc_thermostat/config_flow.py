@@ -1040,11 +1040,28 @@ class HcOptionsFlow(OptionsFlow):
         if current.get(CONF_ROLE) == "hp_coord":
             return await self.async_step_hp_coord(user_input)
         live = current.get(CONF_MODE, MODE_SHADOW) == MODE_ACTIVE
-        menu = ["settings"]
+        menu = ["targets", "settings"]  # 0.66.0: the targets and the night first – the most common change
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
             menu.append("rooms")  # 0.46.0: straight to the rooms, saved on their own
         menu.append("change_control")  # 0.49.0: another control without a new instance
         return self.async_show_menu(step_id="init", menu_options=[*menu, "go_shadow" if live else "go_live"])
+
+    async def async_step_targets(self, user_input=None):
+        """0.66.0: only the targets and the night's times, saved at once; every other setting stays."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        if user_input is not None:
+            return self.async_create_entry(data={**self.config_entry.options, **user_input})
+        cfg = HcConfig.from_mapping({**source_defaults(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **current})
+        temp = _number(5, 30, 0.5, "°C")
+        return self.async_show_form(step_id="targets", data_schema=vol.Schema({
+            vol.Required("target_home", default=cfg.target_home): temp,
+            vol.Required("target_night", default=cfg.target_night): temp,
+            vol.Required("target_away", default=cfg.target_away): temp,
+            vol.Required("target_vacation", default=cfg.target_vacation): temp,
+            vol.Required("frost_temp", default=cfg.frost_temp): _number(3, 12, 0.5, "°C"),
+            vol.Required("night_start", default=cfg.night_start): TimeSelector(),
+            vol.Required("night_end", default=cfg.night_end): TimeSelector(),
+        }), description_placeholders={"name": self.config_entry.title})
 
     async def async_step_go_live(self, user_input=None):
         """Only the mode: shadow → active, with the usual confirmation; every other setting stays."""
@@ -1141,11 +1158,10 @@ class HcOptionsFlow(OptionsFlow):
         if user_input is not None:
             # 0.48.0 / 0.49.0: the fold-out sections' fields are settings like the others
             user_input = _flat(user_input, (*SETTINGS_SECTIONS, MEASURES))
+            user_input[CONF_MODE] = current.get(CONF_MODE, MODE_SHADOW)  # 0.66.0: kept as it is (menu only)
             if current.get(CONF_ROLE) == "zone":  # 0.65.1: an emptied house name is cleared, not kept from before
                 user_input[CONF_HOME_NAME] = str(user_input.get(CONF_HOME_NAME) or "").strip()
-            if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
-                errors[CONF_CONFIRM] = "confirm_active"
-            elif float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
+            if float(user_input.get("season_on_below", 13.0)) >= float(user_input.get("season_off_above", 15.0)):
                 errors = _field_error("season_on_below", "season_order", _SETTINGS_SECTION_OF)  # 0.52.0
             elif float(user_input.get("plaus_indoor_min", 3.0)) > float(user_input.get("frost_temp", 7.0)) - 2.0:
                 errors = _field_error("plaus_indoor_min", "plaus_frost", _SETTINGS_SECTION_OF)  # 0.52.0
@@ -1172,8 +1188,7 @@ class HcOptionsFlow(OptionsFlow):
         cfg = HcConfig.from_mapping({**source_defaults(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **current})
         temp = _number(5, 30, 0.5, "°C")
         fields = {
-            vol.Required(CONF_MODE, default=current.get(CONF_MODE, MODE_SHADOW)): _select([MODE_SHADOW, MODE_ACTIVE], "mode"),
-            vol.Optional(CONF_CONFIRM, default=False): BooleanSelector(),
+            # 0.66.0: the mode is changed only in the menu (going live / back to shadow), not here
             vol.Required("target_home", default=cfg.target_home): temp,
             vol.Required("target_night", default=cfg.target_night): temp,
             vol.Required("target_away", default=cfg.target_away): temp,

@@ -544,11 +544,12 @@
         "title": "HC Thermostat",
         "description": "What do you want to change?",
         "menu_options": {
-          "settings": "Settings (targets, timing, devices)",
+          "settings": "Settings (regulation, devices, everything else)",
           "rooms": "Rooms (areas, thermometers, TRV heads, presence, windows)",
           "go_live": "Go live – HC starts switching",
           "go_shadow": "Back to shadow mode – HC only calculates",
-          "change_control": "Change the control (e.g. to an external thermostat)"
+          "change_control": "Change the control (e.g. to an external thermostat)",
+          "targets": "Targets and times (home, night, away, vacation)"
         }
       },
       "go_live": {
@@ -1451,6 +1452,28 @@
             }
           }
         }
+      },
+      "targets": {
+        "title": "Targets and times – {name}",
+        "description": "Only the targets and the night's times; they apply when saved, every other setting stays.",
+        "data": {
+          "target_home": "Home temperature",
+          "target_night": "Sleep (night) temperature",
+          "target_away": "Away temperature",
+          "target_vacation": "Vacation temperature",
+          "frost_temp": "Frost limit",
+          "night_start": "Night start",
+          "night_end": "Night end"
+        },
+        "data_description": {
+          "target_home": "At home and awake. Also settable from the thermostat card.",
+          "target_night": "Between the night's start and end (below), and in the Sleep preset.",
+          "target_away": "When nobody is home (by the presence entities) or in the Away preset.",
+          "target_vacation": "In the Vacation preset – a short absence keeps the Away target.",
+          "frost_temp": "It never cools below this, not even while off or with a window open.",
+          "night_start": "The sleep target applies from this time.",
+          "night_end": "The sleep target lasts until this; optimal start times itself to it."
+        }
       }
     },
     "error": {
@@ -1955,6 +1978,10 @@
     "sensor_problem": {
       "title": "HC – {name}: a sensor or internal problem",
       "description": "**{name}** has been running in a fallback mode for a while, because these do not work as they should:\n\n{problems}\n\nCheck the sensor (battery, connection), or HC's settings if you replaced it. This entry clears itself as soon as all is well."
+    },
+    "source_problem": {
+      "title": "HC – {name}: heat source problem",
+      "description": "The heat source of **{name}** shows a problem since {since}: **{problem}**.\n\nCheck the boiler (error code, gas, flame, relay). HC goes on regulating as well as it can. This entry clears itself as soon as the source is fine. For a notification use the blueprint that comes with HC."
     }
   }
 }

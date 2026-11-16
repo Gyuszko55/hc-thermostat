@@ -183,7 +183,7 @@ def test_the_settings_fold_out_by_topic_and_are_stored_flat():
     kind, kw = asyncio.run(flow.async_step_settings())
     schema = kw["data_schema"]
     keys = _keys(schema)
-    assert keys[:2] == ["mode", "confirm"] and "target_home" in keys and "cycle_s" not in keys
+    assert keys[0] == "target_home" and "mode" not in keys and "confirm" not in keys and "cycle_s" not in keys  # 0.66.0: the mode only in the menu
     assert [k for k in keys if k in cf.SETTINGS_SECTIONS] == ["regulation", "functions", "protection", "devices",
                                                                "energy", "adjoining", "house"]
     assert keys[-1] == "measures"

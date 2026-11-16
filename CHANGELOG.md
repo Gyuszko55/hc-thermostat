@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.66.0 – 2026-11-16
+Watching and simpler changes, after an outside review (no change in how HC regulates).
+- **A heat source problem goes to Repairs:** no ignition, no response to the relay, short cycling, a heating fault,
+  overheating, burning without command or a lost power / flame reading that lasts 5 minutes is an entry in Home
+  Assistant's *Repairs* (an error for the serious ones), with the instance's name, the problem and since when; it
+  clears itself when the source is fine. Until now only a binary sensor turned on.
+- **Notification blueprint** (`blueprints/automation/hc_thermostat/hc_problem_notify.yaml`): a push to a phone when
+  *Boiler problem* or *Heating fault* stays on for the given minutes, with the problem in words, and optionally when it
+  clears.
+- **Diagnostics download** (Devices & services → HC Thermostat → ⋮ → Download diagnostics): the settings and
+  everything the info panel shows for the instance; the house name is redacted.
+- **"Targets and times" menu item:** the home, night, away and vacation targets, the frost limit and the night's
+  start and end on one short page, saved at once – no more Settings → save → Presets → save for the most common change.
+- **The mode only in the menu:** *Mode* and the confirmation tick left the Settings page (going live and back to
+  shadow have their own menu items); saving the settings keeps the mode as it is.
+- **Diagnostic sensors:** *Learned values*, *Time constant*, *Heat loss factor*, *Agreement* and *Cheaper source* are
+  in the diagnostic category; the cheaper source sensor starts switched off on a new instance without any price.
+
 ## 0.65.3 – 2026-11-16
 - **Fix:** the *Boiler state*, *Flow setpoint* and *Shadow regulator* sensors were made only when the floor area was
   given – since 0.51.0 a slip of the indentation had put them under the energy rating's `house_area_m2 > 0`. They

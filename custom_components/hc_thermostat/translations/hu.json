@@ -544,11 +544,12 @@
         "title": "HC Thermostat",
         "description": "Mit szeretnél módosítani?",
         "menu_options": {
-          "settings": "Beállítások (célok, időzítés, eszközök)",
+          "settings": "Beállítások (szabályozás, eszközök, minden más)",
           "rooms": "Helyiségek (területek, hőmérők, szelepfejek, jelenlét, ablakok)",
           "go_live": "Élesítés – a HC kapcsolni kezd",
           "go_shadow": "Vissza árnyék módba – a HC csak számol",
-          "change_control": "Vezérlés módosítása (pl. külső termosztátra)"
+          "change_control": "Vezérlés módosítása (pl. külső termosztátra)",
+          "targets": "Célok és időzítés (otthon, éjszaka, távol, szabadság)"
         }
       },
       "go_live": {
@@ -1451,6 +1452,28 @@
             }
           }
         }
+      },
+      "targets": {
+        "title": "Célok és időzítés – {name}",
+        "description": "Csak a célhőfokok és az éjszaka ideje; mentéskor azonnal érvénybe lépnek, a többi beállítás nem változik.",
+        "data": {
+          "target_home": "Otthoni hőfok",
+          "target_night": "Alvás (éjszakai) hőfok",
+          "target_away": "Távolléti hőfok",
+          "target_vacation": "Szabadság hőfok",
+          "frost_temp": "Fagyvédelmi határ",
+          "night_start": "Éjszaka kezdete",
+          "night_end": "Éjszaka vége"
+        },
+        "data_description": {
+          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
+          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.",
+          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.",
+          "target_vacation": "Szabadság presetben – rövid távollétnél a Távolléti hőfok marad.",
+          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.",
+          "night_start": "Ettől kezdve az alvási hőfok érvényes.",
+          "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít."
+        }
       }
     },
     "error": {
@@ -1955,6 +1978,10 @@
     "sensor_problem": {
       "title": "HC – {name}: érzékelő- vagy belső hiba",
       "description": "A(z) **{name}** fűtésvezérlés egy ideje vészüzemben fut, mert ezek nem működnek rendesen:\n\n{problems}\n\nNézd meg az érzékelőt (elem, kapcsolat), vagy ha lecserélted, a HC beállításait. A bejegyzés magától eltűnik, amint minden rendben van."
+    },
+    "source_problem": {
+      "title": "HC – {name}: hőforrás-probléma",
+      "description": "A(z) **{name}** hőforrása {since} óta hibát mutat: **{problem}**.\n\nNézd meg a kazánt (hibakód, gáz, láng, relé). A HC ettől függetlenül tovább szabályoz, ahogy tud. A bejegyzés magától eltűnik, amint a hőforrás rendben van. Értesítést a mellékelt blueprinttel kérhetsz."
     }
   }
 }

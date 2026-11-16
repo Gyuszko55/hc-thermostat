@@ -24,7 +24,7 @@ from .const import (
     CONF_CONTROL, CONF_DEMAND, CONF_PRESSURE, CONF_FLOW_TEMP, CONF_MODULATION, CONF_FAULT_CODE, CONF_HEAT_OUTPUT,
     CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE,
 )
-from .core.boiler_health import BoilerHealth, health_kind, power_levels_known
+from .core.boiler_health import QUIET_STATES, BoilerHealth, health_kind, power_levels_known
 from .core import measures as ms
 from .core import energy_rating as er_
 from .core import states as st_
@@ -51,6 +51,18 @@ from .units import climate_attrs_c, finite, climate_temp_c, source_value_c, stat
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
+SOURCE_REPAIR_AFTER_S = 300.0  # 0.66.0: a source problem lasting this long goes to Repairs
+SOURCE_SEVERE = ("no_flame", "no_response", "heating_fault", "uncommanded_burn")
+SOURCE_WORDS = {
+    "hu": {"no_data": "a teljesítménymérő vagy lángjel nem ad adatot", "uncommanded_burn": "parancs nélkül ég (beragadt relé vagy kézi kapcsolás?)",
+           "overheating": "túlfűt: a helyiség jóval a cél fölött van, és még fűt", "no_response": "a kazán nem reagál a relére (nincs áramfelvétel)",
+           "no_flame": "nem gyújt be (a szivattyú megy, láng nincs)", "heating_fault": "fűtési hiba: sokáig fűt, a ház mégis hűl",
+           "short_cycling": "taktol: óránként túl sok indítás"},
+    "en": {"no_data": "the power or flame reading gives no data", "uncommanded_burn": "burns without command (a stuck relay or a hand switch?)",
+           "overheating": "overheating: the room is well above the target and still heated", "no_response": "the boiler does not answer the relay (no power draw)",
+           "no_flame": "no ignition (the pump runs, no flame)", "heating_fault": "heating fault: long heating, the house still cools",
+           "short_cycling": "short cycling: too many starts an hour"},
+}
 _SAVE_EVERY = timedelta(minutes=10)
 _LOG_SIZE = 200
 _AGREEMENT_SIZE = 2880  # 24 hours
@@ -1219,6 +1231,38 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.health.update(now, relay_on, power, flame, decision.fault, decision.indoor, target,
                            busy=bool(decision.details.get("hp_mode")),
                            watched=bool(conf.get(CONF_BOILER_POWER) or conf.get(CONF_FLAME)))  # 0.62.0
+        self._sync_source_repair(now)  # 0.66.0
+
+    def _sync_source_repair(self, now: datetime) -> None:
+        """0.66.0: a heat source problem (no ignition, no response, short cycling, heating fault, …) that lasts
+        SOURCE_REPAIR_AFTER_S is also an entry in Home Assistant's Repairs – nobody has to write an automation to
+        learn it. It clears itself when the source is fine again."""
+        state = self.health.state
+        bad = state not in QUIET_STATES
+        if not bad:
+            self._src_since = None
+        elif getattr(self, "_src_since", None) is None or getattr(self, "_src_state", None) != state:
+            self._src_since = now
+        self._src_state = state
+        show = state if bad and (now - self._src_since).total_seconds() >= SOURCE_REPAIR_AFTER_S else None
+        if show == getattr(self, "_src_shown", None):
+            return
+        self._src_shown = show
+        issue_id = f"source_problem_{self.config_entry.entry_id}"
+        try:
+            if show is None:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                return
+            hu = str(getattr(self.hass.config, "language", "") or "").startswith("hu")
+            words = SOURCE_WORDS["hu" if hu else "en"]
+            ir.async_create_issue(
+                self.hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+                severity=ir.IssueSeverity.ERROR if show in SOURCE_SEVERE else ir.IssueSeverity.WARNING,
+                translation_key="source_problem",
+                translation_placeholders={"name": self.config_entry.title, "problem": words.get(show, show),
+                                          "since": self._src_since.strftime("%H:%M")})
+        except Exception:  # the Repairs entry is a report – it must never stop the decision
+            _LOGGER.debug("The Repairs entry could not be updated", exc_info=True)
 
     # --- 0.48.0: measurements ---------------------------------------------------
     def _plain(self, key: str) -> tuple[float | None, str | None, str | None]:

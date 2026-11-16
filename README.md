@@ -381,6 +381,11 @@ heat pump coordination still gets the uncapped demand; the shortfall is shown. T
 rounded up to 0.5 °C or whole °C. The info panel draws the heat pump's raw, given-out, sent and reported targets and
 its measured water over 24 hours. A house name can be set on the buffer, circuit and heat pump instances too.
 
+**Watching (0.66.0).** A lasting heat source problem (no ignition, short cycling, heating fault …) appears in Home
+Assistant's *Repairs* by itself. For a push notification import the blueprint: [HC – notify on a problem](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FGyuszko55%2Fhc-thermostat%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fhc_thermostat%2Fhc_problem_notify.yaml).
+Diagnostics can be downloaded from the instance's ⋮ menu for a bug report. The most common change – targets and the
+night's times – has its own short menu item, *Targets and times*.
+
 **Demand-based tank charging (0.65.0).** Besides the classic rule (start when the tank top falls under the circuits'
 need or the charge under a threshold) the heat pump coordination works out a demand rule: start while the top still
 has a settable reserve above the need, stop only when a lower layer reaches the need + a stop margin (never above what

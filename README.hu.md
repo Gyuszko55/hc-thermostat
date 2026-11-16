@@ -387,6 +387,11 @@ hőszivattyúnak kiírt cél 0,5 °C-ra vagy egész fokra felfelé kerekíthető
 hőszivattyú nyers, kiadott, kiküldött és visszajelzett célját, valamint a mért vizet. Háznév a puffer, a keverőkör és a
 hőszivattyú beállításaiban is megadható.
 
+**Felügyelet (0.66.0).** A tartós hőforrás-hiba (nem gyújt be, taktol, fűtési hiba …) magától megjelenik a Home
+Assistant *Javítások* között. Telefonos értesítéshez importáld a blueprintet: [HC – értesítés hiba esetén](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FGyuszko55%2Fhc-thermostat%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fhc_thermostat%2Fhc_problem_notify.yaml).
+Hibajelentéshez a példány ⋮ menüjéből diagnosztika tölthető le. A leggyakoribb módosításnak – célok és az éjszaka
+ideje – saját rövid menüpontja van: *Célok és időzítés*.
+
 **Igény szerinti puffertöltés (0.65.0).** A klasszikus szabály (indul, ha a puffer teteje a körök igénye alá esik,
 vagy a töltöttség a küszöb alá) mellett a hőszivattyú-koordináció egy igény szerinti szabályt is számol: akkor indít,
 amikor a tetőnek még van állítható tartaléka az igény fölött, és csak akkor áll le, ha egy alsóbb réteg is eléri az

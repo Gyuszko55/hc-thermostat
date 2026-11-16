@@ -1,0 +1,80 @@
+blueprint:
+  name: HC Thermostat – értesítés hiba esetén / notify on a problem
+  description: >
+    Push notification to a phone when an HC Thermostat instance reports a lasting problem: the heat source does not
+    ignite, does not answer, short cycles, overheats (**Kazán probléma / Boiler problem**), or the heating cannot hold
+    the house or a sensor is lost (**Fűtési hiba / Heating fault**). Optionally a second message when it is fine again.
+    Értesítés a telefonra, ha egy HC-példány tartós hibát jelez; kérésre akkor is, amikor megszűnt.
+  domain: automation
+  source_url: https://github.com/Gyuszko55/hc-thermostat/blob/main/blueprints/automation/hc_thermostat/hc_problem_notify.yaml
+  input:
+    problems:
+      name: Hibajelző szenzorok / problem sensors
+      description: Az HC „Kazán probléma” és „Fűtési hiba” bináris szenzorai / HC's boiler problem and heating fault sensors.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: hc_thermostat
+              domain: binary_sensor
+              device_class: problem
+    notify_device:
+      name: Telefon / phone
+      description: A Home Assistant appot futtató telefon / the phone running the Home Assistant app.
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    minutes:
+      name: Ennyi perc után / after minutes
+      description: Csak ha a hiba ennyi ideig tart / only when the problem lasts this long.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 240
+          unit_of_measurement: min
+    notify_cleared:
+      name: Szóljon, ha megszűnt / tell when cleared
+      default: true
+      selector:
+        boolean: {}
+mode: queued
+max: 10
+variables:
+  notify_cleared: !input notify_cleared
+  words:
+    no_data: "a teljesítménymérő / lángjel nem ad adatot (no reading)"
+    uncommanded_burn: "parancs nélkül ég (burns without command)"
+    overheating: "túlfűt (overheating)"
+    no_response: "a kazán nem reagál a relére (no response)"
+    no_flame: "nem gyújt be (no ignition)"
+    heating_fault: "fűtési hiba (heating fault)"
+    short_cycling: "taktol (short cycling)"
+trigger:
+  - trigger: state
+    entity_id: !input problems
+    to: "on"
+    for:
+      minutes: !input minutes
+    id: problem
+  - trigger: state
+    entity_id: !input problems
+    from: "on"
+    to: "off"
+    id: cleared
+condition:
+  - condition: template
+    value_template: "{{ trigger.id == 'problem' or notify_cleared }}"
+action:
+  - variables:
+      name: "{{ state_attr(trigger.entity_id, 'friendly_name') or trigger.entity_id }}"
+      health: "{{ state_attr(trigger.entity_id, 'health') }}"
+      sensors: "{{ state_attr(trigger.entity_id, 'sensors') or {} }}"
+      detail: >-
+        {% if health and health in words %}{{ words[health] }}{% elif sensors %}{{ sensors | list | join(', ') }}{% else %}–{% endif %}
+  - device_id: !input notify_device
+    domain: mobile_app
+    type: notify
+    title: "{{ '🔥 HC hiba / problem' if trigger.id == 'problem' else '✅ HC rendben / fine again' }}"
+    message: "{{ name }}{{ ': ' ~ detail if trigger.id == 'problem' else '' }}"
