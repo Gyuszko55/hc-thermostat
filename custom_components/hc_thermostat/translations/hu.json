@@ -224,7 +224,7 @@
         "data": {
           "hp_buffer": "Puffer-példány, amelyet tölt",
           "outdoor_entity": "Kinti hőmérő",
-          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate vagy teljesítmény W)",
+          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate, vagy szám a mértékegységével: W, kW, A, Hz, rpm, %)",
           "wood_entity": "Fatüzelés jele (nem kötelező: be, amíg ég)",
           "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
           "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",
@@ -784,7 +784,7 @@
         "data": {
           "hp_buffer": "Puffer-példány, amelyet tölt",
           "outdoor_entity": "Kinti hőmérő",
-          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate vagy teljesítmény W)",
+          "hp_running_entity": "Most fut-e a hőszivattyú (nem kötelező: bináris, climate, vagy szám a mértékegységével: W, kW, A, Hz, rpm, %)",
           "wood_entity": "Fatüzelés jele (nem kötelező: be, amíg ég)",
           "hp_target_entity": "Ide írja az előremenő célt (number / input_number / climate, nem kötelező)",
           "hp_switch_entity": "Hőszivattyú ON/OFF (switch / input_boolean / climate, nem kötelező)",

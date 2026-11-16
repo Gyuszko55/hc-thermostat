@@ -197,7 +197,7 @@ def test_running_signal_reading():
     st = lambda state, **a: SimpleNamespace(state=state, attributes=a)  # noqa: E731
     hass = SimpleNamespace(states=SimpleNamespace(get={
         "binary_sensor.hp": st("on"), "switch.hp": st("off"), "climate.hp": st("heat", hvac_action="heating"),
-        "climate.idle": st("heat", hvac_action="idle"), "sensor.w": st("850"), "sensor.w0": st("12"),
+        "climate.idle": st("heat", hvac_action="idle"), "sensor.w": st("850", unit_of_measurement="W"), "sensor.w0": st("12", unit_of_measurement="W"),  # 0.57.1: units
         "sensor.x": st("unavailable"), "sensor.txt": st("abc")}.get))
     assert hc.on_state(hass, "binary_sensor.hp") is True
     assert hc.on_state(hass, "switch.hp") is False

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.57.1 – 2026-11-15
+Fixes from an outside review of 0.57.0, in the parts that write to a device – before anything is written live.
+- **Heat pump running signal by its unit:** a number counts as "runs" only with a unit HC understands – W > 100,
+  kW > 0.1, A > 0.5, Hz / rpm / % > 0. Until now every number was taken as watts, so a kW, A or Hz sensor said
+  "stands" while the unit heated, its own heat looked like wood, and wood first stopped it. A number with no or an
+  unknown unit is now "not known": wood is then at most "possible", which changes nothing.
+- **Climate target on its own step and limits:** a climate output (`circuit_output_entity`, `hp_target_entity`) gets
+  its target rounded to the entity's `target_temp_step` (0.5 °C / 1 °F when it has none) and kept within `min_temp` /
+  `max_temp`, and HC compares with that value. Before, it wrote half degrees unclamped: a device on whole degrees never
+  confirmed it and the output ended *not accepted* after four writes.
+- **A device restart is not a second writer:** when an output was unavailable and comes back with another value (a PLC
+  or heat pump starting with its default), HC writes its value again instead of calling it a conflict for good. A
+  device that restarts without ever being unavailable in Home Assistant still counts as another writer.
+- **ON never switches to cooling:** an ON request to a climate picks heat, else heat_cool, else auto; a climate with
+  none of them is not switched (an error is shown) – before, it took the first mode in the list, which could be cool.
+- **Summer mode without a circuit:** the buffer's own zones (no circuit linked) keep their demand for 30 min like a
+  circuit, so TPI pauses no longer restart the 30 minutes and the summer mode ends on a lasting demand.
+- **House view: power above the outdoor unit:** a heat pump's and an air conditioner's outdoor unit shows the electrical
+  power it draws now (`boiler_power_entity`, W or kW) above it; several ACs on one side add up. The heat pump's power
+  left the plant room's label, where it stood until now.
+
 ## 0.57.0 – 2026-11-15
 Automatic summer / winter mode for the heat pump coordination – from the house's own demand, not from a date
 (suggested by the reference design's owner: there it is how the PLC already switches).

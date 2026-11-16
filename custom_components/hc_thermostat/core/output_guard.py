@@ -18,6 +18,11 @@ rounded) is written again – at most `max_retries` times in a row for the same 
 writing that value and says so, until the value HC wants changes. Once the device confirmed, a later change is
 someone else's as before (after `FOREIGN_AFTER_S`).
 
+0.57.1 – the device restarted: when the output was unavailable and comes back with another value (a PLC or heat pump
+starting with its default), that is not a second writer: HC forgets the old confirmation and conflict and writes its
+value again. A device that restarts without ever showing unavailable in Home Assistant cannot be told from another
+writer – that stays a conflict.
+
 The trial (`trial` mode, `trial_hours`): writing for a limited time; then the instance goes back to shadow by itself
 and a notification says so. Permanent writing is the `active` mode, chosen with a confirmation.
 """
@@ -44,6 +49,7 @@ class OutputGuard:
     conflict: bool = False
     conflict_value: float | None = None
     writes: int = 0
+    dropped: bool = False  # 0.57.1: the output was unavailable since the last decision with a value
 
     def decide(self, now: datetime, want: float | None, current: float | None, current_changed: datetime | None,
                uptime_s: float) -> tuple[bool, str]:
@@ -52,10 +58,19 @@ class OutputGuard:
         if want is None:
             return False, "no_value"
         if current is None:
+            self.dropped = True
             return False, "unavailable"
         if uptime_s < GRACE_S:
             return False, "grace"
         tol = self.tolerance
+        if self.dropped:
+            self.dropped = False
+            if self.last_value is not None and abs(current - self.last_value) > tol:
+                # back after a restart with its own value: not someone else – write again, from a clean state
+                self.conflict, self.conflict_value, self.confirmed, self.unconfirmed = False, None, False, 0
+                self.last_at = None
+                if abs(current - want) > tol:
+                    return True, "write"
         wait = max(FOREIGN_AFTER_S, self.confirm_s)
         retry = False  # writing the same value again, unconfirmed
         if self.last_value is not None and self.last_at is not None and not self.conflict:
@@ -96,7 +111,7 @@ class OutputGuard:
 
     def state(self) -> dict:
         return {"last_value": self.last_value, "last_at": self.last_at.isoformat() if self.last_at else None,
-                "confirmed": self.confirmed, "unconfirmed": self.unconfirmed, "conflict": self.conflict, "conflict_value": self.conflict_value, "writes": self.writes}
+                "confirmed": self.confirmed, "dropped": self.dropped, "unconfirmed": self.unconfirmed, "conflict": self.conflict, "conflict_value": self.conflict_value, "writes": self.writes}
 
 
 MODES = ("shadow", "trial", "active")

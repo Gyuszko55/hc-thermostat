@@ -718,10 +718,19 @@ export function renderHouse(vm, opts = {}) {
   // ---- outdoor units (heat pump / AC) ----
   const outUnits = [];
   const sideTop = { L: yG + 2, R: yG + 2 };  // 0.53.0: units on one side stack upwards
+  // 0.57.1: the electrical power the unit draws now, above it (W, or kW as the sensor gives it)
+  const toW = (p) => p && isNum(p.value) ? (/^kw$/i.test(p.unit || "") ? p.value * 1000 : /^w$/i.test(p.unit || "W") ? p.value : null) : null;
+  const powerTxt = (w) => w >= 1000 ? `${tn(w / 1000, lang, 2)} kW` : `${tn(w, lang, 0)} W`;
+  const unitPower = (ux, uw, uy, w, on, key) => {
+    if (!isNum(w)) return 0;
+    outUnits.push(pill(ux + uw / 2, uy - 12, powerTxt(w), { cls: on ? "pon2" : "poff2", anchor: "middle", size: 10.5, key }));
+    return 22;
+  };
   if (hasHP && ug) for (const q of hpUnits) {
     const R_ = hpSide === "R", uw = (R_ ? OR : OL) - 22, uh = 66, uy = sideTop[hpSide] - uh, ux = R_ ? W - 10 - uw : 10;
-    sideTop[hpSide] = uy - 10;
-    outUnits.push(outdoorUnit(ux, uy, uw, uh, q.running, q.entry ? `member:${q.entry}` : "source", R_));
+    const key = q.entry ? `member:${q.entry}` : "source";
+    outUnits.push(outdoorUnit(ux, uy, uw, uh, q.running, key, R_));
+    sideTop[hpSide] = uy - 10 - unitPower(ux, uw, uy, toW(q.power), q.running, key);
     const box = q._box || ug.box, by = box.y, bx = box.x;
     const on = q.running || flowing;
     if (!R_) {
@@ -738,6 +747,8 @@ export function renderHouse(vm, opts = {}) {
     const anyOn = acRooms.some((g) => g.acOn);
     const r0 = acRooms[0].cell.room, akey = acRooms[0].acEntry ? `member:${acRooms[0].acEntry}` : r0.leading ? "source" : `room:${r0.key}`;
     outUnits.push(outdoorUnit(ux, uy, uw, uh, anyOn, akey, acSide === "R"));
+    const acW = acRooms.map((g) => toW(g.acPower)).filter(isNum);
+    unitPower(ux, uw, uy, acW.length ? acW.reduce((a, b) => a + b, 0) : null, anyOn, akey);
     acRooms.forEach((g, i) => {
       const cy = g.y0 + CD + 4 + i * 3;
       const sx = acSide === "R" ? ux + uw * 0.25 - i * 4 : ux + uw * 0.75 + i * 4;
@@ -924,7 +935,7 @@ export function renderHouse(vm, opts = {}) {
     const fsz = n > 1 ? 10.5 : 11.5;
     roomOverlays.push(pill(lx, ly, fit(name, fsz, maxW - 20, 700), { cls: anyOn ? "pon" : "poff", anchor: "end", size: fsz, weight: 700 }));
     const st2 = n > 1 ? [list.map(stOf).join(" · ")] : [stOf(src)];
-    if (n === 1 && src.power && isNum(src.power.value)) st2.push(`${tn(src.power.value, lang, src.power.value < 10 ? 1 : 0)} ${src.power.unit}`);
+    if (n === 1 && src.kind !== "heat_pump" && src.power && isNum(src.power.value)) st2.push(`${tn(src.power.value, lang, src.power.value < 10 ? 1 : 0)} ${src.power.unit}`);
     roomOverlays.push(pill(lx, ly + 20, st2.filter(Boolean).join(" · "), { cls: anyOn ? "pon2" : "poff2", anchor: "end", size: 11 }));
     if (list.some((q) => q.fault)) roomOverlays.push(pill(lx, ly + 40, L.fault, { cls: "pwarn", anchor: "end", size: 11 }));
     const tipN = list.map((q) => `${q.title ? q.title + ": " : ""}${L.kinds[q.kind] || q.kind} – ${stOf(q)}`).join("; ");
@@ -995,7 +1006,7 @@ export function renderHouse(vm, opts = {}) {
     } else if (em === "ac") {
       const uw = narrow ? 58 : 66, ux = b.x1 - I - 10 - uw, uy = b.y0 + CD + 30;
       const on = r.unit?.running ?? r.heating;
-      g.ac = { x: ux, y: uy, w: uw }; g.acOn = !!on; g.acEntry = r.unit?.entry || null;
+      g.ac = { x: ux, y: uy, w: uw }; g.acOn = !!on; g.acEntry = r.unit?.entry || null; g.acPower = r.unit?.power || null;
       parts.push(`<rect x="${ux}" y="${uy}" width="${uw}" height="18" rx="6" class="acu" filter="url(#${P}sh)"/><path d="M${ux + 6},${uy + 13} H${ux + uw - 6}" class="acl"/><circle cx="${ux + uw - 8}" cy="${uy + 6}" r="1.6" fill="${on ? "#66bb6a" : "#9e9e9e"}"/>`);
       if (on) {
         const cool = (r.unit?.entry ? r.unit.mode : src0.mode) === "cool";
@@ -1035,7 +1046,7 @@ export function renderHouse(vm, opts = {}) {
       const on = !!(ex.unit?.running ?? ex.heating), kx = `member:${esc(ex.entry || "")}`, p3 = [];
       if (ex.emitter === "ac" && !g.ac) {
         const uw = narrow ? 50 : 56, ux = b.x1 - I - 10 - uw, uy = b.y0 + CD + 3;
-        g.ac = { x: ux, y: uy, w: uw }; g.acOn = on; g.acEntry = ex.entry || null; acTop = true;
+        g.ac = { x: ux, y: uy, w: uw }; g.acOn = on; g.acEntry = ex.entry || null; g.acPower = ex.unit?.power || null; acTop = true;
         p3.push(`<rect x="${ux}" y="${uy}" width="${uw}" height="15" rx="5" class="acu" filter="url(#${P}sh)"/><path d="M${ux + 5},${uy + 11} H${ux + uw - 5}" class="acl"/><circle cx="${ux + uw - 7}" cy="${uy + 5}" r="1.5" fill="${on ? "#66bb6a" : "#9e9e9e"}"/>`);
         if (on) for (let q = 0; q < 2; q++) p3.push(`<path d="M${ux + 14 + q * (uw - 28)},${uy + 18} q4,8 10,12" class="air ${ex.unit?.mode === "cool" ? "cool" : ""} a-air" style="animation-delay:${(-q * 0.5).toFixed(1)}s"/>`);
         if (ex.unit && (isNum(ex.unit.target) || isNum(ex.unit.temp)))

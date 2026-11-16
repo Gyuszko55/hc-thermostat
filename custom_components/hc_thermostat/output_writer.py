@@ -10,7 +10,7 @@ import logging
 from homeassistant.components import persistent_notification as pn
 
 from .core.output_guard import MODES, OutputGuard, effective
-from .units import climate_temp_c, from_c, state_value_c, to_c, to_system
+from .units import CELSIUS, climate_temp_c, from_c, state_value_c, system_unit, to_c
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,19 +59,48 @@ class OutputWriter:
             value = min(float(hi), value)
         return value
 
+    def _climate_value(self, state, value_c: float) -> float:
+        """0.57.1: a climate target as it will land – in the system unit, on the entity's own step (0.5 °C / 1 °F when
+        it has none), within its min_temp / max_temp – so HC writes and compares what the device can hold."""
+        attrs, unit = state.attributes, system_unit(self.hass)
+        value = value_c if unit == CELSIUS else from_c(value_c, unit)
+        step = attrs.get("target_temp_step")
+        if not isinstance(step, (int, float)) or step <= 0:
+            step = 0.5 if unit == CELSIUS else 1.0
+        value = round(round(value / step) * step, 2)
+        lo, hi = attrs.get("min_temp"), attrs.get("max_temp")
+        if isinstance(lo, (int, float)):
+            value = max(float(lo), value)
+        if isinstance(hi, (int, float)):
+            value = min(float(hi), value)
+        return value
+
+    @staticmethod
+    def _heat_mode(state) -> str | None:
+        """0.57.1: the mode an ON request switches a climate to – heat, else heat_cool, else auto; never cool / dry /
+        fan_only (None: the climate has no heating mode, nothing is switched)."""
+        modes = list(state.attributes.get("hvac_modes") or [])
+        if not modes:
+            return "heat"
+        for mode in ("heat", "heat_cool", "auto"):
+            if mode in modes:
+                return mode
+        return None
+
     async def _call(self, want: float) -> None:
         hass, eid, dom = self.hass, self.entity_id, self.domain
         state = hass.states.get(eid)
         if self.onoff:
             if dom == "climate":
-                modes = [m for m in (state.attributes.get("hvac_modes") or []) if m != "off"]
-                mode = "off" if want < 0.5 else ("heat" if "heat" in modes or not modes else modes[0])
+                mode = "off" if want < 0.5 else self._heat_mode(state)
+                if mode is None:
+                    raise ValueError(f"{eid} has no heating mode (heat / heat_cool / auto): not switched on")
                 await hass.services.async_call("climate", "set_hvac_mode", {"entity_id": eid, "hvac_mode": mode}, blocking=True)
             else:
                 await hass.services.async_call("homeassistant", "turn_on" if want >= 0.5 else "turn_off", {"entity_id": eid}, blocking=True)
             return
         if dom == "climate":
-            value = to_system(hass, want, state.attributes.get("target_temp_step"))
+            value = self._climate_value(state, want)
             await hass.services.async_call("climate", "set_temperature", {"entity_id": eid, "temperature": value}, blocking=True)
             return
         await hass.services.async_call(dom, "set_value", {"entity_id": eid, "value": self._number_value(state, want)}, blocking=True)
@@ -93,6 +122,11 @@ class OutputWriter:
             landed = self._number_value(state, want) if want is not None else None
             unit = state.attributes.get("unit_of_measurement")
             want_cmp = to_c(landed, unit) if landed is not None else None
+        elif current is not None and not self.onoff and want is not None:
+            # 0.57.1: a climate too – its step and min / max (it was compared and written unrounded before)
+            state = self.hass.states.get(self.entity_id)
+            landed = self._climate_value(state, want)
+            want_cmp = landed if system_unit(self.hass) == CELSIUS else to_c(landed, system_unit(self.hass))
         else:
             want_cmp = want
         write, status = self.guard.decide(now, want_cmp, current, changed, uptime_s)

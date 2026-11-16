@@ -542,6 +542,8 @@ with a notification) or to **active**; both need an output entity and a confirma
 - **Confirmation wait** (0.56.1, `write_confirm_s`, 60 s): a slow device (e.g. Tuya) gets time to report the written
   value; meanwhile HC neither writes again nor calls a late or old echo a conflict. A value the device never takes is
   written at most 3 more times, then HC stops writing it (*not accepted*) and notifies you.
+- A climate output gets the target on its own step and within its min / max (0.57.1); a device that was unavailable
+  and comes back with its default value is written again, not treated as another writer.
 - No write in the first 2 minutes after a start; an optional keep-alive re-sends an unchanged value for a PLC with a
   timeout; the *Writing paused* switch stops all writing at once.
 - With Home Assistant down nothing is written: the PLC's own curve and safe fallback must stay in place.

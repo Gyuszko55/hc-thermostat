@@ -550,6 +550,8 @@ módra kapcsolható; mindkettőhöz kimeneti entitás és megerősítés kell.
 - **Visszaigazolási türelmi idő** (0.56.1, `write_confirm_s`, 60 mp): a lassú eszköz (pl. Tuya) ennyi idő alatt
   jelezheti vissza a beírt értéket; addig a HC nem ír újra, és a késve érkező vagy régi értéket sem veszi ütközésnek. Ha
   az eszköz nem veszi át az értéket, legfeljebb még 3-szor írja, utána leáll (*nem fogadta el*) és értesít.
+- Climate-kimenetre a cél a saját lépésére kerekítve és a min/max között megy (0.57.1); ha egy eszköz nem elérhető
+  volt, és az alapértékével jön vissza, a HC újraírja, nem veszi idegen írónak.
 - Indulás után 2 percig nem ír; a keep-alive időkorlátos PLC-nek változatlan értéket is újraküld; az *Írás
   szüneteltetve* kapcsoló azonnal leállít minden írást.
 - Ha a Home Assistant leáll, nem ír semmit: a PLC saját görbéje és biztonságos tartaléküzeme maradjon meg.

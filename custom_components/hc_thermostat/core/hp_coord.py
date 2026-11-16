@@ -144,6 +144,8 @@ class HpDecision:
     exercise: bool = False  # 0.57.0: exercise due (summer mode only)
 
 
+ZONE_HOLD_S = 1800.0  # 0.57.1: as a circuit's `circuit_hold_s`
+
 REASONS = ["fail_safe_on", "no_outdoor", "no_buffer", "cold_on", "frost", "low_charge", "heat_needed", "heating",
            "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off"]
 
@@ -162,6 +164,7 @@ class HeatPumpCoordinator:
         self.summer_since: datetime | None = None
         self.last_room: datetime | None = None  # a circuit / zone demand last seen (not the tank's)
         self.ask_since: datetime | None = None  # the circuits' demand without a break since
+        self.zones_last_ask: datetime | None = None  # 0.57.1: the buffer's own zones last asked (no circuit linked)
 
     # --- parts ------------------------------------------------------------------------------------------------
     def _cold(self, now: datetime, outdoor: float | None) -> bool:
@@ -270,7 +273,12 @@ class HeatPumpCoordinator:
         need = self._need(i)
         details: dict = {"offset": offset, "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
                          "hp_running": i.hp_running}
-        demand_now = any(c.demand for c in i.circuits) or i.zones_asking
+        # 0.57.1: the buffer's own zones (no circuit linked) get the circuits' hold too: a TPI pause does not end their
+        # demand, so the summer mode can end on a lasting demand
+        if i.zones_asking:
+            self.zones_last_ask = now
+        zones_lasting = self.zones_last_ask is not None and (now - self.zones_last_ask).total_seconds() <= ZONE_HOLD_S
+        demand_now = any(c.demand for c in i.circuits) or zones_lasting
         asking = any(c.demand if c.asking is None else c.asking for c in i.circuits) or i.zones_asking
         season = self._season(now, demand_now, asking)
         if i.top is None:
@@ -340,7 +348,7 @@ class HeatPumpCoordinator:
                 "last_change": iso(self.last_change), "cold_latched": self.cold_latched,
                 "warm_since": iso(self.warm_since), "last_demand": iso(self.last_demand),
                 "summer": self.summer, "summer_since": iso(self.summer_since), "last_room": iso(self.last_room),
-                "ask_since": iso(self.ask_since)}
+                "ask_since": iso(self.ask_since), "zones_last_ask": iso(self.zones_last_ask)}
 
     def restore(self, data: dict, now: datetime) -> None:
         def when(key):
@@ -356,3 +364,4 @@ class HeatPumpCoordinator:
         self.summer = bool(data.get("summer", False)) and self.cfg.hp_auto_summer
         self.summer_since = when("summer_since") if self.summer else None
         self.last_room, self.ask_since = when("last_room"), when("ask_since")
+        self.zones_last_ask = when("zones_last_ask")

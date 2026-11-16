@@ -224,7 +224,7 @@
         "data": {
           "hp_buffer": "Buffer tank instance it charges",
           "outdoor_entity": "Outdoor thermometer",
-          "hp_running_entity": "Heat pump runs now (optional: binary, climate or power W)",
+          "hp_running_entity": "Heat pump runs now (optional: binary, climate, or a number with its unit: W, kW, A, Hz, rpm, %)",
           "wood_entity": "Wood boiler signal (optional: on while it fires)",
           "hp_target_entity": "Where the flow target is written (number / input_number / climate, optional)",
           "hp_switch_entity": "Heat pump ON/OFF (switch / input_boolean / climate, optional)",
@@ -784,7 +784,7 @@
         "data": {
           "hp_buffer": "Buffer tank instance it charges",
           "outdoor_entity": "Outdoor thermometer",
-          "hp_running_entity": "Heat pump runs now (optional: binary, climate or power W)",
+          "hp_running_entity": "Heat pump runs now (optional: binary, climate, or a number with its unit: W, kW, A, Hz, rpm, %)",
           "wood_entity": "Wood boiler signal (optional: on while it fires)",
           "hp_target_entity": "Where the flow target is written (number / input_number / climate, optional)",
           "hp_switch_entity": "Heat pump ON/OFF (switch / input_boolean / climate, optional)",

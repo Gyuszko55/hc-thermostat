@@ -32,11 +32,15 @@ _INTERVAL = timedelta(seconds=30)
 _ASK_FRESH_S = 90  # 0.57.0: a zone asked this recently = it asks now (the circuits run every 30 s)
 _SAVE_EVERY = timedelta(minutes=10)
 RUNNING_W = 100.0  # a power reading above this means the heat pump runs
+# 0.57.1: a number means "runs" only with a unit HC understands; anything else is "not known" (None), so a kW, A or Hz
+# reading is no longer taken as watts (which made the heat pump's own heat look like wood)
+RUNNING_ABOVE = {"W": RUNNING_W, "kW": 0.1, "mW": RUNNING_W * 1000, "A": 0.5, "mA": 500.0, "Hz": 0.0, "rpm": 0.0,
+                 "%": 0.0}
 
 
 def on_state(hass, entity_id: str | None) -> bool | None:
-    """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a power sensor (W);
-    None when not given or not known."""
+    """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
+    (power W / kW, current A, compressor Hz / rpm, modulation %); None when not given or not known."""
     state = hass.states.get(entity_id) if entity_id else None
     if state is None or state.state in ("unavailable", "unknown"):
         return None
@@ -51,9 +55,11 @@ def on_state(hass, entity_id: str | None) -> bool | None:
     if state.state in ("off", "idle", "standby", "false"):
         return False
     try:
-        return float(state.state) > RUNNING_W
+        value = float(state.state)
     except ValueError:
         return None
+    above = RUNNING_ABOVE.get(str(state.attributes.get("unit_of_measurement") or "").strip())
+    return None if above is None else value > above
 
 
 class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
