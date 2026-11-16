@@ -38,14 +38,16 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
         if c.cfg.control in ("tpi", "pid", "onoff"):
             entities.append(HcTimeConstant(c))  # 0.50.0
-    if c.cfg.house_area_m2 > 0:
-        entities.append(HcEnergyRating(c))  # 0.51.0
+        # these three are back under the regulator's own branch – since 0.51.2 they were (by a slip of the
+        # indentation) only made when the floor area was given
         if c.conf.get("heat_source") != "external_heat":  # 0.47.0: no burner of its own to watch
             entities.append(HcBoilerHealth(c))
         if c.cfg.control == "curve":
             entities.append(HcFlowSetpoint(c))
         if c.cfg.shadow_regulator:
             entities.append(HcShadowRegulator(c))
+    if c.cfg.house_area_m2 > 0:
+        entities.append(HcEnergyRating(c))  # 0.51.0
     if c.conf.get(CONF_ROOMS) or c.conf.get(CONF_ROOM_TRVS):
         entities.append(HcRooms(c))
     # 0.46.0: a room with two or more thermometers gets its group (the mean HC regulates by)

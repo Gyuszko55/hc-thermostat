@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.65.3 – 2026-11-16
+- **Fix:** the *Boiler state*, *Flow setpoint* and *Shadow regulator* sensors were made only when the floor area was
+  given – since 0.51.0 a slip of the indentation had put them under the energy rating's `house_area_m2 > 0`. They
+  are back under the regulator's own conditions; only the energy rating needs the floor area. Found by an outside
+  review.
+
 ## 0.65.2 – 2026-11-16
 Settings forms easier to read (no change in what is controlled; the stored settings are the same).
 - **Heat pump coordination rules page in fold-out sections:** the charging rule, the flow limits, the reserve and the
