@@ -222,7 +222,11 @@
           "circuit_min_interval_s": "Két módosítás között legalább",
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
-          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment"
+          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment",
+          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
+        },
+        "data_description": {
+          "circuit_tank_cap": "Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
@@ -238,7 +242,13 @@
           "hp_demand_entity": "Hőigény-jel (switch / input_boolean, nem kötelező)",
           "hp_summer_entity": "Nyári üzem jel a PLC-nek (switch / input_boolean, nem kötelező)",
           "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)",
-          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)"
+          "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)",
+          "hp_target_round": "A kiírt cél kerekítése",
+          "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)"
+        },
+        "data_description": {
+          "hp_target_round": "A HC belül tizedesre számol; ez csak a hőszivattyúnak küldött értékre vonatkozik. Egész fokra felfelé: 36,1 → 37 °C.",
+          "hp_water_temp_entity": "Csak a „Hőszivattyú célja” grafikonhoz: így látszik, hogyan követi a víz a kiadott célt."
         }
       },
       "hp_coord_settings": {
@@ -706,10 +716,12 @@
           "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
           "dhw_pump_entity": "HMV-tároló töltőszivattyúja (nem kötelező, csak a rajzon)",
           "dhw_temp_entity": "HMV-tároló hőmérője (nem kötelező, csak a rajzon)",
-          "dhw_heater_entity": "HMV-tároló villanyfűtése (napelem / hálózat; nem kötelező, csak a rajzon)"
+          "dhw_heater_entity": "HMV-tároló villanyfűtése (napelem / hálózat; nem kötelező, csak a rajzon)",
+          "home_name": "Háznév (nem kötelező)"
         },
         "data_description": {
-          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
         }
       },
       "rooms": {
@@ -780,10 +792,12 @@
           "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
           "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
           "circuit_pump_entity": "A kör szivattyúja fut (PLC-jel, nem kötelező, csak megjelenítés)",
-          "circuit_flow_entity": "A kör mért előremenője (nem kötelező, csak megjelenítés)"
+          "circuit_flow_entity": "A kör mért előremenője (nem kötelező, csak megjelenítés)",
+          "home_name": "Háznév (nem kötelező)"
         },
         "data_description": {
-          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
         }
       },
       "circuit_settings": {
@@ -805,7 +819,11 @@
           "circuit_min_interval_s": "Két módosítás között legalább",
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
-          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment"
+          "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment",
+          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
+        },
+        "data_description": {
+          "circuit_tank_cap": "Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem."
         }
       },
       "hp_coord": {
@@ -827,10 +845,16 @@
           "write_keepalive_s": "Változatlan értéket is újraküld ennyi időnként (0 = csak változáskor; időkorlátos PLC-hez)",
           "write_confirm_s": "Ennyi ideig vár, hogy az eszköz visszaigazolja az írást (lassú felhős eszköz, pl. Tuya); 3 visszaigazolatlan írás után a HC leáll és szól",
           "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)",
-          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)"
+          "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
+          "hp_target_round": "A kiírt cél kerekítése",
+          "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)",
+          "home_name": "Háznév (nem kötelező)"
         },
         "data_description": {
-          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti."
+          "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
+          "hp_target_round": "A HC belül tizedesre számol; ez csak a hőszivattyúnak küldött értékre vonatkozik. Egész fokra felfelé: 36,1 → 37 °C.",
+          "hp_water_temp_entity": "Csak a „Hőszivattyú célja” grafikonhoz: így látszik, hogyan követi a víz a kiadott célt.",
+          "home_name": "A rajzok tetején ez látszik a fő példány neve helyett. Az azonos háznevű példányok egy házba kerülnek."
         }
       },
       "hp_coord_settings": {
@@ -1031,6 +1055,13 @@
       "options": {
         "station": "Lakásállomás hőcserélővel",
         "direct": "Radiátorok a felszállón (költségosztók)"
+      }
+    },
+    "hp_target_round": {
+      "options": {
+        "device": "A készülék lépésköze szerint (legközelebbi)",
+        "half_up": "0,5 °C-ra felfelé",
+        "whole_up": "Egész fokra felfelé"
       }
     }
   },

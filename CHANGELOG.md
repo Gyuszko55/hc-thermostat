@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.64.0 – 2026-11-16
+The tester's third round, live on the buffer system: the heat pump's target writing works (slowly, by the
+confirmation, the interval and the start-up wait – as meant); four requests.
+- **The mixer's target is capped by the tank (`circuit_tank_cap`, on for a circuit linked to a buffer):** the mixer
+  cannot give warmer water than the tank's top holds, so the target given to it is min(demanded, top −
+  `circuit_margin`), the limit on a 0.5 °C grid. Three values: the **demanded** flow (it still goes to the heat pump
+  coordination – the heat pump must see the real need, not the capped one), the one **given to the mixer**, and the
+  **shortfall**. A cooling tank lowers it at once (no confirmation wait); a warming one lets it back up by at most
+  `circuit_max_rise` every `circuit_confirm_s`. A limit below the circuit's minimum gives the minimum and says "tank too
+  cold"; with no fresh tank reading the last good one caps for 15 minutes, then nothing caps ("no tank reading", a
+  warning). The circuit sensor's attributes (`demand_target`, `tank_cap`, `cap_state`, `shortfall`), the info panel
+  and the overview (a warning while it limits) show it. `circuit_margin` (2 °C by default, 0–10) is the margin.
+- **The heat pump's written target can be rounded up (`hp_target_round`):** the device's own step to the nearest (as
+  before), up to 0.5 °C, or up to whole °C (36.1 → 37, 41.5 → 42) for a unit that mishandles decimals. HC keeps its
+  decimals inside; the read-back check compares with the rounded value, within the unit's min / max.
+- **Heat pump target chart (info panel, heat pump coordination, 24 h):** HC's raw target, the given-out one, what was
+  really sent (rounded), the unit's reported setpoint and – with the new optional `hp_water_temp_entity` – the water it
+  measures; from the recorder (`hc_thermostat/hp_history`, admins only). The target sensor also has `sent`,
+  `reported`, `round` and `water` attributes.
+- **House name on the plant's instances:** `home_name` can now be set in a buffer's, a mixing circuit's and a heat
+  pump coordination's settings too (it was only in a zone's rooms step), and the house drawing takes it from any of
+  the house's instances – the host instance keeps its own name. The same house name joins instances into one house.
+
 ## 0.63.0 – 2026-11-16
 The buffer system's hydraulic diagram redrawn after the tester's own plant room drawing, and the readings it was
 missing.

@@ -84,7 +84,8 @@ def _instance(hass, entry) -> dict:
                 "outputs": jsonable(c.outputs()), "decision": jsonable(c.data), "config": jsonable(c.hp.cfg),
                 "inputs": jsonable(c.inputs(c.data.now)) if c.data else None, "offset": c.offset,
                 "wood": jsonable(c.wood_info(c.data.now)) if c.data and hasattr(c, "wood_info") else None,
-                "state": jsonable(c.hp.state(c.data.now)) if c.data else {}}
+                "state": jsonable(c.hp.state(c.data.now)) if c.data else {},
+                "water": c.water_temp() if hasattr(c, "water_temp") else None}  # 0.64.0
     if role in ("central", "buffer"):
         d = c.data
         extra = {"decision": jsonable(d)}
@@ -101,6 +102,8 @@ def _instance(hass, entry) -> dict:
             extra["stock"] = jsonable(c.stock)  # 0.54.0: the stratified tank
             extra["trend"] = jsonable(c.trend)
             extra["circuits"] = [{"entry_id": e.entry_id, "title": e.title, "target": cc.data.target if cc.data else None,
+                                  "demand_target": cc.data.demand_target if cc.data else None,  # 0.64.0
+                                  "cap_state": cc.data.cap_state if cc.data else None,
                                   **jsonable(cc.usable or {})} for e, cc in c.circuits()]
         return {**base, **extra}
     sup, d = c.supervisor, c.data
@@ -555,3 +558,71 @@ def ws_info(hass: HomeAssistant, connection, msg) -> None:
     if via_room:
         result["via_room"] = via_room
     connection.send_result(msg["id"], result)
+
+
+# --- 0.64.0: the heat pump target chart ---------------------------------------------------------------------------------
+HP_HISTORY_MAX_H = 72
+
+
+def _num_or_none(value) -> float | None:
+    return finite(value)
+
+
+def hp_series(states: dict, ids: dict) -> dict:
+    """The chart's series from recorder states: raw / given-out target (HC's own sensors), what was sent (the target
+    sensor's `sent`), what the unit reports (a climate's `temperature`, else the number's state) and the water."""
+    def pts(entity_id, pick):
+        out, last = [], object()
+        for st in states.get(entity_id) or []:
+            v = pick(st)
+            if v == last:
+                continue
+            last = v
+            ts = getattr(st, "last_updated", None) or getattr(st, "last_changed", None)
+            if ts is not None:
+                out.append([int(ts.timestamp() * 1000), v])
+        return out
+
+    def state_v(st):
+        return None if st.state in ("unavailable", "unknown") else _num_or_none(st.state)
+
+    rep = ids.get("reported")
+    pick_rep = (lambda st: _num_or_none(st.attributes.get("temperature"))) if rep and rep.startswith("climate.") else state_v
+    return {"raw": pts(ids.get("raw"), state_v) if ids.get("raw") else [],
+            "target": pts(ids.get("target"), state_v) if ids.get("target") else [],
+            "sent": pts(ids.get("target"), lambda st: _num_or_none(st.attributes.get("sent"))) if ids.get("target") else [],
+            "reported": pts(rep, pick_rep) if rep else [],
+            "water": pts(ids.get("water"), state_v) if ids.get("water") else []}
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/hp_history", vol.Required("entry_id"): str,
+                                  vol.Optional("hours", default=24): vol.All(vol.Coerce(float), vol.Range(min=1, max=HP_HISTORY_MAX_H))})
+@websocket_api.async_response
+async def ws_hp_history(hass: HomeAssistant, connection, msg) -> None:
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util import dt as dt_util
+    entry = next((e for e in _loaded(hass) if e.entry_id == msg["entry_id"]), None)
+    if entry is None or {**entry.data, **entry.options}.get("role") != "hp_coord":
+        connection.send_error(msg["id"], "not_found", "no such heat pump coordination instance")
+        return
+    conf = {**entry.data, **entry.options}
+    reg = er.async_get(hass)
+    ids = {"raw": reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_hp_raw"),
+           "target": reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_hp_target"),
+           "reported": conf.get("hp_target_entity") or None, "water": conf.get("hp_water_temp_entity") or None}
+    wanted = [e for e in ids.values() if e]
+    end = dt_util.utcnow()
+    start = end - timedelta(hours=msg["hours"])
+    states: dict = {}
+    if wanted:
+        try:
+            from homeassistant.components.recorder import get_instance, history
+            states = await get_instance(hass).async_add_executor_job(
+                lambda: history.get_significant_states(hass, start, end, wanted, None, True, False, False, False))
+        except Exception as err:  # no recorder, or the query failed: an empty chart, not an error page
+            connection.send_result(msg["id"], {"start": int(start.timestamp() * 1000), "end": int(end.timestamp() * 1000),
+                                               "ids": ids, "series": {}, "error": str(err)})
+            return
+    connection.send_result(msg["id"], {"start": int(start.timestamp() * 1000), "end": int(end.timestamp() * 1000),
+                                       "ids": ids, "series": hp_series(states, ids)})

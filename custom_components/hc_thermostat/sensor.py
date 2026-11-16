@@ -499,6 +499,9 @@ class HcCircuitTarget(HcEntity, SensorEntity):
                 "demand": d.demand, "lasting": list(d.lasting),
                 # 0.62.0: the target and the flow are two values – the pump runs on the demand, the target stays
                 "pump_enable": d.demand, "room_from": d.details.get("room_from"),
+                # 0.64.0: the tank cap – demanded (to the heat pump), given to the mixer, the tank's limit, shortfall
+                "demand_target": d.demand_target, "tank_cap": d.cap, "cap_state": d.cap_state,
+                "shortfall": d.shortfall, "tank_cap_on": cfg.circuit_tank_cap, "margin": cfg.circuit_margin,
                 **({"buffer": c.usable} if c.usable else {})}
 
 
@@ -562,7 +565,11 @@ class HcHpTarget(HcEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         d, cfg = self.coordinator.data, self.coordinator.hp.cfg
-        return {"mode": self.coordinator.write.status(d.now), "raw": d.raw, "hold": d.hold_reason, "need": d.need, "reserve": cfg.hp_reserve,
+        out = self.coordinator.out_target
+        return {"mode": self.coordinator.write.status(d.now), "raw": d.raw, "hold": d.hold_reason,
+                # 0.64.0: what was really sent (rounded as set) and what the unit reports back
+                "sent": out.sent, "reported": out.reported(), "round": out.round_mode,
+                "water": self.coordinator.water_temp(), "need": d.need, "reserve": cfg.hp_reserve,
                 "offset": d.details.get("offset"), "flow_min": cfg.hp_flow_min, "flow_max": cfg.hp_flow_max,
                 "next_allowed": d.details.get("next_allowed")}
 

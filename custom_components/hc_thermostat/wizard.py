@@ -35,7 +35,7 @@ from .core.matrix import (
     SOURCES, SYSTEMS, cell, controls, curve_supported, default_curve, default_timing, electric_floor, own_control_supported,
 )
 from .core.model import HcConfig
-from .info import ws_info, ws_info_list
+from .info import ws_hp_history, ws_info, ws_info_list
 from .units import climate_attrs_c
 from .core.room_model import CONF_LEADING, CONF_ROOM_LIST, parse_rooms, rooms_options
 from .rooms_ha import (
@@ -71,6 +71,7 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
         [StaticPathConfig(STATIC_URL, str(Path(__file__).parent / "www"), False)])
     await async_register_panels(hass)
     websocket_api.async_register_command(hass, ws_info_list)
+    websocket_api.async_register_command(hass, ws_hp_history)  # 0.64.0
     websocket_api.async_register_command(hass, ws_info)
     websocket_api.async_register_command(hass, ws_start)
     websocket_api.async_register_command(hass, ws_derive)

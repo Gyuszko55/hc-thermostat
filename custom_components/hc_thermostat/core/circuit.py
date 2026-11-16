@@ -17,6 +17,17 @@ The rooms keep their own HC zones (TPI / PWM on their valves). The circuit only 
 - no outdoor reading: no raw target; the given-out one stays (no guess from a lost sensor).
 - the given-out target follows the raw one through core/setpoint_hold.py (deadband, confirmation, interval, rise limit).
 
+0.64.0 – the tank cap (`circuit_tank_cap`, on; a linked buffer only): the mixer cannot give warmer water than the
+tank's top holds, so the target given to it is min(demanded, top − `circuit_margin`) – the limit on a 0.5 °C grid (a
+tank cooling by 0.1 °C does not rewrite the mixer). Three values: the demanded target (the hold's output – this one
+goes to the heat pump coordination, which must see the real need), the one given to the mixer, and the shortfall.
+- a cooling tank lowers it at once (no confirmation); when the tank warms up again it rises by at most
+  `circuit_max_rise` every `circuit_confirm_s` until it reaches the demanded target;
+- a limit below `circuit_flow_min`: the minimum is given out (the mixer is fully open anyway) and the state is
+  `cold` (a warning);
+- no fresh top reading: the last one is used for TANK_STALE_S (15 minutes, `stale`), then no cap (`no_data`, a
+  warning) – the demanded target is given out.
+
 Defaults per circuit type (all settable): radiator slope 1.2, 30–55 °C, kp 2, ΔT 10; floor slope 0.5, 22–36 °C, kp 1,
 ΔT 5.
 """
@@ -28,6 +39,10 @@ from datetime import datetime
 
 from .setpoint_hold import HoldConfig, HoldResult, SetpointHold
 
+import math
+
+TANK_STALE_S = 900.0  # 0.64.0: the last tank top reading keeps capping this long
+CAP_STATES = ("off", "ok", "limited", "cold", "stale", "no_data")
 DEFICIT_CAP = 3.0  # °C of room deficit that still raises the water
 
 KINDS = ("radiator", "floor")
@@ -57,6 +72,7 @@ class CircuitConfig:
     circuit_max_rise: float = 3.0
     circuit_urgent: float = 5.0
     circuit_idle_keep: bool = True  # 0.62.0: without demand the curve stays at the zones' targets
+    circuit_tank_cap: bool = True  # 0.64.0: the target given to the mixer is at most the tank's top − margin
 
     @classmethod
     def from_conf(cls, conf: dict) -> "CircuitConfig":
@@ -93,6 +109,10 @@ class CircuitDecision:
     t_room: float | None = None
     deficit: float = 0.0
     details: dict = field(default_factory=dict)
+    demand_target: float | None = None  # 0.64.0: the demanded (uncapped) target – the heat pump's need
+    cap: float | None = None  # 0.64.0: the tank's limit (top − margin, on a 0.5 °C grid; None: no cap)
+    cap_state: str = "off"  # 0.64.0: see CAP_STATES
+    shortfall: float = 0.0  # 0.64.0: demanded − given out
 
 
 class MixingCircuit:
@@ -100,6 +120,51 @@ class MixingCircuit:
         self.cfg = cfg or CircuitConfig()
         self.hold = SetpointHold(self.cfg.hold())
         self.last_ask: dict[str, datetime] = {}
+        # 0.64.0: the tank cap
+        self.out: float | None = None
+        self.out_at: datetime | None = None
+        self.limited = False
+        self.top: float | None = None
+        self.top_at: datetime | None = None
+
+    def cap(self, now: datetime, given: float | None, top: float | None, linked: bool) -> tuple:
+        """0.64.0: (target for the mixer, limit, state) from the demanded target and the tank's top."""
+        cfg = self.cfg
+        if not linked or not cfg.circuit_tank_cap:
+            self.out, self.limited = given, False
+            return given, None, "off"
+        state = "ok"
+        if top is not None:
+            self.top, self.top_at = top, now
+        elif self.top is not None and self.top_at is not None and (now - self.top_at).total_seconds() <= TANK_STALE_S:
+            top, state = self.top, "stale"
+        else:
+            self.out, self.limited = given, False
+            return given, None, "no_data"
+        limit = math.floor((top - cfg.circuit_margin) * 2 + 1e-9) / 2
+        cold = limit < cfg.circuit_flow_min
+        if cold:
+            limit = cfg.circuit_flow_min
+        if given is None:
+            self.out, self.limited = None, False
+            return None, limit, state
+        want = min(given, limit)
+        prev = self.out
+        if prev is None or want <= prev or not self.limited:
+            out = want  # down at once; an uncapped target already went through the hold
+        elif self.out_at is None or (now - self.out_at).total_seconds() >= cfg.circuit_confirm_s:
+            out = min(want, prev + cfg.circuit_max_rise)  # back up after a cap: step by step
+        else:
+            out = prev
+        if out != prev:
+            self.out_at = now
+        self.out = out
+        self.limited = out < given - 1e-9
+        if cold:
+            state = "cold"  # the tank cannot give even the minimum
+        elif self.limited and state == "ok":
+            state = "limited"  # a stale reading stays "stale" (it may be limiting by an old value)
+        return out, limit, state
 
     def raw(self, outdoor: float | None, t_room: float, deficit: float) -> float | None:
         cfg = self.cfg
@@ -109,7 +174,8 @@ class MixingCircuit:
                 + cfg.circuit_kp * min(max(deficit, 0.0), DEFICIT_CAP))
         return round(flow, 2)
 
-    def step(self, now: datetime, zones: list[ZoneReading], outdoor: float | None) -> CircuitDecision:
+    def step(self, now: datetime, zones: list[ZoneReading], outdoor: float | None, tank_top: float | None = None,
+             tank_linked: bool = False) -> CircuitDecision:
         cfg = self.cfg
         names = {z.name for z in zones}
         for gone in [n for n in self.last_ask if n not in names]:
@@ -137,15 +203,29 @@ class MixingCircuit:
                    "changed": res.changed, "room_from": room_from}
         if raw is None:
             details["no_outdoor"] = True
-        return CircuitDecision(now, res.value, res.raw, res.reason, bool(lasting), tuple(z.name for z in lasting),
+        out, limit, cap_state = self.cap(now, res.value, tank_top, tank_linked)
+        shortfall = round(res.value - out, 1) if res.value is not None and out is not None else 0.0
+        return CircuitDecision(now, out, res.raw, res.reason, bool(lasting), tuple(z.name for z in lasting),
                                tuple(z.name for z in zones if z.asking and not z.fault), outdoor, t_room, deficit,
-                               details)
+                               details, res.value, limit, cap_state, shortfall)
 
     def state(self, now: datetime) -> dict:
-        return {"hold": self.hold.state(now), "last_ask": {k: v.isoformat() for k, v in self.last_ask.items()}}
+        return {"hold": self.hold.state(now), "last_ask": {k: v.isoformat() for k, v in self.last_ask.items()},
+                "cap": {"out": self.out, "out_at": self.out_at.isoformat() if self.out_at else None,
+                        "limited": self.limited, "top": self.top,
+                        "top_at": self.top_at.isoformat() if self.top_at else None}}
 
     def restore(self, data: dict, now: datetime) -> None:
         self.hold.restore(data.get("hold") or {}, now)
+        cap = data.get("cap") or {}
+        try:
+            self.out = None if cap.get("out") is None else float(cap["out"])
+            self.limited = bool(cap.get("limited"))
+            self.top = None if cap.get("top") is None else float(cap["top"])
+            self.out_at = datetime.fromisoformat(cap["out_at"]) if cap.get("out_at") else None
+            self.top_at = datetime.fromisoformat(cap["top_at"]) if cap.get("top_at") else None
+        except (TypeError, ValueError):
+            self.out, self.limited, self.top, self.out_at, self.top_at = None, False, None, None, None
         for k, v in (data.get("last_ask") or {}).items():
             try:
                 self.last_ask[k] = datetime.fromisoformat(v)

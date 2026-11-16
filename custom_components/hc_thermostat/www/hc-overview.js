@@ -29,7 +29,7 @@ export const OV_TXT = {
     whyNoHeat: "Most nincs hőigény.", kinds: { onoff_boiler: "Gázkazán", modulating_boiler: "Moduláló kazán", heat_pump: "Hőszivattyú", electric_boiler: "Villanykazán", air_conditioner: "Klíma", electric_heater: "Elektromos fűtő", storage_heater: "Hőtárolós kályha", district_heating: "Távhő", pellet_boiler: "Pelletkazán", external_heat: "Külső hőtermelő" },
     burning: "ég", idle: "áll", unitsCol: "Helyiségi egységek", unheated: "nem fűti", sharedRoom: "2 körön", woodBy: "a kazán hőmérője szerint", woodPending: "vált:", woodLv: { certain: "biztos", likely: "valószínű", possible: "lehetséges", none: "nincs" },
     wst: { shadow: "nem ír (árnyék)", none: "nincs kimenet", in_sync: "egyezik", write: "ír", confirming: "visszaigazolásra vár", grace: "indulási türelem", keepalive: "frissítés", conflict: "ütközés", not_accepted: "nem fogadja el", unavailable: "nem elérhető", no_value: "nincs érték", error: "hiba" },
-    hst: { no_data: "a hőforrás teljesítménymérője / lángjele nem ad adatot", uncommanded_burn: "parancs nélkül ég", overheating: "túlfűt", no_response: "a kazán nem reagál a relére", no_flame: "nem gyújt be", heating_fault: "fűtési hiba (sokáig fűt, a ház mégis hűl)", short_cycling: "taktol" }, hstLbl: "hőforrás-figyelés", plant: "KAZÁNHÁZ", outside: "KÜLTÉR", house: "HELYISÉGEK",
+    hst: { no_data: "a hőforrás teljesítménymérője / lángjele nem ad adatot", uncommanded_burn: "parancs nélkül ég", overheating: "túlfűt", no_response: "a kazán nem reagál a relére", no_flame: "nem gyújt be", heating_fault: "fűtési hiba (sokáig fűt, a ház mégis hűl)", short_cycling: "taktol" }, hstLbl: "hőforrás-figyelés", plant: "KAZÁNHÁZ", demanded: "igényelt (a hőszivattyúnak)", capSt: { off: "nincs korlát", ok: "a puffer elég meleg", limited: "a puffer korlátozza a keverő célját", cold: "hideg a puffer – a minimum sem jön ki", stale: "az utolsó jó pufferérték szerint", no_data: "nincs pufferadat – nem korlátoz" }, outside: "KÜLTÉR", house: "HELYISÉGEK",
     coil: "csőkígyó", mixer: "keverő + szivattyú", layer: "Puffer", hpLong: "Levegő–víz hőszivattyú", coilCharge: "csőkígyós töltés", woodBoiler: "Fatüzelésű kazán",
     dhw: "HMV", dhwPump: "HMV-szivattyú", dhwHeater: "villanyfűtés", dhwTank: "HMV (bojler)", dhwFrom: "melegvíz a pufferből", mixerPump: "keverőszelep + szivattyú", pumpLbl: "Keringető szivattyú", pumpPlc: "szivattyú (PLC)", flowMeas: "mért előremenő", pumpEnable: "HC szerint engedély:", radS: "radiátor", floorS: "padlófűtés",
     legend: "Jelmagyarázat", legFlow: "Előremenő (meleg víz)", legReturn: "Visszatérő (hűlt víz)", legPump: "Keringető szivattyú", legValve: "Keverőszelep (háromjáratú)", legSensor: "Hőmérséklet-érzékelő",
@@ -56,7 +56,7 @@ export const OV_TXT = {
     whyNoHeat: "No heat demand now.", kinds: { onoff_boiler: "Gas boiler", modulating_boiler: "Modulating boiler", heat_pump: "Heat pump", electric_boiler: "Electric boiler", air_conditioner: "Air conditioner", electric_heater: "Electric heater", storage_heater: "Storage heater", district_heating: "District heating", pellet_boiler: "Pellet boiler", external_heat: "External heat source" },
     burning: "burning", idle: "idle", unitsCol: "Room units", unheated: "not heated", sharedRoom: "on 2 circuits", woodBy: "by the boiler's thermometer", woodPending: "changing:", woodLv: { certain: "certain", likely: "likely", possible: "possible", none: "none" },
     wst: { shadow: "not writing (shadow)", none: "no output", in_sync: "in sync", write: "writing", confirming: "awaiting confirmation", grace: "start grace", keepalive: "keep-alive", conflict: "conflict", not_accepted: "not accepted", unavailable: "unavailable", no_value: "no value", error: "error" },
-    hst: { no_data: "the source's power / flame reading gives no data", uncommanded_burn: "burns without command", overheating: "overheating", no_response: "the boiler does not answer the relay", no_flame: "no ignition", heating_fault: "heating fault (long heating, the house still cools)", short_cycling: "short cycling" }, hstLbl: "source watch", plant: "PLANT ROOM", outside: "OUTDOORS", house: "ROOMS",
+    hst: { no_data: "the source's power / flame reading gives no data", uncommanded_burn: "burns without command", overheating: "overheating", no_response: "the boiler does not answer the relay", no_flame: "no ignition", heating_fault: "heating fault (long heating, the house still cools)", short_cycling: "short cycling" }, hstLbl: "source watch", plant: "PLANT ROOM", demanded: "demanded (for the heat pump)", capSt: { off: "no cap", ok: "the tank is warm enough", limited: "the tank caps the mixer's target", cold: "tank too cold – not even the minimum", stale: "by the last good tank reading", no_data: "no tank reading – not capping" }, outside: "OUTDOORS", house: "ROOMS",
     coil: "coil", mixer: "mixer + pump", layer: "Tank", hpLong: "Air-to-water heat pump", coilCharge: "coil charging", woodBoiler: "Wood boiler",
     dhw: "DHW", dhwPump: "DHW pump", dhwHeater: "electric heater", dhwTank: "Hot water (DHW tank)", dhwFrom: "hot water from the tank", mixerPump: "mixing valve + pump", pumpLbl: "Circulation pump", pumpPlc: "pump (PLC)", flowMeas: "measured flow", pumpEnable: "HC enable:", radS: "radiators", floorS: "floor heating",
     legend: "Legend", legFlow: "Flow (hot water)", legReturn: "Return (cooled water)", legPump: "Circulation pump", legValve: "Mixing valve (three-way)", legSensor: "Temperature sensor",
@@ -107,6 +107,10 @@ function warnings(m, T, lang) {
     // 0.62.0: the source watch (power / flame) in words; quiet states (nothing to watch, learning) are no warning
     const hs = i.health?.state;
     if (hs && !["ok", "good", "unknown", "learning", "unwatched"].includes(hs)) out.push(`${n} – ${T.hstLbl}: ${T.hst[hs] || hs}`);
+  }
+  for (const c of m.circuits) {  // 0.64.0: the tank cannot give the circuit what it needs
+    const cs = c.decision?.cap_state;
+    if (["limited", "cold", "no_data"].includes(cs)) out.push(`${short(c.title)}: ${T.capSt[cs]}${isNum(num(c.decision?.shortfall)) && num(c.decision.shortfall) > 0 ? ` (−${fx(num(c.decision.shortfall), lang)} °C)` : ""}`);
   }
   for (const h of m.hps) {
     const det = h.decision?.details || {};
@@ -188,6 +192,8 @@ export function renderOverview(all, opts = {}) {
   for (const c of m.circuits) {
     const d = c.decision || {}, det = d.details || {}, oe = ent(c, "circuit_output_entity"), w = c.outputs?.target || {};
     cards.push(card(short(c.title), row(T.flowTarget, `<b class="big">${deg(d.target, lang)}</b>`)
+      // 0.64.0: the tank cap – what the circuit demands (the heat pump's need) when the mixer gets less
+      + (isNum(num(d.demand_target)) && num(d.demand_target) !== num(d.target) ? row(T.demanded, `${deg(num(d.demand_target), lang)} · ${T.capSt[d.cap_state] || d.cap_state || ""}`) : "")
       + row(T.raw, deg(num(d.raw), lang)) + row(T.curve, deg(num(det.curve), lang))
       + row(T.plc, oe ? `${esc(oe.state)} ${esc(oe.unit || "")}` : "–")
       + row(T.written, esc(`${modeTxt(c, T)}${w.status && w.status !== "shadow" ? ` · ${T.wst[w.status] || w.status}` : ""}`))
@@ -256,6 +262,51 @@ export function curveSvg(cfg, st = {}, opts = {}) {
   const leg = [[`cn`, T.normal], deficit > 0.05 ? [`cc`, `${T.corrected} (${fx(deficit, lang)} °C)`] : null, [`clim`, T.limits]].filter(Boolean);
   leg.forEach(([k, t], i) => g.push(`<line x1="${W - R - 150}" y1="${Tp + 8 + i * 13}" x2="${W - R - 132}" y2="${Tp + 8 + i * 13}" class="${k}"/><text x="${W - R - 128}" y="${Tp + 11.5 + i * 13}" class="cx">${esc(t)}</text>`));
   return `<svg class="hccurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.flowAxis)}">${g.join("")}</svg>`;
+}
+
+// 0.64.0: the heat pump's target over time – HC's raw target, the given-out one, what was really sent (rounded as
+// set), what the unit reports back and, when given, the water it measures. hist = hc_thermostat/hp_history result.
+const HPC = [["raw", "#9e9e9e", "4 3", { hu: "HC nyers cél", en: "HC raw target" }],
+  ["target", "#43a047", "", { hu: "HC kiadott cél", en: "HC given-out target" }],
+  ["sent", "#fb8c00", "", { hu: "kiküldve (kerekítve)", en: "sent (rounded)" }],
+  ["reported", "#8e24aa", "2 2", { hu: "a hőszivattyú beállítása", en: "the unit's setpoint" }],
+  ["water", "#1e88e5", "", { hu: "mért víz", en: "measured water" }]];
+export function hpChartSvg(hist, opts = {}) {
+  const lang = opts.lang === "en" ? "en" : "hu";
+  const ser = (hist && hist.series) || {}, t0 = num(hist?.start), t1 = num(hist?.end);
+  const vals = HPC.flatMap(([k]) => (ser[k] || []).map((p) => num(p[1])).filter(isNum));
+  if (!isNum(t0) || !isNum(t1) || t1 <= t0 || !vals.length) {
+    return `<div class="muted">${esc(lang === "hu" ? "Még nincs rögzített adat a grafikonhoz." : "No recorded data for the chart yet.")}</div>`;
+  }
+  const W = 420, H = 230, L = 34, R = 10, Tp = 10, B = 26;
+  const lo = Math.floor((Math.min(...vals) - 1) / 5) * 5, hi = Math.ceil((Math.max(...vals) + 1) / 5) * 5;
+  const X = (t) => L + (t - t0) / (t1 - t0) * (W - L - R), Y = (v) => Tp + (1 - (v - lo) / (hi - lo || 1)) * (H - Tp - B);
+  const g = [];
+  for (let v = lo; v <= hi; v += 5) g.push(`<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W - R}" y2="${Y(v).toFixed(1)}" class="cg"/><text x="${L - 4}" y="${(Y(v) + 3.5).toFixed(1)}" class="cx" text-anchor="end">${v}</text>`);
+  const span = t1 - t0, stepH = span > 36 * 3600e3 ? 12 : span > 12 * 3600e3 ? 6 : 2;
+  const first = new Date(t0); first.setMinutes(0, 0, 0);
+  for (let t = first.getTime() + 3600e3; t < t1; t += 3600e3) {
+    const d = new Date(t); if (d.getHours() % stepH) continue;
+    g.push(`<line x1="${X(t).toFixed(1)}" y1="${Tp}" x2="${X(t).toFixed(1)}" y2="${H - B}" class="cg"/><text x="${X(t).toFixed(1)}" y="${H - B + 13}" class="cx" text-anchor="middle">${String(d.getHours()).padStart(2, "0")}:00</text>`);
+  }
+  for (const [k, col, dash, name] of HPC) {
+    const pts = (ser[k] || []).filter((p) => isNum(num(p[0])));
+    if (!pts.length) continue;
+    let d = "", last = null;
+    for (const [tRaw, vRaw] of pts) {
+      const t = Math.max(num(tRaw), t0), v = num(vRaw);
+      if (!isNum(v)) { last = null; continue; }
+      const x = X(t).toFixed(1), y = Y(v).toFixed(1);
+      // targets are steps (they hold until changed); the water is a line
+      d += last == null ? `M${x},${y}` : k === "water" ? `L${x},${y}` : `H${x}V${y}`;
+      last = v;
+    }
+    if (last != null) d += k === "water" ? "" : `H${(W - R).toFixed(1)}`;
+    if (d) g.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${k === "target" ? 2.4 : 1.7}" ${dash ? `stroke-dasharray="${dash}"` : ""}><title>${esc(name[lang])}</title></path>`);
+  }
+  const shown = HPC.filter(([k]) => (ser[k] || []).length);
+  const leg = shown.map(([k, col, dash, name]) => `<span class="hpl"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="${col}" stroke-width="2.4" ${dash ? `stroke-dasharray="${dash}"` : ""}/></svg>${esc(name[lang])}</span>`).join("");
+  return `<svg class="hccurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(lang === "hu" ? "Hőszivattyú célja" : "Heat pump target")}">${g.join("")}</svg><div class="hpleg">${leg}</div>`;
 }
 
 // ---------------------------------------------------------------- the hydraulic diagram
@@ -537,6 +588,8 @@ function renderPlainSchematic(m, opts) {
 }
 
 export const OV_CSS = `
+.hpleg { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; margin:2px 0 4px; }
+.hpl { display:inline-flex; align-items:center; gap:4px; }
 .ovtabs { display:flex; gap:6px; margin:0 0 8px; flex-wrap:wrap; }
 .ovtabs button { border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); border-radius:16px; padding:4px 12px; cursor:pointer; font:inherit; }
 .ovtabs button.sel { background:var(--primary-color); color:var(--text-primary-color, #fff); border-color:var(--primary-color); }

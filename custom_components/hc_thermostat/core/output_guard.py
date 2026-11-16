@@ -29,6 +29,8 @@ and a notification says so. Permanent writing is the `active` mode, chosen with 
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -125,3 +127,20 @@ def effective(mode: str, trial_start: datetime | None, trial_hours: float, now: 
         end = trial_start + timedelta(hours=trial_hours)
         return now < end, end
     return False, None
+
+
+ROUND_MODES = ("device", "half_up", "whole_up")  # 0.64.0: how a flow target is rounded before it is written
+
+
+def round_target(value: float, step: float, mode: str = "device") -> float:
+    """0.64.0: a flow target on the output's grid. `device`: the entity's own step, to the nearest (as before);
+    `half_up` / `whole_up`: up to 0.5 / 1 (a unit that mishandles decimals gets 36.1 → 37; HC keeps its decimals)."""
+    if mode == "whole_up":
+        step = max(float(step or 0), 1.0)
+    elif mode == "half_up":
+        step = max(float(step or 0), 0.5)
+    if not step or step <= 0:
+        return value
+    if mode in ("half_up", "whole_up"):
+        return round(math.ceil(round(value / step, 6)) * step, 3)
+    return round(round(value / step) * step, 3)

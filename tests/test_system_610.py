@@ -180,7 +180,7 @@ def test_panel_and_wizard_wiring():
 
 
 def test_version_610():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.61.0", "0.62.0", "0.63.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.61.0", "0.62.0", "0.63.0", "0.64.0")
 
 
 def test_plain_house_schematic_in_node():

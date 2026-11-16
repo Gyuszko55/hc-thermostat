@@ -176,4 +176,4 @@ def test_write_confirm_setting_default_and_wiring():
 
 
 def test_version():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.56.1", "0.57.0", "0.57.1", "0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0")

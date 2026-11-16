@@ -22,7 +22,7 @@ from homeassistant.util import dt as dt_util
 
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
-from .const import (CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
+from .const import (CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
                     CONF_WOOD, CONF_WOOD_TEMP, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
 from .core.wood import WoodConfig, WoodDetector
@@ -96,7 +96,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         keep = float(data.get(CONF_WRITE_KEEPALIVE) or 0)
         confirm = data.get(CONF_WRITE_CONFIRM)
         confirm = float(WRITE_CONFIRM_DEFAULT if confirm is None else confirm)
-        self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep, confirm_s=confirm)
+        self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep, confirm_s=confirm,
+                                       round_mode=str(data.get(CONF_HP_TARGET_ROUND) or "device"))  # 0.64.0
         self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
         self.out_summer = OutputWriter(hass, data.get(CONF_HP_SUMMER_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
@@ -112,6 +113,15 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
     @property
     def is_shadow(self) -> bool:
         return not self.write.writing(dt_util.now())
+
+    def water_temp(self) -> float | None:
+        """0.64.0: the heat pump's own water thermometer (shown on the chart next to the targets)."""
+        eid = self.conf.get(CONF_HP_WATER_TEMP)
+        state = self.hass.states.get(eid) if eid else None
+        if state is None or state.state in ("unavailable", "unknown"):
+            return None
+        value = state_value_c(state)
+        return None if value is None else round(value, 2)
 
     def outputs(self) -> dict:
         return {"target": self.out_target.info(), "switch": self.out_switch.info(), "demand": self.out_demand.info(),
@@ -142,7 +152,10 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                 d = cc.data
                 if d is not None:
                     asked = [t for t in cc.circuit.last_ask.values() if (now - t).total_seconds() <= _ASK_FRESH_S]
-                    circuits.append(CircuitNeed(e.title, d.demand, d.target, cc.circuit.cfg.circuit_margin, bool(asked)))
+                    circuits.append(CircuitNeed(e.title, d.demand,
+                                                    # 0.64.0: the demanded target, never the tank-capped one
+                                                    d.demand_target if d.demand_target is not None else d.target,
+                                                    cc.circuit.cfg.circuit_margin, bool(asked)))
             if not circuits:  # no circuit linked: the buffer's own zones say whether heat is wanted
                 zones_asking = bool(asking_zones(self.hass, list(buf.conf.get(CONF_ZONES) or [])))
         return HpInputs(outdoor=read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),

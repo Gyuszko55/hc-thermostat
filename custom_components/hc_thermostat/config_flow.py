@@ -19,7 +19,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_DHW_PUMP, CONF_DHW_TEMP, CONF_DHW_HEATER, CONF_CIRCUIT_PUMP, CONF_CIRCUIT_FLOW, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -34,6 +34,7 @@ from .core.model import HcConfig
 from .core.boiler_health import power_levels_known
 from .core.buffer import BufferConfig
 from .core.wood import WoodConfig
+from .core.output_guard import ROUND_MODES  # 0.64.0
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig, MixingCircuit
 from .core.hp_coord import HpConfig
 from .core.room_model import OWN, rooms_options
@@ -191,6 +192,8 @@ def _outputs(role: str, current: dict) -> dict:
         return {vol.Optional(CONF_CIRCUIT_OUTPUT, description=sug(CONF_CIRCUIT_OUTPUT)): _entity("number", "input_number", "climate")}
     return {
         vol.Optional(CONF_HP_TARGET_OUT, description=sug(CONF_HP_TARGET_OUT)): _entity("number", "input_number", "climate"),
+        # 0.64.0: how the written flow target is rounded (HC keeps its decimals inside)
+        vol.Required(CONF_HP_TARGET_ROUND, default=current.get(CONF_HP_TARGET_ROUND) or "device"): _select(list(ROUND_MODES), "hp_target_round"),
         vol.Optional(CONF_HP_SWITCH, description=sug(CONF_HP_SWITCH)): _entity("switch", "input_boolean", "climate"),
         vol.Optional(CONF_HP_DEMAND_OUT, description=sug(CONF_HP_DEMAND_OUT)): _entity("switch", "input_boolean"),
         vol.Optional(CONF_HP_SUMMER_OUT, description=sug(CONF_HP_SUMMER_OUT)): _entity("switch", "input_boolean"),
@@ -248,6 +251,7 @@ def _circuit_settings(current: dict, kind: str) -> dict:
         vol.Required("circuit_kp", default=v("circuit_kp")): _number(0, 10, 0.5),
         vol.Required("circuit_dt", default=v("circuit_dt")): _number(2, 25, 1, "°C"),
         vol.Required("circuit_margin", default=v("circuit_margin")): _number(0, 10, 0.5, "°C"),
+        vol.Required("circuit_tank_cap", default=bool(v("circuit_tank_cap"))): BooleanSelector(),  # 0.64.0
         vol.Required("circuit_hold_s", default=v("circuit_hold_s")): _number(0, 7200, 60, "s"),
         vol.Required("circuit_idle_keep", default=bool(v("circuit_idle_keep"))): BooleanSelector(),  # 0.62.0
         vol.Required("circuit_deadband", default=v("circuit_deadband")): _number(0.5, 5, 0.5, "°C"),
@@ -305,6 +309,8 @@ def _hpc_fields(hass, current: dict) -> dict:
         vol.Optional(CONF_WOOD, description={"suggested_value": current.get(CONF_WOOD)}): _entity("binary_sensor", "switch", "input_boolean", "sensor"),
         # 0.61.0: without a direct signal, wood is told from the wood boiler's thermometer (two thresholds)
         vol.Optional(CONF_WOOD_TEMP, description={"suggested_value": current.get(CONF_WOOD_TEMP)}): _ent(CONF_WOOD_TEMP, "sensor"),
+        # 0.64.0: the heat pump's own water thermometer – only for the target chart
+        vol.Optional(CONF_HP_WATER_TEMP, description={"suggested_value": current.get(CONF_HP_WATER_TEMP)}): _ent(CONF_HP_WATER_TEMP, "sensor"),
         **_outputs("hp_coord", current),
     }
 
@@ -1278,6 +1284,8 @@ class HcOptionsFlow(OptionsFlow):
             **_buffer_fields(current),
         }
         fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
+        # 0.64.0: the house's own name (shown over the drawings instead of the host instance's title)
+        fields[vol.Optional(CONF_HOME_NAME, description={"suggested_value": current.get(CONF_HOME_NAME)})] = TextSelector()
         return self.async_show_form(step_id="buffer", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_circuit(self, user_input=None):
@@ -1289,6 +1297,8 @@ class HcOptionsFlow(OptionsFlow):
             return await self.async_step_circuit_settings()
         fields = {**_write_fields("circuit", {**current, **(user_input or {})}), **_circuit_fields(self.hass, {**current, **(user_input or {})})}
         fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
+        # 0.64.0: the house's own name (shown over the drawings instead of the host instance's title)
+        fields[vol.Optional(CONF_HOME_NAME, description={"suggested_value": current.get(CONF_HOME_NAME)})] = TextSelector()
         return self.async_show_form(step_id="circuit", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_hp_coord(self, user_input=None):
@@ -1300,6 +1310,8 @@ class HcOptionsFlow(OptionsFlow):
             return await self.async_step_hp_coord_settings()
         fields = {**_write_fields("hp_coord", {**current, **(user_input or {})}), **_hpc_fields(self.hass, {**current, **(user_input or {})})}
         fields[vol.Required(CONF_HOUSE_LINK, default=_house_value(self, current))] = _house_select(self, current)  # 0.62.0
+        # 0.64.0: the house's own name (shown over the drawings instead of the host instance's title)
+        fields[vol.Optional(CONF_HOME_NAME, description={"suggested_value": current.get(CONF_HOME_NAME)})] = TextSelector()
         return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(fields), errors=errors)
 
     async def async_step_hp_coord_settings(self, user_input=None):

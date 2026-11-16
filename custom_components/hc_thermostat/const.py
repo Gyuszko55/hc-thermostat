@@ -64,6 +64,8 @@ CONF_HP_TARGET_OUT = "hp_target_entity"  # 0.56.0: the heat pump's flow target (
 CONF_HP_DEMAND_OUT = "hp_demand_entity"  # 0.56.0: an optional heat demand signal (switch / input_boolean)
 CONF_HP_SUMMER_OUT = "hp_summer_entity"  # 0.57.0: the summer mode signal for a PLC (switch / input_boolean)
 CONF_HP_EXERCISE_OUT = "hp_exercise_entity"  # 0.57.0: the "exercise due" signal for a PLC
+CONF_HP_TARGET_ROUND = "hp_target_round"  # 0.64.0: the written flow target: device step / up to 0.5 / up to 1 °C
+CONF_HP_WATER_TEMP = "hp_water_temp_entity"  # 0.64.0: the heat pump's measured water temperature (the chart only)
 CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
 CONF_WRITE_CONFIRM = "write_confirm_s"  # 0.56.1: wait this long for the device to confirm a write (slow cloud devices)
 WRITE_CONFIRM_DEFAULT = 60

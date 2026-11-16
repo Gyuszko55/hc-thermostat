@@ -9,7 +9,7 @@ import logging
 
 from homeassistant.components import persistent_notification as pn
 
-from .core.output_guard import MODES, OutputGuard, effective
+from .core.output_guard import MODES, OutputGuard, effective, round_target
 from .units import CELSIUS, climate_temp_c, from_c, state_value_c, system_unit, to_c
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,8 +17,10 @@ _LOGGER = logging.getLogger(__name__)
 
 class OutputWriter:
     def __init__(self, hass, entity_id: str | None, onoff: bool = False, keepalive_s: float = 0.0,
-                 confirm_s: float = 60.0) -> None:
+                 confirm_s: float = 60.0, round_mode: str = "device") -> None:
         self.hass = hass
+        self.round_mode = round_mode if round_mode in ("device", "half_up", "whole_up") else "device"  # 0.64.0
+        self.sent: float | None = None  # 0.64.0: the last value really sent (in the entity's unit)
         self.entity_id = entity_id or None
         self.onoff = onoff
         self.guard = OutputGuard(tolerance=0.0 if onoff else 0.25, keepalive_s=keepalive_s, confirm_s=confirm_s)
@@ -50,8 +52,8 @@ class OutputWriter:
         attrs = state.attributes
         value = from_c(value_c, attrs.get("unit_of_measurement"))
         step = attrs.get("step")
-        if isinstance(step, (int, float)) and step > 0:
-            value = round(round(value / step) * step, 3)
+        step = step if isinstance(step, (int, float)) and step > 0 else 0
+        value = round_target(value, step, self.round_mode)  # 0.64.0: the entity's step, or up to 0.5 / 1
         lo, hi = attrs.get("min"), attrs.get("max")
         if isinstance(lo, (int, float)):
             value = max(float(lo), value)
@@ -67,7 +69,7 @@ class OutputWriter:
         step = attrs.get("target_temp_step")
         if not isinstance(step, (int, float)) or step <= 0:
             step = 0.5 if unit == CELSIUS else 1.0
-        value = round(round(value / step) * step, 2)
+        value = round(round_target(value, step, self.round_mode), 2)  # 0.64.0: or up to 0.5 / 1
         lo, hi = attrs.get("min_temp"), attrs.get("max_temp")
         if isinstance(lo, (int, float)):
             value = max(float(lo), value)
@@ -102,8 +104,11 @@ class OutputWriter:
         if dom == "climate":
             value = self._climate_value(state, want)
             await hass.services.async_call("climate", "set_temperature", {"entity_id": eid, "temperature": value}, blocking=True)
+            self.sent = value
             return
-        await hass.services.async_call(dom, "set_value", {"entity_id": eid, "value": self._number_value(state, want)}, blocking=True)
+        value = self._number_value(state, want)
+        await hass.services.async_call(dom, "set_value", {"entity_id": eid, "value": value}, blocking=True)
+        self.sent = value
 
     async def apply(self, now: datetime, want: float | bool | None, writing: bool, uptime_s: float) -> str:
         """Write `want` when the guard allows it; returns (and keeps) the status."""
@@ -141,8 +146,16 @@ class OutputWriter:
         self.status = status
         return status
 
+    def reported(self) -> float | None:
+        """0.64.0: the target the output reports back now (°C; None: unavailable / an ON-OFF output)."""
+        if not self.entity_id or self.onoff:
+            return None
+        value, _ = self.read()
+        return None if value is None else round(value, 2)
+
     def info(self) -> dict:
-        return {"entity": self.entity_id, "status": self.status, "error": self.error, **self.guard.state()}
+        return {"entity": self.entity_id, "status": self.status, "error": self.error, "sent": self.sent,
+                "round": self.round_mode, **self.guard.state()}
 
 
 class WriteControl:

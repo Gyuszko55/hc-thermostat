@@ -79,6 +79,7 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         self.circuit = MixingCircuit(CircuitConfig.from_conf(data))
         self.zones: list[ZoneReading] = []
         self.usable: dict = {}
+        self._cap_state = "off"
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._last_save = dt_util.now()
 
@@ -104,12 +105,17 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
     async def _async_update_data(self) -> CircuitDecision:
         now = dt_util.now()
         self.zones = read_circuit_zones(self.hass, list(self.conf.get(CONF_ZONES) or []))
-        decision = self.circuit.step(now, self.zones, read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now))
         buf = self.buffer_coordinator()
+        # 0.64.0: the tank's top (a fresh reading, else None) caps the target given to the mixer
+        top = getattr(getattr(buf, "data", None), "top", None) if buf is not None else None
+        decision = self.circuit.step(now, self.zones, read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),
+                                     tank_top=top, tank_linked=buf is not None)
         cfg = self.circuit.cfg
-        self.usable = buf.stock.usable(decision.target, cfg.circuit_dt, cfg.circuit_margin) if buf is not None else {}
-        if decision.details.get("changed") or now - self._last_save >= _SAVE_EVERY:
+        # what the tank can give the demanded (uncapped) target
+        self.usable = buf.stock.usable(decision.demand_target, cfg.circuit_dt, cfg.circuit_margin) if buf is not None else {}
+        if decision.details.get("changed") or decision.cap_state != self._cap_state or now - self._last_save >= _SAVE_EVERY:
             await self.async_save()
+        self._cap_state = decision.cap_state
         await self.write.tick(now)
         await self.out.apply(now, decision.target, self.write.writing(now), (now - self._started).total_seconds())
         self.write.note_conflict(self.out)

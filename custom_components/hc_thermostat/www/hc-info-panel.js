@@ -452,6 +452,11 @@ class HcInfoPanel extends HTMLElement {
         hd = await info(hostId);
         members = (await Promise.all((hd?.house_members || []).map(info))).filter(Boolean);
       }
+      // 0.64.0: the heat pump target chart – the recorder's history, fetched at most every 5 minutes
+      if (d.role === "hp_coord" && (this._hphId !== d.entry_id || !this._hphAt || Date.now() - this._hphAt > 300e3)) {
+        this._hphId = d.entry_id; this._hphAt = Date.now();
+        this._hph = await this._hass.callWS({ type: "hc_thermostat/hp_history", entry_id: d.entry_id, hours: 24 }).catch(() => null);
+      }
       this._d = d; this._hd = hd; this._members = members;
       this._err = null;
     } catch (e) { this._err = String(e?.message || e); }
@@ -1033,6 +1038,13 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "ON kérés (nem visszajelzés)" : "ON request (not a confirmation)", dec.enable ? "ON" : "OFF", dec.enable],
       [hu ? "Hőigény" : "Heat demand", dec.heat_demand ? t.yes : t.no, dec.heat_demand],
       [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
+      // 0.64.0: what was really written (rounded as set) and what the unit reports back
+      ...(() => { const o = (d.outputs || {}).target || {}; if (!o.entity) return [];
+        const rnd = { device: hu ? "a készülék lépésköze" : "the device's step", half_up: hu ? "0,5 °C-ra felfelé" : "up to 0.5 °C", whole_up: hu ? "egész fokra felfelé" : "up to whole °C" }[o.round] || o.round;
+        const rep = (d.entities?.hp_target_entity || [])[0]; const repV = rep ? (rep.entity_id.startsWith("climate.") ? rep.temperature : rep.state) : null;
+        return [[hu ? "Kiküldve" : "Sent", o.sent != null ? `${this._deg(o.sent)} · ${rnd}` : `– · ${rnd}`],
+          [hu ? "A hőszivattyú beállítása" : "The unit's setpoint", repV != null && repV !== "" ? this._deg(repV) : null]]; })(),
+      [hu ? "Mért víz (hőszivattyú)" : "Measured water (heat pump)", d.water != null ? this._deg(d.water) : null],
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Visszatartás" : "Hold", this._reason(dec.hold_reason)],
       [hu ? "Körök igénye (+ ráhagyás)" : "Circuits' need (+ margin)", dec.need != null ? this._deg(dec.need) : null],
@@ -1080,7 +1092,12 @@ class HcInfoPanel extends HTMLElement {
     const kind = cfg.circuit_kind === "floor" ? (hu ? "padlófűtés" : "floor heating") : (hu ? "radiátoros" : "radiators");
     cards.push(this._card(20, 20, `${hu ? "Keverőkör" : "Mixing circuit"} (${kind})`, [
       ...this._writeRows(d),
-      [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
+      [hu ? "Keverőnek kiadott cél" : "Target given to the mixer", this._deg(dec.target), true],
+      // 0.64.0: the tank cap – the demanded target goes to the heat pump, the mixer gets at most top − margin
+      [hu ? "Igényelt előremenő" : "Demanded flow", dec.demand_target != null ? this._deg(dec.demand_target) : null],
+      [hu ? "Puffer-korlát" : "Tank cap", dec.cap != null ? `${this._deg(dec.cap)} (${hu ? "teteje" : "top"} − ${this._num(cfg.circuit_margin, 1)} °C)` : null],
+      [hu ? "Korlát állapota" : "Cap state", ({ off: hu ? "nincs (nincs puffer vagy kikapcsolva)" : "none (no tank or switched off)", ok: hu ? "nem korlátoz" : "not limiting", limited: hu ? "KORLÁTOZ – a puffer nem elég meleg" : "LIMITING – the tank is not warm enough", cold: hu ? "HIDEG A PUFFER – a minimum sem jön ki" : "TANK TOO COLD – not even the minimum", stale: hu ? "az utolsó jó pufferérték szerint" : "by the last good tank reading", no_data: hu ? "nincs pufferadat – nem korlátoz" : "no tank reading – not limiting" })[dec.cap_state] || dec.cap_state || null, ["limited", "cold", "no_data"].includes(dec.cap_state)],
+      [hu ? "Hiányzó hőmérséklet" : "Shortfall", dec.shortfall ? `${this._num(dec.shortfall, 1)} °C` : null],
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Miért" : "Why", this._reason(dec.reason)],
       [hu ? "Következő módosítás legkorábban" : "Next change at the earliest", det.next_allowed ? this._val(det.next_allowed) : null],
@@ -1147,6 +1164,8 @@ class HcInfoPanel extends HTMLElement {
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
         d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
+        d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en" })
+          + `<div class="muted">${esc(this._hu ? "Nyers: amit a HC most számol; kiadott: ritkítva; kiküldve: a beállított kerekítéssel ténylegesen írt érték; a hőszivattyú beállítása: amit a készülék visszajelez; mért víz: a hőszivattyú vízhőmérője (ha meg van adva)." : "Raw: what HC works out now; given out: after the hold; sent: the value really written, rounded as set; the unit's setpoint: what the device reports back; measured water: the unit's water thermometer (when given).")}</div>`, "mdi:chart-line") : "",
         d.presets ? this._section("presets", t.presets, this._presets(), "mdi:calendar-clock") : "",
         this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
         this._section("devices_out", t.devices_out, this._devices(true), "mdi:electric-switch"),

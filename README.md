@@ -375,6 +375,12 @@ tank's coil, wood boiler, the tank's layers and thermometers, flow and return pi
 circuit, the rooms with icons, a legend. Optional display-only readings: the hot water tank's pump, thermometer and
 electric heater (buffer settings), and the circuit pump and measured flow the PLC reports (circuit settings).
 
+**Tank cap, rounded heat pump target, target chart (0.64.0).** A mixing circuit linked to a buffer gives its mixer at
+most the tank's top − margin (a cooling tank lowers it at once, a warming one lets it back up step by step), while the
+heat pump coordination still gets the uncapped demand; the shortfall is shown. The heat pump's written target can be
+rounded up to 0.5 °C or whole °C. The info panel draws the heat pump's raw, given-out, sent and reported targets and
+its measured water over 24 hours. A house name can be set on the buffer, circuit and heat pump instances too.
+
 ## Floor tempering (0.35.0)
 
 - Optional comfort for floor heating (water or electric, TPI / PID / on-off, with a floor sensor): while the room is

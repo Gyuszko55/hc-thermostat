@@ -222,7 +222,11 @@
           "circuit_min_interval_s": "At least between two changes",
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)",
-          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing"
+          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing",
+          "circuit_tank_cap": "Circuit target at most the tank's top − margin"
+        },
+        "data_description": {
+          "circuit_tank_cap": "On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {
@@ -238,7 +242,13 @@
           "hp_demand_entity": "Heat demand signal (switch / input_boolean, optional)",
           "hp_summer_entity": "Summer mode signal for a PLC (switch / input_boolean, optional)",
           "hp_exercise_entity": "Exercise due signal for a PLC (switch / input_boolean, optional)",
-          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)"
+          "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)",
+          "hp_target_round": "Rounding of the written target",
+          "hp_water_temp_entity": "The heat pump's measured water temperature (optional)"
+        },
+        "data_description": {
+          "hp_target_round": "HC keeps its decimals inside; this is only the value sent to the heat pump. Up to whole °C: 36.1 → 37 °C.",
+          "hp_water_temp_entity": "Only for the \"Heat pump target\" chart: how the water follows the given-out target."
         }
       },
       "hp_coord_settings": {
@@ -706,10 +716,12 @@
           "house_link": "Part of which house (HC info: overview, diagram)",
           "dhw_pump_entity": "Hot water tank charging pump (optional, drawing only)",
           "dhw_temp_entity": "Hot water tank thermometer (optional, drawing only)",
-          "dhw_heater_entity": "Hot water tank electric heater (PV / grid; optional, drawing only)"
+          "dhw_heater_entity": "Hot water tank electric heater (PV / grid; optional, drawing only)",
+          "home_name": "House name (optional)"
         },
         "data_description": {
-          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
         }
       },
       "rooms": {
@@ -780,10 +792,12 @@
           "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
           "house_link": "Part of which house (HC info: overview, diagram)",
           "circuit_pump_entity": "The circuit's pump runs (PLC signal, optional, display only)",
-          "circuit_flow_entity": "The circuit's measured flow temperature (optional, display only)"
+          "circuit_flow_entity": "The circuit's measured flow temperature (optional, display only)",
+          "home_name": "House name (optional)"
         },
         "data_description": {
-          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
         }
       },
       "circuit_settings": {
@@ -805,7 +819,11 @@
           "circuit_min_interval_s": "At least between two changes",
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)",
-          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing"
+          "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing",
+          "circuit_tank_cap": "Circuit target at most the tank's top − margin"
+        },
+        "data_description": {
+          "circuit_tank_cap": "On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps."
         }
       },
       "hp_coord": {
@@ -827,10 +845,16 @@
           "write_keepalive_s": "Re-send an unchanged value every (0 = only on change; for a PLC with a timeout)",
           "write_confirm_s": "Wait this long for the device to confirm a write (slow cloud devices, e.g. Tuya); 3 unconfirmed writes in a row: HC stops and tells",
           "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)",
-          "house_link": "Part of which house (HC info: overview, diagram)"
+          "house_link": "Part of which house (HC info: overview, diagram)",
+          "hp_target_round": "Rounding of the written target",
+          "hp_water_temp_entity": "The heat pump's measured water temperature (optional)",
+          "home_name": "House name (optional)"
         },
         "data_description": {
-          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only."
+          "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
+          "hp_target_round": "HC keeps its decimals inside; this is only the value sent to the heat pump. Up to whole °C: 36.1 → 37 °C.",
+          "hp_water_temp_entity": "Only for the \"Heat pump target\" chart: how the water follows the given-out target.",
+          "home_name": "Shown over the drawings instead of the host instance's title. Instances with the same house name form one house."
         }
       },
       "hp_coord_settings": {
@@ -1031,6 +1055,13 @@
       "options": {
         "station": "Flat station with heat exchanger",
         "direct": "Radiators on the risers (heat cost allocators)"
+      }
+    },
+    "hp_target_round": {
+      "options": {
+        "device": "The device's own step (nearest)",
+        "half_up": "Up to 0.5 °C",
+        "whole_up": "Up to whole °C"
       }
     }
   },

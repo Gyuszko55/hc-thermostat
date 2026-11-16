@@ -534,7 +534,8 @@ export function fromInfo(info, x = {}) {
 
   const demand = num(dec.demand) ?? (num(cl.demand) != null ? num(cl.demand) / 100 : null);
   return {
-    lang, title: conf.home_name || info.title || conf.name || "HC", subtitle: lang === "hu" ? info.text_hu : info.text_en,
+    lang, // 0.64.0: the house's name may be set on any of its instances (buffer, circuit, heat pump)
+    title: conf.home_name || (Array.isArray(x.members) ? x.members : []).map((mi) => mi?.conf?.home_name).find((n) => n && String(n).trim()) || info.title || conf.name || "HC", subtitle: lang === "hu" ? info.text_hu : info.text_en,
     mode: info.mode || "active", target: num(dec.target), indoor: num(dec.indoor), demand,
     night: !!night, outdoor: (num(inp.outdoor?.value) ?? num(dec.outdoor)) != null ? { temp: num(inp.outdoor?.value) ?? num(dec.outdoor), avg: num(inp.outdoor_avg) } : null,
     presence, doors, source, rooms: ordered, sources, circuits, tank, role: info.role || "standalone",
