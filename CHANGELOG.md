@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.71.4 – 2026-11-17
+
+- No deprecation warnings on Home Assistant 2026.11: the thermostats give their temperatures by the new native
+  names (`native_current_temperature`, `native_target_temperature`, `native_temperature_unit`; the old ones stop in
+  2027.11). Home Assistant 2026.10 keeps working with the old names.
+- The room devices of the mould risk sensors and the room groups hang under the instance by `via_device_id` too
+  (the old `via_device` stops in 2027.8), like the room thermostats already did.
+
 ## 0.71.3 – 2026-11-17
 
 - Air conditioner helping the house: when the help starts or ends, the slow correction (integral) starts again from

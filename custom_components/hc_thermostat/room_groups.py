@@ -66,7 +66,7 @@ class _RoomGroup(CoordinatorEntity):
 
     def __init__(self, coordinator, spec, kind: str, domain: str) -> None:
         super().__init__(coordinator)
-        from .climate import room_title, room_unique_id
+        from .climate import room_title, room_unique_id, via_for
         entry = coordinator.config_entry
         hass = coordinator.hass
         lang = "hu" if str(getattr(getattr(hass, "config", None), "language", "") or "").startswith("hu") else "en"
@@ -86,7 +86,7 @@ class _RoomGroup(CoordinatorEntity):
         else:  # the room's device, as its climate makes it (whichever platform comes first)
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, room_unique_id(entry.entry_id, spec.key))}, name=f"{title} HC",
-                manufacturer="HC Thermostat", model="HC room", via_device=(DOMAIN, entry.entry_id))
+                manufacturer="HC Thermostat", model="HC room", **via_for(coordinator.hass, entry))  # 0.71.4
         self._attr_icon = {"temperature": "mdi:thermometer-lines", "presence": "mdi:account-group",
                            "window": "mdi:window-open-variant"}[kind]
 

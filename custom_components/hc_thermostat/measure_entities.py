@@ -170,7 +170,7 @@ class RoomMouldRisk(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator, spec, leading: bool) -> None:
         super().__init__(coordinator)
-        from .climate import room_title, room_unique_id
+        from .climate import room_title, room_unique_id, via_for
         entry, hass = coordinator.config_entry, coordinator.hass
         lang = "hu" if str(getattr(getattr(hass, "config", None), "language", "") or "").startswith("hu") else "en"
         title = room_title(hass, spec)
@@ -185,7 +185,7 @@ class RoomMouldRisk(CoordinatorEntity, SensorEntity):
         else:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, room_unique_id(entry.entry_id, spec.key))}, name=f"{title} HC",
-                manufacturer="HC Thermostat", model="HC room", via_device=(DOMAIN, entry.entry_id))
+                manufacturer="HC Thermostat", model="HC room", **via_for(hass, entry))  # 0.71.4
 
     @property
     def native_value(self):

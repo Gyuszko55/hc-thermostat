@@ -51,6 +51,16 @@ def _via(host_device: str | None, entry_id: str) -> dict:
     return {"via_device": (DOMAIN, entry_id)}
 
 
+def via_for(hass, entry) -> dict:
+    """0.71.4: the room device's parent for every platform (sensors and groups too, not only the climate)."""
+    return _via(_host_device_id(hass, entry), entry.entry_id)
+
+
+# 0.71.4: Home Assistant 2026.11 serves the climate temperatures as native_* (the old names warn, and stop in 2027.11);
+# 2026.10 knows only the old names. The class bodies below pick the names this Home Assistant knows.
+NATIVE_TEMPS = hasattr(ClimateEntity, "native_current_temperature")
+
+
 def room_title(hass, spec) -> str:
     """A room's display name: its name; a room without an area (named after an entity id) by that entity's name."""
     if spec.area or "." not in spec.name:
@@ -81,7 +91,10 @@ def _remove_old_rooms(hass, entry, keep: set[str]) -> None:
 
 class HcClimate(HcEntity, ClimateEntity):
     _attr_name = None
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    if NATIVE_TEMPS:
+        _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    else:
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_target_temperature_step = 0.5
     _attr_min_temp = 5.0
@@ -94,13 +107,18 @@ class HcClimate(HcEntity, ClimateEntity):
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "thermostat")
 
-    @property
-    def current_temperature(self) -> float | None:
+    def _room_temp(self) -> float | None:
         return self.coordinator.data.indoor
 
-    @property
-    def target_temperature(self) -> float:
+    def _target_temp(self) -> float:
         return self.coordinator.data.target
+
+    if NATIVE_TEMPS:
+        native_current_temperature = property(_room_temp)
+        native_target_temperature = property(_target_temp)
+    else:
+        current_temperature = property(_room_temp)
+        target_temperature = property(_target_temp)
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -255,7 +273,10 @@ class HcRoomClimate(CoordinatorEntity, ClimateEntity):
     _attr_has_entity_name = True
     _attr_name = None
     _attr_translation_key = "room"
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    if NATIVE_TEMPS:
+        _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    else:
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.5
     _attr_min_temp = 5.0
     _attr_max_temp = 30.0
@@ -288,16 +309,21 @@ class HcRoomClimate(CoordinatorEntity, ClimateEntity):
     def _spec(self):
         return next((s for s in self.coordinator.other_rooms() if s.key == self._key), None)
 
-    @property
-    def current_temperature(self) -> float | None:
+    def _room_temp(self) -> float | None:
         return self._state.get("temperature")
 
-    @property
-    def target_temperature(self) -> float | None:
+    def _target_temp(self) -> float | None:
         st = self._state
         if st:
             return st.get("target")
         return self.coordinator.data.target if self.coordinator.data is not None else None
+
+    if NATIVE_TEMPS:
+        native_current_temperature = property(_room_temp)
+        native_target_temperature = property(_target_temp)
+    else:
+        current_temperature = property(_room_temp)
+        target_temperature = property(_target_temp)
 
     @property
     def hvac_mode(self) -> HVACMode:
