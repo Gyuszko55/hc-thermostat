@@ -68,3 +68,24 @@ def test_form_and_texts():
         sec = json.loads((BASE / "translations" / f"{lang}.json").read_text())["options"]["step"]["settings"]["sections"]["regulation"]
         for k in ("assist_delay_s", "assist_max_setpoint"):
             assert sec["data"][k] and len(sec["data_description"][k]) > 60
+
+
+def test_713_the_integral_starts_over_when_help_starts_and_ends():
+    sup = _sup()
+    for m in range(0, 120):
+        _step(sup, m, 22.5, room=19.0)  # helping, the room is cold: the integral grows
+    assert sup.ac.integral > 0.3
+    d = _step(sup, 121, None, room=19.0)  # the door closed: back to its own 18 °C
+    assert d.details["aim"] == 18.0 and d.details["integral"] < 0.05
+    sup.ac.integral = -1.0
+    for m in range(122, 140):
+        d = _step(sup, m, 22.5, room=19.0)
+    assert d.details["assist"] and sup.ac.integral > -0.5  # zeroed when help started again
+
+
+def test_713_no_reset_while_the_aim_stays():
+    sup = _sup()
+    _step(sup, 0, None, room=17.5)
+    sup.ac.integral = 0.8
+    d = _step(sup, 1, None, room=17.5)  # still its own target: the integral keeps growing, not zeroed
+    assert d.details["integral"] >= 0.8

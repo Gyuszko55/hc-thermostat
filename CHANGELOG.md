@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.71.3 – 2026-11-17
+
+- Air conditioner helping the house: when the help starts or ends, the slow correction (integral) starts again from
+  zero. Before, what was gathered while helping stayed after the door was closed and kept the unit above the room's
+  own target for hours (a terrace unit stayed at 21 °C for an 18 °C target).
+
 ## 0.71.2 – 2026-11-17
 - **Heat quantities in MJ too.** Wherever the panel, the overview, the hydraulic diagram and the AI analysis show a
   heat or energy quantity in kWh, its MJ (1 kWh = 3.6 MJ) is beside it – e.g. *14.5 kWh (52 MJ)* – so it compares

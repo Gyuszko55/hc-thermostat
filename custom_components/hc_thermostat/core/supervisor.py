@@ -42,6 +42,7 @@ class Supervisor:
         self.shadow_regulator = make_regulator(cfg, self.shadow_kind)
         self.ac = AcController(cfg.ac_ki_per_hour, cfg.ac_min_change_s)
         self._assist_since = None  # 0.70.1: since when the house's door is open (assist waits)
+        self._assisting = None  # 0.71.3: was the last heat step helping the house (None: not known yet)
         self.shadow_pwm = Pwm(cfg)
         self.shadow_stats: dict = {"day": None, "shadow_on_s": 0.0, "live_on_s": 0.0, "yesterday": None}
         self.pwm = Pwm(cfg)
@@ -966,6 +967,13 @@ class Supervisor:
                 aim = inputs.assist_target  # cheaper than the boiler and the door is open: help the house
                 if cfg.assist_max_setpoint > 0:
                     hi = max(lo, min(hi, cfg.assist_max_setpoint))  # 0.70.1: and not past this on the unit
+            # 0.71.3: the integral gathered for one aim does not belong to the other – when help for the house
+            # starts or ends, it starts again from zero (11-17: +1 °C left from the morning's help kept the terrace
+            # unit at 21 °C for its own 18 °C target)
+            assisting = aim != target
+            if getattr(self, "_assisting", None) is not None and assisting != self._assisting:
+                self.ac.integral = 0.0
+            self._assisting = assisting
         else:
             # Off (window, switched off), frost, lost sensor, restart: the plain command, nothing moved – but a
             # heat setpoint must fit the unit (frost asks for 8 °C, most units start at 16 °C and refuse less).
