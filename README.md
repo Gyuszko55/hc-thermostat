@@ -746,3 +746,14 @@ warming up at full power for up to 5 h. A setting given by hand still wins.
 ## Version history
 
 What changed in which version: [CHANGELOG.md](CHANGELOG.md).
+
+## Authors and license
+
+- **Gyuszko55** – author
+- **Krissz55555** (Krisztián) – co-author: the buffer house, the heat pump coordination and the mixing circuits were
+  shaped by their system, their tests and their requests
+
+HC Thermostat is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0-only) from 0.71.1 on – see
+[LICENSE](LICENSE) and [NOTICE](NOTICE). You may use, change and share it; a changed version you give to others or
+run for others over a network must be shared under the same license, with its source. Releases up to 0.71.0 keep
+the MIT License they were published under.

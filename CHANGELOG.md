@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.71.1 – 2026-11-17
+- **License: AGPL-3.0** (AGPL-3.0-only) from this version on, instead of MIT – see LICENSE and NOTICE. Releases up
+  to 0.71.0 keep the MIT License they were published under.
+- **Co-author: Krissz55555** – in the manifest's code owners, the copyright notice and the README.
+- No change in the code's behaviour.
+
 ## 0.71.0 – 2026-11-17
 - **AI analysis of the house** (`ai_task_entity`, `ai_report_time` 06:30; Settings → Functions of the house's
   leading instance). HC first works out yesterday's numbers for every member of the house from the recorder: room

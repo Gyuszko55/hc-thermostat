@@ -759,3 +759,14 @@ elsőbbséget élvez.
 ## Verziótörténet
 
 Mi melyik verzióban változott: [CHANGELOG.md](CHANGELOG.md).
+
+## Szerzők és licenc
+
+- **Gyuszko55** – szerző
+- **Krissz55555** (Krisztián) – társszerző: a pufferes ház, a hőszivattyú-koordináció és a keverőkörök az ő
+  rendszere, tesztjei és kérései nyomán alakultak
+
+A HC Thermostat a 0.71.1-es verziótól a **GNU Affero General Public License v3.0** (AGPL-3.0-only) alatt érhető el –
+lásd [LICENSE](LICENSE) és [NOTICE](NOTICE). Szabadon használhatod, módosíthatod és továbbadhatod; a módosított
+változatot, ha másnak továbbadod vagy hálózaton másoknak futtatod, ugyanezzel a licenccel, a forráskóddal együtt kell
+elérhetővé tenned. A 0.71.0-ig kiadott verziók megtartják az MIT licencet, amellyel megjelentek.
