@@ -357,8 +357,8 @@ def check_rooms(lang: str, rooms: list[dict], leading: str | None, confirm: bool
         if r["name"].casefold() in seen_names:
             return problem_text(lang, "room_name_taken", label)
         seen_names.add(r["name"].casefold())
-        if not r.get("sensors") and not r.get("trvs") and r["key"] != leading:
-            return problem_text(lang, "room_empty", label)
+        # 0.72.1: a room without a thermometer or a head is allowed – a hallway on the house drawing, heated through
+        # the boiler, nothing measured there (it was refused, and then no room of the instance could be saved)
         if r.get("heated") is False and r.get("trvs") and r["key"] != leading:
             return problem_text(lang, "unheated_trv", label)
         for h in r.get("trvs") or []:

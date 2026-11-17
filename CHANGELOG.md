@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.72.1 – 2026-11-17
+
+- The rooms form saves a room without a thermometer or a TRV head (a hallway on the house drawing, heated through the
+  boiler, nothing measured there). It was refused – "a room needs a thermometer or a TRV head" – so once such a room
+  was in the list, no change to any room of the instance could be saved.
+
 ## 0.72.0 – 2026-11-17
 
 - Weekly program for the instance and for each room with its own TRV heads: on the HC info panel a 7-day grid where
