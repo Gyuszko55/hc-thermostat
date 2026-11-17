@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.71.0 – 2026-11-17
+- **AI analysis of the house** (`ai_task_entity`, `ai_report_time` 06:30; Settings → Functions of the house's
+  leading instance). HC first works out yesterday's numbers for every member of the house from the recorder: room
+  temperature mean / min / max against the target, hours more than 0.3 °C below and 0.5 °C above, heating hours and
+  starts, hours per mode and per decision, the plant's states (tank charge, circuit flow, heat pump runs), the outdoor
+  day, energy and cost (a fuel / energy meter or a power meter when given, else heating hours × the rated power –
+  marked measured / estimated) and the open HC warnings. The user's own AI Task entity turns them into a score, a
+  summary, observations and things to do – advice only, HC changes nothing by it. Without an AI Task entity the
+  numbers alone are made on request.
+- **On the house drawing an AI button** (score and the number of things to do, coloured) opens the report: summary,
+  observations, things to do, HC's numbers per instance, *Analyse now*. Also the *AI analysis* sensor (the score; the
+  texts in its attributes), the *AI analysis now* button and the `hc_thermostat_ai_report` event (for a notification).
+  The report is kept over a restart.
+
 ## 0.70.1 – 2026-11-17
 - **An AC helping the house waits for a lasting open door and stays under a limit** (`assist_delay_s` 10 min,
   `assist_max_setpoint` 22 °C; 0 = the earlier behaviour). A kitchen door left open for 40 minutes made the terrace AC

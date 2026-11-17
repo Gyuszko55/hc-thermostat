@@ -137,6 +137,11 @@ exists (add the first one under Settings → Devices & services).
 - **External thermostat:** sets the target and mode of any `climate` entity.
 - **Supervision:** presence and night schedule, open window pause, summer rest, frost protection, lost sensor fallback, restart protection, fault detection, optional boost.
 - **Decision log** in English and Hungarian.
+- **AI analysis of the house** (optional, your own AI Task entity – Settings → Functions): every morning HC works out
+  yesterday's numbers for the whole house from the recorder (room temperatures, hours below target and overheated,
+  heating hours and starts, decisions, energy and cost – measured or estimated), and the AI writes a score, a summary,
+  observations and things to do from them. An **AI** button on the house drawing opens the report; *Analyse now* makes
+  it at once. Advice only: nothing is changed by it. Also a sensor, a button and the `hc_thermostat_ai_report` event.
 - **Control matrix:** heat source and hydraulics give a recommended control. These are engineering defaults, not an installation design.
 
 ### Decision chain

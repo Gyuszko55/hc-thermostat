@@ -563,7 +563,24 @@ def ws_info(hass: HomeAssistant, connection, msg) -> None:
             result["via_room"] = key
     if via_room:
         result["via_room"] = via_room
+    ai = getattr(entry.runtime_data, "ai", None)  # 0.71.0: the house's AI analysis (the leading instance keeps it)
+    if ai is not None:
+        result["ai_report"] = jsonable({**(ai.report or {}), "configured": bool(ai.ai_entity), "running": ai.running})
     connection.send_result(msg["id"], result)
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/ai_report_run", vol.Required("entry_id"): str})
+@websocket_api.async_response
+async def ws_ai_report_run(hass: HomeAssistant, connection, msg) -> None:
+    """0.71.0: make the house's AI analysis now (the panel's button)."""
+    entry = next((e for e in _loaded(hass) if e.entry_id == msg["entry_id"]), None)
+    ai = getattr(getattr(entry, "runtime_data", None), "ai", None)
+    if ai is None:
+        connection.send_error(msg["id"], "not_found", "no AI analysis for this instance")
+        return
+    report = await ai.async_run()
+    connection.send_result(msg["id"], jsonable({**report, "configured": bool(ai.ai_entity), "running": False}))
 
 
 # --- 0.64.0: the heat pump target chart ---------------------------------------------------------------------------------

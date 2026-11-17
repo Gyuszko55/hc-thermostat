@@ -11,7 +11,8 @@ from .entity import HcEntity
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     c = entry.runtime_data
-    async_add_entities([HcResetLearning(c), HcResetHouse(c)])
+    extra = [HcAiReportNow(c)] if getattr(c, "ai", None) is not None and c.ai.ai_entity else []  # 0.71.0
+    async_add_entities([HcResetLearning(c), HcResetHouse(c), *extra])
 
 
 class HcResetLearning(HcEntity, ButtonEntity):
@@ -43,3 +44,17 @@ class HcResetHouse(HcEntity, ButtonEntity):
         sup.tau.reset()
         await self.coordinator.async_save()
         await self.coordinator.async_request_refresh()
+
+
+class HcAiReportNow(HcEntity, ButtonEntity):
+    """0.71.0: make the house's AI analysis of yesterday now."""
+
+    _attr_icon = "mdi:robot-outline"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "ai_report_now")
+
+    async def async_press(self) -> None:
+        await self.coordinator.ai.async_run()
+        self.coordinator.async_update_listeners()
+

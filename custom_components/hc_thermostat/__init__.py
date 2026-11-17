@@ -78,6 +78,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(coordinator.async_track_target_source())
     entry.async_on_unload(coordinator.async_track_managed())  # 0.42.0: two-way with the managed thermostat
     entry.async_on_unload(coordinator.async_track_room_presence())  # 0.43.0: room presence sources
+    # 0.71.0: the house's AI analysis – kept over a restart, made daily when an AI Task entity is given
+    from .ai_report import AiReporter
+    coordinator.ai = AiReporter(hass, entry)
+    await coordinator.ai.async_load()
+    if coordinator.ai.ai_entity:
+        from homeassistant.helpers.event import async_track_time_change
+        hour, minute, second = coordinator.ai.daily_time()
+
+        async def _daily(_now) -> None:
+            await coordinator.ai.async_run()
+            coordinator.async_update_listeners()
+
+        entry.async_on_unload(async_track_time_change(hass, _daily, hour=hour, minute=minute, second=second))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     entry.async_on_unload(async_track_renames(hass, entry))  # 0.51.1: a renamed entity is followed

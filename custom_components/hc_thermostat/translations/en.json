@@ -735,7 +735,9 @@
               "season_off_above": "Heating season ends above",
               "season_on_below": "Heating season starts below",
               "presence_home_states": "Presence: values that mean home",
-              "presence_vacation_states": "Presence: values that mean vacation"
+              "presence_vacation_states": "Presence: values that mean vacation",
+              "ai_task_entity": "AI analysis: AI Task entity",
+              "ai_report_time": "AI analysis daily at"
             },
             "data_description": {
               "adopt_manual": "External control: a target set on the managed thermostat itself (not by HC) becomes the manual target until the next scheduled change; if someone switches it off, HC leaves it off (frost protection excepted) until someone switches it on again. Off: HC writes its own target and mode as before.",
@@ -748,7 +750,9 @@
               "season_enabled": "No heating while the daily outdoor mean is above the summer limit; frost protection stays.",
               "boost_enabled": "With a large deficit it heats without pauses and stops in time, counting the learned after-heat.",
               "learning_enabled": "Learns from the house; the learned values can be reset with the reset button.",
-              "shadow_regulator": "For comparison only – it does not change the decision."
+              "shadow_regulator": "For comparison only – it does not change the decision.",
+              "ai_task_entity": "When given (a Google Gemini or OpenAI AI Task, for example), HC analyses the house's heating of the previous day every morning: HC works the numbers out from the recorder (temperatures, hours below target and overheated, heating time, starts, decisions, energy and cost), the AI writes a summary, observations and things to do from them. It only advises and changes nothing. The AI button on the house drawing opens it. Empty: no daily analysis.",
+              "ai_report_time": "The previous day's analysis is made at this time (06:30 by default)."
             }
           },
           "protection": {
@@ -1966,6 +1970,9 @@
       },
       "hp_raw": {
         "name": "Heat pump flow target (raw)"
+      },
+      "ai_report": {
+        "name": "AI analysis"
       }
     },
     "binary_sensor": {
@@ -2038,6 +2045,9 @@
       },
       "reset_house_model": {
         "name": "Learn the house model again"
+      },
+      "ai_report_now": {
+        "name": "AI analysis now"
       }
     },
     "switch": {

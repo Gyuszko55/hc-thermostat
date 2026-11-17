@@ -139,6 +139,11 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 - **Külső termosztát:** bármely `climate` entitás célhőfokát és üzemmódját állítja.
 - **Felügyelet:** jelenlét és éjszakai ütemezés, szünet nyitott ablaknál, nyári pihenő, fagyvédelem, tartalék üzem érzékelő-kiesésnél, újraindítás-védelem, hibafigyelés, opcionális felfűtés.
 - **Döntésnapló** magyarul és angolul.
+- **A ház AI-elemzése** (nem kötelező, a saját AI Task entitásoddal – Beállítások → Funkciók): a HC minden reggel
+  kiszámolja a naplóból az egész ház előző napját (helyiség-hőmérsékletek, cél alatti és túlfűtött órák, fűtési idő és
+  indítások, döntések, energia és költség – mért vagy becsült), az AI ezekből pontszámot, összefoglalót, megfigyeléseket
+  és teendőket ír. A házrajzon az **AI** gombra nyílik meg a jelentés; az *Elemzés most* azonnal elkészíti. Csak javasol,
+  semmit nem állít át. Szenzor, gomb és `hc_thermostat_ai_report` esemény is jár hozzá.
 - **Vezérlési mátrix:** a hőtermelőből és a hidraulikából javaslatot ad. Ez szakmai alapbeállítás, nem helyettesíti a gépész méretezését.
 
 ### Döntési sor

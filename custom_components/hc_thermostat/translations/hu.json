@@ -735,7 +735,9 @@
               "season_off_above": "Fűtési idény vége e fölött",
               "season_on_below": "Fűtési idény kezdete e alatt",
               "presence_home_states": "Jelenlét: otthon jelentő értékek",
-              "presence_vacation_states": "Jelenlét: szabadság jelentő értékek"
+              "presence_vacation_states": "Jelenlét: szabadság jelentő értékek",
+              "ai_task_entity": "AI-elemzés: AI Task entitás",
+              "ai_report_time": "AI-elemzés ideje naponta"
             },
             "data_description": {
               "adopt_manual": "Külső vezérlés: a kezelt termosztáton (nem a HC által) beállított cél kézi cél lesz a következő ütemezett váltásig; ha valaki kikapcsolja, a HC kikapcsolva hagyja (a fagyvédelem kivétel), amíg valaki vissza nem kapcsolja. Kikapcsolva: a HC a régi módon írja a saját célját és üzemmódját.",
@@ -748,7 +750,9 @@
               "season_enabled": "Ha a kinti napi átlag a nyári határ fölött van, nem fűt; a fagyvédelem marad.",
               "boost_enabled": "Nagy hiánynál folyamatosan fűt, és időben leáll, a tanult utómelegedéssel számolva.",
               "learning_enabled": "A ház viselkedéséből tanul; a tanult értékek a Tanult értékek visszaállítása gombbal törölhetők.",
-              "shadow_regulator": "Csak összehasonlításhoz – a döntést nem befolyásolja."
+              "shadow_regulator": "Csak összehasonlításhoz – a döntést nem befolyásolja.",
+              "ai_task_entity": "Ha megadod (például Google Gemini vagy OpenAI AI Task), a HC minden reggel elemzi a ház előző napi fűtését: a számokat ő számolja a naplóból (hőmérsékletek, cél alatti és túlfűtött órák, fűtési idő, indítások, döntések, energia és költség), az AI ezekből összefoglalót, megfigyeléseket és teendőket ír. Csak javasol, semmit nem állít át. A házrajzon az AI gombra nyílik meg. Üresen nincs napi elemzés.",
+              "ai_report_time": "Ekkor készül el az előző nap elemzése (alapból 06:30)."
             }
           },
           "protection": {
@@ -1966,6 +1970,9 @@
       },
       "hp_raw": {
         "name": "Hőszivattyú előremenő cél (nyers)"
+      },
+      "ai_report": {
+        "name": "AI-elemzés"
       }
     },
     "binary_sensor": {
@@ -2038,6 +2045,9 @@
       },
       "reset_house_model": {
         "name": "Ház-modell újratanulása"
+      },
+      "ai_report_now": {
+        "name": "AI-elemzés most"
       }
     },
     "switch": {

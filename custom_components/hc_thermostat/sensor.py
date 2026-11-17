@@ -34,6 +34,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcHpDecision(c), HcHpTarget(c), HcHpRaw(c)])
         return
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
+    if getattr(c, "ai", None) is not None and c.ai.ai_entity:
+        entities.append(HcAiReport(c))  # 0.71.0
     if c.cfg.control not in ("external", "ac"):
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
         if c.cfg.control in ("tpi", "pid", "onoff"):
@@ -672,4 +674,27 @@ class HcRooms(HcEntity, SensorEntity):
                 "rooms": {a.room: {"advice": a.advice, "deviation": a.deviation, "hours": a.hours,
                                    "trv": trv_rooms.get(a.room, [])}
                           for a in c.room_advice}}
+
+
+class HcAiReport(HcEntity, SensorEntity):
+    """0.71.0: the house's AI analysis of yesterday – the score; the summary, observations and things to do in the
+    attributes (only advice: nothing is changed by it)."""
+
+    _attr_icon = "mdi:robot-outline"
+    _unrecorded_attributes = frozenset({"observations", "todos", "summary"})
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "ai_report")
+
+    @property
+    def native_value(self):
+        ai = (self.coordinator.ai.report or {}).get("ai") or {}
+        return ai.get("score")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        r = self.coordinator.ai.report or {}
+        ai = r.get("ai") or {}
+        return {"day": r.get("day"), "made": r.get("made"), "summary": ai.get("summary"),
+                "observations": ai.get("observations") or [], "todos": ai.get("todos") or [], "error": r.get("error")}
 

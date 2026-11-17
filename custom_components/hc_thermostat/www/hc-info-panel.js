@@ -1315,19 +1315,24 @@ class HcInfoPanel extends HTMLElement {
       let pic = dr.house ? `<div class="houseslot"></div>` : `<svg viewBox="0 0 1000 700">${dr.svg}${this._markSvg()}</svg>`, dcards = dr.cards;
       if (view === "overview") { pic = `<div class="ovwrap">${OV.renderOverview(all, { lang: L2 })}</div>`; dcards = ""; }
       else if (view === "schematic") { pic = `<div class="schwrap">${OV.renderSchematic(all, { lang: L2 })}</div>`; dcards = ""; }
-      main = `${head}<div class="grid"><div class="draw">${tabs}<div class="stage">${pic}<div class="cards">${dcards}</div></div></div>
+      const aiHost = this._hd || d;  // 0.71.0: the house's AI analysis – a button on the drawing, the report on a tap
+      const aiBtn = view === "house" && aiHost.ai_report ? this._aiButton(aiHost.ai_report) : "";
+      main = `${head}<div class="grid"><div class="draw">${tabs}<div class="stage">${aiBtn}${pic}<div class="cards">${dcards}</div></div></div>
         <div class="side">${side}</div></div>`;
     } else main = `<div class="empty">${esc(this._err || "…")}</div>`;
 
     const scroll = this.shadowRoot.querySelector(".side")?.scrollTop || 0;
+    const aiScroll = this.shadowRoot.querySelector(".aibox")?.scrollTop || 0;  // 0.71.0: the refresh keeps it
     const pickScroll = this.shadowRoot.querySelector(".picks")?.scrollLeft || 0;
     this.shadowRoot.innerHTML = `<style>${CSS}${OV ? OV.OV_CSS : ""}</style>
       <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1><div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
-      <div class="main">${main}</div>`;
+      <div class="main">${main}</div>${this._aiOpen && (this._hd || this._d)?.ai_report ? this._aiModal((this._hd || this._d).ai_report) : ""}`;
     const slot = this.shadowRoot.querySelector(".houseslot");
     if (slot) { slot.appendChild(this._houseEl()); this._houseUpdate(); }  // one element kept across refreshes
     const side = this.shadowRoot.querySelector(".side");
     if (side) side.scrollTop = scroll;
+    const aiBox = this.shadowRoot.querySelector(".aibox");
+    if (aiBox) aiBox.scrollTop = aiScroll;
     const picks = this.shadowRoot.querySelector(".picks"), selPick = this.shadowRoot.querySelector(".pick.sel");
     if (picks) picks.scrollLeft = pickScroll;  // the refresh keeps the picker where it was
     if (this._scrollPick && picks && selPick) {  // opened by a URL: show the chosen instance (or TRV head)
@@ -1342,6 +1347,67 @@ class HcInfoPanel extends HTMLElement {
     }));
     this.shadowRoot.querySelectorAll(".ovwrap [data-key], .schwrap [data-key]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); this._pickPart(b.dataset.key); }));
     this.shadowRoot.querySelectorAll("details[data-sec]").forEach((el) => el.addEventListener("toggle", () => { this._open[el.dataset.sec] = el.open; }));
+    // 0.71.0: the AI analysis – open / close / make now
+    this.shadowRoot.querySelectorAll("[data-ai]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const act = b.dataset.ai;
+      if (act === "open") { this._aiOpen = true; this._render(); }
+      else if (act === "close") { if (ev.target === b) { this._aiOpen = false; this._render(); } }
+      else if (act === "run") this._aiRun();
+    }));
+  }
+
+  // --- 0.71.0: the house's AI analysis ------------------------------------------------------------------------------
+  _aiButton(r) {
+    const hu = this._hu, ai = r.ai || {}, todos = (ai.todos || []).length;
+    const label = ai.score != null ? `AI ${Math.round(ai.score)}/10${todos ? ` · ${todos} ${hu ? "teendő" : todos === 1 ? "to do" : "to do"}` : ""}`
+      : r.day ? (hu ? "AI – csak számok" : "AI – numbers only") : (hu ? "AI-elemzés" : "AI analysis");
+    const cls = ai.score == null ? "" : ai.score >= 8 ? "good" : ai.score >= 5 ? "mid" : "bad";
+    return `<button class="aibtn ${cls}" data-ai="open" title="${esc(hu ? "A ház előző napi fűtésének AI-elemzése" : "AI analysis of the house's heating yesterday")}"><ha-icon icon="mdi:robot-outline"></ha-icon>${esc(label)}</button>`;
+  }
+
+  _aiModal(r) {
+    const hu = this._hu, ai = r.ai || {}, f = r.facts || {};
+    const list = (xs) => (xs && xs.length ? `<ul>${xs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<div class="muted">${esc(hu ? "nincs" : "none")}</div>`);
+    const n = (v, d = 1) => (v == null ? "–" : this._num(v, d));
+    const rows = (f.members || []).map((m) => {
+      const th = m.thermostat || {}, room = th.room || {}, tg = th.target || {}, e = m.energy || {};
+      const energy = e.fuel != null ? `${n(e.fuel, 2)} ${e.unit || (hu ? "egység" : "units")}${e.heat_kwh != null ? ` (${n(e.heat_kwh)} kWh)` : ""}`
+        : e.electric_kwh != null ? `${n(e.electric_kwh)} kWh` : "–";
+      return `<tr><td>${esc(m.name)}</td><td>${room.mean != null ? `${n(room.mean)} (${n(room.min)}–${n(room.max)})` : "–"}</td>
+        <td>${tg.mean != null ? n(tg.mean) : "–"}</td><td>${th.cold_h != null ? n(th.cold_h) : "–"} / ${th.overheated_h != null ? n(th.overheated_h) : "–"}</td>
+        <td>${th.heating ? `${n(th.heating.hours)} h · ${th.heating.starts}×` : m.hp_enable ? `${n(m.hp_enable.hours)} h · ${m.hp_enable.starts}×` : "–"}</td>
+        <td>${esc(energy)}${e.how ? ` <small>(${esc(hu ? (e.how === "measured" ? "mért" : "becsült") : e.how)})</small>` : ""}${e.cost != null ? `<br>${n(e.cost, 0)} ${esc(e.currency || "")}` : ""}</td></tr>`;
+    }).join("");
+    const busy = this._aiBusy || r.running;
+    return `<div class="aimodal" data-ai="close"><div class="aibox">
+      <div class="aihead"><ha-icon icon="mdi:robot-outline"></ha-icon><b>${esc(hu ? "AI-elemzés" : "AI analysis")} – ${esc(f.house || "")}</b>
+        <span class="muted">${esc(r.day || "")}</span><button class="aix" data-ai="close"><ha-icon icon="mdi:close" style="pointer-events:none"></ha-icon></button></div>
+      ${!r.configured ? `<div class="aiwarn">${esc(hu ? "Nincs AI Task entitás megadva (Beállítások → Funkciók): csak a számok készülnek el, és nincs napi elemzés." : "No AI Task entity is set (Settings → Functions): only the numbers are made, and there is no daily analysis.")}</div>` : ""}
+      ${r.error ? `<div class="aiwarn">${esc(hu ? "Az AI nem válaszolt: " : "The AI did not answer: ")}${esc(r.error)}</div>` : ""}
+      ${ai.score != null ? `<div class="aiscore">${esc(hu ? "Pontszám" : "Score")}: <b>${Math.round(ai.score)}/10</b></div>` : ""}
+      ${ai.summary ? `<p>${esc(ai.summary)}</p>` : ""}
+      ${r.ai ? `<h4>${esc(hu ? "Megfigyelések" : "Observations")}</h4>${list(ai.observations)}<h4>${esc(hu ? "Teendők (csak javaslat, a HC semmit nem állít át)" : "Things to do (advice only – HC changes nothing)")}</h4>${list(ai.todos)}` : ""}
+      ${f.members ? `<h4>${esc(hu ? "A HC számai (a naplóból)" : "HC's numbers (from the recorder)")}</h4>
+        ${f.outdoor ? `<div class="muted">${esc(hu ? "Kint" : "Outdoor")}: ${n(f.outdoor.mean)} °C (${n(f.outdoor.min)}–${n(f.outdoor.max)})</div>` : ""}
+        <div class="aitab"><table><tr><th>${esc(hu ? "Példány" : "Instance")}</th><th>${esc(hu ? "Bent °C" : "Room °C")}</th><th>${esc(hu ? "Cél" : "Target")}</th>
+        <th>${esc(hu ? "Hideg / túlfűtött h" : "Cold / overheated h")}</th><th>${esc(hu ? "Fűtés" : "Heating")}</th><th>${esc(hu ? "Energia · költség" : "Energy · cost")}</th></tr>${rows}</table></div>` : ""}
+      <div class="aifoot"><span class="muted">${r.made ? esc(`${hu ? "Készült" : "Made"}: ${this._val(r.made)}`) : ""}</span>
+        <button class="airun" data-ai="run" ${busy ? "disabled" : ""}>${esc(busy ? (hu ? "Készül…" : "Working…") : (hu ? "Elemzés most" : "Analyse now"))}</button></div>
+    </div></div>`;
+  }
+
+  async _aiRun() {
+    const host = this._hd || this._d;
+    if (!host || this._aiBusy) return;
+    this._aiBusy = true; this._render();
+    try {
+      host.ai_report = await this._hass.callWS({ type: "hc_thermostat/ai_report_run", entry_id: host.entry_id });
+    } catch (e) {
+      host.ai_report = { ...(host.ai_report || {}), error: String(e?.message || e) };
+    } finally {
+      this._aiBusy = false; this._render();
+    }
   }
 }
 
@@ -1379,6 +1445,16 @@ table.mx tr.off td { opacity:.38; }
 /* the drawing alone on top (numbered parts), the numbered data cards listed under it – nothing overlaps */
 .draw { position:relative; min-height:0; background:var(--card-background-color); border-radius:16px; overflow:auto; padding:10px 12px; box-sizing:border-box; }
 .stage { position:relative; }
+.aibtn { position:absolute; top:10px; left:96px; z-index:3; display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:18px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); font:inherit; font-weight:600; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.2); }
+.aibtn ha-icon { --mdc-icon-size:18px; } .aibtn.good { border-color:#2e7d32; color:#2e7d32; } .aibtn.mid { border-color:#f9a825; color:#e65100; } .aibtn.bad { border-color:#c62828; color:#c62828; }
+.aimodal { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+.aibox { background:var(--card-background-color); color:var(--primary-text-color); border-radius:12px; max-width:760px; width:100%; max-height:88vh; overflow:auto; padding:16px 18px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+.aihead { display:flex; align-items:center; gap:8px; margin-bottom:8px; } .aihead b { flex:1; } .aix { border:none; background:none; color:inherit; font-size:18px; cursor:pointer; }
+.aibox h4 { margin:14px 0 4px; } .aibox ul { margin:0; padding-left:20px; } .aibox li { margin:3px 0; }
+.aiscore { font-size:1.05em; margin:4px 0 6px; } .aiwarn { background:color-mix(in srgb, #f9a825 18%, transparent); border-radius:6px; padding:6px 10px; margin:6px 0; }
+.aitab { overflow-x:auto; } .aitab table { border-collapse:collapse; width:100%; font-size:.85em; } .aitab th, .aitab td { border-bottom:1px solid var(--divider-color); padding:4px 6px; text-align:left; vertical-align:top; }
+.aifoot { display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:8px; }
+.airun { padding:6px 14px; border-radius:16px; border:none; background:var(--primary-color); color:var(--text-primary-color, #fff); font:inherit; cursor:pointer; } .airun[disabled] { opacity:.6; cursor:default; }
 .houseslot { display:block; width:100%; }
 .houseslot hc-house-view { display:block; width:100%; }
 .card.flash, details.sec.flash { outline:2px solid var(--primary-color); outline-offset:2px; transition:outline-color .3s; }
