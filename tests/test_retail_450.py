@@ -369,7 +369,7 @@ def test_big_attributes_are_not_recorded():
 
 def test_info_commands_are_admin_only():
     src = (PKG / "info.py").read_text()
-    assert src.count("@websocket_api.require_admin") == 4  # 0.64.0: + hp_history; 0.71.0: + ai_report_run
+    assert src.count("@websocket_api.require_admin") == 5  # 0.64.0: + hp_history; 0.71.0: + ai_report_run; 0.72.0: + week_set
 
 
 # --- 17. boiler health without known power levels ---------------------------------------------------------------

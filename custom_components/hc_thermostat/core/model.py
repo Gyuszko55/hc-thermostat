@@ -120,6 +120,8 @@ class HcConfig:
     night_end: str = "06:00"
     night_start_weekend: str = ""  # 0.67.0: the nights ending on Saturday / Sunday morning ("" = as on weekdays)
     night_end_weekend: str = ""
+    # 0.72.0: the weekly program (core/week.py, stored form); set, it takes the place of the night window above
+    week_program: Any = None
     frost_temp: float = 7.0
     frost_hysteresis: float = 0.5
     # TPI

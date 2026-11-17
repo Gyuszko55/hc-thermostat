@@ -10,6 +10,7 @@ from dataclasses import replace
 from datetime import datetime, time, timedelta
 
 from . import schedule  # 0.67.0
+from . import week  # 0.72.0
 from .cooling import DewGuard
 from .fancoil import FanCoil
 from .storage import Discharge, StorageCharger, charge_fraction
@@ -67,6 +68,7 @@ class Supervisor:
         self.heat_need = HeatNeedEstimator(cfg.house_loss_w_k / 1000, cfg.house_gains_kw)
         self.tau = TauEstimator(cfg.house_tau_h, cfg.tau_min_quiet_h, cfg.tau_settle_min)  # 0.50.0
         self._early: dict | None = None  # 0.50.0: the optimal start running (until the night end)
+        self.week = week.parse(cfg.week_program)  # 0.72.0: the weekly program (None: the night window)
         self.manual_target: float | None = None
         self.preset: str | None = None
         self.preset_until: datetime | None = None  # a preset chosen by hand ends here...
@@ -381,7 +383,20 @@ class Supervisor:
         return cfg.night_start, cfg.night_end, cfg.night_start_weekend or None, cfg.night_end_weekend or None
 
     def _night_end_at(self, now: datetime) -> datetime | None:
+        if self.week:  # 0.72.0: the end of the program's sleep level
+            return week.level_end(self.week, now) if week.level_at(self.week, now) == "sleep" else None
         return schedule.night_end_at(now, *self._night())
+
+    def level_target(self, level: str) -> float:
+        """0.72.0: a weekly program level's temperature."""
+        cfg = self.cfg
+        return {"comfort": cfg.target_comfort, "sleep": cfg.target_night, "eco": cfg.target_eco}.get(level, cfg.target_home)
+
+    def _wake_target(self, until: datetime | None) -> float:
+        """The target after the night: home, or with a weekly program the level that follows the sleep."""
+        if self.week and until is not None:
+            return self.level_target(week.level_at(self.week, until + timedelta(seconds=1)))
+        return self.cfg.target_home
 
     def _optimal_start(self, inputs: Inputs, base: float) -> bool:
         """0.50.0: the night target would hold until the night end, but the room has to be at the home target by
@@ -395,11 +410,13 @@ class Supervisor:
                 return True
             self._early = None
         if not (cfg.optimal_start and cfg.control in ("tpi", "pid", "onoff")) or self.preset is not None \
-                or self.manual_target is not None or inputs.presence != Presence.HOME or not self._is_night(now) \
-                or cfg.target_home <= base:
+                or self.manual_target is not None or inputs.presence != Presence.HOME or not self._is_night(now):
+            return False
+        until = self._night_end_at(now)
+        goal = self._wake_target(until)  # 0.72.0: with a weekly program the level after the night
+        if goal <= base:
             return False
         indoor = inputs.indoor.fresh(cfg.sensor_max_age_s)
-        until = self._night_end_at(now)
         if indoor is None or until is None:
             return False
         left_min = (until - now).total_seconds() / 60
@@ -411,13 +428,13 @@ class Supervisor:
         if tau is not None and outdoor is not None:
             # the regulator holds the night target: the room does not fall much below it
             expected = max(predict(indoor, self.equilibrium(outdoor), tau, left_min / 60), min(indoor, base))
-        deficit = cfg.target_home - expected
+        deficit = goal - expected
         if deficit <= 0.1:
             return False
         needed = deficit * self.learner.minutes_per_degree(outdoor) + cfg.optimal_start_lag_min
         if needed < left_min:
             return False
-        self._early = {"since": now, "until": until, "needed_min": round(needed), "expected": round(expected, 2),
+        self._early = {"since": now, "until": until, "goal": goal, "needed_min": round(needed), "expected": round(expected, 2),
                        "tau_h": round(tau, 1) if tau else None}
         return True
 
@@ -452,10 +469,14 @@ class Supervisor:
         return self._next_boundary(inputs.now)
 
     def _next_boundary(self, now: datetime) -> datetime | None:
-        """The next night start or end (0.67.0: the weekend night's too)."""
+        """The next night start or end (0.67.0: the weekend night's too; 0.72.0: the weekly program's next change)."""
+        if self.week:
+            return week.next_change(self.week, now)
         return schedule.next_boundary(now, *self._night())
 
     def _is_night(self, now: datetime) -> bool:
+        if self.week:
+            return week.level_at(self.week, now) == "sleep"
         return schedule.is_night(now, *self._night())
 
     def active_preset(self, now: datetime) -> str:
@@ -466,6 +487,8 @@ class Supervisor:
             return "vacation"
         if self._last_presence == Presence.AWAY:
             return "away"
+        if self.week:  # 0.72.0: the weekly program's level
+            return week.level_at(self.week, now)
         return "sleep" if self._is_night(now) else "home"
 
     def _schedule_target(self, inputs: Inputs) -> float:
@@ -487,12 +510,14 @@ class Supervisor:
             return cfg.target_vacation
         if inputs.presence == Presence.AWAY:
             return cfg.target_away
+        if self.week:  # 0.72.0
+            return self.level_target(week.level_at(self.week, inputs.now))
         return cfg.target_night if self._is_night(inputs.now) else cfg.target_home
 
     def _target(self, inputs: Inputs) -> float:
         base = self._schedule_target(inputs)
         if self._optimal_start(inputs, base):
-            base = self.cfg.target_home
+            base = (self._early or {}).get("goal", self.cfg.target_home)
         if self._base_target is not None and base != self._base_target:
             self.manual_target = None  # A manual setting lasts until the next change.
         self._base_target = base

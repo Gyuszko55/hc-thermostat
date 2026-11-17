@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.72.0 – 2026-11-17
+
+- Weekly program for the instance and for each room with its own TRV heads: on the HC info panel a 7-day grid where
+  the levels Comfort, Home, Night and Eco are painted in 15-minute steps (copy Monday to Tue–Fri, Saturday to Sunday,
+  a template); the levels' temperatures can be changed in the same window. A program takes the place of the night
+  window (optimal start aims at the level after the night); removing it brings the night window back. Presence, a
+  preset and a manual target still win. Saved through a new admin websocket command `hc_thermostat/week_set`; the
+  instance reloads with it. A room that followed the house becomes an own-schedule room, starting from the house's
+  targets plus its offset; own rooms gain comfort and eco targets.
+
 ## 0.71.4 – 2026-11-17
 
 - No deprecation warnings on Home Assistant 2026.11: the thermostats give their temperatures by the new native

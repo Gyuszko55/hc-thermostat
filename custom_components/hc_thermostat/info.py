@@ -16,10 +16,12 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, PRESETS
 from .core.matrix import timing_advice
 from .core.messages import explain
+from .core import week  # 0.72.0
 from .units import finite, state_value_c
 
 
@@ -122,7 +124,10 @@ def _instance(hass, entry) -> dict:
                     "targets": {k: getattr(c.cfg, k) for k in ("target_home", "target_night", "target_away",
                                                                  "target_vacation", "target_comfort", "target_eco",
                                                                  "target_cool", "frost_temp")},
-                    "night": [c.cfg.night_start, c.cfg.night_end]},
+                    "night": [c.cfg.night_start, c.cfg.night_end],
+                    # 0.72.0: the weekly program (stored form) and its levels' temperatures
+                    "week": week.to_raw(sup.week), "week_level": week.level_at(sup.week, dt_util.now()) if sup.week else None,
+                    "levels": {lv: sup.level_target(lv) for lv in week.LEVELS}},
         "state": jsonable(sup.state()),
         "live": {"season_on": sup.season_on, "fault": sup.fault, "boost_forecast": None,
                  "floor_temper_on": sup.temper_on if c.cfg.floor_temper else None,
@@ -203,7 +208,9 @@ def _room_list(hass, entry) -> list[dict]:
                              "absent_min": s.absent_min, "setback": s.setback, "mode": s.mode, "offset": s.offset,
                              "demand_allowed": s.demand, "entity_id": ids.get(s.key), "heated": s.heated,
                              "own": {"home": s.target_home, "night": s.target_night, "away": s.target_away,
-                                     "night_start": s.night_start, "night_end": s.night_end} if s.mode == "own" else None,
+                                     "night_start": s.night_start, "night_end": s.night_end,
+                                     "comfort": s.target_comfort, "eco": s.target_eco,  # 0.72.0
+                                     "week": week.to_raw(s.week)} if s.mode == "own" else None,
                              "names": {e: _name(hass, e) for e in [*s.sensors, *s.trvs, *s.presence, *s.windows,
                                                                    *s.radiators, *s.humidity]}}))
     return out
@@ -581,6 +588,79 @@ async def ws_ai_report_run(hass: HomeAssistant, connection, msg) -> None:
         return
     report = await ai.async_run()
     connection.send_result(msg["id"], jsonable({**report, "configured": bool(ai.ai_entity), "running": False}))
+
+
+# --- 0.72.0: the weekly program, edited on the panel -------------------------------------------------------------------
+LEVEL_KEYS = {"comfort": "target_comfort", "home": "target_home", "sleep": "target_night", "eco": "target_eco"}
+
+
+def week_options(options: dict, conf: dict, room: str | None, program, targets: dict | None, house: dict) -> dict:
+    """The entry's new options with the weekly program (None: removed – the night window again) and the levels'
+    temperatures of the instance (room None) or of one heated TRV room (which becomes an own-schedule room)."""
+    from .core.room_model import FOLLOW, OWN, parse_rooms
+    parsed = week.parse(program) if program else None
+    raw = week.to_raw(parsed)
+    temps = {lv: round(min(30.0, max(5.0, float(v))), 1) for lv, v in (targets or {}).items()
+             if lv in LEVEL_KEYS and finite(v) is not None}
+    out = dict(options)
+    if room is None:
+        if raw:
+            out["week_program"] = raw
+        else:
+            out.pop("week_program", None)
+        out.update({LEVEL_KEYS[lv]: v for lv, v in temps.items()})
+        return out
+    rooms = [dict(r) if isinstance(r, dict) else r for r in (conf.get("rooms") or [])]
+    specs = parse_rooms(rooms)
+    # parse_rooms keeps the order and skips nothing that is a dict with a name: match by position
+    dicts = [r for r in rooms if isinstance(r, dict) and parse_rooms([r])]
+    spec_raw = next((rd for sp, rd in zip(specs, dicts) if sp.key == room), None)
+    spec = next((sp for sp in specs if sp.key == room), None)
+    if spec is None or spec_raw is None:
+        raise ValueError("unknown room")
+    if not spec.trvs or not spec.heated:
+        raise ValueError("only a room with its own TRV heads can have its own program")
+    if spec.mode == FOLLOW and not raw:  # nothing to remove: it follows the house as before
+        return out
+    if spec.mode == FOLLOW:  # becomes an own-schedule room, its targets taken from the house's (plus its offset)
+        spec_raw.update(mode=OWN, target_home=round(house["home"] + spec.offset, 1),
+                        target_night=round(house["sleep"] + spec.offset, 1),
+                        target_away=round(house["away"] + spec.offset, 1),
+                        target_comfort=round(house["comfort"] + spec.offset, 1),
+                        target_eco=round(house["eco"] + spec.offset, 1))
+    if raw:
+        spec_raw["week"] = raw
+    else:
+        spec_raw.pop("week", None)
+    spec_raw.update({LEVEL_KEYS[lv]: v for lv, v in temps.items()})
+    out["rooms"] = rooms
+    return out
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/week_set", vol.Required("entry_id"): str,
+                                  vol.Optional("room"): vol.Any(str, None), vol.Optional("program"): vol.Any(dict, None),
+                                  vol.Optional("targets"): vol.Any(dict, None)})
+@websocket_api.async_response
+async def ws_week_set(hass: HomeAssistant, connection, msg) -> None:
+    """0.72.0: save a weekly program (the instance's or a room's); the instance reloads with it."""
+    entry = next((e for e in _loaded(hass) if e.entry_id == msg["entry_id"]), None)
+    c = getattr(entry, "runtime_data", None)
+    sup = getattr(c, "supervisor", None)
+    if entry is None or sup is None:
+        connection.send_error(msg["id"], "not_found", "no thermostat instance with this id")
+        return
+    cfg = c.cfg
+    house = {"comfort": cfg.target_comfort, "home": cfg.target_home, "sleep": cfg.target_night,
+             "eco": cfg.target_eco, "away": cfg.target_away}
+    try:
+        options = week_options(dict(entry.options), {**entry.data, **entry.options}, msg.get("room"),
+                               msg.get("program"), msg.get("targets"), house)
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    hass.config_entries.async_update_entry(entry, options=options)  # the update listener reloads the instance
+    connection.send_result(msg["id"], {"saved": True})
 
 
 # --- 0.64.0: the heat pump target chart ---------------------------------------------------------------------------------

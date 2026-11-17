@@ -39,6 +39,7 @@ from datetime import datetime, time
 import re
 import statistics
 import unicodedata
+from .week import level_at as week_level_at, parse as parse_week, to_raw  # 0.72.0
 
 CONF_ROOM_LIST = "rooms"
 CONF_LEADING = "leading_room"
@@ -104,6 +105,10 @@ class RoomSpec:
     radiators: list[str] = field(default_factory=list)  # 0.48.0: radiator surface thermometers (information)
     humidity: list[str] = field(default_factory=list)  # 0.48.0: relative humidity sensors (dew point, mould risk)
     heated: bool = True  # 0.53.0: False = no heater of this instance here, only measured (no climate, no advice)
+    # 0.72.0: an own-schedule room's weekly program (core/week.py, parsed) and its comfort / eco targets
+    week: tuple | None = None
+    target_comfort: float = 22.0
+    target_eco: float = 19.0
 
     @property
     def has_trv(self) -> bool:
@@ -139,7 +144,10 @@ class RoomSpec:
             out["head_sensors"] = dict(self.head_sensors)
         if self.mode == OWN:
             out.update(target_home=self.target_home, target_night=self.target_night, target_away=self.target_away,
-                       night_start=self.night_start, night_end=self.night_end)
+                       night_start=self.night_start, night_end=self.night_end,
+                       target_comfort=self.target_comfort, target_eco=self.target_eco)
+            if self.week:
+                out["week"] = to_raw(self.week)
         return out
 
 
@@ -182,6 +190,9 @@ def parse_room(raw: dict, taken: set[str] | None = None) -> RoomSpec | None:
         radiators=_ids(raw.get("radiators"), ("sensor.",)),
         humidity=_ids(raw.get("humidity"), ("sensor.",)),
         heated=heated,
+        week=parse_week(raw.get("week")) if mode == OWN else None,
+        target_comfort=_num(raw.get("target_comfort"), _num(raw.get("target_home"), 21.0, 5.0, 30.0) + 1.0, 5.0, 30.0),
+        target_eco=_num(raw.get("target_eco"), _num(raw.get("target_night"), 19.0, 5.0, 30.0), 5.0, 30.0),
     )
 
 
@@ -414,6 +425,10 @@ class RoomControl:
                 base, why = vacation, "household_vacation"
             elif household == "away":
                 base, why = spec.target_away, "household_away"
+            elif spec.week:  # 0.72.0: the weekly program's level
+                level = week_level_at(spec.week, now)
+                base = {"comfort": spec.target_comfort, "sleep": spec.target_night, "eco": spec.target_eco}.get(level, spec.target_home)
+                why = {"sleep": "night"}.get(level, level)
             elif is_night(now, spec.night_start, spec.night_end):
                 base, why = spec.target_night, "night"
             else:

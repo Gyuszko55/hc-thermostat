@@ -59,4 +59,4 @@ def test_texts_and_form():
         sec = tr["options"]["step"]["hp_coord_settings"]["sections"]["charge_demand"]
         assert sec["data"]["hp_lead_min"] and sec["data_description"]["hp_lead_min"]
     assert "reserve_runs_out" in (BASE / "www" / "hc-overview.js").read_text()
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2", "0.71.3", "0.71.4")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2", "0.71.3", "0.71.4", "0.72.0")

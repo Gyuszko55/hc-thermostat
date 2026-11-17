@@ -543,6 +543,7 @@ class HcInfoPanel extends HTMLElement {
       this._d = d; this._hd = hd; this._members = members;
       this._err = null;
     } catch (e) { this._err = String(e?.message || e); }
+    if (this._wk) return;  // 0.72.0: the weekly editor is open – no refresh under the painting hand
     this._render();
     if (this._pendingKey) { const k = this._pendingKey; this._pendingKey = null; this._pickPart(k); }
   }
@@ -1287,14 +1288,14 @@ class HcInfoPanel extends HTMLElement {
         : this._rows(dec);
       const rd = this._roomData();
       const side = [
-        rd ? this._section("room", `${t.room}: ${rd.name}`, this._roomRows(rd), "mdi:door-open") : "",
+        rd ? this._section("room", `${t.room}: ${rd.name}`, this._roomRows(rd) + this._wkButton(rd), "mdi:door-open") : "",
         this._hd ? this._section("house_src", t.houseSrc, this._houseSources(), "mdi:home-lightning-bolt-outline") : "",
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
         d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
         d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Nyers: amit a HC most számol; kiadott: ritkítva; kiküldve: a beállított kerekítéssel ténylegesen írt érték; a hőszivattyú beállítása: amit a készülék visszajelez; mért víz: a hőszivattyú vízhőmérője (ha meg van adva)." : "Raw: what HC works out now; given out: after the hold; sent: the value really written, rounded as set; the unit's setpoint: what the device reports back; measured water: the unit's water thermometer (when given).")}</div>`, "mdi:chart-line") : "",
-        d.presets ? this._section("presets", t.presets, this._presets(), "mdi:calendar-clock") : "",
+        d.presets ? this._section("presets", t.presets, this._presets() + this._wkButton(null), "mdi:calendar-clock") : "",
         this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
         this._section("devices_out", t.devices_out, this._devices(true), "mdi:electric-switch"),
         d.inputs ? this._section("inputs", t.inputs, this._inputs(), "mdi:import") : "",
@@ -1331,7 +1332,7 @@ class HcInfoPanel extends HTMLElement {
     const pickScroll = this.shadowRoot.querySelector(".picks")?.scrollLeft || 0;
     this.shadowRoot.innerHTML = `<style>${CSS}${OV ? OV.OV_CSS : ""}</style>
       <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1><div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
-      <div class="main">${main}</div>${this._aiOpen && (this._hd || this._d)?.ai_report ? this._aiModal((this._hd || this._d).ai_report) : ""}`;
+      <div class="main">${main}</div>${this._aiOpen && (this._hd || this._d)?.ai_report ? this._aiModal((this._hd || this._d).ai_report) : ""}${this._wk ? this._wkModal() : ""}`;
     const slot = this.shadowRoot.querySelector(".houseslot");
     if (slot) { slot.appendChild(this._houseEl()); this._houseUpdate(); }  // one element kept across refreshes
     const side = this.shadowRoot.querySelector(".side");
@@ -1360,6 +1361,120 @@ class HcInfoPanel extends HTMLElement {
       else if (act === "close") { if (ev.target === b) { this._aiOpen = false; this._render(); } }
       else if (act === "run") this._aiRun();
     }));
+    this._wkBind();  // 0.72.0
+  }
+
+  // --- 0.72.0: the weekly program editor ------------------------------------------------------------------------------
+  _wkButton(room) {
+    const d = this._d, hu = this._hu;
+    if (!d || !(d.role === "standalone" || d.role === "zone") || !d.presets) return "";
+    if (room && !(room.trv && room.heated !== false)) return "";
+    const prog = room ? room.own?.week : d.presets.week;
+    const on = !!(prog && Object.values(prog).some((x) => x && x.length));
+    const label = on ? (hu ? "Heti program – szerkesztés" : "Weekly program – edit") : (hu ? "Heti program beállítása" : "Set a weekly program");
+    const note = room && room.mode !== "own" ? `<div class="muted">${esc(hu ? "Most a ház célját követi; mentéskor saját időzítésre vált (a ház céljaiból indulva)." : "It follows the house now; saving gives it its own schedule (starting from the house's targets).")}</div>` : "";
+    return `<div class="wkrow"><button class="wkbtn ${on ? "on" : ""}" data-wk="open" data-wkroom="${esc(room ? room.key : "")}"><ha-icon icon="mdi:calendar-week"></ha-icon>${esc(label)}</button>
+      <span class="muted">${esc(on ? (hu ? "aktív" : "active") : room && room.mode !== "own" ? (hu ? "most: a házat követi" : "now: follows the house") : (hu ? "most: éjszakai sáv" : "now: night window"))}</span></div>${note}`;
+  }
+
+  _wkOpen(roomKey) {
+    const d = this._d, room = roomKey ? (d.room_list || []).find((r) => r.key === roomKey) : null;
+    const p = d.presets || {}, lv = p.levels || {};
+    const own = room?.own, off = room ? Number(room.offset || 0) : 0;
+    const targets = room ? (own ? { comfort: own.comfort, home: own.home, sleep: own.night, eco: own.eco }
+      : { comfort: lv.comfort + off, home: lv.home + off, sleep: lv.sleep + off, eco: lv.eco + off }) : { ...lv };
+    const prog = room ? own?.week : p.week;
+    const night = room && own ? [own.night_start, own.night_end] : (p.night || ["22:00", "06:00"]);
+    this._wk = { room: roomKey || null, title: room ? room.name : d.title, entry: d.entry_id, brush: "home",
+      grid: WK.grid(prog, night), targets, busy: false, err: null };
+    this._render();
+  }
+
+  _wkModal() {
+    const w = this._wk, hu = this._hu;
+    const days = hu ? ["H", "K", "Sze", "Cs", "P", "Szo", "V"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const names = WK.NAMES[hu ? "hu" : "en"];
+    const brushes = WK.LEVELS.map((lv) => `<label class="wkbrush ${w.brush === lv ? "sel" : ""}" data-wkbrush="${lv}"><i class="wkc-${lv}"></i>${esc(names[lv])}
+      <input type="number" step="0.5" min="5" max="30" data-wkt="${lv}" value="${w.targets[lv] != null ? Number(w.targets[lv]).toFixed(1) : ""}"> °C</label>`).join("");
+    const hours = Array.from({ length: 9 }, (_, i) => `<span style="left:${(i * 3 / 24) * 100}%">${i * 3}</span>`).join("");
+    const rows = w.grid.map((row, di) => `<div class="wkday"><b>${esc(days[di])}</b><div class="wkcells" data-wkday="${di}">${row.map((lv, ci) => `<i class="wkc-${lv}" data-c="${ci}"></i>`).join("")}</div></div>`).join("");
+    return `<div class="aimodal wkmodal" data-wk="close"><div class="aibox wkbox">
+      <div class="aihead"><ha-icon icon="mdi:calendar-week"></ha-icon><b>${esc(hu ? "Heti program" : "Weekly program")} – ${esc(w.title)}</b>
+        <button class="aix" data-wk="close"><ha-icon icon="mdi:close" style="pointer-events:none"></ha-icon></button></div>
+      <div class="muted">${esc(hu ? "Válassz szintet, majd húzással fesd át a sávokat (15 perces lépés). A szint hőmérséklete itt is átírható – minden sáva követi. Jelenlét (távol, szabadság), kézi cél és mód továbbra is felülírja."
+        : "Pick a level and paint the slots by dragging (15-minute steps). A level's temperature can be changed here too – all its slots follow. Presence (away, vacation), a manual target and a preset still win.")}</div>
+      <div class="wkbrushes">${brushes}</div>
+      <div class="wkgrid"><div class="wkhours">${hours}</div>${rows}</div>
+      <div class="wktools">
+        <button data-wk="copy_wd">${esc(hu ? "Hétfő → K–P" : "Monday → Tue–Fri")}</button>
+        <button data-wk="copy_we">${esc(hu ? "Szombat → V" : "Saturday → Sun")}</button>
+        <button data-wk="template">${esc(hu ? "Minta" : "Template")}</button>
+        <button data-wk="clear">${esc(hu ? "Program törlése (vissza az éjszakai sávra)" : "Remove the program (back to the night window)")}</button>
+      </div>
+      ${w.err ? `<div class="aiwarn">${esc(w.err)}</div>` : ""}
+      <div class="aifoot"><span class="muted">${esc(hu ? "Mentéskor a példány újratölt (pár másodperc)." : "Saving reloads the instance (a few seconds).")}</span>
+        <button class="airun" data-wk="save" ${w.busy ? "disabled" : ""}>${esc(w.busy ? (hu ? "Mentés…" : "Saving…") : (hu ? "Mentés" : "Save"))}</button></div>
+    </div></div>`;
+  }
+
+  _wkBind() {
+    const root = this.shadowRoot;
+    root.querySelectorAll("[data-wk]").forEach((b) => b.addEventListener("click", (ev) => {
+      const act = b.dataset.wk;
+      if (act === "open") { ev.stopPropagation(); this._wkOpen(b.dataset.wkroom || null); return; }
+      if (!this._wk) return;
+      if (act === "close") { if (ev.target === b) { this._wk = null; this._render(); } return; }
+      ev.stopPropagation();
+      const g = this._wk.grid;
+      if (act === "copy_wd") for (let d = 1; d <= 4; d++) g[d] = g[0].slice();
+      else if (act === "copy_we") g[6] = g[5].slice();
+      else if (act === "template") this._wk.grid = WK.template();
+      else if (act === "clear") { this._wkSave(true); return; }
+      else if (act === "save") { this._wkSave(false); return; }
+      this._render();
+    }));
+    if (!this._wk) return;
+    root.querySelectorAll("[data-wkbrush]").forEach((el) => el.addEventListener("click", (ev) => {
+      if (ev.target.tagName === "INPUT") return;
+      this._wk.brush = el.dataset.wkbrush;
+      root.querySelectorAll("[data-wkbrush]").forEach((x) => x.classList.toggle("sel", x === el));
+    }));
+    root.querySelectorAll("[data-wkt]").forEach((inp) => inp.addEventListener("change", () => {
+      const v = Number(inp.value);
+      if (Number.isFinite(v)) this._wk.targets[inp.dataset.wkt] = Math.min(30, Math.max(5, v));
+    }));
+    const grid = root.querySelector(".wkgrid");
+    if (!grid) return;
+    let painting = false;
+    const paint = (x, y) => {
+      const el = root.elementFromPoint ? root.elementFromPoint(x, y) : null;
+      const cell = el && el.dataset && el.dataset.c != null ? el : null;
+      const day = cell?.parentElement?.dataset.wkday;
+      if (!cell || day == null) return;
+      const lv = this._wk.brush;
+      if (this._wk.grid[day][cell.dataset.c] === lv) return;
+      this._wk.grid[day][cell.dataset.c] = lv;
+      cell.className = `wkc-${lv}`;
+    };
+    grid.addEventListener("pointerdown", (ev) => { painting = true; ev.preventDefault(); paint(ev.clientX, ev.clientY); });
+    grid.addEventListener("pointermove", (ev) => { if (painting) paint(ev.clientX, ev.clientY); });
+    const stop = () => { painting = false; };
+    grid.addEventListener("pointerup", stop); grid.addEventListener("pointerleave", stop); grid.addEventListener("pointercancel", stop);
+  }
+
+  async _wkSave(clear) {
+    const w = this._wk;
+    if (!w || w.busy) return;
+    w.busy = true; w.err = null; this._render();
+    try {
+      await this._hass.callWS({ type: "hc_thermostat/week_set", entry_id: w.entry, room: w.room,
+        program: clear ? null : WK.raw(w.grid), targets: w.targets });
+      this._wk = null;
+      setTimeout(() => this._load(), 3000);  // the instance reloads with it
+      this._render();
+    } catch (e) {
+      w.busy = false; w.err = String(e?.message || e); this._render();
+    }
   }
 
   // --- 0.71.0: the house's AI analysis ------------------------------------------------------------------------------
@@ -1416,6 +1531,41 @@ class HcInfoPanel extends HTMLElement {
   }
 }
 
+// 0.72.0: the weekly program's grid – 7 days × 96 quarter hours of a level; the stored form is the changes per day
+const WK = {
+  LEVELS: ["comfort", "home", "sleep", "eco"],
+  NAMES: { hu: { comfort: "Komfort", home: "Otthon", sleep: "Éjszaka", eco: "Eco" }, en: { comfort: "Comfort", home: "Home", sleep: "Night", eco: "Eco" } },
+  q(text) { const [h, m] = String(text || "0:0").split(":").map(Number); return Math.max(0, Math.min(95, Math.round(((h || 0) * 60 + (m || 0)) / 15))); },
+  grid(prog, night) {
+    const has = prog && Object.values(prog).some((x) => x && x.length);
+    if (!has) {  // from the night window: sleep inside it, home outside
+      const s = WK.q(night?.[0] || "22:00"), e = WK.q(night?.[1] || "06:00");
+      const row = Array.from({ length: 96 }, (_, i) => ((s < e ? i >= s && i < e : i >= s || i < e) && s !== e ? "sleep" : "home"));
+      return Array.from({ length: 7 }, () => row.slice());
+    }
+    const days = Array.from({ length: 7 }, (_, d) => (prog[String(d)] || []).map(([tm, lv]) => [WK.q(tm), lv]).sort((a, b) => a[0] - b[0]));
+    const lastBefore = (d) => { for (let k = 1; k <= 7; k++) { const p = days[(d - k + 7) % 7]; if (p.length) return p[p.length - 1][1]; } return "home"; };
+    return days.map((pts, d) => {
+      let lv = lastBefore(d), j = 0;
+      return Array.from({ length: 96 }, (_, i) => { while (j < pts.length && pts[j][0] <= i) lv = pts[j++][1]; return lv; });
+    });
+  },
+  raw(grid) {
+    const out = {};
+    grid.forEach((row, d) => {
+      const pts = [];
+      row.forEach((lv, i) => { if (i === 0 || lv !== row[i - 1]) pts.push([`${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`, lv]); });
+      out[String(d)] = pts;
+    });
+    return out;
+  },
+  template() {  // weekdays: up 6:00, out 8–16 (eco), evening home, night 22:00; weekend: 7:30–23:00 home
+    const wd = Array.from({ length: 96 }, (_, i) => (i < 24 || i >= 88 ? "sleep" : i >= 32 && i < 64 ? "eco" : "home"));
+    const we = Array.from({ length: 96 }, (_, i) => (i < 30 || i >= 92 ? "sleep" : "home"));
+    return [0, 1, 2, 3, 4].map(() => wd.slice()).concat([we.slice(), we.slice()]);
+  },
+};
+
 const CSS = `
 :host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color); font-family:"HC Info Roboto", Roboto, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 svg text { font-family:"HC Info Roboto", Roboto, Arial, sans-serif; }
@@ -1452,6 +1602,27 @@ table.mx tr.off td { opacity:.38; }
 .stage { position:relative; }
 .aibtn { position:absolute; top:10px; left:96px; z-index:3; display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:18px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); font:inherit; font-weight:600; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.2); }
 .aibtn ha-icon { --mdc-icon-size:18px; } .aibtn.good { border-color:#2e7d32; color:#2e7d32; } .aibtn.mid { border-color:#f9a825; color:#e65100; } .aibtn.bad { border-color:#c62828; color:#c62828; }
+.wkrow { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+.wkbtn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); border-radius:16px; padding:5px 12px; cursor:pointer; font:inherit; }
+.wkbtn.on { border-color:var(--primary-color); color:var(--primary-color); }
+.wkbtn ha-icon { --mdc-icon-size:18px; }
+.wkbox { max-width:980px; }
+.wkbrushes { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.wkbrush { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border:2px solid transparent; border-radius:10px; background:var(--secondary-background-color); cursor:pointer; }
+.wkbrush.sel { border-color:var(--primary-color); }
+.wkbrush i { width:14px; height:14px; border-radius:3px; display:inline-block; }
+.wkbrush input { width:58px; font:inherit; padding:2px 4px; background:var(--card-background-color); color:var(--primary-text-color); border:1px solid var(--divider-color); border-radius:6px; }
+.wkgrid { touch-action:none; user-select:none; -webkit-user-select:none; }
+.wkhours { position:relative; height:16px; margin-left:38px; font-size:11px; color:var(--secondary-text-color); }
+.wkhours span { position:absolute; transform:translateX(-50%); }
+.wkday { display:flex; align-items:center; gap:6px; margin:3px 0; }
+.wkday b { width:32px; font-size:12px; text-align:right; }
+.wkcells { flex:1; display:grid; grid-template-columns:repeat(96, 1fr); height:28px; border-radius:6px; overflow:hidden; cursor:crosshair; }
+.wkcells i { display:block; border-right:1px solid rgba(255,255,255,.10); }
+.wkcells i:nth-child(4n) { border-right:1px solid rgba(0,0,0,.18); }
+.wkc-comfort { background:#e8833a; } .wkc-home { background:#4caf50; } .wkc-sleep { background:#5c6bc0; } .wkc-eco { background:#26a69a; }
+.wktools { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.wktools button { border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; }
 .aimodal { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
 .aibox { background:var(--card-background-color); color:var(--primary-text-color); border-radius:12px; max-width:760px; width:100%; max-height:88vh; overflow:auto; padding:16px 18px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
 .aihead { display:flex; align-items:center; gap:8px; margin-bottom:8px; } .aihead b { flex:1; } .aix { border:none; background:none; color:inherit; font-size:18px; cursor:pointer; }

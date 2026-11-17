@@ -157,6 +157,13 @@ a hőforrás × fűtőkészülék mátrixszal: [DECISION_CHAIN.hu.md](DECISION_C
   távolléti és szabadság-cél, a fagyhatár és az éjszaka kezdete és vége egy rövid lapon, mentéskor azonnal érvényes.
 - **Hétvégi éjszaka:** ugyanitt egy nem kötelező *hétvégi éjszaka* (kezdet és vég) a szombat és vasárnap reggel véget
   érő éjszakákra – pl. 23:30-kor lefekvés, az éjszakai cél 08:00-ig. Üresen olyan, mint hétköznap.
+- **Heti program (0.72.0):** a **HC info** panelen, *Presetek* → *Heti program beállítása*: egy 7 napos rács, amelyen
+  15 perces lépésben festheted a *Komfort*, *Otthon*, *Éjszaka* és *Eco* szinteket (*Hétfő → K–P*, *Szombat → V* és
+  minta segít). A szint hőmérséklete ugyanitt átírható, és minden sávja követi. Mentve a program lép az éjszakai sáv
+  helyébe (az optimális indítás ilyenkor az éjszaka utáni szintre céloz); a *Program törlése* visszahozza az éjszakai
+  sávot. A saját TRV-fejes helyiség ugyanígy saját programot kaphat (a helyiség oldalán); ha eddig a házat követte,
+  saját időzítésűvé válik, a ház céljaiból (plusz az eltéréséből) indulva. A jelenlét (távol, szabadság), a preset és a
+  kézzel állított cél továbbra is felülírja a programot.
 - **Presetek:** *Otthon*, *Alvás*, *Távol*, *Szabadság* (és ahol van, *Komfort* / *Eco*) a termosztáton; a kézzel
   állított cél a következő ütemezett váltásig tart.
 - **Miért (nem) fűt?** A *Döntés* szenzor egy mondatban megmondja (pl. „Nem fűt: a ház elérte a célt”); minden

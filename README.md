@@ -155,6 +155,13 @@ heat source × emitter matrix: [DECISION_CHAIN.md](DECISION_CHAIN.md) (generated
   vacation targets, the frost limit and the night's start and end on one short page, saved at once.
 - **Weekend night:** in the same place an optional *weekend night* (start and end) for the nights ending on Saturday
   and Sunday morning – e.g. bed at 23:30 and the night target until 08:00. Empty: as on weekdays.
+- **Weekly program (0.72.0):** on the **HC info** panel, *Presets* → *Set a weekly program*: a 7-day grid where you
+  paint the levels *Comfort*, *Home*, *Night* and *Eco* in 15-minute steps (with *Monday → Tue–Fri*, *Saturday → Sun*
+  and a template). A level's temperature can be changed in the same window and every slot of it follows. Saved, the
+  program takes the place of the night window (optimal start then aims at the level after the night); *Remove the
+  program* brings the night window back. A room with its own TRV heads gets its own program the same way (on its
+  room page); a room that followed the house becomes an own-schedule room, starting from the house's targets plus its
+  offset. Presence (away, vacation), a preset and a target set by hand still win over the program.
 - **Presets:** *Home*, *Sleep*, *Away*, *Vacation* (and *Comfort* / *Eco* where offered) on the thermostat; a target
   set by hand lasts until the next scheduled change.
 - **Why does it (not) heat?** The *Decision* sensor says it in one sentence (e.g. "Not heating: the house reached the
