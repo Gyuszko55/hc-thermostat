@@ -18,6 +18,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN, PRESETS
+from .core.matrix import timing_advice
 from .core.messages import explain
 from .units import finite, state_value_c
 
@@ -130,6 +131,11 @@ def _instance(hass, entry) -> dict:
                  "learned": {"afterheat": jsonable(sup.learner.afterheat(d.outdoor)) if d else None,
                              "minutes_per_degree": jsonable(sup.learner.minutes_per_degree(d.outdoor)) if d else None,
                              "tpi_coef_int": jsonable(sup.learner.tpi_coef_int), "tpi_offset": jsonable(sup.learner.tpi_offset)},
+                 # 0.69.0: how the room answers its runs (measured, shown only) and a timing suggestion
+                 "response": jsonable(sup.response.info()),
+                 "timing": jsonable(timing_advice("floor_single" if c.cfg.floor_system else None, c.cfg.cycle_s,
+                                                  c.cfg.valve_delay_s, c.cfg.min_on_s)
+                                    if c.cfg.control in ("tpi", "pid") else None),
                  "loss_kw_per_k": jsonable(sup.heat_need.loss_kw_per_k),
                  # 0.50.0: the house model
                  "house": {"loss_w_k": jsonable(None if sup.heat_need.loss_kw_per_k is None

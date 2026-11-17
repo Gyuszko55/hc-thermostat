@@ -45,6 +45,10 @@ import math
 TANK_STALE_S = 900.0  # 0.64.0: the last tank top reading keeps capping this long
 CAP_STATES = ("off", "ok", "limited", "cold", "stale", "no_data")
 DEFICIT_CAP = 3.0  # °C of room deficit that still raises the water
+# 0.69.0 the slow room feedback (trim): a zone this far below its target while it asks is hungry; within TRIM_OK it holds
+TRIM_UNDER = 0.3
+TRIM_OK = 0.1
+TRIM_STEP_MAX_GAP_S = 600.0  # a longer gap between two steps is not counted
 
 KINDS = ("radiator", "floor")
 DEFAULTS = {
@@ -74,6 +78,14 @@ class CircuitConfig:
     circuit_urgent: float = 5.0
     circuit_idle_keep: bool = True  # 0.62.0: without demand the curve stays at the zones' targets
     circuit_tank_cap: bool = False  # 0.64.0: the mixer's target at most the tank's top − margin (0.64.1: off by default)
+    # 0.69.0 (a tester's buffer house): the flow follows the rooms' lasting shortfall – every circuit_trim_s the water
+    # goes up by circuit_trim_step when most zones heated almost all the time and still stayed below, and down when all
+    # held their targets with less than half the time; within ±circuit_trim_max, kept over a restart. Off by default:
+    # an update must not move a live mixer's setpoint by itself (as the tank cap, 0.64.1)
+    circuit_room_trim: bool = False
+    circuit_trim_step: float = 0.5
+    circuit_trim_s: float = 3600.0
+    circuit_trim_max: float = 5.0
 
     @classmethod
     def from_conf(cls, conf: dict) -> "CircuitConfig":
@@ -127,6 +139,13 @@ class MixingCircuit:
         self.limited = False
         self.top: float | None = None
         self.top_at: datetime | None = None
+        # 0.69.0: the slow room feedback and its window
+        self.trim = 0.0
+        self.trim_at: datetime | None = None
+        self.trim_why: str | None = None
+        self._tw_start: datetime | None = None
+        self._tw_last: datetime | None = None
+        self._tw = {"s": 0.0, "hungry": 0.0, "easy": 0.0, "ask": 0.0}
 
     def cap(self, now: datetime, given: float | None, top: float | None, linked: bool) -> tuple:
         """0.64.0: (target for the mixer, limit, state) from the demanded target and the tank's top."""
@@ -172,8 +191,54 @@ class MixingCircuit:
         if outdoor is None:
             return None
         flow = (t_room + cfg.circuit_slope * max(t_room - outdoor, 0.0) + cfg.circuit_shift
-                + cfg.circuit_kp * min(max(deficit, 0.0), DEFICIT_CAP))
+                + cfg.circuit_kp * min(max(deficit, 0.0), DEFICIT_CAP) + (self.trim if cfg.circuit_room_trim else 0.0))
         return round(flow, 2)
+
+    def _trim_window(self, now: datetime) -> None:
+        self._tw_start = self._tw_last = now
+        self._tw = {"s": 0.0, "hungry": 0.0, "easy": 0.0, "ask": 0.0}
+
+    def observe_trim(self, now: datetime, zones: list[ZoneReading], outdoor: float | None) -> None:
+        """0.69.0: the rooms' lasting answer moves the water slowly – not the reading of the moment (circuit_kp),
+        but an hour of it: most zones asking and still TRIM_UNDER below for 3/4 of it → up; every zone within TRIM_OK
+        of its target for 9/10 of it while asking less than half the time → down. A tank too cold to give more (the
+        cap limits) does not count as hungry: more water could not come."""
+        cfg = self.cfg
+        if not cfg.circuit_room_trim:
+            self.trim, self.trim_why = 0.0, None
+            self._trim_window(now)
+            return
+        if self._tw_start is None or self._tw_last is None:
+            self._trim_window(now)
+            return
+        dt = (now - self._tw_last).total_seconds()
+        self._tw_last = now
+        read = [z for z in zones if not z.fault and z.target is not None and z.indoor is not None]
+        if 0 < dt <= TRIM_STEP_MAX_GAP_S and read and outdoor is not None:
+            w = self._tw
+            w["s"] += dt
+            hungry = sum(1 for z in read if z.asking and z.target - z.indoor >= TRIM_UNDER)
+            if hungry >= max(1, math.ceil(len(read) / 2)) and not self.limited:
+                w["hungry"] += dt
+            if all(z.indoor >= z.target - TRIM_OK for z in read):
+                w["easy"] += dt
+            w["ask"] += dt * sum(1 for z in read if z.asking) / len(read)
+        if (now - self._tw_start).total_seconds() < cfg.circuit_trim_s:
+            return
+        w, step, top = self._tw, cfg.circuit_trim_step, cfg.circuit_trim_max
+        if w["s"] >= 0.5 * cfg.circuit_trim_s:
+            if w["hungry"] >= 0.75 * w["s"] and self.trim < top:
+                self.trim, self.trim_why, self.trim_at = round(min(top, self.trim + step), 2), "rooms_short", now
+            elif w["easy"] >= 0.9 * w["s"] and w["ask"] < 0.5 * w["s"] and self.trim > -top:
+                self.trim, self.trim_why, self.trim_at = round(max(-top, self.trim - step), 2), "rooms_easy", now
+        self._trim_window(now)
+
+    def trim_info(self) -> dict:
+        w, s = self._tw, self._tw["s"] or 0.0
+        pct = (lambda k: round(100 * w[k] / s) if s > 0 else None)  # noqa: E731
+        return {"trim": self.trim, "trim_why": self.trim_why,
+                "trim_at": self.trim_at.isoformat() if self.trim_at else None,
+                "trim_hungry_pct": pct("hungry"), "trim_easy_pct": pct("easy"), "trim_duty_pct": pct("ask")}
 
     def step(self, now: datetime, zones: list[ZoneReading], outdoor: float | None, tank_top: float | None = None,
              tank_linked: bool = False) -> CircuitDecision:
@@ -194,6 +259,7 @@ class MixingCircuit:
         t_room = max(targets) if targets else cfg.circuit_room
         deficits = [z.target - z.indoor for z in lasting if z.target is not None and z.indoor is not None]
         deficit = round(max([0.0, *deficits]), 2)
+        self.observe_trim(now, zones, outdoor)
         raw = self.raw(outdoor, t_room, deficit)
         res: HoldResult = self.hold.step(now, raw, cfg.circuit_flow_min, cfg.circuit_flow_max)
         details = {"curve": None if outdoor is None else round(t_room + cfg.circuit_slope * max(t_room - outdoor, 0.0)
@@ -202,6 +268,8 @@ class MixingCircuit:
                    "next_allowed": res.next_allowed.isoformat() if res.next_allowed else None,
                    "last_change": self.hold.last_change.isoformat() if self.hold.last_change else None,
                    "changed": res.changed, "room_from": room_from}
+        if cfg.circuit_room_trim:
+            details.update(self.trim_info())
         if raw is None:
             details["no_outdoor"] = True
         out, limit, cap_state = self.cap(now, res.value, tank_top, tank_linked)
@@ -214,7 +282,9 @@ class MixingCircuit:
         return {"hold": self.hold.state(now), "last_ask": {k: v.isoformat() for k, v in self.last_ask.items()},
                 "cap": {"out": self.out, "out_at": self.out_at.isoformat() if self.out_at else None,
                         "limited": self.limited, "top": self.top,
-                        "top_at": self.top_at.isoformat() if self.top_at else None}}
+                        "top_at": self.top_at.isoformat() if self.top_at else None},
+                "trim": {"value": self.trim, "why": self.trim_why, "at": self.trim_at.isoformat() if self.trim_at else None,
+                         "start": self._tw_start.isoformat() if self._tw_start else None, "window": dict(self._tw)}}
 
     def restore(self, data: dict, now: datetime) -> None:
         self.hold.restore(data.get("hold") or {}, now)
@@ -227,6 +297,16 @@ class MixingCircuit:
             self.top_at = datetime.fromisoformat(cap["top_at"]) if cap.get("top_at") else None
         except (TypeError, ValueError):
             self.out, self.limited, self.top, self.out_at, self.top_at = None, False, None, None, None
+        trim = data.get("trim") or {}
+        try:
+            self.trim = max(-self.cfg.circuit_trim_max, min(self.cfg.circuit_trim_max, float(trim.get("value") or 0.0)))
+            self.trim_why = trim.get("why")
+            self.trim_at = datetime.fromisoformat(trim["at"]) if trim.get("at") else None
+            if trim.get("start"):
+                self._tw_start = self._tw_last = datetime.fromisoformat(trim["start"])
+                self._tw = {k: float((trim.get("window") or {}).get(k, 0.0)) for k in ("s", "hungry", "easy", "ask")}
+        except (TypeError, ValueError):
+            self.trim, self.trim_why, self.trim_at = 0.0, None, None
         for k, v in (data.get("last_ask") or {}).items():
             try:
                 self.last_ask[k] = datetime.fromisoformat(v)

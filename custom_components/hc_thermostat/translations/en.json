@@ -256,7 +256,11 @@
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)",
           "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing",
-          "circuit_tank_cap": "Circuit target at most the tank's top − margin"
+          "circuit_tank_cap": "Circuit target at most the tank's top − margin",
+          "circuit_room_trim": "Flow from the rooms' lasting shortfall",
+          "circuit_trim_step": "Lasting adjustment step",
+          "circuit_trim_s": "Lasting adjustment period",
+          "circuit_trim_max": "Lasting adjustment limit (±)"
         },
         "data_description": {
           "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
@@ -274,7 +278,11 @@
           "circuit_confirm_s": "The difference must last this long before a new target goes out.",
           "circuit_min_interval_s": "At least this long between two changes, so the mixer does not keep moving.",
           "circuit_max_rise": "Rises step by step; no limit going down.",
-          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval."
+          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval.",
+          "circuit_room_trim": "Weighed every hour: when most of the circuit's rooms heated nearly all the time and still stayed below their targets, the flow rises by the step below; when all held their targets easily, heating less than half the time, it goes down. Kept over a restart. Off by default: it moves the mixer's live target.",
+          "circuit_trim_step": "Up or down by this much after each weighing.",
+          "circuit_trim_s": "The rooms are watched this long before a step.",
+          "circuit_trim_max": "The flow differs from the curve by at most this much."
         }
       },
       "hp_coord": {
@@ -353,7 +361,9 @@
           "hp_stop_layer": "Demand: the layer that decides the stop",
           "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
-          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
+          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)",
+          "hp_running_w": "The compressor runs above this many watts",
+          "hp_charge_jump": "Full target at once for a new charge"
         },
         "data_description": {
           "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
@@ -396,7 +406,9 @@
           "hp_min_interval_s": "At least this long between two changes.",
           "hp_max_rise": "Rises step by step.",
           "hp_urgent": "A difference this large does not wait.",
-          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
+          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top.",
+          "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+          "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
         },
         "sections": {
           "charge_demand": {
@@ -440,14 +452,16 @@
               "hp_min_off_s": "Minimum OFF time",
               "hp_standby": "Keep ON with no demand (standby, lowest target)",
               "hp_idle_off": "OFF after a long time without demand",
-              "hp_idle_hours": "Without demand for"
+              "hp_idle_hours": "Without demand for",
+              "hp_running_w": "The compressor runs above this many watts"
             },
             "data_description": {
               "hp_min_on_s": "Compressor protection: stays ON at least this long.",
               "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
-              "hp_idle_hours": "After this many hours with no demand."
+              "hp_idle_hours": "After this many hours with no demand.",
+              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default)."
             }
           },
           "season": {
@@ -510,14 +524,16 @@
               "hp_confirm_s": "The difference must last",
               "hp_min_interval_s": "At least between two changes",
               "hp_max_rise": "Rise at most per change (0 = no limit)",
-              "hp_urgent": "Urgent difference: no waiting (0 = never)"
+              "hp_urgent": "Urgent difference: no waiting (0 = never)",
+              "hp_charge_jump": "Full target at once for a new charge"
             },
             "data_description": {
               "hp_deadband": "No new target for small wobbles.",
               "hp_confirm_s": "The difference must last this long.",
               "hp_min_interval_s": "At least this long between two changes.",
               "hp_max_rise": "Rises step by step.",
-              "hp_urgent": "A difference this large does not wait."
+              "hp_urgent": "A difference this large does not wait.",
+              "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
             }
           }
         }
@@ -638,7 +654,12 @@
               "fan_overrun_s": "Fan overrun after the valve closes",
               "fan_min_coil": "The fan starts only above this coil temperature",
               "keep_alive_s": "Resend the on state every (s, 0 = off) – for a relay with its own auto-off timer",
-              "keep_alive_script": "Relay watchdog script (at every keep-alive)"
+              "keep_alive_script": "Relay watchdog script (at every keep-alive)",
+              "catchup_gap": "Fast catch-up: from this shortfall (0 = off)",
+              "catchup_after_s": "Fast catch-up: after this time",
+              "catchup_release": "Fast catch-up ends: this far below the target",
+              "tpi_coef_int": "TPI internal coefficient",
+              "tpi_coef_ext": "TPI external coefficient"
             },
             "data_description": {
               "control": "TPI: proportional pulses by the error and the outdoor temperature. PID: proportional + integral (+ derivative) – removes a lasting offset. Both drive the relay by PWM: on for a share of every cycle.",
@@ -676,7 +697,12 @@
               "fan_overrun_s": "Blows out the heat left in the coil.",
               "fan_min_coil": "No cold draught from a cold coil.",
               "keep_alive_s": "For a relay that switches itself off after a while.",
-              "yield_margin": "So the boiler does not compete with the cheaper source, it regulates this far under the target."
+              "yield_margin": "So the boiler does not compete with the cheaper source, it regulates this far under the target.",
+              "catchup_gap": "A room at least this far below its target for the time below gets the whole cycle, no PWM pause, until it is near the target. The slow learning keeps refining meanwhile.",
+              "catchup_after_s": "The room must stay below the threshold this long. Floor heating: 2 hours by default, the screed still gives heat for hours.",
+              "catchup_release": "Once the room is this close to the target, the TPI's proportional cycle regulates again.",
+              "tpi_coef_int": "Demand per 1 °C shortfall (0.6 = 60 %). Higher: longer heating at a smaller shortfall. With learning on, the starting value.",
+              "tpi_coef_ext": "Demand per degree between the target and the outdoor temperature (0.01 = 1 %/°C)."
             }
           },
           "functions": {
@@ -1185,7 +1211,11 @@
           "circuit_max_rise": "Rise at most per change (0 = no limit)",
           "circuit_urgent": "Urgent difference: no waiting (0 = never)",
           "circuit_preview": "Preview only: shows the curve of the values entered, saves nothing",
-          "circuit_tank_cap": "Circuit target at most the tank's top − margin"
+          "circuit_tank_cap": "Circuit target at most the tank's top − margin",
+          "circuit_room_trim": "Flow from the rooms' lasting shortfall",
+          "circuit_trim_step": "Lasting adjustment step",
+          "circuit_trim_s": "Lasting adjustment period",
+          "circuit_trim_max": "Lasting adjustment limit (±)"
         },
         "data_description": {
           "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
@@ -1203,7 +1233,11 @@
           "circuit_confirm_s": "The difference must last this long before a new target goes out.",
           "circuit_min_interval_s": "At least this long between two changes, so the mixer does not keep moving.",
           "circuit_max_rise": "Rises step by step; no limit going down.",
-          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval."
+          "circuit_urgent": "A difference this large does not wait for the confirmation and the interval.",
+          "circuit_room_trim": "Weighed every hour: when most of the circuit's rooms heated nearly all the time and still stayed below their targets, the flow rises by the step below; when all held their targets easily, heating less than half the time, it goes down. Kept over a restart. Off by default: it moves the mixer's live target.",
+          "circuit_trim_step": "Up or down by this much after each weighing.",
+          "circuit_trim_s": "The rooms are watched this long before a step.",
+          "circuit_trim_max": "The flow differs from the curve by at most this much."
         }
       },
       "hp_coord": {
@@ -1296,7 +1330,9 @@
           "hp_stop_layer": "Demand: the layer that decides the stop",
           "hp_stop_margin": "Demand: stop margin (layer ≥ need + this)",
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
-          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)"
+          "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)",
+          "hp_running_w": "The compressor runs above this many watts",
+          "hp_charge_jump": "Full target at once for a new charge"
         },
         "data_description": {
           "hp_charge_mode": "Classic: starts when the tank top drops under the need or the charge under its threshold; by demand: the top must stay above need + start margin, and it stops only when the chosen layer reaches need + stop margin too. Both are always worked out and shown in HC info, so they can be compared in shadow.",
@@ -1339,7 +1375,9 @@
           "hp_min_interval_s": "At least this long between two changes.",
           "hp_max_rise": "Rises step by step.",
           "hp_urgent": "A difference this large does not wait.",
-          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top."
+          "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top.",
+          "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+          "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
         },
         "sections": {
           "charge_demand": {
@@ -1383,14 +1421,16 @@
               "hp_min_off_s": "Minimum OFF time",
               "hp_standby": "Keep ON with no demand (standby, lowest target)",
               "hp_idle_off": "OFF after a long time without demand",
-              "hp_idle_hours": "Without demand for"
+              "hp_idle_hours": "Without demand for",
+              "hp_running_w": "The compressor runs above this many watts"
             },
             "data_description": {
               "hp_min_on_s": "Compressor protection: stays ON at least this long.",
               "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
-              "hp_idle_hours": "After this many hours with no demand."
+              "hp_idle_hours": "After this many hours with no demand.",
+              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default)."
             }
           },
           "season": {
@@ -1453,14 +1493,16 @@
               "hp_confirm_s": "The difference must last",
               "hp_min_interval_s": "At least between two changes",
               "hp_max_rise": "Rise at most per change (0 = no limit)",
-              "hp_urgent": "Urgent difference: no waiting (0 = never)"
+              "hp_urgent": "Urgent difference: no waiting (0 = never)",
+              "hp_charge_jump": "Full target at once for a new charge"
             },
             "data_description": {
               "hp_deadband": "No new target for small wobbles.",
               "hp_confirm_s": "The difference must last this long.",
               "hp_min_interval_s": "At least this long between two changes.",
               "hp_max_rise": "Rises step by step.",
-              "hp_urgent": "A difference this large does not wait."
+              "hp_urgent": "A difference this large does not wait.",
+              "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
             }
           }
         }

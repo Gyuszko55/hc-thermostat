@@ -200,6 +200,21 @@ def fit_cycle(cycle_s: float, valve_delay_s: float, min_on_s: float, min_off_s: 
     return float(-(-need // 300) * 300)
 
 
+def timing_advice(system: str | None, cycle_s: float, valve_delay_s: float, min_on_s: float) -> dict | None:
+    """0.69.0 (a tester's 5-min thermoelectric valves on 15-min cycles): with a valve delay, a cycle under six delays
+    loses too much of every run to the opening; a suggestion – longer for a floor."""
+    if valve_delay_s <= 0:
+        return None
+    floor = system in _FLOOR
+    want = max(3600.0 if floor else 1800.0, 6 * valve_delay_s)
+    want = float(-(-want // 300) * 300)
+    want_on = max(min_on_s, 2 * valve_delay_s)
+    if cycle_s >= 6 * valve_delay_s and min_on_s >= 2 * valve_delay_s:
+        return None
+    return {"cycle_s": want if cycle_s < 6 * valve_delay_s else cycle_s, "min_on_s": want_on,
+            "lost_pct": round(100 * valve_delay_s / cycle_s), "floor": floor}
+
+
 def default_timing(system: str, source: str | None = None) -> dict[str, float]:
     """Editable starting values; slow floors get long cycles."""
     if electric_floor(system, source):  # a mat warms faster than a water floor, but a screed still evens out slowly
@@ -231,6 +246,8 @@ def source_defaults(system: str | None, source: str | None) -> dict:
         # the target up to 17 h; while it warms up at full power, up to 5.3 h), and the heat of the last two hours
         # before a lowering arrives after it
         out.update(frozen_band=1.0, frozen_after_h=8.0, pre_change_s=7200.0)
+        # 0.69.0: a screed keeps giving heat for hours – the catch-up waits 2 h before the whole cycle
+        out["catchup_after_s"] = 7200.0
     if system == "fan_coil":
         out["fan_coil"] = True  # the fan follows the valve's demand
     if source == "heat_pump" and system != "fan_coil":

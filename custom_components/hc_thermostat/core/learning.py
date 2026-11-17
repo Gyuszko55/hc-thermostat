@@ -4,9 +4,11 @@ Boost (after each one, once the peak is known):
 - after-heat per outdoor band = (peak - temperature at the stop) / f(flame minutes), see Supervisor.boost_forecast;
 - minutes per degree per band = flame minutes / (peak - temperature at the start), for the safety limit;
 - trim = a small correction from the overshoot left over.
-TPI (once a day, from the regulating hours at home):
-- strength (tpi_coef_int): up when the house stayed well below the target for hours, down on overshoot;
-- holding offset: a very slow integral that removes a steady small shortfall.
+TPI (from the regulating hours at home):
+- strength (tpi_coef_int), once a day: up when the house stayed below the target (0.69.0: by 0.2 °C, was 0.3) for
+  hours, down on overshoot;
+- holding offset, every hour (0.69.0, was once a day by at most 0.05): a slow integral that removes a steady
+  shortfall within a day instead of a week; not while the room already gets the whole cycle (catch-up).
 
 Every step is small and bounded; a disturbed boost (window, a jump in the reading, a target change) teaches nothing.
 """
@@ -21,6 +23,11 @@ BAND_CENTRE = {"cold": -5.0, "mild": 5.0, "warm": 15.0}  # the reference of a ba
 # 0.48.2: within (and across) the bands, every 10 °C warmer outside a boost needs this much less burning and its
 # after-heat lifts the house this much more (a house that loses less heat); bounded to 0.7–1.4
 OUTDOOR_SLOPE = 0.2
+
+
+HOUR_S = 3600.0  # 0.69.0: the holding offset's step
+OFFSET_STEP_H = 0.02  # at most this much per hour (≈ 0.5 a day), within -0.2 .. 0.3
+UNDER_C = 0.2  # 0.69.0: below the target by more than this counts as under (was 0.3)
 
 
 def band(outdoor: float | None) -> str:
@@ -77,6 +84,8 @@ class Learner:
         self._err_s = 0.0  # integral of (target - indoor) over the regulating time
         self._under_s = 0.0  # time spent more than 0.3 °C below the target
         self._over_s = 0.0  # time spent more than 0.2 °C above the target
+        self._h_s = 0.0  # 0.69.0: this hour's regulating seconds (not saturated) and their error integral
+        self._h_err = 0.0
 
     # --- what the supervisor uses ------------------------------------------------
     @property
@@ -171,8 +180,9 @@ class Learner:
         summary["used"] = True
 
     # --- TPI, once a day ----------------------------------------------------------------
-    def regulating(self, now: datetime, dt: float, target: float, indoor: float) -> None:
-        """Called for every regulating step at home (not boost, after-heat or window)."""
+    def regulating(self, now: datetime, dt: float, target: float, indoor: float, saturated: bool = False) -> None:
+        """Called for every regulating step at home (not boost, after-heat or window). saturated: the room already has
+        the whole cycle (0.69.0 catch-up) – a bigger offset could not add anything, so the hour does not count."""
         day = now.date().isoformat()
         if self._day is not None and day != self._day:
             self._finish_day()
@@ -182,7 +192,12 @@ class Learner:
         error = target - indoor
         self._reg_s += dt
         self._err_s += error * dt
-        if error > 0.3:
+        if not saturated:
+            self._h_s += dt
+            self._h_err += error * dt
+            if self._h_s >= HOUR_S:
+                self._finish_hour()
+        if error > UNDER_C:
             self._under_s += dt
         if error < -0.2:
             self._over_s += dt
@@ -197,10 +212,21 @@ class Learner:
             self.learned.tpi_coef_int = round(min(coef + 0.1, 1.2), 2)
         elif over >= 2 * 3600 and under < 1800:
             self.learned.tpi_coef_int = round(max(coef - 0.1, 0.3), 2)
-        mean_error = err / reg
-        self.learned.tpi_offset = _step_towards(
-            self.learned.tpi_offset, self.learned.tpi_offset + coef * mean_error, 0.5, 0.05, -0.2, 0.3)
         self.learned.days += 1
+
+    def _finish_hour(self) -> None:
+        """0.69.0: the holding offset moves every hour by a quarter of what the hour's mean error asks, at most
+        OFFSET_STEP_H – a room 0.3 °C short for a day gains about 0.3 instead of 0.05."""
+        s, err = self._h_s, self._h_err
+        self._h_s = self._h_err = 0.0
+        if not self.cfg.learning_enabled or s <= 0:
+            return
+        mean_error = err / s
+        if abs(mean_error) < 0.05:
+            return
+        self.learned.tpi_offset = _step_towards(
+            self.learned.tpi_offset, self.learned.tpi_offset + self.tpi_coef_int * mean_error, 0.25, OFFSET_STEP_H,
+            -0.2, 0.3)
 
     # --- persistence ------------------------------------------------------------------
     def reset(self) -> None:
@@ -212,7 +238,8 @@ class Learner:
         if self.boost is not None:  # 0.48.2: a restart during the after-heat no longer loses the boost's lesson
             boost = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in asdict(self.boost).items()}
         return {"learned": asdict(self.learned), "day": self._day, "reg_s": self._reg_s, "err_s": self._err_s,
-                "under_s": self._under_s, "over_s": self._over_s, "boost": boost}
+                "under_s": self._under_s, "over_s": self._over_s, "h_s": self._h_s, "h_err": self._h_err,
+                "boost": boost}
 
     def restore(self, data: dict) -> None:
         learned = data.get("learned") or {}
@@ -223,6 +250,8 @@ class Learner:
         self._err_s = float(data.get("err_s", 0.0))
         self._under_s = float(data.get("under_s", 0.0))
         self._over_s = float(data.get("over_s", 0.0))
+        self._h_s = float(data.get("h_s", 0.0))
+        self._h_err = float(data.get("h_err", 0.0))
         raw = data.get("boost")
         if isinstance(raw, dict):
             try:

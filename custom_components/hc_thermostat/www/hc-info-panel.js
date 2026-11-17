@@ -86,6 +86,7 @@ const REASON = {
     waiting_demand: "Igényre vár", no_sensor: "Nincs hőmérő",
     // 0.54.0: the hold of a mixing circuit's target, the tank's trend
     start: "Első cél", changed: "Új cél kiadva", ramp: "Emelés lépésben", urgent: "Sürgős módosítás", limit: "Határra igazítva",
+    charge_start: "Új töltés: azonnal a teljes cél", compressor_stopped: "Kompresszor leállt a cél alatt: teljes cél",
     deadband: "Kis eltérés: marad", confirming: "Tartósságra vár", min_interval: "Két módosítás közti idő", no_input: "Nincs bemenet: marad",
     emptying: "Merül", steady: "Állandó",
     // 0.55.0: heat pump coordination
@@ -317,6 +318,10 @@ const INFO = [
   ["hyst", "hc", "Hiszterézis", "Hysteresis", (d) => CA(d, "onoff_hysteresis"), "deg", ["onoff"]],
   ["curve_i", "hc", "Görbe integrál", "Curve integral", (d) => g(d, "state.curve.integral"), "num", ["curve"]],
   ["learn", "hc", "Tanult utómelegedés", "Learned after-heat", (d) => g(d, "live.learned.afterheat"), "deg", ["relay"]],
+  // 0.69.0: the fast catch-up, the measured answer of the room, a timing suggestion
+  ["catchup", "hc", "Gyors felzárkózás", "Fast catch-up", (d) => catchupText(d.decision?.details?.catchup), "text", ["relay"]],
+  ["response", "hc", "Mért válasz a fűtésre", "Measured answer to heating", (d) => responseText(d.live?.response), "text", ["relay"]],
+  ["timing", "hc", "Időzítési javaslat", "Timing suggestion", (d) => timingText(d.live?.timing), "text", ["relay"]],
   ["load", "hc", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
   // outside
   ["out", "outdoor", "Kint", "Outdoor", (d) => d.inputs?.outdoor?.value, "deg", []],
@@ -414,6 +419,33 @@ const INFO = [
 // 0.42.0: which thermometer each TRV head works by – its own one, or an external one (with its reading)
 const TRV_HEAD_HU = { hu: "saját hőmérő (nincs kalibrálás)", en: "own thermometer (no calibration)" };
 let PANEL_LANG = "en";  // set at every render (English until the viewer's language is known)
+
+// 0.69.0
+const _n = (v, p = 1) => (v == null ? "–" : (PANEL_LANG === "hu" ? Number(v).toFixed(p).replace(".", ",") : Number(v).toFixed(p)));
+function catchupText(c) {
+  if (!c) return null;
+  return PANEL_LANG === "hu"
+    ? `teljes ciklus – ${c.since_min} perce ${_n(c.gap, 2)} °C-kal a cél alatt (vége ${_n(c.release, 2)} °C-nál)`
+    : `whole cycle – ${_n(c.gap, 2)} °C below the target for ${c.since_min} min (ends at ${_n(c.release, 2)} °C)`;
+}
+function responseText(r) {
+  const v = r?.values || {};
+  if (!Object.keys(v).length) return PANEL_LANG === "hu" ? "még nincs tiszta futás (≥ 10 perc)" : "no clean run yet (≥ 10 min)";
+  const hu = PANEL_LANG === "hu", parts = [];
+  if (v.delay_min != null) parts.push(hu ? `melegedés ${_n(v.delay_min, 0)} perc után` : `warms after ${_n(v.delay_min, 0)} min`);
+  if (v.rise_c_h != null) parts.push(`+${_n(v.rise_c_h, 2)} °C/h`);
+  if (v.afterheat_c != null) parts.push(hu ? `utánfűtés +${_n(v.afterheat_c, 2)} °C (${_n(v.afterheat_min, 0)} perc)` : `after-heat +${_n(v.afterheat_c, 2)} °C (${_n(v.afterheat_min, 0)} min)`);
+  if (v.cool_c_h != null) parts.push(hu ? `hűlés ${_n(v.cool_c_h, 2)} °C/h` : `cooling ${_n(v.cool_c_h, 2)} °C/h`);
+  const n = Math.max(0, ...Object.values(r.samples || {}));
+  return `${parts.join(" · ")} (${n} ${hu ? "mérés" : "samples"})`;
+}
+function timingText(t) {
+  if (!t) return null;
+  const hu = PANEL_LANG === "hu";
+  return hu
+    ? `a szelepnyitás a ciklus ${t.lost_pct}%-a – javasolt ciklus ${_n(t.cycle_s / 60, 0)} perc, minimális futás ${_n(t.min_on_s / 60, 0)} perc${t.floor ? " (padló)" : ""}`
+    : `the valve opening is ${t.lost_pct} % of the cycle – suggested cycle ${_n(t.cycle_s / 60, 0)} min, minimum run ${_n(t.min_on_s / 60, 0)} min${t.floor ? " (floor)" : ""}`;
+}
 function trvSources(d, lang) {
   const hu = (lang || PANEL_LANG) === "hu";
   const names = Object.fromEntries((ENTS(d, "room_trvs") || []).map((e) => [e.entity_id, e.name]));
@@ -1183,6 +1215,8 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Görbe helyiség-célja" : "Curve's room target", det.room_from ? `${this._deg(dec.t_room)} · ${({ demand: hu ? "igénylő zónák" : "zones asking", zones: hu ? "zónák célja (szünet, nem esik)" : "zones' target (pause, kept)", default: hu ? "alapérték" : "fallback" })[det.room_from] || det.room_from}` : null],
       [hu ? "Helyiség-korrekció" : "Room correction", det.correction ? `+${this._num(det.correction, 1)} °C` : null],
       [hu ? "Határok" : "Limits", `${this._deg(cfg.circuit_flow_min)} – ${this._deg(cfg.circuit_flow_max)}`],
+      // 0.69.0: the slow room feedback
+      [hu ? "Tartós igazítás" : "Lasting adjustment", cfg.circuit_room_trim ? `${det.trim >= 0 ? "+" : ""}${this._num(det.trim ?? 0, 1)} °C${det.trim_why ? ` (${({ rooms_short: hu ? "a helyiségek elmaradtak" : "rooms fell short", rooms_easy: hu ? "a helyiségek könnyen tartották" : "rooms held easily" })[det.trim_why] || det.trim_why})` : ""} · ${hu ? "most" : "now"}: ${hu ? "éhes" : "hungry"} ${det.trim_hungry_pct ?? "–"}%, ${hu ? "tartja" : "holding"} ${det.trim_easy_pct ?? "–"}%, ${hu ? "fűt" : "heating"} ${det.trim_duty_pct ?? "–"}%` : (hu ? "kikapcsolva" : "off")],
       [hu ? "Ritkítás" : "Hold", `±${this._num(cfg.circuit_deadband, 1)} °C · ${this._num((cfg.circuit_confirm_s || 0) / 60, 0)} / ${this._num((cfg.circuit_min_interval_s || 0) / 60, 0)} perc · ≤ +${this._num(cfg.circuit_max_rise, 1)} °C`],
     ]));
     if (buf && buf.flow != null) {

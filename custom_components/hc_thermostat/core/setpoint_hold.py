@@ -102,6 +102,12 @@ class SetpointHold:
         reason = "urgent" if held else "ramp" if move < diff else "changed"
         return HoldResult(self.value, raw, reason, True, self._next())
 
+    def jump(self, now: datetime, raw: float, lo: float, hi: float, reason: str = "jump") -> HoldResult:
+        """0.69.0: straight to the raw target (a new heat pump charge) – no confirmation, interval or ramp."""
+        raw = max(lo, min(hi, raw))
+        self._set(now, raw, lo, hi)
+        return HoldResult(self.value, raw, reason, True, self._next())
+
     def state(self, now: datetime | None = None) -> dict:
         return {"value": self.value, "last_change": self.last_change.isoformat() if self.last_change else None,
                 "saved": now.isoformat() if now else None}

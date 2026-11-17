@@ -129,6 +129,11 @@ exists (add the first one under Settings → Devices & services).
 
 - **Shadow mode (default):** calculates everything, switches nothing, and compares itself with your real heating.
 - **Own regulator:** TPI or PID with PWM for on/off relays, with minimum run and pause times that no algorithm may override.
+- **Fast catch-up:** a room at least 0.5 °C below its target for 30 minutes (2 hours on a floor) gets the whole cycle,
+  without a PWM pause, until it is within 0.2 °C. The holding offset learns by the hour (at most 0.02 an hour), the
+  TPI's strength by the day. Both TPI coefficients are in the Regulation section.
+- **Measured answer:** the panel shows from ordinary runs of at least 10 minutes how many minutes until the room warms,
+  how fast, the after-heat and how fast it cools back. Shown only, nothing regulates by it.
 - **External thermostat:** sets the target and mode of any `climate` entity.
 - **Supervision:** presence and night schedule, open window pause, summer rest, frost protection, lost sensor fallback, restart protection, fault detection, optional boost.
 - **Decision log** in English and Hungarian.
@@ -314,6 +319,8 @@ are shown side by side; a setting picks the one that drives (classic by default)
   small for a useful run is **carried into the next cycles** until it is worth one (no demand clears it). In a
   simulation (15-minute cycle, 10-minute dead time, 24 h) a quarter to half of the runs ended before any heat arrived
   without it, none with it, and the room kept about twice as close to its target.
+- **Timing suggestion:** with a valve delay the panel says when the cycle is shorter than six delays or the minimum
+  run shorter than two, and suggests at least 30 minutes for radiators, 60 for a floor.
 - **Setup:** "Add integration" first offers the wizard (its panel is served at once, before any instance) or the manual
   way; the manual way now ends with **basic settings** – targets, night, cycle, minimum on / off time, useful heat delay.
 
@@ -527,6 +534,11 @@ the PLC / mixer keeps driving its valve, pump and safety limits. In shadow mode 
   target is the curve at the highest target of the zones with a **lasting** demand (asked within the last 30 minutes,
   so a TPI pause does not drop it) plus a room correction (kp × the largest deficit, at most 3 °C of deficit), within
   the circuit's limits. The floor maximum is the water's flow limit, not the floor surface limit.
+- **Flow from the rooms' lasting shortfall** (`circuit_room_trim`, off by default): weighed every hour. When most of
+  the circuit's zones heated nearly all the time and still stayed below their targets, the flow rises by 0.5 °C; when
+  all held their targets easily (heating less than half the time), it goes down; at most ±5 °C, kept over a restart.
+  The heat output is then set mainly by the water temperature, not by frequent relay switching. A tank too cold to give
+  more (the cap limits) does not count as a shortfall.
 - **The given-out target changes rarely:** at least 1.5 °C away, lasting 10 minutes, 25 minutes after the last change,
   a rise at most 3 °C at a time (lowering unlimited); a lowered maximum applies at once; a difference of 5 °C lasting
   2 minutes skips the wait. No outdoor reading: the target stays. All settable. *Circuit flow target* shows the
@@ -545,6 +557,10 @@ demand, the ON/OFF request and the flow target.
 - **Target:** the circuits' need + a coil reserve (5 °C) + your offset (−8…+8 °C, the *Heat pump offset* number – for
   a unit that makes 38 °C on a 42 °C command), within its limits; the lowest while there is nothing to make. It changes
   rarely (2 °C, 10 min, 45 min, at most +3 °C at a time).
+- **A new charge with the full target** (`hp_charge_jump`, on by default): when a charge starts, and when the
+  compressor stops below the target during one, the given-out target goes straight to the worked-out value; the hold
+  only smooths changes within a charge. A power meter as the "runs" signal counts as running above `hp_running_w`
+  (100 W).
 - **Wood first:** a wood signal, or the tank warming while the heat pump is known to stand, holds off a start.
   With `hp_wood_first` (on by default): no start for a low charge either, and a heating that already runs stops;
   only the buffer frost limit goes before it, the cold-weather ON and the fail-safe ON stay with the lowest target.

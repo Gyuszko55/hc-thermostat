@@ -202,6 +202,11 @@ class HcConfig:
     # 0.48.1 small demands carried on without a valve delay (with one they always are); off by default – it raised
     # the overshoot after a boost in the simulation (the after-heat learning)
     pwm_carry: bool = False
+    # 0.69.0 fast catch-up (a tester's buffer house, radiators with 5-min valves): a room this far below its target
+    # for catchup_after_s gets the whole cycle (no PWM pause) until it is within catchup_release; 0 = off
+    catchup_gap: float = 0.5
+    catchup_after_s: float = 1800.0
+    catchup_release: float = 0.2
     keep_alive_s: float = 0.0  # resend "on" this often while heating (relay with its own auto-off timer); 0 = off
     # Safety
     sensor_max_age_s: float = 7200.0

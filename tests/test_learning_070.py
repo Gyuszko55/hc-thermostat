@@ -96,7 +96,7 @@ def test_a_day_well_below_target_makes_the_tpi_stronger():
     _day_of_regulation(learner, 9, error=0.5)
     _day_of_regulation(learner, 10, error=0.0, hours=0.1)  # the next day closes the first
     assert learner.tpi_coef_int == CFG.tpi_coef_int + 0.1
-    assert 0 < learner.tpi_offset <= 0.05
+    assert 0.1 < learner.tpi_offset <= 0.2  # 0.69.0: hourly, at most 0.02 an hour (10 hours)
     assert learner.learned.days == 1
 
 
@@ -105,14 +105,15 @@ def test_a_day_with_overshoot_makes_the_tpi_softer():
     _day_of_regulation(learner, 9, error=-0.4)
     _day_of_regulation(learner, 10, error=0.0, hours=0.1)
     assert learner.tpi_coef_int == CFG.tpi_coef_int - 0.1
-    assert -0.05 <= learner.tpi_offset < 0
+    assert -0.2 <= learner.tpi_offset < -0.1
 
 
 def test_a_short_day_teaches_nothing():
     learner = Learner(CFG)
     _day_of_regulation(learner, 9, error=0.5, hours=2)
     _day_of_regulation(learner, 10, error=0.0, hours=0.1)
-    assert learner.learned.days == 0 and learner.tpi_offset == 0.0
+    assert learner.learned.days == 0 and learner.tpi_coef_int == CFG.tpi_coef_int
+    assert learner.tpi_offset == 0.04  # 0.69.0: the offset learns by the hour, two hours gave two steps
 
 
 def test_the_morning_heat_up_does_not_count_as_a_shortfall():

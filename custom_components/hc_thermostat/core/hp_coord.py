@@ -124,6 +124,11 @@ class HpConfig:
     hp_min_interval_s: float = 2700.0
     hp_max_rise: float = 3.0
     hp_urgent: float = 6.0
+    # 0.69.0 (a tester: 44.5 °C worked out, 39 °C given, the unit stopped its compressor on its own target with the tank
+    # not charged): a new charge gives the full target at once, and so does a running charge whose compressor stopped
+    # below it – the hold's confirmation, interval and ramp then only smooth the changes within a charge
+    hp_charge_jump: bool = True
+    hp_running_w: float = 100.0  # 0.69.0: a power reading above this (W) means the compressor runs (was fixed 100 W)
 
     @classmethod
     def from_conf(cls, conf: dict) -> "HpConfig":
@@ -412,7 +417,7 @@ class HeatPumpCoordinator:
                 details["low_charge_waits"] = True  # 0.59.0: a low charge, but no room asks – no start for it
         if self.summer and why != "frost":
             heat, why = False, "summer"  # 0.57.0: no heating for the tank in summer mode; the frost limit still heats
-        self.heating = heat
+        was_heating, self.heating = self.heating, heat
         details.update(summer_since=self.summer_since.isoformat() if self.summer_since else None,
                        room_idle_hours=round((now - self.last_room).total_seconds() / 3600, 2) if self.last_room else None,
                        demand_held_s=round((now - self.ask_since).total_seconds()) if self.ask_since else None,
@@ -459,7 +464,17 @@ class HeatPumpCoordinator:
             raw = cfg.hp_flow_min + cfg.hp_reserve + offset
         else:
             raw = cfg.hp_flow_min
-        res = self.hold.step(now, raw, cfg.hp_flow_min, cfg.hp_flow_max)
+        jump = None
+        if cfg.hp_charge_jump and heat and self.hold.value is not None and raw - self.hold.value >= 0.5:
+            if not was_heating:
+                jump = "charge_start"
+            elif i.hp_running is False and raw - self.hold.value >= 1.0:
+                jump = "compressor_stopped"
+        if jump is not None:
+            res = self.hold.jump(now, raw, cfg.hp_flow_min, cfg.hp_flow_max, jump)
+            details["jump"] = jump
+        else:
+            res = self.hold.step(now, raw, cfg.hp_flow_min, cfg.hp_flow_max)
         details.update(next_allowed=res.next_allowed.isoformat() if res.next_allowed else None,
                        last_change=self.last_change.isoformat() if self.last_change else None,
                        target_changed=res.changed, warm_since=self.warm_since.isoformat() if self.warm_since else None)

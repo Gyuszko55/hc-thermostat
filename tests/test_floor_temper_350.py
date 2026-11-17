@@ -131,7 +131,7 @@ def test_electric_floor_tempers_too():
 def test_learning_is_not_fed_while_tempering():
     sup = Supervisor(cfg(control="tpi", learning_enabled=True, learning_settle_s=0))
     calls = []
-    sup.learner.regulating = lambda *a: calls.append(a)
+    sup.learner.regulating = lambda *a, **k: calls.append(a)
     step(sup, 0, indoor=20.9, floor=21.0)  # regulating, but the floor tempering raises the demand
     step(sup, 1, indoor=21.5, floor=21.0)  # at target, tempering
     assert calls == []

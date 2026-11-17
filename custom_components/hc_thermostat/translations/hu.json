@@ -256,7 +256,11 @@
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
           "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment",
-          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
+          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás",
+          "circuit_room_trim": "Előremenő a helyiségek tartós elmaradásából",
+          "circuit_trim_step": "Tartós igazítás lépése",
+          "circuit_trim_s": "Tartós igazítás ideje",
+          "circuit_trim_max": "Tartós igazítás határa (±)"
         },
         "data_description": {
           "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
@@ -274,7 +278,11 @@
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell fennállnia, mielőtt új cél megy ki.",
           "circuit_min_interval_s": "Két célváltás között legalább ennyi idő – a keverő ne mozogjon folyton.",
           "circuit_max_rise": "Felfelé fokozatosan lép; lefelé nincs korlát.",
-          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre."
+          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre.",
+          "circuit_room_trim": "Óránként mérlegel: ha a kör helyiségeinek többsége szinte végig fűtött és mégis a cél alatt maradt, az előremenő a lenti lépéssel emelkedik; ha mind könnyen tartotta a célt, kevesebb mint fele idő fűtéssel, csökken. Újraindítás után megmarad. Alapból ki, mert a keverő élő célját változtatja.",
+          "circuit_trim_step": "Ennyit lép fel vagy le egy mérlegelés után.",
+          "circuit_trim_s": "Ennyi ideig figyeli a helyiségeket egy lépés előtt.",
+          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el."
         }
       },
       "hp_coord": {
@@ -353,7 +361,9 @@
           "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
           "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
-          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
+          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)",
+          "hp_running_w": "A kompresszor fut ennyi watt felett",
+          "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
         },
         "data_description": {
           "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
@@ -396,7 +406,9 @@
           "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
           "hp_max_rise": "Felfelé fokozatosan lép.",
           "hp_urgent": "Ekkora eltérésnél nem vár.",
-          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
+          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér.",
+          "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+          "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
         },
         "sections": {
           "charge_demand": {
@@ -440,14 +452,16 @@
               "hp_min_off_s": "Legrövidebb OFF idő",
               "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
               "hp_idle_off": "OFF, ha sokáig nincs igény",
-              "hp_idle_hours": "Ennyi ideig nincs igény"
+              "hp_idle_hours": "Ennyi ideig nincs igény",
+              "hp_running_w": "A kompresszor fut ennyi watt felett"
             },
             "data_description": {
               "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
               "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
-              "hp_idle_hours": "Ennyi igénymentes óra után."
+              "hp_idle_hours": "Ennyi igénymentes óra után.",
+              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W)."
             }
           },
           "season": {
@@ -510,14 +524,16 @@
               "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
               "hp_min_interval_s": "Két módosítás között legalább",
               "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+              "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
             },
             "data_description": {
               "hp_deadband": "Kis ingadozásra nem ír új célt.",
               "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
               "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
               "hp_max_rise": "Felfelé fokozatosan lép.",
-              "hp_urgent": "Ekkora eltérésnél nem vár."
+              "hp_urgent": "Ekkora eltérésnél nem vár.",
+              "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
             }
           }
         }
@@ -638,7 +654,12 @@
               "fan_overrun_s": "Ventilátor utánfutása a szelep zárása után",
               "fan_min_coil": "A ventilátor csak ennél melegebb hőcserélőnél indul",
               "keep_alive_s": "Bekapcsolt állapot újraküldése (s, 0 = ki) – ha a relének saját lekapcsolási időzítője van",
-              "keep_alive_script": "Relé-őr szkript (minden életjelnél)"
+              "keep_alive_script": "Relé-őr szkript (minden életjelnél)",
+              "catchup_gap": "Gyors felzárkózás: ennyi elmaradástól (0 = ki)",
+              "catchup_after_s": "Gyors felzárkózás: ennyi idő után",
+              "catchup_release": "Gyors felzárkózás vége: ennyire a cél alatt",
+              "tpi_coef_int": "TPI belső együttható",
+              "tpi_coef_ext": "TPI külső együttható"
             },
             "data_description": {
               "control": "TPI: arányos impulzusok a hiba és a kinti hőmérséklet szerint. PID: arányos + integráló (+ deriváló) tag – a tartós eltérést is eltünteti. Mindkettő PWM-mel kapcsolja a relét: minden ciklus egy részében bekapcsolva.",
@@ -676,7 +697,12 @@
               "fan_overrun_s": "A hőcserélőben maradt hőt még kifújja.",
               "fan_min_coil": "Hideg hőcserélővel nem fúj hideg levegőt.",
               "keep_alive_s": "Olyan relénél, amely magától lekapcsol egy idő után.",
-              "yield_margin": "Hogy a kazán ne versenyezzen az olcsóbb hőforrással, ennyivel a cél alatt szabályoz."
+              "yield_margin": "Hogy a kazán ne versenyezzen az olcsóbb hőforrással, ennyivel a cél alatt szabályoz.",
+              "catchup_gap": "Ha a helyiség legalább ennyivel a cél alatt van a lenti ideig, a teljes ciklust kapja, PWM-szünet nélkül, amíg a cél közelébe nem ér. A lassú tanulás közben tovább finomít.",
+              "catchup_after_s": "Ennyi ideig kell tartósan a küszöb alatt lennie. Padlófűtésnél alapból 2 óra, mert az esztrich még órákig ad hőt.",
+              "catchup_release": "Ha a helyiség ennyire megközelíti a célt, újra a TPI arányos ciklusa szabályoz.",
+              "tpi_coef_int": "1 °C elmaradásra ennyi igény (0,6 = 60%). Nagyobb érték: kisebb elmaradásnál is hosszabb fűtés. Bekapcsolt tanulásnál ez a kiinduló érték.",
+              "tpi_coef_ext": "A cél és a kinti hőmérséklet különbségének minden fokára ennyi igény (0,01 = 1%/°C)."
             }
           },
           "functions": {
@@ -1185,7 +1211,11 @@
           "circuit_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
           "circuit_urgent": "Sürgős eltérés: nem vár (0 = soha)",
           "circuit_preview": "Csak előnézet: a görbét mutatja a beírt értékekkel, nem ment",
-          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás"
+          "circuit_tank_cap": "Keverőkör célja legfeljebb a puffer teteje − ráhagyás",
+          "circuit_room_trim": "Előremenő a helyiségek tartós elmaradásából",
+          "circuit_trim_step": "Tartós igazítás lépése",
+          "circuit_trim_s": "Tartós igazítás ideje",
+          "circuit_trim_max": "Tartós igazítás határa (±)"
         },
         "data_description": {
           "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
@@ -1203,7 +1233,11 @@
           "circuit_confirm_s": "Az eltérésnek ennyi ideig kell fennállnia, mielőtt új cél megy ki.",
           "circuit_min_interval_s": "Két célváltás között legalább ennyi idő – a keverő ne mozogjon folyton.",
           "circuit_max_rise": "Felfelé fokozatosan lép; lefelé nincs korlát.",
-          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre."
+          "circuit_urgent": "Ekkora eltérésnél nem vár a megerősítésre és a szünetre.",
+          "circuit_room_trim": "Óránként mérlegel: ha a kör helyiségeinek többsége szinte végig fűtött és mégis a cél alatt maradt, az előremenő a lenti lépéssel emelkedik; ha mind könnyen tartotta a célt, kevesebb mint fele idő fűtéssel, csökken. Újraindítás után megmarad. Alapból ki, mert a keverő élő célját változtatja.",
+          "circuit_trim_step": "Ennyit lép fel vagy le egy mérlegelés után.",
+          "circuit_trim_s": "Ennyi ideig figyeli a helyiségeket egy lépés előtt.",
+          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el."
         }
       },
       "hp_coord": {
@@ -1296,7 +1330,9 @@
           "hp_stop_layer": "Igény szerinti: a leállítást eldöntő réteg",
           "hp_stop_margin": "Igény szerinti: leállítási tartalék (réteg ≥ igény + ennyi)",
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
-          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)"
+          "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)",
+          "hp_running_w": "A kompresszor fut ennyi watt felett",
+          "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
         },
         "data_description": {
           "hp_charge_mode": "Klasszikus: indul, ha a puffer teteje az igény alá esik vagy a töltöttség a küszöb alá; igény szerinti: a tetőnek az igény + indítási tartalék fölött kell maradnia, és csak akkor áll le, ha a kiválasztott réteg is eléri az igény + leállítási tartalékot. Mindkettő mindig kiszámolódik és látszik a HC info panelen, így árnyékban összehasonlíthatók.",
@@ -1339,7 +1375,9 @@
           "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
           "hp_max_rise": "Felfelé fokozatosan lép.",
           "hp_urgent": "Ekkora eltérésnél nem vár.",
-          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér."
+          "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér.",
+          "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+          "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
         },
         "sections": {
           "charge_demand": {
@@ -1383,14 +1421,16 @@
               "hp_min_off_s": "Legrövidebb OFF idő",
               "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
               "hp_idle_off": "OFF, ha sokáig nincs igény",
-              "hp_idle_hours": "Ennyi ideig nincs igény"
+              "hp_idle_hours": "Ennyi ideig nincs igény",
+              "hp_running_w": "A kompresszor fut ennyi watt felett"
             },
             "data_description": {
               "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
               "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
-              "hp_idle_hours": "Ennyi igénymentes óra után."
+              "hp_idle_hours": "Ennyi igénymentes óra után.",
+              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W)."
             }
           },
           "season": {
@@ -1453,14 +1493,16 @@
               "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania",
               "hp_min_interval_s": "Két módosítás között legalább",
               "hp_max_rise": "Egy lépésben legfeljebb ennyi emelés (0 = nincs korlát)",
-              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)"
+              "hp_urgent": "Sürgős eltérés: nem vár (0 = soha)",
+              "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
             },
             "data_description": {
               "hp_deadband": "Kis ingadozásra nem ír új célt.",
               "hp_confirm_s": "Az eltérésnek ennyi ideig kell tartania.",
               "hp_min_interval_s": "Két célváltás között legalább ennyi idő.",
               "hp_max_rise": "Felfelé fokozatosan lép.",
-              "hp_urgent": "Ekkora eltérésnél nem vár."
+              "hp_urgent": "Ekkora eltérésnél nem vár.",
+              "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
             }
           }
         }

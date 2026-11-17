@@ -254,6 +254,11 @@ def _circuit_settings(current: dict, kind: str) -> dict:
         vol.Required("circuit_margin", default=v("circuit_margin")): _number(0, 10, 0.5, "°C"),
         vol.Required("circuit_tank_cap", default=bool(v("circuit_tank_cap"))): BooleanSelector(),  # 0.64.0
         vol.Required("circuit_hold_s", default=v("circuit_hold_s")): _number(0, 7200, 60, "s"),
+        # 0.69.0: the flow follows the rooms' lasting shortfall
+        vol.Required("circuit_room_trim", default=bool(v("circuit_room_trim"))): BooleanSelector(),
+        vol.Required("circuit_trim_step", default=v("circuit_trim_step")): _number(0.1, 3, 0.1, "°C"),
+        vol.Required("circuit_trim_s", default=v("circuit_trim_s")): _number(900, 14400, 300, "s"),
+        vol.Required("circuit_trim_max", default=v("circuit_trim_max")): _number(0, 15, 0.5, "°C"),
         vol.Required("circuit_idle_keep", default=bool(v("circuit_idle_keep"))): BooleanSelector(),  # 0.62.0
         vol.Required("circuit_deadband", default=v("circuit_deadband")): _number(0.5, 5, 0.5, "°C"),
         vol.Required("circuit_confirm_s", default=v("circuit_confirm_s")): _number(0, 3600, 60, "s"),
@@ -335,13 +340,14 @@ def _hpc_settings(current: dict) -> dict:
          _select(list(STOP_LAYERS), "hp_stop_layer")),
         n("hp_stop_margin", 0, 15, 0.5, "°C"), n("hp_coil_dt", 0, 15, 0.5, "°C"), n("hp_lead_min", 0, 240, 5, "min"),
         n("hp_charge_on", 0, 100, 1, "%"), n("hp_charge_off", 0, 100, 1, "%"), b("hp_charge_needs_demand"),
-        n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"),
+        n("hp_min_on_s", 0, 7200, 60, "s"), n("hp_min_off_s", 0, 7200, 60, "s"), n("hp_running_w", 0, 5000, 10, "W"),
         b("hp_standby"), b("hp_idle_off"), n("hp_idle_hours", 1, 168, 1, "h"),
         b("hp_auto_summer"), n("hp_summer_after_h", 1, 168, 1, "h"), n("hp_winter_after_s", 0, 14400, 300, "s"),
         b("hp_exercise"), n("hp_exercise_weekday", 0, 6, 1), n("hp_exercise_hour", 0, 23, 1, "h"), n("hp_exercise_min", 1, 120, 1, "min"),
         b("hp_cold_on"), n("hp_cold_on_below", -10, 15, 0.5, "°C"), n("hp_cold_release_above", -10, 20, 0.5, "°C"),
         n("hp_cold_release_s", 0, 21600, 300, "s"), n("hp_wood_rise", 0.5, 20, 0.5, "°C/h"), b("hp_wood_first"),
         w("wood_on_above", 30, 95, 1, "°C"), w("wood_off_below", 25, 90, 1, "°C"), w("wood_confirm_s", 0, 3600, 60, "s"),
+        b("hp_charge_jump"),
         n("hp_deadband", 0.5, 6, 0.5, "°C"), n("hp_confirm_s", 0, 3600, 60, "s"), n("hp_min_interval_s", 0, 14400, 300, "s"),
         n("hp_max_rise", 0, 20, 0.5, "°C"), n("hp_urgent", 0, 20, 0.5, "°C"),
     ])
@@ -391,12 +397,12 @@ def _weekend_errors(user_input: dict) -> dict:
 HPC_SECTIONS = {
     "charge_demand": ("hp_start_margin", "hp_start_kwh", "hp_lead_min", "hp_stop_layer", "hp_stop_margin", "hp_coil_dt"),
     "charge_classic": ("hp_hyst", "hp_charge_on", "hp_charge_off", "hp_charge_needs_demand"),
-    "running": ("hp_min_on_s", "hp_min_off_s", "hp_standby", "hp_idle_off", "hp_idle_hours"),
+    "running": ("hp_min_on_s", "hp_min_off_s", "hp_running_w", "hp_standby", "hp_idle_off", "hp_idle_hours"),
     "season": ("hp_auto_summer", "hp_summer_after_h", "hp_winter_after_s", "hp_exercise", "hp_exercise_weekday",
                "hp_exercise_hour", "hp_exercise_min"),
     "cold": ("hp_cold_on", "hp_cold_on_below", "hp_cold_release_above", "hp_cold_release_s"),
     "wood": ("hp_wood_rise", "hp_wood_first", "wood_on_above", "wood_off_below", "wood_confirm_s"),
-    "hold": ("hp_deadband", "hp_confirm_s", "hp_min_interval_s", "hp_max_rise", "hp_urgent"),
+    "hold": ("hp_charge_jump", "hp_deadband", "hp_confirm_s", "hp_min_interval_s", "hp_max_rise", "hp_urgent"),
 }
 HPC_SECTION_OF = {k: name for name, keys in HPC_SECTIONS.items() for k in keys}
 
@@ -658,7 +664,8 @@ _ENTITY_TOP = (CONF_INDOOR, CONF_DEMAND, CONF_EXTERNAL, CONF_FLOW, CONF_HEAT_ENA
 # the settings: the targets and the night stay on top, the rest folds out by topic (the measurements as in 0.48.0)
 SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
     "regulation": (CONF_CONTROL, "cycle_s", "min_on_s", "min_off_s", "valve_delay_s", "coast_window_s",
-                   "pwm_midcycle_start", "pwm_carry", "pre_change_s", "yield_margin", "pid_kp", "pid_ki_per_hour",
+                   "pwm_midcycle_start", "pwm_carry", "catchup_gap", "catchup_after_s", "catchup_release",
+                   "tpi_coef_int", "tpi_coef_ext", "pre_change_s", "yield_margin", "pid_kp", "pid_ki_per_hour",
                    "pid_kd", "pid_d_filter_s", "curve_slope", "curve_shift", "flow_min", "flow_max", "room_kp",
                    "room_ki_per_hour", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "ac_ki_per_hour",
                    "ac_min_change_s", CONF_ASSIST, "storage_window_start", "storage_window_end", "storage_charge_h",
@@ -1246,7 +1253,13 @@ class HcOptionsFlow(OptionsFlow):
             # 0.47.0: the coasting after a burn (0.44.3) and the mid-cycle start (0.44.2) – off unless turned on here
             **({vol.Required("coast_window_s", default=cfg.coast_window_s): _number(0, 7200, 300, "s"),
                 vol.Required("pwm_midcycle_start", default=cfg.pwm_midcycle_start): BooleanSelector(),
-                vol.Required("pwm_carry", default=cfg.pwm_carry): BooleanSelector()}
+                vol.Required("pwm_carry", default=cfg.pwm_carry): BooleanSelector(),
+                # 0.69.0: the fast catch-up of a room long behind, and the TPI's own coefficients
+                vol.Required("catchup_gap", default=cfg.catchup_gap): _number(0, 3, 0.1, "°C"),
+                vol.Required("catchup_after_s", default=cfg.catchup_after_s): _number(0, 14400, 300, "s"),
+                vol.Required("catchup_release", default=cfg.catchup_release): _number(0, 1, 0.05, "°C"),
+                vol.Required("tpi_coef_int", default=cfg.tpi_coef_int): _number(0.1, 3, 0.05),
+                vol.Required("tpi_coef_ext", default=cfg.tpi_coef_ext): _number(0, 0.1, 0.005)}
                if cfg.control in ("tpi", "pid") else {}),
             # 0.48.3: no new start just before a scheduled lowering of the target
             **({vol.Required("pre_change_s", default=cfg.pre_change_s): _number(0, 7200, 300, "s")}

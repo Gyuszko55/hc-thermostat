@@ -55,7 +55,7 @@ def reading_age_s(state, now: datetime | None = None) -> float | None:
         return None
 
 
-def on_state(hass, entity_id: str | None, now: datetime | None = None) -> bool | None:
+def on_state(hass, entity_id: str | None, now: datetime | None = None, running_w: float | None = None) -> bool | None:
     """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
     (power W / kW, current A, compressor Hz / rpm, modulation %); None when not given or not known."""
     state = hass.states.get(entity_id) if entity_id else None
@@ -75,7 +75,10 @@ def on_state(hass, entity_id: str | None, now: datetime | None = None) -> bool |
         value = float(state.state)
     except ValueError:
         return None
-    above = RUNNING_ABOVE.get(str(state.attributes.get("unit_of_measurement") or "").strip())
+    unit = str(state.attributes.get("unit_of_measurement") or "").strip()
+    above = RUNNING_ABOVE.get(unit)
+    if running_w is not None and unit in ("W", "kW", "mW"):  # 0.69.0: the compressor's own power threshold
+        above = {"W": running_w, "kW": running_w / 1000, "mW": running_w * 1000}[unit]
     if above is None:
         return None
     runs = value > above
@@ -173,7 +176,7 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                         trend_c_h=trend.get("c_per_h"), circuits=tuple(circuits), zones_asking=zones_asking,
                         frost_top=frost,
                         wood_signal=self._wood_signal(now),
-                        hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now),
+                        hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now, self.hp.cfg.hp_running_w),
                         hp_running_age_s=self._running_age(now),
                         offset=self.offset,
                         layers=_layers(stock))

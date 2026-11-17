@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.69.0 – 2026-11-17
+After a tester's first real night on a buffer house (1000 l tank, two motorised mixing circuits, 5-minute
+thermoelectric valves, a PLC that starts the pumps late): the rooms switched far more often than before and still
+stayed 0.2–0.4 °C under their targets.
+- **Fast catch-up of a room long behind** (`catchup_gap` 0.5 °C, `catchup_after_s` 30 min – 2 h on a floor,
+  `catchup_release` 0.2 °C; 0 = off): such a room gets the whole cycle, without a PWM pause, until it is near its
+  target. Before, the TPI's proportional share left a room 0.75 °C behind on 64 % with a pause every cycle. The info
+  panel and the explanation say so. A partial cycle while a room settles back after it no longer counts as a heating
+  fault.
+- **The holding offset learns by the hour** (at most 0.02 an hour, within −0.2…0.3), not once a day by at most 0.05 –
+  a steady shortfall is gone within a day instead of a week; not while the room already has the whole cycle. The
+  TPI's daily strength step now counts the hours more than 0.2 °C behind (was 0.3).
+- **The TPI's coefficients in the settings** (`tpi_coef_int`, `tpi_coef_ext`, Regulation section, Advanced mode).
+- **Mixing circuit: the flow from the rooms' lasting shortfall** (`circuit_room_trim`, off by default; step 0.5 °C an
+  hour, ±5 °C): when most zones of the circuit heated nearly all the hour and still stayed below, the water goes up;
+  when all held their targets with less than half the time heating, it goes down – long, even runs on cooler water
+  instead of frequent switching. A tank too cold to give more does not count. Kept over a restart; the panel shows the
+  adjustment and the hour so far.
+- **The measured answer of a room** (panel, shown only): from ordinary runs of at least 10 minutes – minutes until it
+  warms, °C/h while heating, the after-heat and its minutes, °C/h cooling.
+- **Timing suggestion:** with a valve delay, a cycle shorter than six delays (or a minimum run shorter than two) gets a
+  suggestion on the panel – 30 minutes for radiators, 60 for a floor at least.
+- **Heat pump: the full target at once for a new charge** (`hp_charge_jump`, on): when a charge starts, and when the
+  compressor stops below the target during one, the given-out target goes straight to the worked-out value; the
+  hold's confirmation, interval and ramp only smooth the changes within a charge. The tester's unit stopped its
+  compressor at 39 °C given while 44.5 °C was worked out.
+- **The compressor's power threshold** (`hp_running_w`, 100 W): a power reading above it means the heat pump runs.
+
 ## 0.68.0 – 2026-11-16
 **Demand-based tank charging, second step: the start timed by the pace of use** (`hp_lead_min`, 60 minutes; 0 = off).
 In the demand rule the heat pump also starts when the tank cools steadily – its mean by at least 0.2 °C/h – and at

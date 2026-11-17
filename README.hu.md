@@ -131,6 +131,11 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 
 - **Árnyék mód (alapértelmezett):** mindent kiszámol, semmit nem kapcsol, és összeveti magát a valódi fűtéssel.
 - **Saját szabályozó:** TPI vagy PID, PWM-mel, be-ki reléhez; a minimális futási időt és szünetet egyik algoritmus sem írhatja felül.
+- **Gyors felzárkózás:** ha egy helyiség tartósan (30 percig, padlón 2 óráig) legalább 0,5 °C-kal a cél alatt van, a
+  teljes ciklust kapja PWM-szünet nélkül, amíg 0,2 °C-on belül nem ér. A tartós elmaradást kompenzáló eltolás óránként
+  tanul (legfeljebb 0,02 óránként), a TPI erőssége naponta. A TPI két együtthatója a Szabályozás részben állítható.
+- **Mért válasz:** a panel a szokásos, legalább 10 perces futásokból mutatja, hány perc után melegszik a helyiség,
+  milyen gyorsan, mennyi az utánfűtés, és milyen gyorsan hűl vissza. Csak kijelzés, nem szabályoz belőle.
 - **Külső termosztát:** bármely `climate` entitás célhőfokát és üzemmódját állítja.
 - **Felügyelet:** jelenlét és éjszakai ütemezés, szünet nyitott ablaknál, nyári pihenő, fagyvédelem, tartalék üzem érzékelő-kiesésnél, újraindítás-védelem, hibafigyelés, opcionális felfűtés.
 - **Döntésnapló** magyarul és angolul.
@@ -317,6 +322,8 @@ a csőkígyó hője felér. A kettő egymás mellett látszik; egy beállítás 
   túl kicsi igény **a következő ciklusokra gyűlik**, amíg megér egy nyitást (igény nélkül törlődik). Szimulációban (15
   perces ciklus, 10 perc holtidő, 24 óra) nélküle a nyitások negyede–fele véget ért, mielőtt hő érkezett volna, vele
   egy sem, és a helyiség kb. kétszer közelebb maradt a céljához.
+- **Időzítési javaslat:** szelepkésésnél a panel jelzi, ha a ciklus rövidebb hat késésnyinél, vagy a minimális futás
+  kettőnél, és javasol: radiátornál legalább 30, padlónál legalább 60 perces ciklust.
 - **Felvétel:** az „Integráció hozzáadása” előbb a varázslót (a panelje rögtön elérhető, példány nélkül is) vagy a kézi
   utat kínálja; a kézi út végén új **Alapbeállítások** lépés: célok, éjszaka, ciklus, minimális be- / kikapcsolási idő,
   hasznos fűtés késése.
@@ -535,6 +542,11 @@ semmit nem ír** – kiszámol és megmutat; az írás lent.
   görbe a **tartós** igényű zónák legmagasabb céljánál (az utóbbi 30 percben kértek, így egy TPI-szünet nem ejti ki)
   plusz helyiség-korrekció (kp × a legnagyobb hiány, legfeljebb 3 °C hiányig), a kör határain belül. A padló maximuma a
   víz előremenő-korlátja, nem a padló felületi korlátja.
+- **Előremenő a helyiségek tartós elmaradásából** (`circuit_room_trim`, alapból ki): óránként mérlegel. Ha a kör
+  zónáinak többsége szinte végig fűtött és mégis a cél alatt maradt, az előremenő 0,5 °C-ot emelkedik; ha mind
+  könnyen tartotta a célját (az idő kevesebb mint felében fűtve), csökken; legfeljebb ±5 °C, újraindítás után is
+  megmarad. Így a hőleadást elsősorban a víz hőmérséklete szabályozza, nem a relék gyakori kapcsolása. A túl hideg
+  puffer (korlátoz) nem számít elmaradásnak.
 - **A kiadott cél ritkán változik:** legalább 1,5 °C eltérés, 10 percig tartósan, az előző módosítás után legalább 25
   perccel, egy lépésben legfeljebb 3 °C emelés (csökkentés korlát nélkül); a lecsökkentett maximum azonnal érvényes;
   2 percig tartó 5 °C-os eltérés nem vár. Kinti mérés nélkül a cél marad. Minden érték állítható. A *Kör előremenő
@@ -553,6 +565,9 @@ célt.
 - **Cél:** a körök igénye + csőkígyó-tartalék (5 °C) + a korrekciód (−8…+8 °C, a *Hőszivattyú korrekció* number –
   olyan géphez, amely 42 °C-os parancsra 38 °C-ot ad), a határokon belül; ha nincs mit termelni, a legalacsonyabb.
   Ritkán változik (2 °C, 10 perc, 45 perc, egyszerre legfeljebb +3 °C).
+- **Új töltés teljes céllal** (`hp_charge_jump`, alapból be): töltés indulásakor, és ha töltés közben a kompresszor a
+  cél alatt leáll, a kiadott cél azonnal a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat
+  simítja. A „fut” jel teljesítménymérőnél `hp_running_w` (100 W) felett számít működésnek.
 - **Fa elsőbbsége:** a fatüzelés jele, vagy a puffer melegedése, miközben tudjuk, hogy a hőszivattyú áll, visszatartja
   az indítást. A `hp_wood_first` mellett (alapból be): alacsony töltöttségnél sem indít, és a már futó felfűtés is leáll;
   csak a puffer fagyhatára előzi meg, a hidegben-ON és a tartalék ON a legalacsonyabb céllal marad.

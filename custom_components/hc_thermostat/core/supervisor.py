@@ -23,6 +23,7 @@ from .window_drop import DropDetector
 from .model import Decision, ExternalCommand, HcConfig, Inputs, Presence, Reason
 from .pwm import Pwm
 from .regulators import make_regulator, shadow_control
+from .response import ResponseMeter
 from .ac import AcController
 
 _REARM_OFF_S = 1800.0
@@ -100,6 +101,13 @@ class Supervisor:
         self._fail_off_s = 0.0
         self._fail_strikes = 0
         self._last_now: datetime | None = None
+        # 0.69.0 fast catch-up: since when the room is catchup_gap below its target, and whether it has the whole cycle
+        self._catchup_since: datetime | None = None
+        self._catchup = False
+        self._catchup_target: float | None = None
+        self.response = ResponseMeter()  # 0.69.0: how the room answers its runs (shown only)
+        self._last_partial = False  # the step before regulated with only a part of the cycle (the fault check runs first)
+        self._fail_partial = False  # 0.69.0: this fault window had a heating step with only a part of the cycle
 
     # --- persistence -----------------------------------------------------------
     def state(self) -> dict:
@@ -115,6 +123,9 @@ class Supervisor:
             "early": {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in self._early.items()}
             if self._early else None,
             "learner": self.learner.state(),
+            "response": self.response.state(),
+            "catchup": {"since": self._catchup_since.isoformat() if self._catchup_since else None,
+                        "on": self._catchup, "target": self._catchup_target},
             "curve": self.curve.state(),
             "exercise": self.exercise.state(),
             "manual_target": self.manual_target,
@@ -194,6 +205,14 @@ class Supervisor:
             self._early = {**early, "until": datetime.fromisoformat(early["until"]),
                            "since": datetime.fromisoformat(early["since"]) if early.get("since") else None}
         self.learner.restore(data.get("learner", {}))
+        self.response.restore(data.get("response") or {})
+        catchup = data.get("catchup") or {}
+        try:
+            self._catchup_since = datetime.fromisoformat(catchup["since"]) if catchup.get("since") else None
+            self._catchup = bool(catchup.get("on")) and self._catchup_since is not None
+            self._catchup_target = None if catchup.get("target") is None else float(catchup["target"])
+        except (TypeError, ValueError):
+            self._catchup_since, self._catchup, self._catchup_target = None, False, None
         self.curve.restore(data.get("curve", {}))
         self.exercise.restore(data.get("exercise") or {})
         self.manual_target = data.get("manual_target")
@@ -259,6 +278,35 @@ class Supervisor:
             return
         if (self.preset_until is not None and inputs.now >= self.preset_until) or (self.preset_until_home and arrived):
             self.preset, self.preset_until, self.preset_until_home = None, None, False
+
+    def _catchup_step(self, now: datetime, target: float | None, indoor: float | None, yielding: bool) -> dict | None:
+        """0.69.0 (a tester's first night on a buffer house): a room catchup_gap (0.5 °C) below its target for
+        catchup_after_s (30 min) gets the whole cycle until it is within catchup_release (0.2 °C) – the TPI's
+        proportional share left it 0.75 °C below with 64 % and a pause every cycle. A changed target, a pause in the
+        regulation or another source in charge (yield) start the count again."""
+        cfg = self.cfg
+        if cfg.catchup_gap <= 0 or indoor is None or target is None or yielding:
+            self._catchup_since, self._catchup = None, False
+            return None
+        if self._catchup_target is not None and target != self._catchup_target:
+            self._catchup_since, self._catchup = None, False
+        self._catchup_target = target
+        gap = target - indoor
+        if self._catchup:
+            if gap <= cfg.catchup_release:
+                self._catchup_since, self._catchup = None, False
+                return None
+        elif gap >= cfg.catchup_gap:
+            if self._catchup_since is None:
+                self._catchup_since = now
+            if (now - self._catchup_since).total_seconds() >= cfg.catchup_after_s:
+                self._catchup = True
+        else:
+            self._catchup_since = None
+        if not self._catchup:
+            return None
+        return {"since": self._catchup_since, "gap": round(gap, 2), "release": cfg.catchup_release,
+                "since_min": round((now - self._catchup_since).total_seconds() / 60)}
 
     def _coasting(self, now: datetime, target: float, indoor: float | None) -> dict | None:
         """0.44.3: after a burn the radiators keep heating for a while. While the room is just under (or at) the target
@@ -505,14 +553,23 @@ class Supervisor:
         self._fail_off_s = 0.0
         if self._fail_start_temp is None:
             self._fail_start_temp = indoor
+            self._fail_partial = False
+        if cfg.catchup_gap > 0 and cfg.control in ("tpi", "pid") and self._last_partial:
+            # 0.69.0: after a catch-up the room settles back towards where the TPI's share holds it – it cools while
+            # the relay still runs part of the cycle. Only a window with the whole cycle given counts: a dead source
+            # still shows, the catch-up gives the whole cycle 30 min after the room is 0.5 °C behind.
+            self._fail_partial = True
         self._fail_accum_s += dt
         if self._fail_accum_s >= cfg.failure_minutes * 60:
             cooling = self._fail_start_temp - indoor >= cfg.failure_min_drop
             # Two windows in a row: in the first one a cold radiator still has to warm up.
-            self._fail_strikes = self._fail_strikes + 1 if cooling and target - indoor >= cfg.failure_deficit else 0
+            if self._fail_partial and cooling and target - indoor >= cfg.failure_deficit:
+                pass  # a partial window neither counts nor clears the strike before it
+            else:
+                self._fail_strikes = self._fail_strikes + 1 if cooling and target - indoor >= cfg.failure_deficit else 0
             if self._fail_strikes >= 2 and not self.fault:
                 self.fault, self._fault_temp = True, indoor
-            self._fail_accum_s, self._fail_start_temp = 0.0, indoor
+            self._fail_accum_s, self._fail_start_temp, self._fail_partial = 0.0, indoor, False
 
     def _update_frost(self, indoor: float | None) -> None:
         cfg = self.cfg
@@ -1034,7 +1091,7 @@ class Supervisor:
         settled = self._target_since is not None and (now - self._target_since).total_seconds() >= cfg.learning_settle_s
         if (reason in (Reason.REGULATING, Reason.AT_TARGET) and inputs.presence == Presence.HOME and settled
                 and indoor is not None and self.learner.boost is None and not yielding and tempering is None):
-            self.learner.regulating(now, dt, target, indoor)
+            self.learner.regulating(now, dt, target, indoor, saturated=self._catchup)
         if cfg.control == "curve":
             return self._curve_decision(inputs, reason, target, indoor, outdoor, loss, need)
         if cfg.control == "onoff":
@@ -1079,6 +1136,9 @@ class Supervisor:
             if inputs.room_demand and indoor is not None and indoor <= target:
                 # A TRV room far below its target: short burns, but the main thermometer stays in charge.
                 demand = max(demand, min(1.0, (cfg.min_on_s + 60) / cfg.cycle_s))
+            catchup = self._catchup_step(now, target, indoor, yielding)
+            if catchup is not None:
+                demand, coasting = 1.0, None  # 0.69.0: a room long behind gets the whole cycle, no PWM pause
             if self._pre_hold is not None and demand > 0 and not self.pwm.output:
                 # 0.48.3: the target goes down soon and the room is already warm enough for it – no new start
                 if integral_before is not None and self.regulator.integral > integral_before:
@@ -1091,6 +1151,7 @@ class Supervisor:
         else:
             self.regulator.hold(now)
             coasting = None
+            catchup = self._catchup_step(now, target, None, yielding)  # not regulating: starts again
         if reason == Reason.FLOOR_LIMIT:
             output, limited = self.pwm.force_off(now), None  # a safety limit: no minimum run time
         elif self._return_block(inputs) and demand > 0:
@@ -1103,6 +1164,11 @@ class Supervisor:
             output, limited = self.pwm.step(now, demand, allow)
         if self.load is not None:
             self.load.report(output, limited == "load_limit", now)
+        if cfg.control in ("tpi", "pid"):
+            heating = inputs.actual_heating if inputs.actual_heating is not None else output
+            self.response.step(now, bool(heating), indoor, target,
+                               reason in (Reason.REGULATING, Reason.AT_TARGET) and not inputs.window_open
+                               and limited not in ("load_limit", "no_power", "return_limit"))
         shadow = self._shadow(reason, target, indoor, outdoor, now, demand, output, dt, inputs) if cfg.shadow_regulator else None
         details: dict = {}
         if reason == Reason.REGULATING and inputs.room_demand and indoor is not None and indoor <= target:
@@ -1119,6 +1185,8 @@ class Supervisor:
             details = {**details, "yield": inputs.yield_margin}
         if floor_details:
             details = {**details, **floor_details}
+        if catchup is not None and reason == Reason.REGULATING:
+            details = {**details, "catchup": catchup}
         if reason == Reason.FLOOR_TEMPER:
             details = {**details, **tempering}
         if self.load is not None and limited == "load_limit":
@@ -1131,6 +1199,7 @@ class Supervisor:
         if self._pre_hold is not None and reason == Reason.REGULATING and not output:
             limited = limited or "pre_change"
             details = {**details, "pre_change": self._pre_hold}
+        self._last_partial = reason == Reason.REGULATING and demand < 0.95
         if cfg.fan_coil:
             pct, why = self.fan.step(now, output, demand, inputs.coil.fresh(cfg.sensor_max_age_s))
             details = {**details, "fan_pct": pct, "fan_why": why}

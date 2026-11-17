@@ -73,7 +73,7 @@ def test_the_heat_pump_on_a_slab_neither():
 
 def test_before_the_fix_the_slab_lost_its_thermometer():
     """The old rule (no band) on the same house: hours of a working thermometer counted as lost."""
-    run = Run(_cfg("slab", frozen_band=0.0, frozen_after_h=3.0), slab_house(indoor=21.0, outdoor=0.0), resolution=0.1)
+    run = Run(_cfg("slab", frozen_band=0.0, frozen_after_h=3.0, catchup_gap=0.0), slab_house(indoor=21.0, outdoor=0.0), resolution=0.1)
     run.run(hours=72)
     assert sum(1 for d in run.decisions if d.indoor is None) > 120 * 5
 
@@ -121,8 +121,8 @@ def _evening(kind, **kw):
 
 def test_the_slab_holds_two_hours_before_a_lowering():
     assert source_defaults("floor_single", "heat_pump")["pre_change_s"] == 7200.0
-    _, burn, at = _evening("slab")
-    _, burn_old, at_old = _evening("slab", pre_change_s=1800.0)
+    _, burn, at = _evening("slab", catchup_gap=0.0)
+    _, burn_old, at_old = _evening("slab", pre_change_s=1800.0, catchup_gap=0.0)
     assert burn == 0 and burn_old >= 30  # 30 min was shorter than one cycle: the last start still came
     assert at_old - at < 0.2  # and costs little: the screed keeps the room
 

@@ -4,7 +4,8 @@ from core.model import HcConfig
 from sim import House, Run
 
 BASE = dict(target_home=22.0, night_start="00:00", night_end="00:00", season_enabled=False, cycle_s=1800,
-            min_on_s=300, min_off_s=300, boiler_power_kw=17.3, pid_kp=0.5, pid_ki_per_hour=0.5, pid_kd=0.0)
+            min_on_s=300, min_off_s=300, boiler_power_kw=17.3, pid_kp=0.5, pid_ki_per_hour=0.5, pid_kd=0.0,
+            catchup_gap=0.0, learning_enabled=False)  # 0.69.0: the TPI alone, with its steady error
 
 
 def _house():

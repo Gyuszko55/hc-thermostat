@@ -46,7 +46,7 @@ def test_electric_floor_gets_a_30_minute_cycle():
 
 def test_source_defaults():
     assert source_defaults("floor_single", "electric_heater") == {"sensor_lost_demand": 0.0, "floor_max": 27.0, "floor_required": True,
-                                                                      "frozen_band": 1.0, "frozen_after_h": 8.0, "pre_change_s": 7200.0}  # 0.52.1
+                                                                      "frozen_band": 1.0, "frozen_after_h": 8.0, "pre_change_s": 7200.0, "catchup_after_s": 7200.0}  # 0.52.1, 0.69.0
     assert source_defaults("room_unit", "electric_heater") == {"sensor_lost_demand": 0.0}
     assert source_defaults("radiator_single", "onoff_boiler") == {}
     # an explicit setting of the instance wins over the default
