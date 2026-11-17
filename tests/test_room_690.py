@@ -291,4 +291,4 @@ def test_form_texts_and_panel():
             assert tr[top]["step"]["hp_coord_settings"]["sections"]["hold"]["data"]["hp_charge_jump"]
     js = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "catchupText" in js and "responseText" in js and "timingText" in js and "Tartós igazítás" in js
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2")

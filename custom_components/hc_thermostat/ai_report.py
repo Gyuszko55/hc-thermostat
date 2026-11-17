@@ -189,7 +189,7 @@ Csak az alábbi adatokból dolgozz: ne találj ki számot, eszközt vagy esemén
 Mezők: thermostat.room = helyiség-hőmérséklet (átlag/min/max), target = cél, cold_h = órák a cél alatt 0,3 °C-nál
 többel, overheated_h = órák a cél fölött 0,5 °C-nál többel, heating = fűtési órák és indítások, presets = órák
 üzemmódonként, decision/…_decision = órák döntési okonként, energy = energia/költség (how: measured = mért,
-estimated = becsült), mode: shadow = csak számol, nem kapcsol; active = vezérel. open_issues = nyitott HC-jelzések.
+estimated = becsült; a hőmennyiséget kWh-ban és MJ-ban is add meg, 1 kWh = 3,6 MJ – a gázszámla MJ-ban számol), mode: shadow = csak számol, nem kapcsol; active = vezérel. open_issues = nyitott HC-jelzések.
 Ha egy példány a célja fölött volt, de alig vagy egyáltalán nem fűtött, azt a ház többi hőforrása melegítette – ez
 nem az ő hibája és nem érzékelőhiba. Egy mindig fűtő (heating 24 h) klímánál a fűtési óra csak az üzemmódot jelzi.
 Teendőnek csak konkrét, ellenőrizhető javaslatot írj (beállítás neve, eszköz ellenőrzése); ha minden rendben, írd:
@@ -198,7 +198,8 @@ Teendőnek csak konkrét, ellenőrizhető javaslatot írj (beállítás neve, es
 Use only the data below: invent no number, device or event. HC worked the numbers out from the recorder.
 Fields: thermostat.room = room temperature (mean/min/max), target = target, cold_h = hours more than 0.3 °C below
 target, overheated_h = hours more than 0.5 °C above, heating = heating hours and starts, presets = hours per mode,
-decision/…_decision = hours per decision reason, energy = energy/cost (how: measured / estimated), mode: shadow =
+decision/…_decision = hours per decision reason, energy = energy/cost (how: measured / estimated;
+give heat quantities in kWh and in MJ, 1 kWh = 3.6 MJ – gas bills count in MJ), mode: shadow =
 only works out, switches nothing; active = in control. open_issues = open HC warnings.
 An instance above its target while it hardly heated or not at all was warmed by the house's other sources – not its
 fault and not a sensor fault. For an AC heating all day (heating 24 h) the hours only show its mode.

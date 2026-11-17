@@ -74,7 +74,7 @@ console.log(JSON.stringify({{
   lowWaits: html.includes("nincs helyiségi igény: nem indít"),
   modes: html.includes("felügyelt próba"), conflict: html.includes("→ target: conflict"),
   hpUnknown: html.includes("Hőszivattyú nem ismert"),
-  tank: html.includes("töltöttség (meglévő érzékelő)") && html.includes("36 %") && html.includes("24,5 kWh (41 %)"),
+  tank: html.includes("töltöttség (meglévő érzékelő)") && html.includes("36 %") && html.includes("24,5 kWh (88 MJ) · 41 %"),
   diff: (html.match(/class="diff"/g) || []).length, plc: html.includes("34 °C"),
   rooms: (html.match(/<tr data-key="member:z_/g) || []).length,
   schRooms: (sch.match(/class="sroom/g) || []).length, schMix: (sch.match(/class="smix/g) || []).length,
@@ -122,4 +122,4 @@ def test_settings_form_curve_preview():
 
 
 def test_version_600():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2")

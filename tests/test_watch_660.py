@@ -89,4 +89,4 @@ def test_diagnostic_sensors():
     src = (BASE / "sensor.py").read_text()
     assert src.count("self._attr_entity_category = EntityCategory.DIAGNOSTIC") == 5
     assert "self._attr_entity_registry_enabled_default = any(conf.get(k)" in src
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2")

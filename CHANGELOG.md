@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.71.2 – 2026-11-17
+- **Heat quantities in MJ too.** Wherever the panel, the overview, the hydraulic diagram and the AI analysis show a
+  heat or energy quantity in kWh, its MJ (1 kWh = 3.6 MJ) is beside it – e.g. *14.5 kWh (52 MJ)* – so it compares
+  easily with a gas bill, which counts in MJ. The AI analysis gets the MJ values as well. The energy rating
+  (kWh/m²·year) and the heat capacity (kWh/K) stay as they are.
+
 ## 0.71.1 – 2026-11-17
 - **License: AGPL-3.0** (AGPL-3.0-only) from this version on, instead of MIT – see LICENSE and NOTICE. Releases up
   to 0.71.0 keep the MIT License they were published under.

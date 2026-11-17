@@ -129,7 +129,7 @@ def energy_and_cost(heating_h: float | None, power_kw: float, measured_fuel: flo
         if kwh is None and heating_h and power_kw > 0:
             kwh, how = round(heating_h * power_kw, 2), "estimated"
         if kwh is not None:
-            out.update(electric_kwh=kwh, how=how)
+            out.update(electric_kwh=kwh, electric_mj=round(kwh * 3.6), how=how)  # 0.71.2: MJ too (1 kWh = 3.6 MJ)
             if price:
                 out["cost"] = round(kwh * price, 0)
         return out
@@ -138,7 +138,8 @@ def energy_and_cost(heating_h: float | None, power_kw: float, measured_fuel: flo
     if fuel is None and heating_h and power_kw > 0 and energy_factor > 0:
         fuel, how = round(heating_h * power_kw / energy_factor, 3), "estimated"
     if fuel is not None:
-        out.update(fuel=fuel, heat_kwh=round(fuel * energy_factor, 1) if energy_factor > 0 else None, how=how)
+        heat = round(fuel * energy_factor, 1) if energy_factor > 0 else None
+        out.update(fuel=fuel, heat_kwh=heat, heat_mj=None if heat is None else round(heat * 3.6), how=how)
         if price:
             out["cost"] = round(fuel * price, 0)
     return out

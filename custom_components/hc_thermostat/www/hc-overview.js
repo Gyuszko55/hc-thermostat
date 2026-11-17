@@ -101,6 +101,8 @@ export const OV_TXT = {
 const short = (t) => String(t || "").replace(/^\s*hc(?=[\s:\-–]|$)[\s:\-–]*/i, "").trim() || String(t || "");
 const deg = (v, lang, d = 1) => (isNum(v) ? `${(Math.round(v * 10 ** d) / 10 ** d).toFixed(d).replace(".", lang === "hu" ? "," : ".")} °C` : "–");
 const fx = (v, lang, d = 1) => (isNum(v) ? (Math.round(v * 10 ** d) / 10 ** d).toFixed(d).replace(".", lang === "hu" ? "," : ".") : "–");
+// 0.71.2: a heat quantity in kWh with its MJ beside it (1 kWh = 3.6 MJ) – gas bills count in MJ, so it compares
+export const kwhMj = (v, lang, d = 1) => (isNum(v) ? `${fx(v, lang, d)} kWh (${fx(v * 3.6, lang, 0)} MJ)` : "–");
 const ent = (i, k) => ((i?.entities || {})[k] || [])[0] || null;
 
 // ---------------------------------------------------------------- the model of the house
@@ -205,7 +207,7 @@ export function renderOverview(all, opts = {}) {
     src.push(row(`· ${T.reason}`, esc(T.hpWhy[d.reason] || d.reason || "–")));
     // 0.65.0: the reserve over the need and what the rule not driving would do
     const dc = det.demand_charge || {}, mode = det.charge_mode || "classic";
-    if (isNum(num(dc.reserve_c))) src.push(row(`· ${T.reserve}`, `${fx(num(dc.reserve_c), lang)} °C${isNum(num(dc.reserve_kwh)) ? ` · ${fx(num(dc.reserve_kwh), lang)} kWh` : ""}${isNum(num(dc.hours_left)) ? ` · ~${fx(num(dc.hours_left), lang)} h` : ""}`));
+    if (isNum(num(dc.reserve_c))) src.push(row(`· ${T.reserve}`, `${fx(num(dc.reserve_c), lang)} °C${isNum(num(dc.reserve_kwh)) ? ` · ${kwhMj(num(dc.reserve_kwh), lang)}` : ""}${isNum(num(dc.hours_left)) ? ` · ~${fx(num(dc.hours_left), lang)} h` : ""}`));
     const alt = mode === "demand" ? det.classic : det.demand_charge;
     if (alt && alt.why) src.push(row(`· ${T.other} (${T.chMode[mode === "demand" ? "classic" : "demand"]})`, `${alt.heat ? T.on : T.offv} – ${esc(T.hpWhy[alt.why] || alt.why)}`));
   }
@@ -217,7 +219,7 @@ export function renderOverview(all, opts = {}) {
     const layers = (st.layers || []).map((l) => row(`${l.name}${l.measured === false ? "*" : ""}`, deg(num(l.temp), lang))).join("");
     cards.push(card(`${T.tank}: ${short(b.title)}`, layers
       + row(T.charge, isNum(num(st.charge)) && st.charge_method === "external" ? `${fx(num(st.charge), lang, 0)} %` : "–")
-      + row(T.stored, isNum(num(st.stored_kwh)) ? `${fx(num(st.stored_kwh), lang)} kWh${isNum(num(st.charge_layers)) ? ` (${fx(num(st.charge_layers), lang, 0)} %)` : ""}` : "–")
+      + row(T.stored, isNum(num(st.stored_kwh)) ? `${kwhMj(num(st.stored_kwh), lang)}${isNum(num(st.charge_layers)) ? ` · ${fx(num(st.charge_layers), lang, 0)} %` : ""}` : "–")
       + row(T.trend, tr.state ? `${esc(T[tr.state] || tr.state)} · ${fx(num(tr.c_per_h), lang)} °C/h` : "–")
       + row(T.request, d.output ? T.on : T.offv)
       // 0.63.0: the hot water tank charged from it (shown when its entities are set)
@@ -237,7 +239,7 @@ export function renderOverview(all, opts = {}) {
       + (ent(c, "circuit_pump_entity") ? row(T.pumpPlc, isOn(ent(c, "circuit_pump_entity")) ? T.runs : isOn(ent(c, "circuit_pump_entity")) === false ? T.stands : T.unknown) : "")
       + (ent(c, "circuit_flow_entity") ? row(T.flowMeas, deg(num(ent(c, "circuit_flow_entity").state), lang)) : "")
       + (det.watch && det.watch.state !== "not_watched" ? row(T.watchLbl, `${det.watch.problem ? `<span class="hot">${esc(T.watchSt[det.watch.state])}</span>` : esc(T.watchSt[det.watch.state] || det.watch.state)}${["wait_pump", "no_pump"].includes(det.watch.state) && isNum(det.watch.demand_min) ? ` <small>(${fx(det.watch.demand_min, lang, 0)}/${Math.round(det.watch.pump_s / 60)} ${T.min})</small>` : ["wait_flow", "no_flow"].includes(det.watch.state) && isNum(det.watch.pump_min) ? ` <small>(${fx(det.watch.pump_min, lang, 0)}/${Math.round(det.watch.flow_s / 60)} ${T.min})</small>` : ""}${det.watch.pump_unknown ? ` <small>· ${esc(T.pumpUnknown)}</small>` : ""}`) : "")
-      + row(T.usable, isNum(num(c.buffer?.usable_kwh)) ? `${fx(num(c.buffer.usable_kwh), lang)} kWh` : "–")
+      + row(T.usable, isNum(num(c.buffer?.usable_kwh)) ? kwhMj(num(c.buffer.usable_kwh), lang) : "–")
       + `<div class="ovcurve">${curveSvg(c.config || {}, { ...d, plc: oe ? num(oe.state) : null }, { lang, small: true })}</div>`, `member:${c.entry_id}`));
   }
   // rooms
@@ -452,7 +454,7 @@ export function renderSchematic(all, opts = {}) {
       g.push(`${sensor(TX + TW, sy)}<path d="M${TX + TW + 6},${sy} H${TX + TW + 16}" class="sld"/><rect x="${TX + TW + 16}" y="${sy - 17}" width="104" height="34" rx="6" class="slbl"/><text x="${TX + TW + 24}" y="${sy - 3}" class="ssm">${esc(nm)}</text><text x="${TX + TW + 24}" y="${sy + 12}" class="sval">${esc(deg(num(l.temp), lang))}</text>`);
     });
     const ch = num(tank.stock?.charge), kwh = num(tank.stock?.stored_kwh);
-    g.push(`<text x="${TX + TW / 2}" y="${tb + 20}" class="ssm" text-anchor="middle">${esc([isNum(ch) ? `${fx(ch, lang, 0)} %` : null, isNum(kwh) ? `${fx(kwh, lang)} kWh` : null].filter(Boolean).join(" · "))}</text></g>`);
+    g.push(`<text x="${TX + TW / 2}" y="${tb + 20}" class="ssm" text-anchor="middle">${esc([isNum(ch) ? `${fx(ch, lang, 0)} %` : null, isNum(kwh) ? `${fx(kwh, lang)} kWh · ${fx(kwh * 3.6, lang, 0)} MJ` : null].filter(Boolean).join(" · "))}</text></g>`);
   }
   // the heat pump outdoors, on the tank's lower coil
   if (hp) {

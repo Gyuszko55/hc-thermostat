@@ -51,9 +51,9 @@ def test_energy():
     assert dr.meter_delta([(D0 - timedelta(hours=1), 100.0), (h(5), 101.5), (h(20), 103.0)], D0, D1) == 3.0
     assert dr.meter_delta([(h(5), 1.0)], D0, D1) is None
     gas = dr.energy_and_cost(3.0, 18.0, None, 9.0, 300.0, None, False)
-    assert gas == {"fuel": 6.0, "heat_kwh": 54.0, "how": "estimated", "cost": 1800.0}
+    assert gas == {"fuel": 6.0, "heat_kwh": 54.0, "heat_mj": 194, "how": "estimated", "cost": 1800.0}
     assert dr.energy_and_cost(3.0, 18.0, 4.2, 9.0, None, None, False)["how"] == "measured"
-    assert dr.energy_and_cost(None, 0, None, 0, 70.0, 5.0, True) == {"electric_kwh": 5.0, "how": "measured", "cost": 350.0}
+    assert dr.energy_and_cost(None, 0, None, 0, 70.0, 5.0, True) == {"electric_kwh": 5.0, "electric_mj": 18, "how": "measured", "cost": 350.0}
     assert dr.energy_and_cost(None, 0, None, 0, None, None, True) == {}
 
 

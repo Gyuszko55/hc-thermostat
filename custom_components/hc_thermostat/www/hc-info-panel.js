@@ -548,6 +548,11 @@ class HcInfoPanel extends HTMLElement {
   }
 
   // ---------------------------------------------------------------- formatting
+  // 0.71.2: a heat / energy quantity in kWh with its MJ beside it (1 kWh = 3.6 MJ; gas bills count in MJ)
+  _kwh(v, dig = 1) {
+    return v == null || Number.isNaN(Number(v)) ? "–" : `${this._num(v, dig)} kWh (${this._num(Number(v) * 3.6, 0)} MJ)`;
+  }
+
   _num(v, dig = 1) {
     if (v == null || v === "" || Number.isNaN(Number(v))) return this._t.none;
     return Number(v).toLocaleString(this._hu ? "hu-HU" : "en-GB", { maximumFractionDigits: dig });
@@ -696,7 +701,7 @@ class HcInfoPanel extends HTMLElement {
     if (m.cop) {
       const c = m.cop;
       add(M.cop, `<b>${esc(this._num(c.cop_today, 2))}</b> ${esc(M.today)} · ${esc(this._num(c.cop_week, 2))} ${esc(M.week)} · ${esc(this._num(c.cop_season, 2))} ${esc(M.season)}
-        <div class="eid">${esc(M.today)}: ${esc(M.heat)} ${esc(this._num(c.heat_today_kwh))} kWh, ${esc(M.powerin)} ${esc(this._num(c.power_today_kwh))} kWh</div>`);
+        <div class="eid">${esc(M.today)}: ${esc(M.heat)} ${esc(this._kwh(c.heat_today_kwh))}, ${esc(M.powerin)} ${esc(this._kwh(c.power_today_kwh))}</div>`);
     }
     if (m.humidity) add(M.humidity, this._hum(m.humidity, M));
     const probs = d.measure_problems || [];
@@ -1084,7 +1089,7 @@ class HcInfoPanel extends HTMLElement {
       this._nextMark = [418, 128];
       cards.push(this._card(20, 300, hu ? "Rétegek" : "Layers", [
         ...s.layers.map((l) => [`${L[l.name] || l.name} (${this._num(l.share * 100, 0)} %)`, `${l.temp == null ? t.none : this._deg(l.temp)}${l.measured ? "" : (hu ? " (becsült)" : " (estimated)")}`]),
-        [hu ? "Tárolt hő" : "Stored heat", s.stored_kwh != null ? `${this._num(s.stored_kwh, 1)} kWh / ${this._num(s.capacity_kwh, 1)} kWh` : null, true],
+        [hu ? "Tárolt hő" : "Stored heat", s.stored_kwh != null ? `${this._kwh(s.stored_kwh)} / ${this._kwh(s.capacity_kwh)}` : null, true],
         [hu ? "Töltöttség" : "Charge", s.charge != null ? `${this._num(s.charge, 1)} % (${s.charge_method === "external" ? (hu ? "átvett" : "taken over") : (hu ? "rétegekből" : "from the layers")})` : null],
         [hu ? "Trend" : "Trend", d.trend?.state ? `${this._reason(d.trend.state === "charging" ? "charging" : d.trend.state)}${d.trend.c_per_h != null ? ` · ${this._num(d.trend.c_per_h, 1)} °C/h` : ""}${d.trend.kwh_per_h != null ? ` · ${this._num(d.trend.kwh_per_h, 1)} kWh/h` : ""}` : null],
       ]));
@@ -1150,8 +1155,8 @@ class HcInfoPanel extends HTMLElement {
         return [[hu ? "Töltési szabály (vezérel)" : "Charging rule (driving)", mn[mode] || mode, true],
           [`${hu ? "Klasszikus" : "Classic"}${mode === "classic" ? " ●" : ""}`, onoff(cl), mode === "classic" && !!cl.heat],
           [`${hu ? "Igény szerinti" : "By demand"}${mode === "demand" ? " ●" : ""}`, onoff(dc), mode === "demand" && !!dc.heat],
-          [hu ? "Tartalék az igény fölött" : "Reserve above the need", dc.reserve_c != null ? `${this._num(dc.reserve_c, 1)} °C${dc.reserve_kwh != null ? ` · ${this._num(dc.reserve_kwh, 1)} kWh` : ""}` : null],
-          [hu ? "Indul, ha a teteje alá esik" : "Starts when the top drops under", dc.start_below != null ? `${this._deg(dc.start_below)}${cfg.hp_start_kwh > 0 ? ` ${hu ? "vagy" : "or"} < ${this._num(cfg.hp_start_kwh, 1)} kWh` : ""}` : null],
+          [hu ? "Tartalék az igény fölött" : "Reserve above the need", dc.reserve_c != null ? `${this._num(dc.reserve_c, 1)} °C${dc.reserve_kwh != null ? ` · ${this._kwh(dc.reserve_kwh)}` : ""}` : null],
+          [hu ? "Indul, ha a teteje alá esik" : "Starts when the top drops under", dc.start_below != null ? `${this._deg(dc.start_below)}${cfg.hp_start_kwh > 0 ? ` ${hu ? "vagy" : "or"} < ${this._kwh(cfg.hp_start_kwh)}` : ""}` : null],
           [hu ? "Leáll, ha a réteg eléri" : "Stops when the layer reaches", dc.stop_at != null ? `${({ top: hu ? "teteje" : "top", upper: hu ? "felső közép" : "upper middle", lower: hu ? "alsó közép" : "lower middle", bottom: hu ? "alja" : "bottom" })[dc.stop_layer] || dc.stop_layer} ${this._deg(dc.stop_layer_temp)} → ${this._deg(dc.stop_at)}` : null],
           [hu ? "Becsült idő a tartalék fogyásáig" : "Estimated time until the reserve is used", dc.hours_left != null ? `~${this._num(dc.hours_left, 1)} ${hu ? "óra (a puffer trendjéből)" : "h (from the tank trend)"}${dc.lead_min ? ` · ${hu ? "indít, ha" : "starts under"} ${this._num(dc.lead_min / 60, 1)} ${hu ? "óra alá esik" : "h"}` : ""}` : null]]; })(),
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
@@ -1235,7 +1240,7 @@ class HcInfoPanel extends HTMLElement {
       cards.push(this._card(20, 520, hu ? "Puffer ennek a körnek" : "Tank for this circuit", [
         [hu ? "Kell legalább (teteje)" : "Needs at the top", this._deg(buf.need)],
         [hu ? "Elég meleg" : "Warm enough", buf.satisfied == null ? null : buf.satisfied ? t.yes : t.no, buf.satisfied === false],
-        [hu ? "Használható hő (becslés)" : "Usable heat (estimate)", buf.usable_kwh != null ? `${this._num(buf.usable_kwh, 1)} kWh` : null],
+        [hu ? "Használható hő (becslés)" : "Usable heat (estimate)", buf.usable_kwh != null ? this._kwh(buf.usable_kwh) : null],
       ]));
     }
     this._nextMark = [822, 122];
@@ -1372,8 +1377,8 @@ class HcInfoPanel extends HTMLElement {
     const n = (v, d = 1) => (v == null ? "–" : this._num(v, d));
     const rows = (f.members || []).map((m) => {
       const th = m.thermostat || {}, room = th.room || {}, tg = th.target || {}, e = m.energy || {};
-      const energy = e.fuel != null ? `${n(e.fuel, 2)} ${e.unit || (hu ? "egység" : "units")}${e.heat_kwh != null ? ` (${n(e.heat_kwh)} kWh)` : ""}`
-        : e.electric_kwh != null ? `${n(e.electric_kwh)} kWh` : "–";
+      const energy = e.fuel != null ? `${n(e.fuel, 2)} ${e.unit || (hu ? "egység" : "units")}${e.heat_kwh != null ? ` = ${this._kwh(e.heat_kwh)}` : ""}`
+        : e.electric_kwh != null ? this._kwh(e.electric_kwh) : "–";
       return `<tr><td>${esc(m.name)}</td><td>${room.mean != null ? `${n(room.mean)} (${n(room.min)}–${n(room.max)})` : "–"}</td>
         <td>${tg.mean != null ? n(tg.mean) : "–"}</td><td>${th.cold_h != null ? n(th.cold_h) : "–"} / ${th.overheated_h != null ? n(th.overheated_h) : "–"}</td>
         <td>${th.heating ? `${n(th.heating.hours)} h · ${th.heating.starts}×` : m.hp_enable ? `${n(m.hp_enable.hours)} h · ${m.hp_enable.starts}×` : "–"}</td>
