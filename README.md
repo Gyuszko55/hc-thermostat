@@ -518,6 +518,10 @@ every source in it, instead of a one-room house per instance.
 - Display only: every instance regulates its own source as before. Two sources on the **same** water circuit
   switching over (a heat pump with a backup boiler) are not switched by this; the existing *other heat source*
   (cheaper source, `yield_margin`) still lets a boiler step back while an AC heats.
+- **An AC helping the house** (`assist_climate`): when the house's HC says the AC is the cheaper source and the door
+  between them is open, the AC heats towards the house's target instead of its own room's. It waits until the door has
+  been open for `assist_delay_s` (10 minutes – a quick walk through does not raise it) and keeps the unit's setpoint
+  at most `assist_max_setpoint` (22 °C) meanwhile; 0 turns either off.
 
 ### Stratified buffer and mixing circuits
 

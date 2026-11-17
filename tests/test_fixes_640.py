@@ -167,7 +167,7 @@ def test_flow_panel_and_texts():
     js = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "hc_thermostat/hp_history" in js and "Puffer-korlát" in js and "Kiküldve" in js
     assert (BASE / "wizard.py").read_text().count("ws_hp_history") == 2
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1")
 
 
 def test_tank_cap_is_off_by_default_since_641():

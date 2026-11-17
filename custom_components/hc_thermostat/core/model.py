@@ -129,6 +129,10 @@ class HcConfig:
     target_cool: float = 26.0  # air conditioner: cooling target in summer (season off)
     ac_ki_per_hour: float = 0.5  # air conditioner: slow setpoint correction, °C per °C error per hour
     ac_min_change_s: float = 600.0  # air conditioner: at most one setpoint change per this many seconds
+    # 0.70.1: helping the house (assist_climate) only after the door has been open this long (a quick walk through
+    # must not raise the unit), and the unit's setpoint at most this high meanwhile (it heats the room it stands in)
+    assist_delay_s: float = 600.0
+    assist_max_setpoint: float = 22.0
     # PID (demand 0..1 per degree / degree-second)
     pid_kp: float = 0.4
     pid_ki: float = 0.00005

@@ -673,7 +673,7 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
                    "tpi_coef_int", "tpi_coef_ext", "pre_change_s", "yield_margin", "pid_kp", "pid_ki_per_hour",
                    "pid_kd", "pid_d_filter_s", "curve_slope", "curve_shift", "flow_min", "flow_max", "room_kp",
                    "room_ki_per_hour", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "ac_ki_per_hour",
-                   "ac_min_change_s", CONF_ASSIST, "storage_window_start", "storage_window_end", "storage_charge_h",
+                   "ac_min_change_s", CONF_ASSIST, "assist_delay_s", "assist_max_setpoint", "storage_window_start", "storage_window_end", "storage_charge_h",
                    "storage_bias", "storage_discharge_hyst", "fan_min_pct", "fan_overrun_s", "fan_min_coil",
                    "keep_alive_s", CONF_KEEP_ALIVE_SCRIPT),
     "functions": ("season_enabled", "season_off_above", "season_on_below", CONF_PRESENCE_HOME,
@@ -1306,7 +1306,10 @@ class HcOptionsFlow(OptionsFlow):
             **({vol.Required("target_cool", default=cfg.target_cool): _number(18, 32, 0.5, "°C"),
                 vol.Required("ac_ki_per_hour", default=cfg.ac_ki_per_hour): _number(0, 3, 0.05),
                 vol.Required("ac_min_change_s", default=cfg.ac_min_change_s): _number(120, 3600, 60, "s"),
-                vol.Optional(CONF_ASSIST, description={"suggested_value": current.get(CONF_ASSIST)}): _entity("climate")}
+                vol.Optional(CONF_ASSIST, description={"suggested_value": current.get(CONF_ASSIST)}): _entity("climate"),
+                # 0.70.1: the help waits for a lasting open door and stops at a setpoint
+                vol.Required("assist_delay_s", default=cfg.assist_delay_s): _number(0, 3600, 60, "s"),
+                vol.Required("assist_max_setpoint", default=cfg.assist_max_setpoint): _number(0, 30, 0.5, "°C")}
                if cfg.control == "ac" else {}),
             **({vol.Required("yield_margin", default=cfg.yield_margin): _number(0, 2, 0.1, "°C")}
                if cfg.control in ("tpi", "pid") else {}),

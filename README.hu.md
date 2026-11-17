@@ -525,6 +525,10 @@ példányonként külön egyhelyiséges ház helyett.
 - Csak a megjelenítést érinti: minden példány a saját hőforrását szabályozza, mint eddig. Két, **ugyanazon** a
   vízkörön lévő hőforrás közti átváltást (hőszivattyú tartalék kazánnal) ez nem kapcsolja; a meglévő *más hőforrás*
   (olcsóbb forrás, `yield_margin`) továbbra is visszaléptetheti a kazánt, amíg a klíma fűt.
+- **A klíma segíti a házat** (`assist_climate`): ha a ház HC-ja szerint a klíma az olcsóbb hőforrás, és nyitva a
+  köztük lévő ajtó, a klíma a ház célja felé fűt a saját helyiségéé helyett. Csak akkor kezdi, ha az ajtó
+  `assist_delay_s` (10 perc) óta folyamatosan nyitva van – egy gyors ki-be járás nem emeli –, és közben a klímára írt cél
+  legfeljebb `assist_max_setpoint` (22 °C); 0 bármelyiket kikapcsolja.
 
 ### Rétegzett puffer és keverőkörök
 

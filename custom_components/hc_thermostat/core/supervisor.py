@@ -41,6 +41,7 @@ class Supervisor:
         self.shadow_kind = shadow_control(cfg)
         self.shadow_regulator = make_regulator(cfg, self.shadow_kind)
         self.ac = AcController(cfg.ac_ki_per_hour, cfg.ac_min_change_s)
+        self._assist_since = None  # 0.70.1: since when the house's door is open (assist waits)
         self.shadow_pwm = Pwm(cfg)
         self.shadow_stats: dict = {"day": None, "shadow_on_s": 0.0, "live_on_s": 0.0, "yesterday": None}
         self.pwm = Pwm(cfg)
@@ -955,8 +956,16 @@ class Supervisor:
             mode, aim = "cool", cfg.target_cool
         elif reason in (Reason.EXTERNAL,):
             mode, aim = "heat", target
-            if inputs.assist_target is not None and inputs.assist_target > target:
+            assist = inputs.assist_target is not None and inputs.assist_target > target
+            # 0.70.1: only a door open for `assist_delay_s` counts; a quick walk through does not raise the unit
+            if not assist:
+                self._assist_since = None
+            elif getattr(self, "_assist_since", None) is None:
+                self._assist_since = now
+            if assist and (now - self._assist_since).total_seconds() >= cfg.assist_delay_s:
                 aim = inputs.assist_target  # cheaper than the boiler and the door is open: help the house
+                if cfg.assist_max_setpoint > 0:
+                    hi = max(lo, min(hi, cfg.assist_max_setpoint))  # 0.70.1: and not past this on the unit
         else:
             # Off (window, switched off), frost, lost sensor, restart: the plain command, nothing moved – but a
             # heat setpoint must fit the unit (frost asks for 8 °C, most units start at 16 °C and refuse less).
@@ -966,6 +975,8 @@ class Supervisor:
             return reason, command, {}
         c = self.ac.step(now, mode, aim, indoor, inputs.unit_temp, step, lo, hi)
         details = {"ac_mode": mode, "setpoint": c.setpoint, "aim": aim, "assist": aim != target and mode == "heat",
+                   **({"assist_wait_s": round((now - self._assist_since).total_seconds())}
+                      if mode == "heat" and aim == target and getattr(self, "_assist_since", None) else {}),
                    "offset": round(self.ac.offset or 0.0, 2),
                    "integral": round(self.ac.integral, 2), "unit_temp": inputs.unit_temp}
         if c.paused:

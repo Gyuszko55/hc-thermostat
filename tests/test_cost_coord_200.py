@@ -33,7 +33,7 @@ def test_house_at_backup_level_still_heats():
 
 
 def _ac(assist):
-    cfg = model.HcConfig(control="ac", target_home=19.0, target_night=19.0, season_enabled=True)
+    cfg = model.HcConfig(control="ac", target_home=19.0, target_night=19.0, season_enabled=True, assist_delay_s=0.0)
     sup = sup_mod.Supervisor(cfg)
     return sup.step(model.Inputs(now=T0, indoor=model.Reading(19.0, 0), outdoor=model.Reading(5.0, 0), outdoor_avg=5.0,
                                  unit_temp=18.0, unit_step=1.0, unit_min=16.0, unit_max=30.0, assist_target=assist))

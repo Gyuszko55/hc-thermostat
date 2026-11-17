@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.70.1 – 2026-11-17
+- **An AC helping the house waits for a lasting open door and stays under a limit** (`assist_delay_s` 10 min,
+  `assist_max_setpoint` 22 °C; 0 = the earlier behaviour). A kitchen door left open for 40 minutes made the terrace AC
+  aim at the house's 22.5 °C by the terrace thermometer and raise its own setpoint to 25 °C – the terrace reached
+  21 °C against its 18 °C target. Now a quick walk through does not raise the unit at all, and while helping the
+  setpoint written to it is at most 22 °C. The decision's details show the wait (`assist_wait_s`).
+
 ## 0.70.0 – 2026-11-17
 A tester's list after the 0.69.0 night: more to see, nothing new that regulates.
 - **The heat pump's own target on the diagram:** under the unit *set* (what it reports back), *HC asks* (the sent
