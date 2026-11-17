@@ -73,7 +73,7 @@ def test_fine_tuning_only_in_advanced_mode_and_kept():
         for step in ("targets", "settings"):
             assert tr["step"][step]["data"]["night_start_weekend"] and tr["step"][step]["data_description"]["night_end_weekend"]
         assert tr["error"]["weekend_both"]
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.67.0", "0.68.0", "0.69.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.67.0", "0.68.0", "0.69.0", "0.70.0")
 
 
 def test_without_advanced_mode_the_hidden_values_survive_a_save():

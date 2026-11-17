@@ -86,6 +86,11 @@ class CircuitConfig:
     circuit_trim_step: float = 0.5
     circuit_trim_s: float = 3600.0
     circuit_trim_max: float = 5.0
+    # 0.70.0 watching the chain demand → pump → flow (core/circuit_watch.py; watching only, never writes)
+    circuit_watch: bool = True
+    circuit_watch_pump_s: float = 600.0
+    circuit_watch_flow_s: float = 900.0
+    circuit_watch_flow_c: float = 1.0
 
     @classmethod
     def from_conf(cls, conf: dict) -> "CircuitConfig":

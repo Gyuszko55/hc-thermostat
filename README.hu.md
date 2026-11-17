@@ -553,6 +553,13 @@ semmit nem ír** – kiszámol és megmutat; az írás lent.
   cél* a kiadott értéket mutatja, mellette a nyers célt, a visszatartás okát és a legkorábbi következő módosítást.
 - **A puffer egy körnek:** a teteje eléri-e a cél + 2 °C-ot, és mennyi a használható hő az elég meleg rétegekben a
   kör visszatérőjéig.
+- **Kör felügyelete** (`circuit_watch`, alapból be; csak figyel, semmit nem ír, a PLC-be nem avatkozik bele): ha a
+  szivattyú és/vagy az előremenő hőmérő meg van adva, a HC követi a *hőigény → elindul a szivattyú → megmozdul az
+  előremenő* láncot. Normális, ha a szivattyú `circuit_watch_pump_s` (10 perc – a PLC 5 perces indulási késleltetése
+  belefér) alatt indul, és az előremenő a szivattyú indulásától `circuit_watch_flow_s` (15 perc) alatt
+  `circuit_watch_flow_c`-vel (1 °C) elmozdul vagy 2 °C-on belül megközelíti a célt. Ha egy lépés tovább elmarad, az
+  bejegyzés a Javítások között (magától eltűnik), sárga a rendszerrajzon és figyelmeztetés az áttekintésben. Ha a
+  szivattyú állapota nem ismert, abból nem lesz jelzés.
 - A célok kiírása a PLC-be: lent (felügyelt próba, egy író); a hőszivattyú-koordináció ezt követi.
 
 ### Hőszivattyú-koordináció pufferhez
@@ -568,6 +575,12 @@ célt.
 - **Új töltés teljes céllal** (`hp_charge_jump`, alapból be): töltés indulásakor, és ha töltés közben a kompresszor a
   cél alatt leáll, a kiadott cél azonnal a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat
   simítja. A „fut” jel teljesítménymérőnél `hp_running_w` (100 W) felett számít működésnek.
+- **Fűt, készenlét vagy nem ismert:** teljesítménymérőnél `hp_standby_w` (10 W) és `hp_running_w` között a gép
+  készenlétben van (fagyvédelem vagy keringetés miatt bekapcsolva, a kompresszor áll); a 15 perce nem frissült „fut”
+  mérés nem ismert. A rendszerrajz, a panel és a koordináció ugyanazt az állapotot használja (készenlét = nem fut).
+- **A hőszivattyú saját célja a rendszerrajzon:** *beállítva* (amit a gép visszajelez), *HC kéri* (kiküldött, árnyékban
+  a kiadott) és *számolt*; írás közben a 10 percig tartó, 0,4 °C-nál nagyobb eltérés sárga, és figyelmeztetés – a HC
+  és a gép nem ugyanazt a célt használja.
 - **Fa elsőbbsége:** a fatüzelés jele, vagy a puffer melegedése, miközben tudjuk, hogy a hőszivattyú áll, visszatartja
   az indítást. A `hp_wood_first` mellett (alapból be): alacsony töltöttségnél sem indít, és a már futó felfűtés is leáll;
   csak a puffer fagyhatára előzi meg, a hidegben-ON és a tartalék ON a legalacsonyabb céllal marad.

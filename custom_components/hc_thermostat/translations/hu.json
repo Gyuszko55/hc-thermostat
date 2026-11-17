@@ -260,7 +260,11 @@
           "circuit_room_trim": "Előremenő a helyiségek tartós elmaradásából",
           "circuit_trim_step": "Tartós igazítás lépése",
           "circuit_trim_s": "Tartós igazítás ideje",
-          "circuit_trim_max": "Tartós igazítás határa (±)"
+          "circuit_trim_max": "Tartós igazítás határa (±)",
+          "circuit_watch": "Kör felügyelete (hőigény → szivattyú → előremenő)",
+          "circuit_watch_pump_s": "Ennyi idő alatt induljon el a szivattyú",
+          "circuit_watch_flow_s": "Ennyi idő alatt mozduljon meg az előremenő",
+          "circuit_watch_flow_c": "Ennyi változás számít elmozdulásnak"
         },
         "data_description": {
           "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
@@ -282,7 +286,11 @@
           "circuit_room_trim": "Óránként mérlegel: ha a kör helyiségeinek többsége szinte végig fűtött és mégis a cél alatt maradt, az előremenő a lenti lépéssel emelkedik; ha mind könnyen tartotta a célt, kevesebb mint fele idő fűtéssel, csökken. Újraindítás után megmarad. Alapból ki, mert a keverő élő célját változtatja.",
           "circuit_trim_step": "Ennyit lép fel vagy le egy mérlegelés után.",
           "circuit_trim_s": "Ennyi ideig figyeli a helyiségeket egy lépés előtt.",
-          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el."
+          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el.",
+          "circuit_watch": "Csak figyel, semmit nem ír és a PLC-be nem avatkozik bele. Ha a kör hőt kér, a szivattyúnak (PLC) a lenti időn belül el kell indulnia, utána pedig az előremenőnek el kell mozdulnia vagy meg kell közelítenie a célt. Ha valamelyik lépés elmarad, a HC a Javítások közé jelzést tesz. A szivattyú és az előremenő hőmérő entitása kell hozzá; ha csak az egyik van megadva, azt a lépést figyeli.",
+          "circuit_watch_pump_s": "A PLC szándékos indulási késleltetése (például 5 perc) beleférjen; addig a várakozás normális.",
+          "circuit_watch_flow_s": "A szivattyú indulásától számítva. Ha addig az előremenő sem mozdul, sem a cél közelébe (2 °C-on belül) nem ér, az hiba (beragadt keverő, hideg puffer, leállt szelepvezérlő).",
+          "circuit_watch_flow_c": "Az előremenő ennyit változzon a szivattyú indulásához képest."
         }
       },
       "hp_coord": {
@@ -363,6 +371,7 @@
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
           "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)",
           "hp_running_w": "A kompresszor fut ennyi watt felett",
+          "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)",
           "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
         },
         "data_description": {
@@ -408,6 +417,7 @@
           "hp_urgent": "Ekkora eltérésnél nem vár.",
           "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér.",
           "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+          "hp_standby_w": "Ha a „fut” jel teljesítménymérő: e fölött, de a kompresszor küszöbe alatt a hőszivattyú készenlétben van (bekapcsolva, például fagyvédelem vagy keringetés miatt, de a kompresszor áll). Ez alatt áll. Csak a kijelzést pontosítja, a koordinációban a készenlét ugyanúgy „nem fut”, mint eddig.",
           "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
         },
         "sections": {
@@ -453,7 +463,8 @@
               "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
               "hp_idle_off": "OFF, ha sokáig nincs igény",
               "hp_idle_hours": "Ennyi ideig nincs igény",
-              "hp_running_w": "A kompresszor fut ennyi watt felett"
+              "hp_running_w": "A kompresszor fut ennyi watt felett",
+              "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)"
             },
             "data_description": {
               "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
@@ -461,7 +472,8 @@
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
               "hp_idle_hours": "Ennyi igénymentes óra után.",
-              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W)."
+              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+              "hp_standby_w": "Ha a „fut” jel teljesítménymérő: e fölött, de a kompresszor küszöbe alatt a hőszivattyú készenlétben van (bekapcsolva, például fagyvédelem vagy keringetés miatt, de a kompresszor áll). Ez alatt áll. Csak a kijelzést pontosítja, a koordinációban a készenlét ugyanúgy „nem fut”, mint eddig."
             }
           },
           "season": {
@@ -1215,7 +1227,11 @@
           "circuit_room_trim": "Előremenő a helyiségek tartós elmaradásából",
           "circuit_trim_step": "Tartós igazítás lépése",
           "circuit_trim_s": "Tartós igazítás ideje",
-          "circuit_trim_max": "Tartós igazítás határa (±)"
+          "circuit_trim_max": "Tartós igazítás határa (±)",
+          "circuit_watch": "Kör felügyelete (hőigény → szivattyú → előremenő)",
+          "circuit_watch_pump_s": "Ennyi idő alatt induljon el a szivattyú",
+          "circuit_watch_flow_s": "Ennyi idő alatt mozduljon meg az előremenő",
+          "circuit_watch_flow_c": "Ennyi változás számít elmozdulásnak"
         },
         "data_description": {
           "circuit_tank_cap": "Alapból kikapcsolva, hogy egy frissítés ne írja át magától az élő PLC-alapjelet. Bekapcsolva a keverőnek kiadott cél = min(igényelt, puffer teteje − puffer-ráhagyás). Hűlő puffernél azonnal lejjebb megy, melegedéskor fokozatosan áll vissza. A hőszivattyú továbbra is a korlát nélküli igényt kapja. Ha a korlát a minimum alá esne, a minimum marad, és „hideg a puffer” jelzést ad; pufferadat nélkül 15 percig az utolsó jó érték szerint korlátoz, utána nem.",
@@ -1237,7 +1253,11 @@
           "circuit_room_trim": "Óránként mérlegel: ha a kör helyiségeinek többsége szinte végig fűtött és mégis a cél alatt maradt, az előremenő a lenti lépéssel emelkedik; ha mind könnyen tartotta a célt, kevesebb mint fele idő fűtéssel, csökken. Újraindítás után megmarad. Alapból ki, mert a keverő élő célját változtatja.",
           "circuit_trim_step": "Ennyit lép fel vagy le egy mérlegelés után.",
           "circuit_trim_s": "Ennyi ideig figyeli a helyiségeket egy lépés előtt.",
-          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el."
+          "circuit_trim_max": "Az előremenő a görbéhez képest legfeljebb ennyivel tér el.",
+          "circuit_watch": "Csak figyel, semmit nem ír és a PLC-be nem avatkozik bele. Ha a kör hőt kér, a szivattyúnak (PLC) a lenti időn belül el kell indulnia, utána pedig az előremenőnek el kell mozdulnia vagy meg kell közelítenie a célt. Ha valamelyik lépés elmarad, a HC a Javítások közé jelzést tesz. A szivattyú és az előremenő hőmérő entitása kell hozzá; ha csak az egyik van megadva, azt a lépést figyeli.",
+          "circuit_watch_pump_s": "A PLC szándékos indulási késleltetése (például 5 perc) beleférjen; addig a várakozás normális.",
+          "circuit_watch_flow_s": "A szivattyú indulásától számítva. Ha addig az előremenő sem mozdul, sem a cél közelébe (2 °C-on belül) nem ér, az hiba (beragadt keverő, hideg puffer, leállt szelepvezérlő).",
+          "circuit_watch_flow_c": "Az előremenő ennyit változzon a szivattyú indulásához képest."
         }
       },
       "hp_coord": {
@@ -1332,6 +1352,7 @@
           "hp_coil_dt": "Igény szerinti: csőkígyó hőfoklépcsője (a puffer ennyivel a hőszivattyú célja alatt marad)",
           "hp_lead_min": "Igény szerinti: indítás a fogyás üteme szerint (perc előre, 0 = ki)",
           "hp_running_w": "A kompresszor fut ennyi watt felett",
+          "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)",
           "hp_charge_jump": "Új töltésnél azonnal a teljes cél"
         },
         "data_description": {
@@ -1377,6 +1398,7 @@
           "hp_urgent": "Ekkora eltérésnél nem vár.",
           "hp_lead_min": "Ha a puffer egyenletesen hűl (legalább 0,2 °C/óra), és ezzel az ütemmel a teteje ennyi percen belül az igény alá érne, már most indít – a csőkígyó hőjének idő kell, mire felér.",
           "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+          "hp_standby_w": "Ha a „fut” jel teljesítménymérő: e fölött, de a kompresszor küszöbe alatt a hőszivattyú készenlétben van (bekapcsolva, például fagyvédelem vagy keringetés miatt, de a kompresszor áll). Ez alatt áll. Csak a kijelzést pontosítja, a koordinációban a készenlét ugyanúgy „nem fut”, mint eddig.",
           "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
         },
         "sections": {
@@ -1422,7 +1444,8 @@
               "hp_standby": "Igény nélkül is ON (készenlét, legalacsonyabb cél)",
               "hp_idle_off": "OFF, ha sokáig nincs igény",
               "hp_idle_hours": "Ennyi ideig nincs igény",
-              "hp_running_w": "A kompresszor fut ennyi watt felett"
+              "hp_running_w": "A kompresszor fut ennyi watt felett",
+              "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)"
             },
             "data_description": {
               "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
@@ -1430,7 +1453,8 @@
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
               "hp_idle_hours": "Ennyi igénymentes óra után.",
-              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W)."
+              "hp_running_w": "Ha a „fut” jel teljesítménymérő, ennyi W felett számít működőnek (alapból 100 W).",
+              "hp_standby_w": "Ha a „fut” jel teljesítménymérő: e fölött, de a kompresszor küszöbe alatt a hőszivattyú készenlétben van (bekapcsolva, például fagyvédelem vagy keringetés miatt, de a kompresszor áll). Ez alatt áll. Csak a kijelzést pontosítja, a koordinációban a készenlét ugyanúgy „nem fut”, mint eddig."
             }
           },
           "season": {
@@ -2042,6 +2066,10 @@
     "source_problem": {
       "title": "HC – {name}: hőforrás-probléma",
       "description": "A(z) **{name}** hőforrása {since} óta hibát mutat: **{problem}**.\n\nNézd meg a kazánt (hibakód, gáz, láng, relé). A HC ettől függetlenül tovább szabályoz, ahogy tud. A bejegyzés magától eltűnik, amint a hőforrás rendben van. Értesítést a mellékelt blueprinttel kérhetsz."
+    },
+    "circuit_problem": {
+      "title": "HC – {name}: keverőkör-felügyelet",
+      "description": "A(z) **{name}** keverőkörnél {since} óta: **{problem}**.\n\nA HC ebbe nem avatkozik bele, csak jelzi. Nézd meg a PLC-t (szivattyú-engedélyezés, indulási késleltetés), a keverőszelepet és annak vezérlőjét (például az ESP-t), valamint a puffer hőmérsékletét. A bejegyzés magától eltűnik, amint a kör rendben működik. A várakozási időket a keverőkör beállításainál állíthatod, a felügyeletet ott ki is kapcsolhatod."
     }
   }
 }

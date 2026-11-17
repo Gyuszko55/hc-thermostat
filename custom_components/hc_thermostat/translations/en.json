@@ -260,7 +260,11 @@
           "circuit_room_trim": "Flow from the rooms' lasting shortfall",
           "circuit_trim_step": "Lasting adjustment step",
           "circuit_trim_s": "Lasting adjustment period",
-          "circuit_trim_max": "Lasting adjustment limit (±)"
+          "circuit_trim_max": "Lasting adjustment limit (±)",
+          "circuit_watch": "Watch the circuit (demand → pump → flow)",
+          "circuit_watch_pump_s": "The pump should start within",
+          "circuit_watch_flow_s": "The flow should move within",
+          "circuit_watch_flow_c": "This much change counts as moving"
         },
         "data_description": {
           "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
@@ -282,7 +286,11 @@
           "circuit_room_trim": "Weighed every hour: when most of the circuit's rooms heated nearly all the time and still stayed below their targets, the flow rises by the step below; when all held their targets easily, heating less than half the time, it goes down. Kept over a restart. Off by default: it moves the mixer's live target.",
           "circuit_trim_step": "Up or down by this much after each weighing.",
           "circuit_trim_s": "The rooms are watched this long before a step.",
-          "circuit_trim_max": "The flow differs from the curve by at most this much."
+          "circuit_trim_max": "The flow differs from the curve by at most this much.",
+          "circuit_watch": "Watching only: it writes nothing and does not touch the PLC. When the circuit asks for heat the pump (PLC) should start within the time below, then the flow should move or get near the target. When a step is missing, HC puts an entry in Repairs. It needs the pump and the flow thermometer entities; with only one of them, that step is watched.",
+          "circuit_watch_pump_s": "Leave room for the PLC's own start delay (for example 5 minutes); waiting until then is normal.",
+          "circuit_watch_flow_s": "Counted from the pump's start. When by then the flow has neither moved nor got near the target (within 2 °C), it is a problem (a stuck mixer, a cold tank, a stopped valve controller).",
+          "circuit_watch_flow_c": "The flow should change this much from the pump's start."
         }
       },
       "hp_coord": {
@@ -363,6 +371,7 @@
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
           "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)",
           "hp_running_w": "The compressor runs above this many watts",
+          "hp_standby_w": "Standby above this many watts (the compressor stands)",
           "hp_charge_jump": "Full target at once for a new charge"
         },
         "data_description": {
@@ -408,6 +417,7 @@
           "hp_urgent": "A difference this large does not wait.",
           "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top.",
           "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+          "hp_standby_w": "When the run signal is a power meter: above this but below the compressor's threshold the heat pump is in standby (switched on, for frost protection or circulation for example, but the compressor stands). Below it, it stands. It only makes the display exact; for the coordination standby is \"does not run\", as before.",
           "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
         },
         "sections": {
@@ -453,7 +463,8 @@
               "hp_standby": "Keep ON with no demand (standby, lowest target)",
               "hp_idle_off": "OFF after a long time without demand",
               "hp_idle_hours": "Without demand for",
-              "hp_running_w": "The compressor runs above this many watts"
+              "hp_running_w": "The compressor runs above this many watts",
+              "hp_standby_w": "Standby above this many watts (the compressor stands)"
             },
             "data_description": {
               "hp_min_on_s": "Compressor protection: stays ON at least this long.",
@@ -461,7 +472,8 @@
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
               "hp_idle_hours": "After this many hours with no demand.",
-              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default)."
+              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+              "hp_standby_w": "When the run signal is a power meter: above this but below the compressor's threshold the heat pump is in standby (switched on, for frost protection or circulation for example, but the compressor stands). Below it, it stands. It only makes the display exact; for the coordination standby is \"does not run\", as before."
             }
           },
           "season": {
@@ -1215,7 +1227,11 @@
           "circuit_room_trim": "Flow from the rooms' lasting shortfall",
           "circuit_trim_step": "Lasting adjustment step",
           "circuit_trim_s": "Lasting adjustment period",
-          "circuit_trim_max": "Lasting adjustment limit (±)"
+          "circuit_trim_max": "Lasting adjustment limit (±)",
+          "circuit_watch": "Watch the circuit (demand → pump → flow)",
+          "circuit_watch_pump_s": "The pump should start within",
+          "circuit_watch_flow_s": "The flow should move within",
+          "circuit_watch_flow_c": "This much change counts as moving"
         },
         "data_description": {
           "circuit_tank_cap": "Off by default, so an update never changes a live PLC setpoint by itself. On: the target given to the mixer = min(demanded, tank top − tank margin). A cooling tank lowers it at once, a warming one lets it back up step by step. The heat pump still gets the uncapped need. A cap below the minimum keeps the minimum and warns \"tank too cold\"; without a tank reading the last good one caps for 15 minutes, then nothing caps.",
@@ -1237,7 +1253,11 @@
           "circuit_room_trim": "Weighed every hour: when most of the circuit's rooms heated nearly all the time and still stayed below their targets, the flow rises by the step below; when all held their targets easily, heating less than half the time, it goes down. Kept over a restart. Off by default: it moves the mixer's live target.",
           "circuit_trim_step": "Up or down by this much after each weighing.",
           "circuit_trim_s": "The rooms are watched this long before a step.",
-          "circuit_trim_max": "The flow differs from the curve by at most this much."
+          "circuit_trim_max": "The flow differs from the curve by at most this much.",
+          "circuit_watch": "Watching only: it writes nothing and does not touch the PLC. When the circuit asks for heat the pump (PLC) should start within the time below, then the flow should move or get near the target. When a step is missing, HC puts an entry in Repairs. It needs the pump and the flow thermometer entities; with only one of them, that step is watched.",
+          "circuit_watch_pump_s": "Leave room for the PLC's own start delay (for example 5 minutes); waiting until then is normal.",
+          "circuit_watch_flow_s": "Counted from the pump's start. When by then the flow has neither moved nor got near the target (within 2 °C), it is a problem (a stuck mixer, a cold tank, a stopped valve controller).",
+          "circuit_watch_flow_c": "The flow should change this much from the pump's start."
         }
       },
       "hp_coord": {
@@ -1332,6 +1352,7 @@
           "hp_coil_dt": "Demand: coil temperature step (the tank stays this much under the heat pump's target)",
           "hp_lead_min": "Demand: start by the pace of use (minutes ahead, 0 = off)",
           "hp_running_w": "The compressor runs above this many watts",
+          "hp_standby_w": "Standby above this many watts (the compressor stands)",
           "hp_charge_jump": "Full target at once for a new charge"
         },
         "data_description": {
@@ -1377,6 +1398,7 @@
           "hp_urgent": "A difference this large does not wait.",
           "hp_lead_min": "When the tank cools steadily (at least 0.2 °C/h) and at that pace its top would fall under the need within this many minutes, it starts now – the coil's heat takes time to reach the top.",
           "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+          "hp_standby_w": "When the run signal is a power meter: above this but below the compressor's threshold the heat pump is in standby (switched on, for frost protection or circulation for example, but the compressor stands). Below it, it stands. It only makes the display exact; for the coordination standby is \"does not run\", as before.",
           "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
         },
         "sections": {
@@ -1422,7 +1444,8 @@
               "hp_standby": "Keep ON with no demand (standby, lowest target)",
               "hp_idle_off": "OFF after a long time without demand",
               "hp_idle_hours": "Without demand for",
-              "hp_running_w": "The compressor runs above this many watts"
+              "hp_running_w": "The compressor runs above this many watts",
+              "hp_standby_w": "Standby above this many watts (the compressor stands)"
             },
             "data_description": {
               "hp_min_on_s": "Compressor protection: stays ON at least this long.",
@@ -1430,7 +1453,8 @@
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
               "hp_idle_hours": "After this many hours with no demand.",
-              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default)."
+              "hp_running_w": "When the \"runs\" signal is a power meter, above this many W it counts as running (100 W by default).",
+              "hp_standby_w": "When the run signal is a power meter: above this but below the compressor's threshold the heat pump is in standby (switched on, for frost protection or circulation for example, but the compressor stands). Below it, it stands. It only makes the display exact; for the coordination standby is \"does not run\", as before."
             }
           },
           "season": {
@@ -2042,6 +2066,10 @@
     "source_problem": {
       "title": "HC – {name}: heat source problem",
       "description": "The heat source of **{name}** shows a problem since {since}: **{problem}**.\n\nCheck the boiler (error code, gas, flame, relay). HC goes on regulating as well as it can. This entry clears itself as soon as the source is fine. For a notification use the blueprint that comes with HC."
+    },
+    "circuit_problem": {
+      "title": "HC – {name}: mixing circuit watch",
+      "description": "The **{name}** mixing circuit, since {since}: **{problem}**.\n\nHC does not act on this, it only reports it. Check the PLC (pump enable, start delay), the mixing valve and its controller (an ESP, for example), and the tank's temperature. The entry clears itself once the circuit works again. The waiting times can be set in the circuit's settings, where the watch can also be switched off."
     }
   }
 }

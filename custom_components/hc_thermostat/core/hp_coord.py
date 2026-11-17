@@ -129,6 +129,7 @@ class HpConfig:
     # below it – the hold's confirmation, interval and ramp then only smooth the changes within a charge
     hp_charge_jump: bool = True
     hp_running_w: float = 100.0  # 0.69.0: a power reading above this (W) means the compressor runs (was fixed 100 W)
+    hp_standby_w: float = 10.0  # 0.70.0: between this and hp_running_w: switched on, the compressor stands (standby)
 
     @classmethod
     def from_conf(cls, conf: dict) -> "HpConfig":
@@ -159,6 +160,8 @@ class HpInputs:
     frost_top: float = 8.0  # the buffer's frost limit
     wood_signal: bool | None = None  # a wood boiler / flue signal (None: none given)
     hp_running: bool | None = None  # the heat pump runs now (None: not known)
+    hp_state: str | None = None  # 0.70.0: heating | standby | stopped | unknown (None: no signal given)
+    hp_power_w: float | None = None  # 0.70.0: the power reading behind it (W)
     hp_running_age_s: float | None = None  # 0.59.0: seconds since that reading was reported
     offset: float | None = None  # the manual offset now (the number entity)
     layers: tuple = ()  # 0.65.0: (name, °C or None, litres or None, measured) top first
@@ -381,7 +384,8 @@ class HeatPumpCoordinator:
         wood = self._wood(i)
         need = self._need(i)
         details: dict = {"offset": offset, "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
-                         "hp_running": i.hp_running, "hp_running_age_s": i.hp_running_age_s}
+                         "hp_running": i.hp_running, "hp_running_age_s": i.hp_running_age_s,
+                         "hp_state": i.hp_state, "hp_power_w": i.hp_power_w}
         # 0.57.1: the buffer's own zones (no circuit linked) get the circuits' hold too: a TPI pause does not end their
         # demand, so the summer mode can end on a lasting demand
         if i.zones_asking:

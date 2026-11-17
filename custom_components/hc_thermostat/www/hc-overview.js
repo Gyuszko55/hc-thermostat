@@ -13,6 +13,15 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const isNum = (v) => typeof v === "number" && isFinite(v);
 const num = (v) => { if (isNum(v)) return v; const n = parseFloat(v); return isFinite(n) ? n : null; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// 0.70.0: the heat pump's state – heating / standby / stopped / unknown (older backends: from hp_running)
+const hpState = (det) => det.hp_state || (det.hp_running === true ? "heating" : det.hp_running === false ? "stopped" : "unknown");
+// 0.70.0: the unit's target next to HC's: "set 45 · HC asks 45 (worked out 44.8)"
+function targetLine(det, T, lang, withRaw = true) {
+  const tc = det.target_check;
+  if (!tc) return "";
+  const ask = tc.writing && tc.sent != null ? tc.sent : tc.given;
+  return `${T.tgtSet} ${deg(num(tc.reported), lang)} · ${T.tgtAsk} ${deg(num(ask), lang)}${withRaw && isNum(num(tc.raw)) ? ` (${T.tgtRaw} ${deg(num(tc.raw), lang)})` : ""}`;
+}
 
 export const OV_TXT = {
   hu: {
@@ -44,6 +53,12 @@ export const OV_TXT = {
       reserve_low: "kevés a tartalék az igény fölött – tölt", reserve_low_kwh: "kevés a hő-tartalék (kWh) – tölt", charging_reserve: "tartalékot tölt a leállítási rétegig",
       reserve_ok: "van elég tartalék az igény fölött", reserve_full: "feltöltve – a tartalék megvan", no_demand: "nincs tartós hőigény", reserve_runs_out: "a fogyás üteme szerint hamarosan elfogy a tartalék – tölt" },
     chMode: { classic: "klasszikus", demand: "igény szerinti" }, reserve: "tartalék", other: "a másik szabály",
+    // 0.70.0
+    hpSt: { heating: "fűt (a kompresszor fut)", standby: "készenlét (a kompresszor áll)", stopped: "áll", unknown: "nem ismert" },
+    hpStS: { heating: "fűt", standby: "készenlét", stopped: "áll", unknown: "nem ismert" },
+    tgtSet: "beállítva", tgtAsk: "HC kéri", tgtRaw: "számolt", tgtMis: "eltér a kérttől", tgtShadow: "árnyék – a HC nem ír", hpTgt: "célhőmérséklet",
+    watchLbl: "felügyelet", pumpUnknown: "a szivattyú állapota nem ismert",
+    watchSt: { idle: "nincs hőigény", wait_pump: "a szivattyú indulására vár", no_pump: "a szivattyú nem indult el", wait_flow: "az előremenő változására vár", no_flow: "fut a szivattyú, de az előremenő nem változik", ok: "rendben", pump_only: "a szivattyú fut (előremenő nincs megadva)", not_watched: "nincs figyelve" },
   },
   en: {
     system: "System", why: "Why is heat asked for, or not?", sources: "Heat sources", tank: "Buffer tank", circuits: "Mixing circuits",
@@ -74,6 +89,12 @@ export const OV_TXT = {
       reserve_low: "low reserve above the need – charging", reserve_low_kwh: "low heat reserve (kWh) – charging", charging_reserve: "charging the reserve up to the stop layer",
       reserve_ok: "enough reserve above the need", reserve_full: "charged – the reserve is there", no_demand: "no lasting heat demand", reserve_runs_out: "at this pace the reserve runs out soon – charging" },
     chMode: { classic: "classic", demand: "by demand" }, reserve: "reserve", other: "the other rule",
+    // 0.70.0
+    hpSt: { heating: "heating (the compressor runs)", standby: "standby (the compressor stands)", stopped: "stands", unknown: "not known" },
+    hpStS: { heating: "heating", standby: "standby", stopped: "stands", unknown: "not known" },
+    tgtSet: "set", tgtAsk: "HC asks", tgtRaw: "worked out", tgtMis: "differs from the asked one", tgtShadow: "shadow – HC does not write", hpTgt: "target",
+    watchLbl: "watch", pumpUnknown: "the pump's state is not known",
+    watchSt: { idle: "no heat demand", wait_pump: "waiting for the pump to start", no_pump: "the pump did not start", wait_flow: "waiting for the flow to move", no_flow: "the pump runs but the flow does not move", ok: "fine", pump_only: "the pump runs (no flow thermometer)", not_watched: "not watched" },
   },
 };
 
@@ -117,9 +138,12 @@ function warnings(m, T, lang) {
   for (const c of m.circuits) {  // 0.64.0: the tank cannot give the circuit what it needs
     const cs = c.decision?.cap_state;
     if (["limited", "cold", "no_data"].includes(cs)) out.push(`${short(c.title)}: ${T.capSt[cs]}${isNum(num(c.decision?.shortfall)) && num(c.decision.shortfall) > 0 ? ` (−${fx(num(c.decision.shortfall), lang)} °C)` : ""}`);
+    const wt = c.decision?.details?.watch;  // 0.70.0: the chain demand → pump → flow
+    if (wt?.problem) out.push(`${short(c.title)} – ${T.watchLbl}: ${T.watchSt[wt.state] || wt.state}`);
   }
   for (const h of m.hps) {
     const det = h.decision?.details || {};
+    if (det.target_check?.mismatch) out.push(`${short(h.title)}: ${T.hpTgt} ${T.tgtMis} – ${targetLine(det, T, lang, false)}`);
     if (det.hp_running == null && ent(h, "hp_running_entity")) out.push(`${short(h.title)}: ${T.hp} ${T.unknown}${isNum(det.hp_running_age_s) ? ` (${T.age} ${Math.round(det.hp_running_age_s / 60)} ${T.min})` : ""}`);
   }
   return out;
@@ -172,12 +196,12 @@ export function renderOverview(all, opts = {}) {
       src.push(row(T.wood, `${wood ? `<span class="hot">${esc(T.active_)}</span>` : esc(T.inactive)}${we ? ` <small>(${esc(we.state)}${we.unit ? " " + esc(we.unit) : ""})</small>` : ""}`));
       if (wi.by === "temp") src.push(row(`· ${T.woodBy}`, esc(`≥ ${fx(wi.on_above, lang, 0)} °C ${T.on} · ≤ ${fx(wi.off_below, lang, 0)} °C ${T.offv}${wi.pending ? ` · ${T.woodPending} ${wi.pending.to ? T.on : T.offv} (${Math.round(wi.pending.for_s / 60)}/${Math.round(wi.confirm_s / 60)} ${T.min})` : ""}`)));
     }
-    const run = det.hp_running === true ? T.runs : det.hp_running === false ? T.stands : T.unknown;
-    const pe = ent(h, "hp_running_entity");
-    src.push(row(T.hp, esc(run)));
+    const pe = ent(h, "hp_running_entity"), hst = hpState(det);
+    src.push(row(T.hp, `${hst === "heating" ? `<span class="hot">${esc(T.hpSt[hst])}</span>` : esc(T.hpSt[hst] || hst)}`));
     if (pe) src.push(row(`· ${T.power}`, `${esc(pe.state)} ${esc(pe.unit || "")}${isNum(det.hp_running_age_s) ? ` <small>(${esc(T.age)} ${det.hp_running_age_s < 120 ? `${Math.round(det.hp_running_age_s)} ${T.s}` : `${Math.round(det.hp_running_age_s / 60)} ${T.min}`}${det.hp_running_age_s > 900 ? `, ${esc(T.stale)}` : ""})</small>` : ""}`));
     src.push(row(`· ${T.request}`, `${d.enable ? T.on : T.offv} · ${T.demand}: ${d.heat_demand ? T.yes : T.no}`));
-    src.push(row(`· ${T.flowTarget}`, deg(d.target, lang)));
+    const tc = det.target_check;
+    src.push(row(`· ${T.flowTarget}`, tc ? `${esc(targetLine(det, T, lang))}${tc.mismatch ? ` <span class="hot">– ${esc(T.tgtMis)}${isNum(tc.mismatch_min) ? ` (${tc.mismatch_min} ${T.min})` : ""}</span>` : !tc.writing ? ` <small>(${esc(T.tgtShadow)})</small>` : ""}` : deg(d.target, lang)));
     src.push(row(`· ${T.reason}`, esc(T.hpWhy[d.reason] || d.reason || "–")));
     // 0.65.0: the reserve over the need and what the rule not driving would do
     const dc = det.demand_charge || {}, mode = det.charge_mode || "classic";
@@ -212,6 +236,7 @@ export function renderOverview(all, opts = {}) {
       // 0.63.0: what the PLC reports, when given: the pump and the measured flow
       + (ent(c, "circuit_pump_entity") ? row(T.pumpPlc, isOn(ent(c, "circuit_pump_entity")) ? T.runs : isOn(ent(c, "circuit_pump_entity")) === false ? T.stands : T.unknown) : "")
       + (ent(c, "circuit_flow_entity") ? row(T.flowMeas, deg(num(ent(c, "circuit_flow_entity").state), lang)) : "")
+      + (det.watch && det.watch.state !== "not_watched" ? row(T.watchLbl, `${det.watch.problem ? `<span class="hot">${esc(T.watchSt[det.watch.state])}</span>` : esc(T.watchSt[det.watch.state] || det.watch.state)}${["wait_pump", "no_pump"].includes(det.watch.state) && isNum(det.watch.demand_min) ? ` <small>(${fx(det.watch.demand_min, lang, 0)}/${Math.round(det.watch.pump_s / 60)} ${T.min})</small>` : ["wait_flow", "no_flow"].includes(det.watch.state) && isNum(det.watch.pump_min) ? ` <small>(${fx(det.watch.pump_min, lang, 0)}/${Math.round(det.watch.flow_s / 60)} ${T.min})</small>` : ""}${det.watch.pump_unknown ? ` <small>· ${esc(T.pumpUnknown)}</small>` : ""}`) : "")
       + row(T.usable, isNum(num(c.buffer?.usable_kwh)) ? `${fx(num(c.buffer.usable_kwh), lang)} kWh` : "–")
       + `<div class="ovcurve">${curveSvg(c.config || {}, { ...d, plc: oe ? num(oe.state) : null }, { lang, small: true })}</div>`, `member:${c.entry_id}`));
   }
@@ -349,6 +374,16 @@ const isOn = (st) => { if (!st || st.state == null) return null; const v = Strin
   if (["on", "true", "running", "heat", "heating", "open"].includes(v)) return true;
   if (["off", "false", "idle", "closed"].includes(v)) return false; const n = parseFloat(v); return isFinite(n) ? n > 5 : null; };
 
+// 0.70.0: under the heat pump: its own target and HC's (amber when they lastingly differ while HC writes)
+function hpTargetSvg(hp, x, y, T, lang) {
+  const det = hp.decision?.details || {}, tc = det.target_check;
+  if (!tc) return "";
+  const ask = tc.writing && tc.sent != null ? tc.sent : tc.given, cls = `ssm ${tc.mismatch ? "sbad" : ""}`;
+  const lines = [`${T.tgtSet}: ${deg(num(tc.reported), lang)}`, `${T.tgtAsk}${tc.writing ? "" : ` (${T.shadow})`}: ${deg(num(ask), lang)}`,
+    ...(isNum(num(tc.raw)) ? [`${T.tgtRaw}: ${deg(num(tc.raw), lang)}`] : [])];
+  return lines.map((l, j) => `<text x="${x}" y="${y + j * 15}" class="${j === 2 ? "ssm" : cls}" text-anchor="middle">${esc(l)}</text>`).join("");
+}
+
 export function renderSchematic(all, opts = {}) {
   const m = collect(all);
   // 0.61.0: a house without a buffer tank (a boiler with its rooms, air conditioners, heaters) is drawn too
@@ -359,7 +394,7 @@ export function renderSchematic(all, opts = {}) {
   const hc = hp?.conf || {}, tc = tank?.conf || {};
   const wood = !!(hc.wood_entity || hc.wood_temp_entity);
   const woodOn = hp && (hp.decision?.wood === "certain" || hp.decision?.wood === "likely" || hp.inputs?.wood_signal === true);
-  const hpOn = hp && hp.decision?.details?.hp_running === true;
+  const hpOn = hp && hpState(hp.decision?.details || {}) === "heating";
   const uid = String(tank?.entry_id || hp?.entry_id || "x").replace(/[^a-z0-9]/gi, "").slice(-8);
   const key = (i) => (i ? `data-key="member:${esc(i.entry_id)}"` : "");
   const pipe = (d, hot, on) => `<path d="${d}" class="sp ${hot ? "sf" : "sr"} ${on ? "son" : ""}" marker-end="url(#${hot ? "af" : "ar"}${uid})"/>`;
@@ -427,7 +462,7 @@ export function renderSchematic(all, opts = {}) {
       <circle cx="${OX + 62}" cy="${hy + 50}" r="30" class="sfan"/><circle cx="${OX + 62}" cy="${hy + 50}" r="6" class="sfanh"/>
       <path d="M${OX + 106},${hy + 22} h52 M${OX + 106},${hy + 34} h52 M${OX + 106},${hy + 46} h52 M${OX + 106},${hy + 58} h52 M${OX + 106},${hy + 70} h52" class="sgr"/>
       <text x="${OX + OW / 2}" y="${hy - 26}" class="sname" text-anchor="middle">${esc(T.hpLong)}</text>
-      <text x="${OX + OW / 2}" y="${hy - 10}" class="ssm" text-anchor="middle">${esc(`${hpOn ? T.runs : hp.decision?.details?.hp_running === false ? T.stands : T.unknown}${isNum(pw) ? ` · ${fx(pw, lang, 0)} ${ent(hp, "hp_running_entity")?.unit || ""}` : ""}`)}</text></g>`);
+      <text x="${OX + OW / 2}" y="${hy - 10}" class="ssm" text-anchor="middle">${esc(`${T.hpStS[hpState(hp.decision?.details || {})]}${isNum(pw) ? ` · ${fx(pw, lang, 0)} ${ent(hp, "hp_running_entity")?.unit || ""}` : ""}`)}</text>${hpTargetSvg(hp, OX + OW / 2, hy + 118, T, lang)}</g>`);
     if (tank) {
       g.push(pipe(`M${OX + OW - 18},${cy - 8} H${TX + 18}`, true, hpOn), pipe(`M${TX + 18},${cy + 20} H${OX + OW - 18}`, false, hpOn));
       g.push(`<path d="${[0, 1, 2].map((r) => `M${TX + 16},${cy - 8 + r * 14} h${TW - 40} a6,6 0 0 1 0,12 h-${TW - 40}`).join(" ")}" class="scoil"/><text x="${TX - 12}" y="${cy - 18}" class="ssm" text-anchor="end">${esc(T.coilCharge)}</text>`);
@@ -488,11 +523,11 @@ export function renderSchematic(all, opts = {}) {
     const flow = c ? num(ent(c, "circuit_flow_entity")?.state) : null;
     if (c) {
       g.push(`<g class="hs" ${key(c)}>${tank ? pump(XP, cy, pst ?? (d.demand ? true : null)) + valve(XV, cy, floor ? "fl" : "") : ""}
-        <rect x="${CX}" y="${cy - CH / 2}" width="${CW}" height="${CH}" rx="10" class="scirc ${pOn ? "on" : ""}"/>${icon(floor ? "floor" : "radiator", CX + 12, cy - 22, 1.5)}
+        <rect x="${CX}" y="${cy - CH / 2}" width="${CW}" height="${CH}" rx="10" class="scirc ${pOn ? "on" : ""} ${d.details?.watch?.problem ? "bad" : ""}"/>${icon(floor ? "floor" : "radiator", CX + 12, cy - 22, 1.5)}
         <text x="${CX + 58}" y="${cy - 14}" class="sname">${esc(short(c.title))}</text>
         <text x="${CX + 58}" y="${cy + 3}" class="ssh">${esc(T.mixerPump)}</text>
         <text x="${CX + 58}" y="${cy + 22}" class="sval">${esc(`${T.tgt} ${deg(num(d.target), lang)}${isNum(flow) ? ` · ${T.meas} ${deg(flow, lang)}` : ""}`)}</text>
-        <title>${esc(`${T.pumpLbl}: ${pst === null ? `${T.pumpEnable} ${d.demand ? T.yes : T.no}` : pst ? T.runs : T.stands}`)}</title></g>`);
+        <title>${esc(`${T.pumpLbl}: ${pst === null ? `${T.pumpEnable} ${d.demand ? T.yes : T.no}` : pst ? T.runs : T.stands}${d.details?.watch && d.details.watch.state !== "not_watched" ? ` · ${T.watchLbl}: ${T.watchSt[d.details.watch.state] || d.details.watch.state}` : ""}`)}</title></g>`);
       if (tank) {
         g.push(line(`M${XT},${cy} H${XP - 11}`, true, pOn), line(`M${XP + 11},${cy} H${XV - 12}`, true, pOn), pipe(`M${XV + 12},${cy} H${CX}`, true, pOn));
         g.push(line(`M${CX},${cy + 22} H${XV + 14} `, false, pOn), pipe(`M${XV},${cy + 22} V${cy + 14}`, false, pOn), line(`M${XV - 1},${cy + 22} H${XR}`, false, pOn));
@@ -644,7 +679,7 @@ export const OV_CSS = `
 .hcsch .smix path { fill:#8e7cc3; stroke:var(--primary-text-color); stroke-width:1; } .hcsch .smix.fl path { fill:#ab47bc; }
 .hcsch .smix .sstem { fill:none; } .hcsch .ssen { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:2; }
 .hcsch .sld { stroke:var(--primary-text-color); stroke-width:1.2; } .hcsch .slbl { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.2; }
-.hcsch .scirc { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.6; } .hcsch .scirc.on { stroke:#2e7d32; stroke-width:2.4; }
+.hcsch .scirc { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.6; } .hcsch .scirc.on { stroke:#2e7d32; stroke-width:2.4; } .hcsch .scirc.bad { stroke:#f9a825; stroke-width:3; } .hcsch .sbad { fill:#e65100; font-weight:600; }
 .hcsch .sfanh { fill:var(--primary-text-color); } .hcsch .sgr { stroke:var(--secondary-text-color); stroke-width:2; }
 .hcsch .sdoor { fill:color-mix(in srgb, var(--primary-text-color) 18%, var(--card-background-color)); stroke:var(--primary-text-color); stroke-width:1.2; }
 .hcsch .sleg { fill:var(--card-background-color); stroke:var(--divider-color); stroke-width:1.4; }

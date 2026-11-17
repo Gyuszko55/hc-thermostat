@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.70.0 – 2026-11-17
+A tester's list after the 0.69.0 night: more to see, nothing new that regulates.
+- **The heat pump's own target on the diagram:** under the unit *set* (what it reports back), *HC asks* (the sent
+  target; the given-out one in shadow) and *worked out*. While HC writes, a difference over 0.4 °C lasting 10 minutes
+  is a mismatch: amber on the diagram, a warning on the overview, *Matches the asked one* on the panel.
+- **Mixing circuit watch** (`circuit_watch`, on by default; watching only): the chain *demand → pump → flow*. The pump
+  should start within `circuit_watch_pump_s` (10 min – a PLC's start delay fits in), the flow should move by
+  `circuit_watch_flow_c` (1 °C) or get within 2 °C of the target within `circuit_watch_flow_s` (15 min) after the
+  pump started. A missing step is an entry in Repairs (it clears itself), the circuit amber on the diagram, a warning
+  on the overview; the panel shows the step and its minutes. A pump state that is not known never raises it.
+- **Heat pump: heating, standby, stopped or not known** (`hp_standby_w`, 10 W): a power reading between it and
+  `hp_running_w` is standby (switched on, the compressor stands) – the tester's 138 W at a 200 W threshold. The
+  diagram, the overview, the panel (with the power, its age and both thresholds) and the coordination use the same
+  state; for the coordination standby is "does not run", as before.
+
 ## 0.69.0 – 2026-11-17
 After a tester's first real night on a buffer house (1000 l tank, two motorised mixing circuits, 5-minute
 thermoelectric valves, a PLC that starts the pumps late): the rooms switched far more often than before and still

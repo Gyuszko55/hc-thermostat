@@ -1137,7 +1137,11 @@ class HcInfoPanel extends HTMLElement {
         const rnd = { device: hu ? "a készülék lépésköze" : "the device's step", half_up: hu ? "0,5 °C-ra felfelé" : "up to 0.5 °C", whole_up: hu ? "egész fokra felfelé" : "up to whole °C" }[o.round] || o.round;
         const rep = (d.entities?.hp_target_entity || [])[0]; const repV = rep ? (rep.entity_id.startsWith("climate.") ? rep.temperature : rep.state) : null;
         return [[hu ? "Kiküldve" : "Sent", o.sent != null ? `${this._deg(o.sent)} · ${rnd}` : `– · ${rnd}`],
-          [hu ? "A hőszivattyú beállítása" : "The unit's setpoint", repV != null && repV !== "" ? this._deg(repV) : null]]; })(),
+          [hu ? "A hőszivattyú beállítása" : "The unit's setpoint", repV != null && repV !== "" ? this._deg(repV) : null],
+          // 0.70.0: does the unit use what HC asks for? (a lasting difference while HC writes)
+          ...(det.target_check ? [[hu ? "Egyezés a kérttel" : "Matches the asked one", !det.target_check.writing ? (hu ? "árnyék – a HC nem ír, csak mutatja" : "shadow – HC does not write, only shows it")
+            : det.target_check.diff == null ? null : det.target_check.mismatch ? `${hu ? "ELTÉR" : "DIFFERS"} ${det.target_check.diff > 0 ? "+" : ""}${this._num(det.target_check.diff, 1)} °C${det.target_check.mismatch_min != null ? ` · ${det.target_check.mismatch_min} ${hu ? "perce" : "min"}` : ""}`
+            : (Math.abs(det.target_check.diff) > 0.4 ? (hu ? "eltér, még vár" : "differs, waiting") : (hu ? "egyezik" : "matches")), det.target_check.mismatch]] : [])]; })(),
       [hu ? "Mért víz (hőszivattyú)" : "Measured water (heat pump)", d.water != null ? this._deg(d.water) : null],
       // 0.65.0: the two charging rules side by side and the reserve over the need
       ...(() => { const mode = det.charge_mode || "classic", dc = det.demand_charge || {}, cl = det.classic || {};
@@ -1172,6 +1176,8 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Töltöttség" : "Charge", inp.charge != null ? `${this._num(inp.charge, 1)} %` : null],
       [hu ? "Puffer trend" : "Tank trend", inp.trend_c_h != null ? `${this._num(inp.trend_c_h, 1)} °C/h` : null],
       [hu ? "Fut a hőszivattyú" : "Heat pump runs", inp.hp_running == null ? (hu ? "nem tudni" : "not known") : inp.hp_running ? t.yes : t.no],
+      // 0.70.0: heating / standby / stopped / unknown, with the power and its age
+      ...(inp.hp_state ? [[hu ? "Állapot" : "State", `${({ heating: hu ? "fűt (a kompresszor fut)" : "heating (the compressor runs)", standby: hu ? "készenlét (bekapcsolva, a kompresszor áll)" : "standby (on, the compressor stands)", stopped: hu ? "áll" : "stands", unknown: hu ? "nem ismert (nincs friss visszajelzés)" : "not known (no fresh reading)" })[inp.hp_state] || inp.hp_state}${inp.hp_power_w != null ? ` · ${this._num(inp.hp_power_w, 0)} W` : ""}${inp.hp_running_age_s != null ? ` · ${inp.hp_running_age_s < 120 ? `${Math.round(inp.hp_running_age_s)} ${hu ? "mp" : "s"}` : `${Math.round(inp.hp_running_age_s / 60)} ${hu ? "perce" : "min ago"}`}` : ""} · ${hu ? "küszöb" : "threshold"} ${this._num(cfg.hp_standby_w ?? 10, 0)} / ${this._num(cfg.hp_running_w ?? 100, 0)} W`, inp.hp_state === "heating"]] : []),
       ...(inp.circuits || []).map((c) => [c.name, `${c.target != null ? this._deg(c.target) : t.none}${c.demand ? (hu ? " · tartós igény" : " · lasting demand") : ""}`, c.demand]),
     ]));
     return { svg: svg.join(""), cards: cards.join("") };
@@ -1216,6 +1222,11 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Helyiség-korrekció" : "Room correction", det.correction ? `+${this._num(det.correction, 1)} °C` : null],
       [hu ? "Határok" : "Limits", `${this._deg(cfg.circuit_flow_min)} – ${this._deg(cfg.circuit_flow_max)}`],
       // 0.69.0: the slow room feedback
+      // 0.70.0: the chain demand → pump → flow (watching only)
+      ...(() => { const w = det.watch; if (!w || w.state === "not_watched") return [[hu ? "Kör felügyelete" : "Circuit watch", cfg.circuit_watch === false ? (hu ? "kikapcsolva" : "off") : (hu ? "nincs szivattyú/előremenő megadva" : "no pump / flow entity given")]];
+        const st = { idle: hu ? "nincs hőigény" : "no heat demand", wait_pump: hu ? "a szivattyú indulására vár" : "waiting for the pump", no_pump: hu ? "HIBA: a szivattyú nem indult el" : "PROBLEM: the pump did not start", wait_flow: hu ? "az előremenő változására vár" : "waiting for the flow to move", no_flow: hu ? "HIBA: fut a szivattyú, de az előremenő nem változik" : "PROBLEM: the pump runs but the flow does not move", ok: hu ? "rendben" : "fine", pump_only: hu ? "a szivattyú fut (előremenő nincs megadva)" : "the pump runs (no flow thermometer)" }[w.state] || w.state;
+        const tm = ["wait_pump", "no_pump"].includes(w.state) && w.demand_min != null ? ` · ${this._num(w.demand_min, 0)} / ${Math.round(w.pump_s / 60)} ${hu ? "perc" : "min"}` : ["wait_flow", "no_flow"].includes(w.state) && w.pump_min != null ? ` · ${this._num(w.pump_min, 0)} / ${Math.round(w.flow_s / 60)} ${hu ? "perc" : "min"}${w.base != null ? ` · ${hu ? "induláskor" : "at the start"} ${this._deg(w.base)}` : ""}` : "";
+        return [[hu ? "Kör felügyelete" : "Circuit watch", `${st}${tm}${w.pump_unknown ? (hu ? " · a szivattyú állapota nem ismert" : " · the pump's state is not known") : ""}`, w.problem]]; })(),
       [hu ? "Tartós igazítás" : "Lasting adjustment", cfg.circuit_room_trim ? `${det.trim >= 0 ? "+" : ""}${this._num(det.trim ?? 0, 1)} °C${det.trim_why ? ` (${({ rooms_short: hu ? "a helyiségek elmaradtak" : "rooms fell short", rooms_easy: hu ? "a helyiségek könnyen tartották" : "rooms held easily" })[det.trim_why] || det.trim_why})` : ""} · ${hu ? "most" : "now"}: ${hu ? "éhes" : "hungry"} ${det.trim_hungry_pct ?? "–"}%, ${hu ? "tartja" : "holding"} ${det.trim_easy_pct ?? "–"}%, ${hu ? "fűt" : "heating"} ${det.trim_duty_pct ?? "–"}%` : (hu ? "kikapcsolva" : "off")],
       [hu ? "Ritkítás" : "Hold", `±${this._num(cfg.circuit_deadband, 1)} °C · ${this._num((cfg.circuit_confirm_s || 0) / 60, 0)} / ${this._num((cfg.circuit_min_interval_s || 0) / 60, 0)} perc · ≤ +${this._num(cfg.circuit_max_rise, 1)} °C`],
     ]));

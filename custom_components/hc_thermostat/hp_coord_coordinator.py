@@ -42,6 +42,9 @@ RUNNING_ABOVE = {"W": RUNNING_W, "kW": 0.1, "mW": RUNNING_W * 1000, "A": 0.5, "m
 # a meter that stopped reporting at 1.5 kW must not keep the heat pump "running" (and wood looking impossible).
 # A stale low reading stays "does not run" – a quiet meter at idle is normal.
 RUNNING_MAX_AGE_S = 900.0
+TARGET_TOL_C = 0.4  # 0.70.0: the unit's reported target may differ this much from the sent one (its own rounding)
+TARGET_MISMATCH_S = 600.0  # 0.70.0: a larger difference lasting this long is a mismatch
+STANDBY_W = 10.0  # 0.70.0: a power reading above this (and below the compressor's threshold): switched on, standing
 
 
 def reading_age_s(state, now: datetime | None = None) -> float | None:
@@ -55,38 +58,65 @@ def reading_age_s(state, now: datetime | None = None) -> float | None:
         return None
 
 
-def on_state(hass, entity_id: str | None, now: datetime | None = None, running_w: float | None = None) -> bool | None:
-    """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
-    (power W / kW, current A, compressor Hz / rpm, modulation %); None when not given or not known."""
+def run_state(hass, entity_id: str | None, now: datetime | None = None, running_w: float | None = None,
+              standby_w: float | None = None) -> tuple[str, float | None]:
+    """0.70.0: what the heat pump does – ("heating" | "standby" | "stopped" | "unknown", the power reading in W or None).
+    heating: the compressor runs (above `hp_running_w`); standby: switched on but the compressor stands – a power reading
+    between `hp_standby_w` and `hp_running_w` (frost protection, circulation, electronics), a climate on but idle, or a
+    "standby" state; stopped: off / at about zero; unknown: no reading, or a "runs" reading not reported for
+    RUNNING_MAX_AGE_S (a meter that went quiet must not keep the compressor running). A quiet low reading stays what it
+    was (as since 0.59.0: a meter at idle is often silent) – its age is shown next to it."""
     state = hass.states.get(entity_id) if entity_id else None
     if state is None or state.state in ("unavailable", "unknown"):
-        return None
+        return "unknown", None
     domain = entity_id.split(".", 1)[0]
     if domain == "climate":
         action = state.attributes.get("hvac_action")
-        if action in (None, "unknown"):
-            return None
-        return action in ("heating", "preheating", "defrosting")
+        if action in ("heating", "preheating", "defrosting"):
+            return "heating", None
+        if state.state == "off" or action == "off":
+            return "stopped", None
+        if action == "idle":
+            return "standby", None
+        return "unknown", None
     if state.state in ("on", "heat", "heating", "running", "true"):
-        return True
-    if state.state in ("off", "idle", "standby", "false"):
-        return False
+        return "heating", None
+    if state.state == "standby":
+        return "standby", None
+    if state.state in ("off", "idle", "false"):
+        return "stopped", None
     try:
         value = float(state.state)
     except ValueError:
-        return None
+        return "unknown", None
     unit = str(state.attributes.get("unit_of_measurement") or "").strip()
     above = RUNNING_ABOVE.get(unit)
-    if running_w is not None and unit in ("W", "kW", "mW"):  # 0.69.0: the compressor's own power threshold
-        above = {"W": running_w, "kW": running_w / 1000, "mW": running_w * 1000}[unit]
+    to_w = {"W": 1.0, "kW": 1000.0, "mW": 0.001}.get(unit)
+    if running_w is not None and to_w is not None:  # 0.69.0: the compressor's own power threshold
+        above = running_w / to_w
     if above is None:
-        return None
-    runs = value > above
-    if runs:
+        return "unknown", None
+    watts = None if to_w is None else round(value * to_w, 1)
+    if value > above:
+        result = "heating"
+    elif to_w is not None and value * to_w > (STANDBY_W if standby_w is None else standby_w):
+        result = "standby"
+    else:
+        result = "stopped"
+    if result == "heating":
         age = reading_age_s(state, now)
         if age is not None and age > RUNNING_MAX_AGE_S:
-            return None  # 0.59.0: an old "runs" reading – not known
-    return runs
+            return "unknown", watts  # 0.59.0: an old "runs" reading – not known
+    return result, watts
+
+
+RUN_BOOL = {"heating": True, "standby": False, "stopped": False, "unknown": None}
+
+
+def on_state(hass, entity_id: str | None, now: datetime | None = None, running_w: float | None = None) -> bool | None:
+    """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
+    (power W / kW, current A, compressor Hz / rpm, modulation %); None when not given or not known."""
+    return RUN_BOOL[run_state(hass, entity_id, now, running_w)[0]]
 
 
 def _layers(stock) -> tuple:
@@ -118,6 +148,7 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         self.hp = HeatPumpCoordinator(HpConfig.from_conf(data))
         self.wood = WoodDetector(WoodConfig.from_conf(data))  # 0.61.0: wood from the boiler's thermometer
         self.wood_temp: float | None = None
+        self._mismatch_since: datetime | None = None  # 0.70.0
         self.offset: float | None = None  # the number entity's value (restored by it)
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._last_save = dt_util.now()
@@ -170,13 +201,16 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                                                     cc.circuit.cfg.circuit_margin, bool(asked)))
             if not circuits:  # no circuit linked: the buffer's own zones say whether heat is wanted
                 zones_asking = bool(asking_zones(self.hass, list(buf.conf.get(CONF_ZONES) or [])))
+        run = run_state(self.hass, self.conf.get(CONF_HP_RUNNING), now, self.hp.cfg.hp_running_w,
+                        self.hp.cfg.hp_standby_w)  # 0.70.0
         return HpInputs(outdoor=read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),
                         top=stock.top if stock is not None else None,
                         charge=stock.charge if stock is not None else None,
                         trend_c_h=trend.get("c_per_h"), circuits=tuple(circuits), zones_asking=zones_asking,
                         frost_top=frost,
                         wood_signal=self._wood_signal(now),
-                        hp_running=on_state(self.hass, self.conf.get(CONF_HP_RUNNING), now, self.hp.cfg.hp_running_w),
+                        hp_running=RUN_BOOL[run[0]], hp_state=run[0] if self.conf.get(CONF_HP_RUNNING) else None,
+                        hp_power_w=run[1],
                         hp_running_age_s=self._running_age(now),
                         offset=self.offset,
                         layers=_layers(stock))
@@ -231,4 +265,26 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                            (self.out_exercise, decision.exercise)):
             await out.apply(now, value, writing, up)
             self.write.note_conflict(out)
+        self._target_check(now, decision, writing)
         return decision
+
+    def _target_check(self, now: datetime, d: HpDecision, writing: bool) -> None:
+        """0.70.0 (a tester's request): does the heat pump use the target HC asks for? The worked-out (raw), the
+        given-out and the really sent target next to what the unit reports back. While HC writes, a difference above
+        TARGET_TOL_C lasting TARGET_MISMATCH_S is a mismatch (shown in amber on the diagram); in shadow the unit's own
+        target is only shown – HC asks nothing then."""
+        if not self.conf.get(CONF_HP_TARGET_OUT):
+            return
+        rep, sent = self.out_target.reported(), self.out_target.sent
+        ask = sent if writing and sent is not None else d.target
+        diff = None if rep is None or ask is None else round(rep - ask, 2)
+        off = writing and diff is not None and abs(diff) > TARGET_TOL_C
+        if not off:
+            self._mismatch_since = None
+        elif self._mismatch_since is None:
+            self._mismatch_since = now
+        lasting = off and (now - self._mismatch_since).total_seconds() >= TARGET_MISMATCH_S
+        d.details["target_check"] = {"raw": d.raw, "given": d.target, "sent": sent if writing else None, "reported": rep,
+                                     "diff": diff, "writing": writing, "mismatch": lasting,
+                                     "mismatch_min": round((now - self._mismatch_since).total_seconds() / 60)
+                                     if self._mismatch_since else None}

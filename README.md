@@ -545,6 +545,12 @@ the PLC / mixer keeps driving its valve, pump and safety limits. In shadow mode 
   given-out value with the raw target, the reason a change is held back and the next allowed change.
 - **The tank for a circuit:** whether the top is at least target + 2 °C, and the usable heat of the warm enough
   layers down to the circuit's return.
+- **Circuit watch** (`circuit_watch`, on; watching only, it never writes or touches the PLC): with the pump and/or the
+  flow thermometer given, HC follows the chain *demand → the pump starts → the flow moves*. Waiting for the pump up to
+  `circuit_watch_pump_s` (10 min – a PLC's 5-minute start delay fits in) and for the flow to move by
+  `circuit_watch_flow_c` (1 °C) or get within 2 °C of the target up to `circuit_watch_flow_s` (15 min) after the pump
+  started is normal; a step missing for longer is an entry in Repairs (it clears itself), amber on the diagram and a
+  warning on the overview. A pump state that is not known never raises it.
 - Writing the targets to the PLC: below (supervised trial, one writer); the heat pump coordination follows.
 
 ### Heat pump coordination for a buffer
@@ -561,6 +567,12 @@ demand, the ON/OFF request and the flow target.
   compressor stops below the target during one, the given-out target goes straight to the worked-out value; the hold
   only smooths changes within a charge. A power meter as the "runs" signal counts as running above `hp_running_w`
   (100 W).
+- **Heating, standby or not known:** with a power meter, between `hp_standby_w` (10 W) and `hp_running_w` the unit is
+  in standby (switched on for frost protection or circulation, the compressor stands); a "runs" reading not reported
+  for 15 minutes is not known. The diagram, the panel and the coordination use the same state (standby = does not run).
+- **The unit's own target on the diagram:** *set* (what the unit reports back), *HC asks* (sent, or given out in
+  shadow) and *worked out*; while HC writes, a difference over 0.4 °C lasting 10 minutes turns it amber and is a
+  warning – HC and the unit do not use the same target.
 - **Wood first:** a wood signal, or the tank warming while the heat pump is known to stand, holds off a start.
   With `hp_wood_first` (on by default): no start for a low charge either, and a heating that already runs stops;
   only the buffer frost limit goes before it, the cold-weather ON and the fail-safe ON stay with the lowest target.

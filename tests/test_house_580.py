@@ -58,4 +58,4 @@ def test_electric_floor_and_storage_heaters_are_wired_from_the_board():
 
 
 def test_version():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.58.0", "0.59.0", "0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0")
