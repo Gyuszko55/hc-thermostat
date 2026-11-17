@@ -5,6 +5,8 @@
   to 0.71.0 keep the MIT License they were published under.
 - **Co-author: Krissz55555** – in the manifest's code owners, the copyright notice and the README.
 - No change in the code's behaviour.
+- **Every release carries `hc_thermostat.zip`** (also attached to all earlier releases); HACS downloads that file
+  (`zip_release`), so the release page counts the downloads. A workflow attaches it to each new release.
 
 ## 0.71.0 – 2026-11-17
 - **AI analysis of the house** (`ai_task_entity`, `ai_report_time` 06:30; Settings → Functions of the house's
