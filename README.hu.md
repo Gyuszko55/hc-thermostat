@@ -134,6 +134,11 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 - **Gyors felzárkózás:** ha egy helyiség tartósan (30 percig, padlón 2 óráig) legalább 0,5 °C-kal a cél alatt van, a
   teljes ciklust kapja PWM-szünet nélkül, amíg 0,2 °C-on belül nem ér. A tartós elmaradást kompenzáló eltolás óránként
   tanul (legfeljebb 0,02 óránként), a TPI erőssége naponta. A TPI két együtthatója a Szabályozás részben állítható.
+- **Alacsony hőfokú felzárkózás** (0.74.0, alapból ki, Szabályozás rész): ha a helyiséget ellátó összes keverőkör
+  tartósan (15 percig) 45 °C alatti előremenőt kér – a kör kért céljáról van szó, nem a mért vagy a puffer miatt
+  korlátozott értékről –, a felzárkózás 0,3 °C-tól indul, radiátornál 30 perc, padlónál (ha a helyiség egyik köre
+  padló) 2 óra után, és 0,1 °C-on (padlón 0,2 °C-on) belül áll le. Köradat nélkül a helyiség saját küszöbei maradnak.
+  A panel mutatja a kört, a besorolást, a használt küszöböket, a várakozást és az utolsó kilépés okát.
 - **Mért válasz:** a panel a szokásos, legalább 10 perces futásokból mutatja, hány perc után melegszik a helyiség,
   milyen gyorsan, mennyi az utánfűtés, és milyen gyorsan hűl vissza. Csak kijelzés, nem szabályoz belőle.
 - **Külső termosztát:** bármely `climate` entitás célhőfokát és üzemmódját állítja.
@@ -610,6 +615,19 @@ célt.
   igénye 30 percig megszakítás nélkül tart, és a végén egy helyiség még kér. *Nyári üzem* és opcionális heti
   *Megjáratás esedékes* bináris szenzor (és kimenet) a PLC-nek – a szivattyúkat, szelepeket a PLC járatja meg.
 - Kiesett bemenetnél a legutóbbi kérés marad. A gép / a PLC felé írás: lent.
+- **Hőmennyiségmérés és COP** (0.75.0, opcionális, *Hőmennyiségmérés és COP* szakasz): a víz előremenő (Outlet) és
+  visszatérő (Inlet) hőmérsékletéből és a vízáramból (l/perc) a HC méri, mennyi hőt visz el a vízkör a hőszivattyúból:
+  kW = l/perc × ΔT × 0,06977 (tiszta víz; glikolos keverékhez szorzó). Szenzorok: *hőteljesítmény* (kW), *termelt
+  hőenergia* (kWh, folyamatosan növekvő – ez kell az Energia irányítópultra), *hőenergia ma* (ennek része, a kettőt ne
+  add össze), *aktuális COP* és *COP ma*. Energiát csak két, legfeljebb 2 percre lévő érvényes mérés között ad
+  (trapézszabály): hiányzó, állott (5 perc), lehetetlen mérés, újraindítás vagy álló víz semmit nem ad, nem pótol;
+  negatív ΔT = 0 kW. A COP a „fut” jel teljesítménymérését (vagy egy külön wattmérőt) használja; az aktuális COP az
+  aktív futás utolsó 10 percének hőenergiája osztva a villamos energiájával (egy futásban 5 perc után), ha nem fűt
+  (nincs áramlás, készenlét, leolvasztás, állott mérő), nem elérhető – soha nem 0 vagy végtelen; a *COP ma* a nap
+  hőenergiája osztva a nap villamos energiájával ugyanazokon az időszakokon, a lefedettséggel. Egész fokos hőmérőkkel
+  3 °C ΔT ± 33 % – a panel kiírja. A számláló újraindításon át megmarad; 0-ról csak új példánnyal indul (az összeg a
+  Fejlesztői eszközök → Statisztika oldalon javítható). A hőszivattyú-grafikon a COP-ot jobb oldali tengelyen mutatja
+  (kikapcsolható).
 
 ### A célok kiírása: felügyelt próba, egy író
 
@@ -625,6 +643,16 @@ módra kapcsolható; mindkettőhöz kimeneti entitás és megerősítés kell.
 - **Visszaigazolási türelmi idő** (`write_confirm_s`, 60 mp): a lassú eszköz (pl. Tuya) ennyi idő alatt
   jelezheti vissza a beírt értéket; addig a HC nem ír újra, és a késve érkező vagy régi értéket sem veszi ütközésnek. Ha
   az eszköz nem veszi át az értéket, legfeljebb még 3-szor írja, utána leáll (*nem fogadta el*) és értesít.
+- **Felügyelt visszaállítás** (hőszivattyú-koordináció, 0.73.0, alapból ki – *Tartós eltérés visszaállítása ennyi
+  perc után*): ha a gép ennyi ideig más célt vagy be/ki állapotot tart, mint amit a HC kér (az appjában átállították,
+  vagy kikapcsolás után a saját alapértékével indult, mint egy Tuya gép), a HC újra beírja a sajátját – azt, amit
+  éppen kér, így a biztonsági tiltások, a fagyvédelem és a fatüzelés elsőbbsége továbbra is előbb jön –, legfeljebb
+  *Visszaállítási próbák* számszor (3), ugyanilyen távolságban; ha egy visszaállítás ennyi ideig kitart, a számlálás
+  újraindul. Ha egyik sem segített, bekapcsol a *Hőszivattyú nem követi* hibaszenzor, Javítások-bejegyzés és értesítés
+  jön, a rendszerrajz pirosan mutatja, és a HC nem írja tovább azt az értéket, amíg mást nem kér, vagy a gép magától
+  vissza nem áll. Ha egy ideig kézzel akarod állítani a gépet, használd az *Írás szüneteltetése* kapcsolót.
+  Bekapcsolt visszaállításnál a climate be/ki kimenet üzemmódja is számít (*auto* a *heat* helyett eltérés); az első
+  tartós eltérés figyelmeztetés (értesítés, borostyán), a sikertelen visszaállítások hiba (szenzor, Javítások, piros).
 - Climate-kimenetre a cél a saját lépésére kerekítve és a min/max között megy; ha egy eszköz nem elérhető
   volt, és az alapértékével jön vissza, a HC újraírja, nem veszi idegen írónak.
 - Indulás után 2 percig nem ír; a keep-alive időkorlátos PLC-nek változatlan értéket is újraküld; az *Írás

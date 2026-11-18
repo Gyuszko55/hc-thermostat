@@ -21,7 +21,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCircuitDemand(c)])
         return
     if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
-        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c)])
+        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c), HcHpWriteProblem(c)])
         return
     entities = [HcDemand(c), HcFault(c)]
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
@@ -204,3 +204,37 @@ class HcHpExercise(HcEntity, BinarySensorEntity):
         cfg = self.coordinator.hp.cfg
         return {"enabled": cfg.hp_exercise, "weekday": int(cfg.hp_exercise_weekday), "hour": int(cfg.hp_exercise_hour),
                 "minutes": cfg.hp_exercise_min, "written": self.coordinator.out_exercise.info()}
+
+
+class HcHpWriteProblem(HcEntity, BinarySensorEntity):
+    """0.73.0: the heat pump does not take what HC asks for. With the supervised restore on: every restore failed;
+    with it off: a conflict or a value the device did not accept (HC stopped writing it)."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_write_problem")
+
+    def _outs(self):
+        c = self.coordinator
+        return [o for o in (c.out_target, c.out_switch, c.out_demand, c.out_summer, c.out_exercise) if o.entity_id]
+
+    @staticmethod
+    def _bad(o) -> bool:
+        if o.guard.restore_after_s > 0:
+            return o.status == "failed"
+        return o.status in ("conflict", "not_accepted")
+
+    @property
+    def is_on(self) -> bool:
+        return any(self._bad(o) for o in self._outs())
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"outputs": {o.entity_id: {"status": o.status, "restores": o.guard.restore_count,
+                                           "value": o.read()[0], "asked": o.guard.failed_want if o.guard.failed else o.guard.last_value}
+                            for o in self._outs()},
+                "restore_min": round(self.coordinator.out_target.guard.restore_after_s / 60) or None,
+                # 0.73.0: warning – a difference, a restore under way; error – every restore failed
+                "level": "error" if self.is_on else "warning" if any(
+                    o.status in ("conflict", "not_accepted", "restore") or o.guard.restore_count for o in self._outs()) else "ok"}

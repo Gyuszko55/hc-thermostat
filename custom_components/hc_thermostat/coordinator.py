@@ -22,7 +22,7 @@ from .const import (
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
     CONF_CONTROL, CONF_DEMAND, CONF_PRESSURE, CONF_FLOW_TEMP, CONF_MODULATION, CONF_FAULT_CODE, CONF_HEAT_OUTPUT,
-    CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE,
+    CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE, CONF_ZONES,
 )
 from .core.boiler_health import QUIET_STATES, BoilerHealth, health_kind, power_levels_known
 from .core import measures as ms
@@ -428,6 +428,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             coil=self._reading(conf.get(CONF_COIL), now) if conf.get(CONF_COIL) else Reading(),
             return_temp=self._reading(conf.get(CONF_RETURN), now) if conf.get(CONF_RETURN) else Reading(),
             managed_off=self.managed_off,
+            circuits=self._circuits() if self.cfg.catchup_low else (),
             **self._unit_inputs(),
         )
 
@@ -686,6 +687,31 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 self.hass.async_create_task(self.async_request_refresh())
 
         return async_track_state_change_event(self.hass, [entity], changed)
+
+    def _circuits(self) -> tuple:
+        """0.74.0: (kind, demanded flow target) of every mixing circuit that lists this instance's climate entity.
+        A circuit not loaded yet, failed or without a target gives None – the room then keeps its own catch-up."""
+        try:
+            reg = er.async_get(self.hass)
+            own = next((e.entity_id for e in er.async_entries_for_config_entry(reg, self.config_entry.entry_id)
+                        if e.domain == "climate" and "_room_" not in (e.unique_id or "")), None)
+            if own is None:
+                return ()
+            out = []
+            for entry in self.hass.config_entries.async_entries(DOMAIN):
+                conf = {**entry.data, **entry.options}
+                if conf.get("role") != "circuit" or own not in (conf.get(CONF_ZONES) or []):
+                    continue
+                c = getattr(entry, "runtime_data", None)
+                d = getattr(c, "data", None)
+                ok = c is not None and d is not None and getattr(c, "last_update_success", True)
+                kind = getattr(getattr(getattr(c, "circuit", None), "cfg", None), "circuit_kind", None) \
+                    or conf.get("circuit_kind") or "radiator"
+                out.append((kind, getattr(d, "demand_target", None) if ok else None))
+            return tuple(out)
+        except Exception:  # a report for the catch-up – never stops the decision
+            _LOGGER.debug("The circuits of this room could not be read", exc_info=True)
+            return ()
 
     def _assist_target(self) -> float | None:
         """Air conditioner: the house target, while the house says this source is cheaper and its door is open."""

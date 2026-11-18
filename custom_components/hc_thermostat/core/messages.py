@@ -158,6 +158,9 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
                  f"ciklust kapja szünet nélkül, amíg {rel} °C-on belül nem ér." if lang == "hu"
                  else f" Fast catch-up: the room has been {gap} °C below its target for {mins} min, so it gets the whole "
                  f"cycle without a pause until it is within {rel} °C.")
+        if c.get("low"):
+            text += (" (Alacsony hőfokú kör: érzékenyebb küszöb.)" if lang == "hu"
+                     else " (Low-temperature circuit: the more sensitive threshold.)")
     if decision.limited_by == "coast" and "coast" in details:
         c = details["coast"]
         rise, mins = _num(c.get("rise"), lang), _num(c.get("since_off_min"), lang)

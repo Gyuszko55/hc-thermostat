@@ -56,7 +56,7 @@ export const OV_TXT = {
     // 0.70.0
     hpSt: { heating: "fűt (a kompresszor fut)", standby: "készenlét (a kompresszor áll)", stopped: "áll", unknown: "nem ismert" },
     hpStS: { heating: "fűt", standby: "készenlét", stopped: "áll", unknown: "nem ismert" },
-    tgtSet: "beállítva", tgtAsk: "HC kéri", tgtRaw: "számolt", tgtMis: "eltér a kérttől", tgtShadow: "árnyék – a HC nem ír", hpTgt: "célhőmérséklet",
+    tgtSet: "beállítva", tgtAsk: "HC kéri", tgtRaw: "számolt", tgtMis: "eltér a kérttől", rstTry: "visszaállítás {n}/{m}", rstFail: "nem követi ({n} visszaállítás után)", tgtShadow: "árnyék – a HC nem ír", hpTgt: "célhőmérséklet",
     watchLbl: "felügyelet", pumpUnknown: "a szivattyú állapota nem ismert",
     watchSt: { idle: "nincs hőigény", wait_pump: "a szivattyú indulására vár", no_pump: "a szivattyú nem indult el", wait_flow: "az előremenő változására vár", no_flow: "fut a szivattyú, de az előremenő nem változik", ok: "rendben", pump_only: "a szivattyú fut (előremenő nincs megadva)", not_watched: "nincs figyelve" },
   },
@@ -92,7 +92,7 @@ export const OV_TXT = {
     // 0.70.0
     hpSt: { heating: "heating (the compressor runs)", standby: "standby (the compressor stands)", stopped: "stands", unknown: "not known" },
     hpStS: { heating: "heating", standby: "standby", stopped: "stands", unknown: "not known" },
-    tgtSet: "set", tgtAsk: "HC asks", tgtRaw: "worked out", tgtMis: "differs from the asked one", tgtShadow: "shadow – HC does not write", hpTgt: "target",
+    tgtSet: "set", tgtAsk: "HC asks", tgtRaw: "worked out", tgtMis: "differs from the asked one", rstTry: "restore {n}/{m}", rstFail: "does not follow (after {n} restores)", tgtShadow: "shadow – HC does not write", hpTgt: "target",
     watchLbl: "watch", pumpUnknown: "the pump's state is not known",
     watchSt: { idle: "no heat demand", wait_pump: "waiting for the pump to start", no_pump: "the pump did not start", wait_flow: "waiting for the flow to move", no_flow: "the pump runs but the flow does not move", ok: "fine", pump_only: "the pump runs (no flow thermometer)", not_watched: "not watched" },
   },
@@ -145,7 +145,8 @@ function warnings(m, T, lang) {
   }
   for (const h of m.hps) {
     const det = h.decision?.details || {};
-    if (det.target_check?.mismatch) out.push(`${short(h.title)}: ${T.hpTgt} ${T.tgtMis} – ${targetLine(det, T, lang, false)}`);
+    if (det.target_check?.restore?.failed) out.push(`${short(h.title)}: ${T.hpTgt} – ${T.rstFail.replace("{n}", det.target_check.restore.count)} – ${targetLine(det, T, lang, false)}`);
+    else if (det.target_check?.mismatch) out.push(`${short(h.title)}: ${T.hpTgt} ${T.tgtMis} – ${targetLine(det, T, lang, false)}${det.target_check.restore?.count ? ` · ${T.rstTry.replace("{n}", det.target_check.restore.count).replace("{m}", det.target_check.restore.tries)}` : ""}`);
     if (det.hp_running == null && ent(h, "hp_running_entity")) out.push(`${short(h.title)}: ${T.hp} ${T.unknown}${isNum(det.hp_running_age_s) ? ` (${T.age} ${Math.round(det.hp_running_age_s / 60)} ${T.min})` : ""}`);
   }
   return out;
@@ -309,14 +310,19 @@ const HPC = [["raw", "#9e9e9e", "4 3", { hu: "HC nyers cél", en: "HC raw target
   ["sent", "#fb8c00", "", { hu: "kiküldve (kerekítve)", en: "sent (rounded)" }],
   ["reported", "#8e24aa", "2 2", { hu: "a hőszivattyú beállítása", en: "the unit's setpoint" }],
   ["water", "#1e88e5", "", { hu: "mért víz", en: "measured water" }]];
+// 0.75.0: the current COP on its own (right) axis – dimensionless, it never stretches the °C axis
+const HPC_COP = ["cop", "#00897b", "", { hu: "aktuális COP (jobb tengely)", en: "current COP (right axis)" }];
 export function hpChartSvg(hist, opts = {}) {
   const lang = opts.lang === "en" ? "en" : "hu";
   const ser = (hist && hist.series) || {}, t0 = num(hist?.start), t1 = num(hist?.end);
   const vals = HPC.flatMap(([k]) => (ser[k] || []).map((p) => num(p[1])).filter(isNum));
-  if (!isNum(t0) || !isNum(t1) || t1 <= t0 || !vals.length) {
+  const copPts = opts.cop === false ? [] : (ser.cop || []).filter((p) => isNum(num(p[0])));
+  const copVals = copPts.map((p) => num(p[1])).filter(isNum);
+  if (!isNum(t0) || !isNum(t1) || t1 <= t0 || (!vals.length && !copVals.length)) {
     return `<div class="muted">${esc(lang === "hu" ? "Még nincs rögzített adat a grafikonhoz." : "No recorded data for the chart yet.")}</div>`;
   }
-  const W = 420, H = 230, L = 34, R = 10, Tp = 10, B = 26;
+  if (!vals.length) vals.push(20, 40);
+  const W = 420, H = 230, L = 34, R = copVals.length ? 30 : 10, Tp = 10, B = 26;
   const lo = Math.floor((Math.min(...vals) - 1) / 5) * 5, hi = Math.ceil((Math.max(...vals) + 1) / 5) * 5;
   const X = (t) => L + (t - t0) / (t1 - t0) * (W - L - R), Y = (v) => Tp + (1 - (v - lo) / (hi - lo || 1)) * (H - Tp - B);
   const g = [];
@@ -342,7 +348,21 @@ export function hpChartSvg(hist, opts = {}) {
     if (last != null) d += k === "water" ? "" : `H${(W - R).toFixed(1)}`;
     if (d) g.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${k === "target" ? 2.4 : 1.7}" ${dash ? `stroke-dasharray="${dash}"` : ""}><title>${esc(name[lang])}</title></path>`);
   }
-  const shown = HPC.filter(([k]) => (ser[k] || []).length);
+  if (copVals.length) {
+    const cHi = Math.max(6, Math.ceil(Math.max(...copVals))), CY = (v) => Tp + (1 - v / cHi) * (H - Tp - B);
+    for (let v = 0; v <= cHi; v += cHi > 8 ? 2 : 1) g.push(`<text x="${W - R + 4}" y="${(CY(v) + 3.5).toFixed(1)}" class="cx" fill="${HPC_COP[1]}">${v}</text>`);
+    g.push(`<text x="${W - 2}" y="${Tp + 2}" class="cx" text-anchor="end" fill="${HPC_COP[1]}">COP</text>`);
+    let d = "", open = false;
+    for (const [tRaw, vRaw] of copPts) {  // a missing value (not heating, no data) breaks the line
+      const v = num(vRaw);
+      if (!isNum(v)) { open = false; continue; }
+      const x = X(Math.max(num(tRaw), t0)).toFixed(1), y = CY(Math.min(v, cHi)).toFixed(1);
+      d += open ? `L${x},${y}` : `M${x},${y}`;
+      open = true;
+    }
+    if (d) g.push(`<path d="${d}" fill="none" stroke="${HPC_COP[1]}" stroke-width="1.8"><title>${esc(HPC_COP[3][lang])}</title></path>`);
+  }
+  const shown = [...HPC.filter(([k]) => (ser[k] || []).length), ...(copVals.length ? [HPC_COP] : [])];
   const leg = shown.map(([k, col, dash, name]) => `<span class="hpl"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="${col}" stroke-width="2.4" ${dash ? `stroke-dasharray="${dash}"` : ""}/></svg>${esc(name[lang])}</span>`).join("");
   return `<svg class="hccurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(lang === "hu" ? "Hőszivattyú célja" : "Heat pump target")}">${g.join("")}</svg><div class="hpleg">${leg}</div>`;
 }
@@ -380,10 +400,12 @@ const isOn = (st) => { if (!st || st.state == null) return null; const v = Strin
 function hpTargetSvg(hp, x, y, T, lang) {
   const det = hp.decision?.details || {}, tc = det.target_check;
   if (!tc) return "";
-  const ask = tc.writing && tc.sent != null ? tc.sent : tc.given, cls = `ssm ${tc.mismatch ? "sbad" : ""}`;
+  const failed = !!tc.restore?.failed;  // 0.73.0: every supervised restore failed – red
+  const ask = tc.writing && tc.sent != null ? tc.sent : tc.given, cls = `ssm ${failed ? "sfail" : tc.mismatch ? "sbad" : ""}`;
   const lines = [`${T.tgtSet}: ${deg(num(tc.reported), lang)}`, `${T.tgtAsk}${tc.writing ? "" : ` (${T.shadow})`}: ${deg(num(ask), lang)}`,
-    ...(isNum(num(tc.raw)) ? [`${T.tgtRaw}: ${deg(num(tc.raw), lang)}`] : [])];
-  return lines.map((l, j) => `<text x="${x}" y="${y + j * 15}" class="${j === 2 ? "ssm" : cls}" text-anchor="middle">${esc(l)}</text>`).join("");
+    ...(isNum(num(tc.raw)) ? [`${T.tgtRaw}: ${deg(num(tc.raw), lang)}`] : []),
+    ...(failed ? [T.rstFail.replace("{n}", tc.restore.count)] : tc.restore?.count ? [T.rstTry.replace("{n}", tc.restore.count).replace("{m}", tc.restore.tries)] : [])];
+  return lines.map((l, j) => `<text x="${x}" y="${y + j * 15}" class="${j === 2 && isNum(num(tc.raw)) ? "ssm" : cls}" text-anchor="middle">${esc(l)}</text>`).join("");
 }
 
 export function renderSchematic(all, opts = {}) {
@@ -681,7 +703,7 @@ export const OV_CSS = `
 .hcsch .smix path { fill:#8e7cc3; stroke:var(--primary-text-color); stroke-width:1; } .hcsch .smix.fl path { fill:#ab47bc; }
 .hcsch .smix .sstem { fill:none; } .hcsch .ssen { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:2; }
 .hcsch .sld { stroke:var(--primary-text-color); stroke-width:1.2; } .hcsch .slbl { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.2; }
-.hcsch .scirc { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.6; } .hcsch .scirc.on { stroke:#2e7d32; stroke-width:2.4; } .hcsch .scirc.bad { stroke:#f9a825; stroke-width:3; } .hcsch .sbad { fill:#e65100; font-weight:600; }
+.hcsch .scirc { fill:var(--card-background-color); stroke:var(--primary-text-color); stroke-width:1.6; } .hcsch .scirc.on { stroke:#2e7d32; stroke-width:2.4; } .hcsch .scirc.bad { stroke:#f9a825; stroke-width:3; } .hcsch .sbad { fill:#e65100; font-weight:600; } .hcsch .sfail { fill:#c62828; font-weight:700; }
 .hcsch .sfanh { fill:var(--primary-text-color); } .hcsch .sgr { stroke:var(--secondary-text-color); stroke-width:2; }
 .hcsch .sdoor { fill:color-mix(in srgb, var(--primary-text-color) 18%, var(--card-background-color)); stroke:var(--primary-text-color); stroke-width:1.2; }
 .hcsch .sleg { fill:var(--card-background-color); stroke:var(--divider-color); stroke-width:1.4; }

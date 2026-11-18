@@ -547,6 +547,39 @@
               "hp_urgent": "Ekkora eltérésnél nem vár.",
               "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
             }
+          },
+          "heat_meter": {
+            "name": "Hőmennyiségmérés és COP",
+            "data": {
+              "hp_flow_out_temp_entity": "Víz előremenő hőmérséklet (Outlet, °C)",
+              "hp_flow_in_temp_entity": "Víz visszatérő hőmérséklet (Inlet, °C)",
+              "hp_water_flow_entity": "Víz térfogatáram (l/perc)",
+              "hp_power_entity": "Villamos teljesítmény a COP-hoz (W / kW, opcionális)",
+              "hm_power_scope": "Mit mér a villamos mérő",
+              "hm_factor": "Hőkapacitás-szorzó (tiszta víz = 1)",
+              "hm_resolution": "A hőmérők felbontása",
+              "hm_min_flow": "Ez alatt áll a víz",
+              "hm_max_age_s": "Mérés legfeljebb ennyi idős lehet",
+              "hm_max_gap_s": "Ennél nagyobb résre nem számol energiát",
+              "hm_cop_window_s": "Aktuális COP ablaka",
+              "hm_cop_min_s": "COP csak ennyi aktív futás után",
+              "hm_cop_max": "Ennél nagyobb COP valószínűtlen"
+            },
+            "data_description": {
+              "hp_flow_out_temp_entity": "A hőszivattyúból kilépő víz hőmérője. A hőmennyiségmérés csak mindhárom vízoldali mérővel működik; üresen hagyva semmi nem változik.",
+              "hp_flow_in_temp_entity": "A hőszivattyúba visszatérő víz hőmérője.",
+              "hp_water_flow_entity": "Vízáram l/perc-ben (L/h és m³/h is átszámolva). Hőteljesítmény = l/perc × ΔT × 0,06977 kW.",
+              "hp_power_entity": "Ha a „fut a hőszivattyú” jel nem W/kW teljesítmény (pl. bináris, Hz), itt adható meg külön wattmérő. Üresen: a „fut” jel, ha az teljesítmény; különben nincs COP, a hőmennyiség így is mér.",
+              "hm_power_scope": "A teljes kültéri egység (kompresszor, ventilátor, keringető) vagy csak a kompresszor – a COP értelmezéséhez.",
+              "hm_factor": "Tiszta vízre 1,00; glikolos keveréknél kisebb (pl. 30 % glikol ≈ 0,93). Becslés.",
+              "hm_resolution": "Egész fokos (Tuya) hőmérőknél 1 °C. Kis ΔT mellett a hiba ± felbontás / ΔT – a panel kiírja.",
+              "hm_min_flow": "Ennél kisebb áramlás 0 kW (álló keringetés).",
+              "hm_max_age_s": "Ennél régebbi (be nem jelentett) érték állott: a számlálás szünetel, nincs COP.",
+              "hm_max_gap_s": "Két érvényes mérés között ennél nagyobb időre (kimaradás, újraindítás) nem ad energiát, nem pótol.",
+              "hm_cop_window_s": "Az aktuális COP ennyi idő aktív futásának hőenergiája osztva a villamos energiájával (nem pillanatnyi arányok átlaga).",
+              "hm_cop_min_s": "Egy futás elején ennyi ideig nincs COP (a hőmérők és a keringetés beállnak).",
+              "hm_cop_max": "Efölötti érték hibás mérést jelez: nem jelenik meg."
+            }
           }
         }
       }
@@ -562,7 +595,9 @@
       "cold_order": "A feloldási határ nem lehet az ON-határ alatt.",
       "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
       "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
-      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál."
+      "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál.",
+      "heat_meter_three": "A hőmennyiségméréshez mindhárom vízoldali mérő kell (előremenő, visszatérő, vízáram) – vagy egyik sem.",
+      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás."
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
@@ -672,6 +707,14 @@
               "catchup_gap": "Gyors felzárkózás: ennyi elmaradástól (0 = ki)",
               "catchup_after_s": "Gyors felzárkózás: ennyi idő után",
               "catchup_release": "Gyors felzárkózás vége: ennyire a cél alatt",
+              "catchup_low": "Alacsony hőfokú felzárkózás (a keverőkör kért előremenője szerint)",
+              "catchup_low_limit": "Alacsony hőfokú: a kért előremenő ez alatt",
+              "catchup_low_gap": "Alacsony hőfokú felzárkózás: ennyi elmaradástól",
+              "catchup_low_after_s": "Alacsony hőfokú felzárkózás: ennyi idő után (radiátor)",
+              "catchup_low_floor_after_s": "Alacsony hőfokú felzárkózás: ennyi idő után (padló)",
+              "catchup_low_release": "Alacsony hőfokú felzárkózás vége (radiátor)",
+              "catchup_low_floor_release": "Alacsony hőfokú felzárkózás vége (padló)",
+              "catchup_low_confirm_s": "Alacsony hőfokú besorolás megerősítése",
               "tpi_coef_int": "TPI belső együttható",
               "tpi_coef_ext": "TPI külső együttható"
             },
@@ -717,6 +760,14 @@
               "catchup_gap": "Ha a helyiség legalább ennyivel a cél alatt van a lenti ideig, a teljes ciklust kapja, PWM-szünet nélkül, amíg a cél közelébe nem ér. A lassú tanulás közben tovább finomít.",
               "catchup_after_s": "Ennyi ideig kell tartósan a küszöb alatt lennie. Padlófűtésnél alapból 2 óra, mert az esztrich még órákig ad hőt.",
               "catchup_release": "Ha a helyiség ennyire megközelíti a célt, újra a TPI arányos ciklusa szabályoz.",
+              "catchup_low": "Ha a helyiséget ellátó összes keverőkör tartósan a lenti határ alatti előremenőt kér, a gyors felzárkózás a lenti, érzékenyebb értékekkel dolgozik – alacsony vízhőmérsékletnél a PWM-szünetek aránytalanul sokat elvesznek. A kör kért céljából dönt (nem a mért előremenőből, nem a puffer miatt korlátozottból). Ha nincs köradat, a fenti értékek maradnak. Alapból ki.",
+              "catchup_low_limit": "Ennél alacsonyabb kért előremenőnél számít alacsony hőfokúnak (45,0 °C-on már nem).",
+              "catchup_low_gap": "A felső „ennyi elmaradástól” helyett, alacsony hőfokú körön.",
+              "catchup_low_after_s": "Radiátoros körön ennyi ideig kell tartósan a küszöb alatt lennie.",
+              "catchup_low_floor_after_s": "Padlós körön (vagy ha a helyiség egyik köre padló) ennyi ideig – az esztrich órákig ad hőt.",
+              "catchup_low_release": "Radiátoros körön ennyire a cél alatt áll le a felzárkózás.",
+              "catchup_low_floor_release": "Padlós körön ennyire a cél alatt áll le (a túlfűtés ellen óvatosabb).",
+              "catchup_low_confirm_s": "A besorolás (alacsony hőfokú vagy nem) csak ennyi ideig tartó új állapot után vált, így a határ körüli ingadozás nem kapcsolgat.",
               "tpi_coef_int": "1 °C elmaradásra ennyi igény (0,6 = 60%). Nagyobb érték: kisebb elmaradásnál is hosszabb fűtés. Bekapcsolt tanulásnál ez a kiinduló érték.",
               "tpi_coef_ext": "A cél és a kinti hőmérséklet különbségének minden fokára ennyi igény (0,01 = 1%/°C)."
             }
@@ -1290,7 +1341,9 @@
           "house_link": "Melyik ház része (HC info: Áttekintés, Rendszerrajz)",
           "hp_target_round": "A kiírt cél kerekítése",
           "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)",
-          "home_name": "Háznév (nem kötelező)"
+          "home_name": "Háznév (nem kötelező)",
+          "write_restore_min": "Tartós eltérés visszaállítása ennyi perc után (0 = ki)",
+          "write_restore_tries": "Visszaállítási próbák száma a hibajelzés előtt"
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
@@ -1311,7 +1364,9 @@
           "confirm": "Írásnál kötelező bepipálni. Egy alapjelnek egy írója legyen: ha a PLC vagy egy automatizálás is írja, a HC ütközést jelez és abbahagyja.",
           "trial_hours": "A felügyelt próba ennyi óra után magától véget ér, és értesítést küld.",
           "write_keepalive_s": "Olyan PLC-hez, amely egy idő után eldobja a kapott alapjelet. Egyébként maradjon 0.",
-          "write_confirm_s": "Lassú (felhős) eszköznél növeld. Gyors helyi eszköznél az alapérték jó."
+          "write_confirm_s": "Lassú (felhős) eszköznél növeld. Gyors helyi eszköznél az alapérték jó.",
+          "write_restore_min": "Alapból ki (0). Ha a hőszivattyú ennyi ideig más célt vagy be/ki állapotot tart, mint amit a HC kér (a gépen vagy az appjában átállították, vagy kikapcsolás után a saját alapértékével indult), a HC újra beírja a sajátját – azt, amit éppen kér, így a biztonsági tiltások, a fagyvédelem és a fatüzelés elsőbbsége továbbra is előbb jön. Árnyék módban, szüneteltetett írásnál és lejárt próbánál nem ír semmit. Ha egy ideig kézzel akarod állítani a gépet, a példány kapcsolójával szüneteltesd az írást.",
+          "write_restore_tries": "Ennyi visszaállítás, a fenti idő távolságában; ha egy visszaállítás ennyi ideig kitart, a számlálás újraindul. Ha egyik sem segített: bekapcsol a „Hőszivattyú nem követi” hibaszenzor, Javítások-bejegyzés és értesítés jön, a rendszerrajz pirosan mutatja, és a HC nem írja tovább azt az értéket, amíg mást nem kér, vagy a gép magától vissza nem áll."
         }
       },
       "hp_coord_settings": {
@@ -1536,6 +1591,39 @@
               "hp_urgent": "Ekkora eltérésnél nem vár.",
               "hp_charge_jump": "Töltés indulásakor, és ha töltés közben a kompresszor a cél alatt leáll, a kiküldött cél egyből a számított értékre ugrik; a ritkítás csak a töltésen belüli változásokat simítja."
             }
+          },
+          "heat_meter": {
+            "name": "Hőmennyiségmérés és COP",
+            "data": {
+              "hp_flow_out_temp_entity": "Víz előremenő hőmérséklet (Outlet, °C)",
+              "hp_flow_in_temp_entity": "Víz visszatérő hőmérséklet (Inlet, °C)",
+              "hp_water_flow_entity": "Víz térfogatáram (l/perc)",
+              "hp_power_entity": "Villamos teljesítmény a COP-hoz (W / kW, opcionális)",
+              "hm_power_scope": "Mit mér a villamos mérő",
+              "hm_factor": "Hőkapacitás-szorzó (tiszta víz = 1)",
+              "hm_resolution": "A hőmérők felbontása",
+              "hm_min_flow": "Ez alatt áll a víz",
+              "hm_max_age_s": "Mérés legfeljebb ennyi idős lehet",
+              "hm_max_gap_s": "Ennél nagyobb résre nem számol energiát",
+              "hm_cop_window_s": "Aktuális COP ablaka",
+              "hm_cop_min_s": "COP csak ennyi aktív futás után",
+              "hm_cop_max": "Ennél nagyobb COP valószínűtlen"
+            },
+            "data_description": {
+              "hp_flow_out_temp_entity": "A hőszivattyúból kilépő víz hőmérője. A hőmennyiségmérés csak mindhárom vízoldali mérővel működik; üresen hagyva semmi nem változik.",
+              "hp_flow_in_temp_entity": "A hőszivattyúba visszatérő víz hőmérője.",
+              "hp_water_flow_entity": "Vízáram l/perc-ben (L/h és m³/h is átszámolva). Hőteljesítmény = l/perc × ΔT × 0,06977 kW.",
+              "hp_power_entity": "Ha a „fut a hőszivattyú” jel nem W/kW teljesítmény (pl. bináris, Hz), itt adható meg külön wattmérő. Üresen: a „fut” jel, ha az teljesítmény; különben nincs COP, a hőmennyiség így is mér.",
+              "hm_power_scope": "A teljes kültéri egység (kompresszor, ventilátor, keringető) vagy csak a kompresszor – a COP értelmezéséhez.",
+              "hm_factor": "Tiszta vízre 1,00; glikolos keveréknél kisebb (pl. 30 % glikol ≈ 0,93). Becslés.",
+              "hm_resolution": "Egész fokos (Tuya) hőmérőknél 1 °C. Kis ΔT mellett a hiba ± felbontás / ΔT – a panel kiírja.",
+              "hm_min_flow": "Ennél kisebb áramlás 0 kW (álló keringetés).",
+              "hm_max_age_s": "Ennél régebbi (be nem jelentett) érték állott: a számlálás szünetel, nincs COP.",
+              "hm_max_gap_s": "Két érvényes mérés között ennél nagyobb időre (kimaradás, újraindítás) nem ad energiát, nem pótol.",
+              "hm_cop_window_s": "Az aktuális COP ennyi idő aktív futásának hőenergiája osztva a villamos energiájával (nem pillanatnyi arányok átlaga).",
+              "hm_cop_min_s": "Egy futás elején ennyi ideig nincs COP (a hőmérők és a keringetés beállnak).",
+              "hm_cop_max": "Efölötti érték hibás mérést jelez: nem jelenik meg."
+            }
           }
         }
       },
@@ -1584,7 +1672,9 @@
       "charge_order": "A leállási töltöttségnek az indítási fölött kell lennie.",
       "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
       "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál.",
-      "weekend_both": "A hétvégi éjszakához a kezdet és a vég is kell (vagy hagyd mindkettőt üresen)."
+      "weekend_both": "A hétvégi éjszakához a kezdet és a vég is kell (vagy hagyd mindkettőt üresen).",
+      "heat_meter_three": "A hőmennyiségméréshez mindhárom vízoldali mérő kell (előremenő, visszatérő, vízáram) – vagy egyik sem.",
+      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás."
     }
   },
   "selector": {
@@ -1745,6 +1835,12 @@
         "upper": "Felső közép",
         "lower": "Alsó közép",
         "bottom": "Alja"
+      }
+    },
+    "hm_power_scope": {
+      "options": {
+        "unit": "a teljes egység",
+        "compressor": "csak a kompresszor"
       }
     }
   },
@@ -1973,6 +2069,21 @@
       },
       "ai_report": {
         "name": "AI-elemzés"
+      },
+      "hp_heat_power": {
+        "name": "Hőszivattyú hőteljesítmény"
+      },
+      "hp_heat_energy": {
+        "name": "Hőszivattyú termelt hőenergia"
+      },
+      "hp_heat_energy_today": {
+        "name": "Hőszivattyú hőenergia ma"
+      },
+      "hp_cop": {
+        "name": "Hőszivattyú aktuális COP"
+      },
+      "hp_cop_today": {
+        "name": "Hőszivattyú COP ma"
       }
     },
     "binary_sensor": {
@@ -2008,6 +2119,9 @@
       },
       "hp_exercise": {
         "name": "Megjáratás esedékes"
+      },
+      "hp_write_problem": {
+        "name": "Hőszivattyú nem követi"
       }
     },
     "climate": {
@@ -2084,6 +2198,10 @@
     "circuit_problem": {
       "title": "HC – {name}: keverőkör-felügyelet",
       "description": "A(z) **{name}** keverőkörnél {since} óta: **{problem}**.\n\nA HC ebbe nem avatkozik bele, csak jelzi. Nézd meg a PLC-t (szivattyú-engedélyezés, indulási késleltetés), a keverőszelepet és annak vezérlőjét (például az ESP-t), valamint a puffer hőmérsékletét. A bejegyzés magától eltűnik, amint a kör rendben működik. A várakozási időket a keverőkör beállításainál állíthatod, a felügyeletet ott ki is kapcsolhatod."
+    },
+    "write_failed": {
+      "title": "HC – {name}: a hőszivattyú nem veszi át a HC értékét",
+      "description": "A(z) **{entity}** {value} értéken áll a HC által kért {want} helyett, és {tries} visszaállítás sem segített. A HC nem írja tovább, amíg a kért érték nem változik, vagy a gép magától vissza nem áll.\n\nNézd meg a gépet: az üzemmódját (ki / auto / kézi), az appját vagy vezérlőjét (Tuya, helyi integráció), és hogy ír-e bele más. A bejegyzés magától eltűnik, ha a gép újra követi a HC-t."
     }
   }
 }

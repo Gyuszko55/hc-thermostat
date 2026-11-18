@@ -320,6 +320,7 @@ const INFO = [
   ["learn", "hc", "Tanult utómelegedés", "Learned after-heat", (d) => g(d, "live.learned.afterheat"), "deg", ["relay"]],
   // 0.69.0: the fast catch-up, the measured answer of the room, a timing suggestion
   ["catchup", "hc", "Gyors felzárkózás", "Fast catch-up", (d) => catchupText(d.decision?.details?.catchup), "text", ["relay"]],
+  ["catchup_mode", "hc", "Felzárkózás köre", "Catch-up circuit", (d) => catchupModeText(d.decision?.details?.catchup_mode), "text", ["relay"]],
   ["response", "hc", "Mért válasz a fűtésre", "Measured answer to heating", (d) => responseText(d.live?.response), "text", ["relay"]],
   ["timing", "hc", "Időzítési javaslat", "Timing suggestion", (d) => timingText(d.live?.timing), "text", ["relay"]],
   ["load", "hc", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
@@ -427,6 +428,28 @@ function catchupText(c) {
   return PANEL_LANG === "hu"
     ? `teljes ciklus – ${c.since_min} perce ${_n(c.gap, 2)} °C-kal a cél alatt (vége ${_n(c.release, 2)} °C-nál)`
     : `whole cycle – ${_n(c.gap, 2)} °C below the target for ${c.since_min} min (ends at ${_n(c.release, 2)} °C)`;
+}
+// 0.74.0: the low-temperature catch-up – circuit, classification, thresholds in use, wait, last exit
+function catchupModeText(m) {
+  if (!m) return null;
+  const hu = PANEL_LANG === "hu";
+  const kind = m.kind === "floor" ? (hu ? "padló" : "floor") : m.kind === "radiator" ? (hu ? "radiátor" : "radiators") : null;
+  const mode = m.mode === "low" ? (hu ? "alacsony hőfokú" : "low-temperature")
+    : m.mode === "normal" ? (hu ? "normál" : "normal") : (hu ? "nincs köradat" : "no circuit data");
+  const flow = m.flow != null ? `, ${hu ? "kért" : "asks"} ${_n(m.flow, 1)} °C` : "";
+  const parts = [`${mode}${kind ? ` (${kind}${flow})` : ""}`];
+  if (m.pending) parts.push(hu ? `→ ${m.pending === "low" ? "alacsony hőfokú" : "normál"} ${m.pending_min} perce` : `→ ${m.pending} for ${m.pending_min} min`);
+  parts.push(hu ? `küszöb ${_n(m.gap, 1)} °C, ${m.after_min} perc után, vége ${_n(m.release, 2)} °C`
+               : `threshold ${_n(m.gap, 1)} °C after ${m.after_min} min, ends at ${_n(m.release, 2)} °C`);
+  parts.push(m.active ? (hu ? "felzárkózás aktív" : "catch-up on")
+    : m.waiting_min != null ? (hu ? `várakozik ${m.waiting_min} perce` : `waiting for ${m.waiting_min} min`)
+    : (hu ? "nem aktív" : "off"));
+  if (m.last_exit) {
+    const why = { release: hu ? "elérte" : "reached", target: hu ? "célváltás" : "new target", yield: hu ? "más forrás" : "other source", paused: hu ? "szünet" : "paused" }[m.last_exit.why] || m.last_exit.why;
+    const at = (m.last_exit.at || "").slice(11, 16);
+    parts.push(hu ? `utolsó kilépés ${at}: ${why}` : `last exit ${at}: ${why}`);
+  }
+  return parts.join(" · ");
 }
 function responseText(r) {
   const v = r?.values || {};
@@ -1147,7 +1170,11 @@ class HcInfoPanel extends HTMLElement {
           // 0.70.0: does the unit use what HC asks for? (a lasting difference while HC writes)
           ...(det.target_check ? [[hu ? "Egyezés a kérttel" : "Matches the asked one", !det.target_check.writing ? (hu ? "árnyék – a HC nem ír, csak mutatja" : "shadow – HC does not write, only shows it")
             : det.target_check.diff == null ? null : det.target_check.mismatch ? `${hu ? "ELTÉR" : "DIFFERS"} ${det.target_check.diff > 0 ? "+" : ""}${this._num(det.target_check.diff, 1)} °C${det.target_check.mismatch_min != null ? ` · ${det.target_check.mismatch_min} ${hu ? "perce" : "min"}` : ""}`
-            : (Math.abs(det.target_check.diff) > 0.4 ? (hu ? "eltér, még vár" : "differs, waiting") : (hu ? "egyezik" : "matches")), det.target_check.mismatch]] : [])]; })(),
+            : (Math.abs(det.target_check.diff) > 0.4 ? (hu ? "eltér, még vár" : "differs, waiting") : (hu ? "egyezik" : "matches")), det.target_check.mismatch]] : []),
+          // 0.73.0: the supervised restore (when it is on)
+          ...(det.target_check?.restore ? [[hu ? "Visszaállítás" : "Restore", det.target_check.restore.failed
+            ? (hu ? `NEM KÖVETI – ${det.target_check.restore.count} próba után feladva` : `DOES NOT FOLLOW – given up after ${det.target_check.restore.count} tries`)
+            : det.target_check.restore.count ? `${det.target_check.restore.count}/${det.target_check.restore.tries}` : (hu ? "be, nem kellett" : "on, not needed"), det.target_check.restore.failed]] : [])]; })(),
       [hu ? "Mért víz (hőszivattyú)" : "Measured water (heat pump)", d.water != null ? this._deg(d.water) : null],
       // 0.65.0: the two charging rules side by side and the reserve over the need
       ...(() => { const mode = det.charge_mode || "classic", dc = det.demand_charge || {}, cl = det.classic || {};
@@ -1186,7 +1213,38 @@ class HcInfoPanel extends HTMLElement {
       ...(inp.hp_state ? [[hu ? "Állapot" : "State", `${({ heating: hu ? "fűt (a kompresszor fut)" : "heating (the compressor runs)", standby: hu ? "készenlét (bekapcsolva, a kompresszor áll)" : "standby (on, the compressor stands)", stopped: hu ? "áll" : "stands", unknown: hu ? "nem ismert (nincs friss visszajelzés)" : "not known (no fresh reading)" })[inp.hp_state] || inp.hp_state}${inp.hp_power_w != null ? ` · ${this._num(inp.hp_power_w, 0)} W` : ""}${inp.hp_running_age_s != null ? ` · ${inp.hp_running_age_s < 120 ? `${Math.round(inp.hp_running_age_s)} ${hu ? "mp" : "s"}` : `${Math.round(inp.hp_running_age_s / 60)} ${hu ? "perce" : "min ago"}`}` : ""} · ${hu ? "küszöb" : "threshold"} ${this._num(cfg.hp_standby_w ?? 10, 0)} / ${this._num(cfg.hp_running_w ?? 100, 0)} W`, inp.hp_state === "heating"]] : []),
       ...(inp.circuits || []).map((c) => [c.name, `${c.target != null ? this._deg(c.target) : t.none}${c.demand ? (hu ? " · tartós igény" : " · lasting demand") : ""}`, c.demand]),
     ]));
+    if (d.heat) cards.push(this._card(640, 300, hu ? "Hőmennyiségmérés és COP" : "Heat meter and COP", this._heatRows(d.heat)));  // 0.75.0
     return { svg: svg.join(""), cards: cards.join("") };
+  }
+
+  // 0.75.0: the COP curve on the heat pump chart – shown unless switched off in this browser
+  _copCurve() {
+    try { return localStorage.getItem("hc-info:cop") !== "off"; } catch (e) { return true; }
+  }
+  _copToggle() {
+    if (!(this._hph?.series?.cop || []).length) return "";
+    const on = this._copCurve();
+    return `<label class="muted" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-cop ${on ? "checked" : ""}>${esc(this._hu ? "COP-görbe" : "COP curve")}</label>`;
+  }
+  // 0.75.0: the water-side heat meter and the COP
+  _heatRows(h) {
+    const hu = this._hu;
+    if (!h) return [];
+    const why = { missing: hu ? "hiányzó / állott / lehetetlen mérés" : "missing / stale / impossible reading",
+      no_power_meter: hu ? "nincs villamos teljesítménymérő" : "no electric power meter", stale_power: hu ? "nincs friss villamos mérés" : "no fresh electric reading",
+      no_flow: hu ? "nincs vízáram" : "no water flow", defrost: hu ? "leolvasztás" : "defrost", negative_dt: hu ? "ΔT ≤ 0" : "ΔT ≤ 0",
+      not_running: hu ? "a kompresszor áll" : "the compressor stands", warming_up: hu ? "futás eleje (gyűjt)" : "start of a run (collecting)",
+      implausible: hu ? "valószínűtlen érték" : "implausible value" };
+    const scope = h.scope === "compressor" ? (hu ? "csak kompresszor" : "compressor only") : (hu ? "teljes egység" : "whole unit");
+    return [
+      [hu ? "Hőteljesítmény (víz)" : "Heat output (water)", h.valid ? `${this._num(h.power_kw, 2)} kW` : (hu ? "nem elérhető – " : "unavailable – ") + (why[h.reason] || h.reason || ""), h.valid && h.power_kw > 0],
+      [hu ? "Előremenő / visszatérő" : "Flow / return", h.valid ? `${this._deg(h.t_out)} / ${this._deg(h.t_in)} · ΔT ${this._num(h.dt, 1)} °C${h.uncertainty_pct != null ? ` (± ${h.uncertainty_pct} %, ${hu ? "becslés" : "estimate"})` : ""}` : null],
+      [hu ? "Vízáram" : "Water flow", h.valid ? `${this._num(h.flow, 1)} ${hu ? "l/perc" : "l/min"}` : null],
+      [hu ? "Villamos teljesítmény" : "Electric power", h.p_el_kw != null ? `${this._num(h.p_el_kw, 2)} kW (${scope})` : (h.power_entity ? (hu ? "nincs friss mérés" : "no fresh reading") : (hu ? "nincs megadva" : "not given"))],
+      [hu ? "Aktuális COP" : "Current COP", h.cop != null ? `${this._num(h.cop, 2)}${h.cop_raw != null ? ` (${hu ? "pillanatnyi" : "momentary"} ${this._num(h.cop_raw, 2)})` : ""}` : `– ${why[h.cop_reason] || h.cop_reason || ""}`, h.cop != null],
+      [hu ? "Hőenergia ma / összes" : "Heat today / total", `${this._num(h.today_kwh, 2)} / ${this._num(h.total_kwh, 1)} kWh`],
+      [hu ? "COP ma / összes" : "COP today / total", `${h.cop_today != null ? this._num(h.cop_today, 2) : "–"} / ${h.cop_total != null ? this._num(h.cop_total, 2) : "–"}${h.coverage_pct != null ? ` · ${hu ? "lefedettség" : "coverage"} ${h.coverage_pct} %` : ""}`],
+    ];
   }
 
   // 0.54.0: a mixing circuit from a buffer tank (shadow): the raw and the given-out flow target, the hold, its zones
@@ -1293,8 +1351,8 @@ class HcInfoPanel extends HTMLElement {
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
         d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
-        d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en" })
-          + `<div class="muted">${esc(this._hu ? "Nyers: amit a HC most számol; kiadott: ritkítva; kiküldve: a beállított kerekítéssel ténylegesen írt érték; a hőszivattyú beállítása: amit a készülék visszajelez; mért víz: a hőszivattyú vízhőmérője (ha meg van adva)." : "Raw: what HC works out now; given out: after the hold; sent: the value really written, rounded as set; the unit's setpoint: what the device reports back; measured water: the unit's water thermometer (when given).")}</div>`, "mdi:chart-line") : "",
+        d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en", cop: this._copCurve() }) + this._copToggle()
+          + `<div class="muted">${esc(this._hu ? "Nyers: amit a HC most számol; kiadott: ritkítva; kiküldve: a beállított kerekítéssel ténylegesen írt érték; a hőszivattyú beállítása: amit a készülék visszajelez; mért víz: a hőszivattyú vízhőmérője (ha meg van adva); COP (jobb tengely): az aktív futás utolsó perceinek hőenergiája / villamos energiája, ahol nem fűt, megszakad." : "Raw: what HC works out now; given out: after the hold; sent: the value really written, rounded as set; the unit's setpoint: what the device reports back; measured water: the unit's water thermometer (when given); COP (right axis): heat over electricity of the last minutes of active running, broken where it does not heat.")}</div>`, "mdi:chart-line") : "",
         d.presets ? this._section("presets", t.presets, this._presets() + this._wkButton(null), "mdi:calendar-clock") : "",
         this._section("devices_in", t.devices_in, this._devices(false), "mdi:thermometer-lines"),
         this._section("devices_out", t.devices_out, this._devices(true), "mdi:electric-switch"),
@@ -1362,6 +1420,10 @@ class HcInfoPanel extends HTMLElement {
       else if (act === "run") this._aiRun();
     }));
     this._wkBind();  // 0.72.0
+    this.shadowRoot.querySelectorAll("[data-cop]").forEach((b) => b.addEventListener("change", () => {  // 0.75.0
+      try { localStorage.setItem("hc-info:cop", b.checked ? "on" : "off"); } catch (e) { /* private mode */ }
+      this._render();
+    }));
   }
 
   // --- 0.72.0: the weekly program editor ------------------------------------------------------------------------------

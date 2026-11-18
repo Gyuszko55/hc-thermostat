@@ -19,7 +19,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, CONF_WRITE_RESTORE, CONF_WRITE_RESTORE_TRIES, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_DHW_PUMP, CONF_DHW_TEMP, CONF_DHW_HEATER, CONF_CIRCUIT_PUMP, CONF_CIRCUIT_FLOW, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -38,6 +38,7 @@ from .core.output_guard import ROUND_MODES  # 0.64.0
 from .core.hp_coord import CHARGE_MODES, STOP_LAYERS  # 0.65.0
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, CircuitConfig, MixingCircuit
 from .core.hp_coord import HpConfig
+from .core.heat_meter import HeatMeterConfig  # 0.75.0
 from .core.room_model import OWN, rooms_options
 from . import room_form as rf
 from .core import measures as ms
@@ -212,6 +213,10 @@ def _write_fields(role: str, current: dict) -> dict:
         **_outputs(role, current),
         vol.Required(CONF_WRITE_KEEPALIVE, default=current.get(CONF_WRITE_KEEPALIVE, 0)): _number(0, 3600, 60, "s"),
         vol.Required(CONF_WRITE_CONFIRM, default=current.get(CONF_WRITE_CONFIRM, WRITE_CONFIRM_DEFAULT)): _number(0, 600, 5, "s"),
+        # 0.73.0: supervised restore of a lasting conflict – heat pump coordination (off by default)
+        **({vol.Required(CONF_WRITE_RESTORE, default=current.get(CONF_WRITE_RESTORE, 0)): _number(0, 240, 1, "min"),
+            vol.Required(CONF_WRITE_RESTORE_TRIES, default=current.get(CONF_WRITE_RESTORE_TRIES, 3)): _number(1, 10, 1)}
+           if role == "hp_coord" else {}),
     }
 
 
@@ -355,7 +360,26 @@ def _hpc_settings(current: dict) -> dict:
         b("hp_charge_jump"),
         n("hp_deadband", 0.5, 6, 0.5, "°C"), n("hp_confirm_s", 0, 3600, 60, "s"), n("hp_min_interval_s", 0, 14400, 300, "s"),
         n("hp_max_rise", 0, 20, 0.5, "°C"), n("hp_urgent", 0, 20, 0.5, "°C"),
+        *_hm_fields(current),
     ])
+
+
+HM_ENTITIES = (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER)
+HM_SCOPES = ("unit", "compressor")
+
+
+def _hm_fields(current: dict) -> list:
+    """0.75.0: the water-side heat meter (flow, return, water flow – all three, or it is off) and the COP's power."""
+    hm = HeatMeterConfig.from_conf(current)
+    n = lambda k, lo, hi, st, u="": (vol.Required(k, default=getattr(hm, k)), _number(lo, hi, st, u))  # noqa: E731
+    ent = lambda k: (vol.Optional(k, description={"suggested_value": current.get(k)}),  # noqa: E731
+                     _entity("sensor", "input_number", "number"))
+    return [ent(CONF_HM_OUT), ent(CONF_HM_IN), ent(CONF_HM_FLOW), ent(CONF_HP_POWER),
+            (vol.Required("hm_power_scope", default=hm.hm_power_scope if hm.hm_power_scope in HM_SCOPES else "unit"),
+             _select(list(HM_SCOPES), "hm_power_scope")),
+            n("hm_factor", 0.5, 1.1, 0.01), n("hm_resolution", 0.01, 2, 0.01, "°C"), n("hm_min_flow", 0, 20, 0.1, "l/min"),
+            n("hm_max_age_s", 30, 3600, 30, "s"), n("hm_max_gap_s", 30, 900, 30, "s"),
+            n("hm_cop_window_s", 120, 3600, 60, "s"), n("hm_cop_min_s", 60, 3600, 60, "s"), n("hm_cop_max", 3, 15, 0.5)]
 
 
 def _hpc_errors(user_input: dict) -> dict:
@@ -368,6 +392,12 @@ def _hpc_errors(user_input: dict) -> dict:
         errors["wood_off_below"] = "wood_order"
     if user_input["hp_charge_off"] and user_input["hp_charge_on"] and user_input["hp_charge_off"] <= user_input["hp_charge_on"]:
         errors["hp_charge_off"] = "charge_order"
+    # 0.75.0: the heat meter needs all three readings (or none)
+    given = [bool(user_input.get(k)) for k in (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW)]
+    if any(given) and not all(given):
+        errors[CONF_HM_FLOW] = "heat_meter_three"
+    if user_input.get(CONF_HM_OUT) and user_input.get(CONF_HM_OUT) == user_input.get(CONF_HM_IN):
+        errors[CONF_HM_IN] = "heat_meter_same"
     return errors
 
 
@@ -408,6 +438,10 @@ HPC_SECTIONS = {
     "cold": ("hp_cold_on", "hp_cold_on_below", "hp_cold_release_above", "hp_cold_release_s"),
     "wood": ("hp_wood_rise", "hp_wood_first", "wood_on_above", "wood_off_below", "wood_confirm_s"),
     "hold": ("hp_charge_jump", "hp_deadband", "hp_confirm_s", "hp_min_interval_s", "hp_max_rise", "hp_urgent"),
+    # 0.75.0
+    "heat_meter": ("hp_flow_out_temp_entity", "hp_flow_in_temp_entity", "hp_water_flow_entity", "hp_power_entity",
+                   "hm_power_scope", "hm_factor", "hm_resolution", "hm_min_flow", "hm_max_age_s", "hm_max_gap_s",
+                   "hm_cop_window_s", "hm_cop_min_s", "hm_cop_max"),
 }
 HPC_SECTION_OF = {k: name for name, keys in HPC_SECTIONS.items() for k in keys}
 
@@ -670,6 +704,8 @@ _ENTITY_TOP = (CONF_INDOOR, CONF_DEMAND, CONF_EXTERNAL, CONF_FLOW, CONF_HEAT_ENA
 SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
     "regulation": (CONF_CONTROL, "cycle_s", "min_on_s", "min_off_s", "valve_delay_s", "coast_window_s",
                    "pwm_midcycle_start", "pwm_carry", "catchup_gap", "catchup_after_s", "catchup_release",
+                   "catchup_low", "catchup_low_limit", "catchup_low_gap", "catchup_low_after_s",
+                   "catchup_low_floor_after_s", "catchup_low_release", "catchup_low_floor_release", "catchup_low_confirm_s",
                    "tpi_coef_int", "tpi_coef_ext", "pre_change_s", "yield_margin", "pid_kp", "pid_ki_per_hour",
                    "pid_kd", "pid_d_filter_s", "curve_slope", "curve_shift", "flow_min", "flow_max", "room_kp",
                    "room_ki_per_hour", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis", "ac_ki_per_hour",
@@ -1264,6 +1300,15 @@ class HcOptionsFlow(OptionsFlow):
                 vol.Required("catchup_gap", default=cfg.catchup_gap): _number(0, 3, 0.1, "°C"),
                 vol.Required("catchup_after_s", default=cfg.catchup_after_s): _number(0, 14400, 300, "s"),
                 vol.Required("catchup_release", default=cfg.catchup_release): _number(0, 1, 0.05, "°C"),
+                # 0.74.0: the low-temperature catch-up (off by default: the instances keep regulating as before)
+                vol.Required("catchup_low", default=cfg.catchup_low): BooleanSelector(),
+                vol.Required("catchup_low_limit", default=cfg.catchup_low_limit): _number(25, 70, 0.5, "°C"),
+                vol.Required("catchup_low_gap", default=cfg.catchup_low_gap): _number(0.1, 3, 0.1, "°C"),
+                vol.Required("catchup_low_after_s", default=cfg.catchup_low_after_s): _number(0, 14400, 300, "s"),
+                vol.Required("catchup_low_floor_after_s", default=cfg.catchup_low_floor_after_s): _number(0, 21600, 300, "s"),
+                vol.Required("catchup_low_release", default=cfg.catchup_low_release): _number(0, 1, 0.05, "°C"),
+                vol.Required("catchup_low_floor_release", default=cfg.catchup_low_floor_release): _number(0, 1, 0.05, "°C"),
+                vol.Required("catchup_low_confirm_s", default=cfg.catchup_low_confirm_s): _number(0, 7200, 300, "s"),
                 vol.Required("tpi_coef_int", default=cfg.tpi_coef_int): _number(0.1, 3, 0.05),
                 vol.Required("tpi_coef_ext", default=cfg.tpi_coef_ext): _number(0, 0.1, 0.005)}
                if cfg.control in ("tpi", "pid") else {}),

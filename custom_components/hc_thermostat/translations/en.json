@@ -547,6 +547,39 @@
               "hp_urgent": "A difference this large does not wait.",
               "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
             }
+          },
+          "heat_meter": {
+            "name": "Heat meter and COP",
+            "data": {
+              "hp_flow_out_temp_entity": "Water flow temperature (outlet, °C)",
+              "hp_flow_in_temp_entity": "Water return temperature (inlet, °C)",
+              "hp_water_flow_entity": "Water flow (l/min)",
+              "hp_power_entity": "Electric power for the COP (W / kW, optional)",
+              "hm_power_scope": "What the power meter measures",
+              "hm_factor": "Heat capacity factor (pure water = 1)",
+              "hm_resolution": "Thermometer resolution",
+              "hm_min_flow": "Below this the water stands",
+              "hm_max_age_s": "A reading may be at most this old",
+              "hm_max_gap_s": "No energy over a gap longer than",
+              "hm_cop_window_s": "Current COP window",
+              "hm_cop_min_s": "COP only after this much active running",
+              "hm_cop_max": "A COP above this is implausible"
+            },
+            "data_description": {
+              "hp_flow_out_temp_entity": "The thermometer of the water leaving the heat pump. The heat meter works only with all three water readings; left empty nothing changes.",
+              "hp_flow_in_temp_entity": "The thermometer of the water returning to the heat pump.",
+              "hp_water_flow_entity": "Water flow in l/min (L/h and m³/h converted). Heat = l/min × ΔT × 0.06977 kW.",
+              "hp_power_entity": "When the “heat pump runs” signal is not a W/kW power (binary, Hz …), give a separate power meter here. Empty: the “runs” signal when it is a power; otherwise no COP, the heat is measured anyway.",
+              "hm_power_scope": "The whole outdoor unit (compressor, fan, pump) or the compressor only – for reading the COP.",
+              "hm_factor": "1.00 for pure water; lower for a glycol mix (30 % glycol ≈ 0.93). An estimate.",
+              "hm_resolution": "1 °C for whole-degree (Tuya) thermometers. With a small ΔT the error is ± resolution / ΔT – the panel shows it.",
+              "hm_min_flow": "A smaller flow is 0 kW (circulation stopped).",
+              "hm_max_age_s": "A value not reported for longer is stale: counting pauses, no COP.",
+              "hm_max_gap_s": "Between two valid readings further apart (an outage, a restart) no energy is added, nothing is filled in.",
+              "hm_cop_window_s": "The current COP is the heat of this much active running over its electricity (not a mean of momentary ratios).",
+              "hm_cop_min_s": "No COP for this long at the start of a run (thermometers and circulation settle).",
+              "hm_cop_max": "A higher value means a wrong reading: not shown."
+            }
           }
         }
       }
@@ -562,7 +595,9 @@
       "cold_order": "The release limit must be at or above the ON limit.",
       "charge_order": "The stop charge must be above the start charge.",
       "no_output": "Writing needs at least one output entity.",
-      "wood_order": "The off threshold must be below the on threshold."
+      "wood_order": "The off threshold must be below the on threshold.",
+      "heat_meter_three": "The heat meter needs all three water readings (flow, return, water flow) – or none.",
+      "heat_meter_same": "The flow and the return thermometer cannot be the same entity."
     },
     "abort": {
       "already_configured": "An instance with this name already exists.",
@@ -672,6 +707,14 @@
               "catchup_gap": "Fast catch-up: from this shortfall (0 = off)",
               "catchup_after_s": "Fast catch-up: after this time",
               "catchup_release": "Fast catch-up ends: this far below the target",
+              "catchup_low": "Low-temperature catch-up (by the mixing circuit's demanded flow)",
+              "catchup_low_limit": "Low-temperature: demanded flow below",
+              "catchup_low_gap": "Low-temperature catch-up: from this shortfall",
+              "catchup_low_after_s": "Low-temperature catch-up: after this long (radiators)",
+              "catchup_low_floor_after_s": "Low-temperature catch-up: after this long (floor)",
+              "catchup_low_release": "Low-temperature catch-up ends (radiators)",
+              "catchup_low_floor_release": "Low-temperature catch-up ends (floor)",
+              "catchup_low_confirm_s": "Low-temperature classification confirmed after",
               "tpi_coef_int": "TPI internal coefficient",
               "tpi_coef_ext": "TPI external coefficient"
             },
@@ -717,6 +760,14 @@
               "catchup_gap": "A room at least this far below its target for the time below gets the whole cycle, no PWM pause, until it is near the target. The slow learning keeps refining meanwhile.",
               "catchup_after_s": "The room must stay below the threshold this long. Floor heating: 2 hours by default, the screed still gives heat for hours.",
               "catchup_release": "Once the room is this close to the target, the TPI's proportional cycle regulates again.",
+              "catchup_low": "When every mixing circuit feeding this room has lastingly asked for a flow below the limit, the fast catch-up uses the more sensitive values below – with low water temperatures the PWM pauses lose a disproportionate share of the heat. It goes by the circuit's demanded target (not the measured flow, not the one capped by the tank). Without circuit data the values above stay. Off by default.",
+              "catchup_low_limit": "A demanded flow below this counts as low-temperature (at 45.0 °C it does not any more).",
+              "catchup_low_gap": "Replaces the shortfall above on a low-temperature circuit.",
+              "catchup_low_after_s": "On a radiator circuit the room has to stay below the threshold this long.",
+              "catchup_low_floor_after_s": "On a floor circuit (or when one of the room's circuits is a floor) this long – a screed gives heat for hours.",
+              "catchup_low_release": "On a radiator circuit the catch-up ends this far below the target.",
+              "catchup_low_floor_release": "On a floor circuit it ends this far below the target (more careful about overshoot).",
+              "catchup_low_confirm_s": "The classification (low-temperature or not) changes only after the new state lasts this long, so noise around the limit does not switch it back and forth.",
               "tpi_coef_int": "Demand per 1 °C shortfall (0.6 = 60 %). Higher: longer heating at a smaller shortfall. With learning on, the starting value.",
               "tpi_coef_ext": "Demand per degree between the target and the outdoor temperature (0.01 = 1 %/°C)."
             }
@@ -1290,7 +1341,9 @@
           "house_link": "Part of which house (HC info: overview, diagram)",
           "hp_target_round": "Rounding of the written target",
           "hp_water_temp_entity": "The heat pump's measured water temperature (optional)",
-          "home_name": "House name (optional)"
+          "home_name": "House name (optional)",
+          "write_restore_min": "Restore a lasting difference after (min, 0 = off)",
+          "write_restore_tries": "Restore tries before a problem is reported"
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
@@ -1311,7 +1364,9 @@
           "confirm": "Must be ticked for writing. One target, one writer: if the PLC or an automation writes it too, HC reports a conflict and stops.",
           "trial_hours": "The supervised trial ends by itself after this many hours, with a notification.",
           "write_keepalive_s": "For a PLC that drops a setpoint after a while. Otherwise leave it at 0.",
-          "write_confirm_s": "Raise it for a slow (cloud) device. The default suits a fast local one."
+          "write_confirm_s": "Raise it for a slow (cloud) device. The default suits a fast local one.",
+          "write_restore_min": "Off by default (0). When the heat pump keeps another target or ON/OFF than HC asks for (it was changed on the unit or in its app, or it came back from off with its own default) for this long, HC writes its value again – what it asks for now, so the safety bans, frost protection and the wood priority still come first. Nothing is written in shadow mode, while writing is paused or after a trial. To change the unit by hand for a while, pause writing with the instance's switch.",
+          "write_restore_tries": "This many restores, as far apart as the time above; a restore that holds that long starts the count again. When none helped: the 'Heat pump does not follow' problem sensor turns on, a Repairs entry and a notification appear, the diagram shows it in red, and HC stops writing that value until it wants another one or the unit shows HC's value again."
         }
       },
       "hp_coord_settings": {
@@ -1536,6 +1591,39 @@
               "hp_urgent": "A difference this large does not wait.",
               "hp_charge_jump": "When a charge starts, and when the compressor stops below the target during a charge, the given-out target goes straight to the worked-out value; the hold only smooths changes within a charge."
             }
+          },
+          "heat_meter": {
+            "name": "Heat meter and COP",
+            "data": {
+              "hp_flow_out_temp_entity": "Water flow temperature (outlet, °C)",
+              "hp_flow_in_temp_entity": "Water return temperature (inlet, °C)",
+              "hp_water_flow_entity": "Water flow (l/min)",
+              "hp_power_entity": "Electric power for the COP (W / kW, optional)",
+              "hm_power_scope": "What the power meter measures",
+              "hm_factor": "Heat capacity factor (pure water = 1)",
+              "hm_resolution": "Thermometer resolution",
+              "hm_min_flow": "Below this the water stands",
+              "hm_max_age_s": "A reading may be at most this old",
+              "hm_max_gap_s": "No energy over a gap longer than",
+              "hm_cop_window_s": "Current COP window",
+              "hm_cop_min_s": "COP only after this much active running",
+              "hm_cop_max": "A COP above this is implausible"
+            },
+            "data_description": {
+              "hp_flow_out_temp_entity": "The thermometer of the water leaving the heat pump. The heat meter works only with all three water readings; left empty nothing changes.",
+              "hp_flow_in_temp_entity": "The thermometer of the water returning to the heat pump.",
+              "hp_water_flow_entity": "Water flow in l/min (L/h and m³/h converted). Heat = l/min × ΔT × 0.06977 kW.",
+              "hp_power_entity": "When the “heat pump runs” signal is not a W/kW power (binary, Hz …), give a separate power meter here. Empty: the “runs” signal when it is a power; otherwise no COP, the heat is measured anyway.",
+              "hm_power_scope": "The whole outdoor unit (compressor, fan, pump) or the compressor only – for reading the COP.",
+              "hm_factor": "1.00 for pure water; lower for a glycol mix (30 % glycol ≈ 0.93). An estimate.",
+              "hm_resolution": "1 °C for whole-degree (Tuya) thermometers. With a small ΔT the error is ± resolution / ΔT – the panel shows it.",
+              "hm_min_flow": "A smaller flow is 0 kW (circulation stopped).",
+              "hm_max_age_s": "A value not reported for longer is stale: counting pauses, no COP.",
+              "hm_max_gap_s": "Between two valid readings further apart (an outage, a restart) no energy is added, nothing is filled in.",
+              "hm_cop_window_s": "The current COP is the heat of this much active running over its electricity (not a mean of momentary ratios).",
+              "hm_cop_min_s": "No COP for this long at the start of a run (thermometers and circulation settle).",
+              "hm_cop_max": "A higher value means a wrong reading: not shown."
+            }
           }
         }
       },
@@ -1584,7 +1672,9 @@
       "charge_order": "The stop charge must be above the start charge.",
       "no_output": "Writing needs at least one output entity.",
       "wood_order": "The off threshold must be below the on threshold.",
-      "weekend_both": "The weekend night needs both a start and an end (or leave both empty)."
+      "weekend_both": "The weekend night needs both a start and an end (or leave both empty).",
+      "heat_meter_three": "The heat meter needs all three water readings (flow, return, water flow) – or none.",
+      "heat_meter_same": "The flow and the return thermometer cannot be the same entity."
     }
   },
   "selector": {
@@ -1745,6 +1835,12 @@
         "upper": "Upper middle",
         "lower": "Lower middle",
         "bottom": "Bottom"
+      }
+    },
+    "hm_power_scope": {
+      "options": {
+        "unit": "the whole unit",
+        "compressor": "the compressor only"
       }
     }
   },
@@ -1973,6 +2069,21 @@
       },
       "ai_report": {
         "name": "AI analysis"
+      },
+      "hp_heat_power": {
+        "name": "Heat pump heat output"
+      },
+      "hp_heat_energy": {
+        "name": "Heat pump heat produced"
+      },
+      "hp_heat_energy_today": {
+        "name": "Heat pump heat today"
+      },
+      "hp_cop": {
+        "name": "Heat pump current COP"
+      },
+      "hp_cop_today": {
+        "name": "Heat pump COP today"
       }
     },
     "binary_sensor": {
@@ -2008,6 +2119,9 @@
       },
       "hp_exercise": {
         "name": "Exercise due"
+      },
+      "hp_write_problem": {
+        "name": "Heat pump does not follow"
       }
     },
     "climate": {
@@ -2084,6 +2198,10 @@
     "circuit_problem": {
       "title": "HC – {name}: mixing circuit watch",
       "description": "The **{name}** mixing circuit, since {since}: **{problem}**.\n\nHC does not act on this, it only reports it. Check the PLC (pump enable, start delay), the mixing valve and its controller (an ESP, for example), and the tank's temperature. The entry clears itself once the circuit works again. The waiting times can be set in the circuit's settings, where the watch can also be switched off."
+    },
+    "write_failed": {
+      "title": "HC – {name}: the heat pump does not take HC's value",
+      "description": "**{entity}** shows {value} instead of the {want} HC asks for, and {tries} restores did not help. HC stops writing it until the value it wants changes or the unit shows HC's value again.\n\nCheck the unit: its mode (off / auto / manual), its app or controller (Tuya, a local integration), and whether something else writes it. The entry clears itself once the unit follows HC again."
     }
   }
 }

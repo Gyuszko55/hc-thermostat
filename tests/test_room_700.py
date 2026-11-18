@@ -156,7 +156,7 @@ def test_target_check_matches_and_mismatch_after_ten_minutes():
     cls._target_check(fake, T0, d, True)
     tc = d.details["target_check"]
     assert tc == {"raw": 44.8, "given": 45.0, "sent": 45.0, "reported": 45.0, "diff": 0.0, "writing": True,
-                  "mismatch": False, "mismatch_min": None}
+                  "mismatch": False, "mismatch_min": None, "restore": None}
     fake.out_target = SimpleNamespace(reported=lambda: 39.0, sent=45.0)  # the Tuya kept its own 39 °C
     cls._target_check(fake, at(1), d, True)
     assert d.details["target_check"]["diff"] == -6.0 and d.details["target_check"]["mismatch"] is False

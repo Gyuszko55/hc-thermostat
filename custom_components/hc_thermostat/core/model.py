@@ -86,6 +86,8 @@ class Inputs:
     hp_mode: str | None = None  # heat pump busy with something else: "defrost" | "dhw" (hot water); None: heating
     call: bool | None = None  # wired wall thermostat (0.38.0): its contact asks for heat; None: unknown / unavailable
     managed_off: bool = False  # 0.42.0: external control – someone (not HC) switched the managed thermostat off
+    # 0.74.0: (kind, demanded flow target or None) of every mixing circuit that lists this room; () = not known
+    circuits: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -213,6 +215,19 @@ class HcConfig:
     catchup_gap: float = 0.5
     catchup_after_s: float = 1800.0
     catchup_release: float = 0.2
+    # 0.74.0 low-temperature catch-up (the same tester's next 24 h: radiator rooms at 22.7–22.9 °C for 23.2 on a circuit
+    # asking ~32 °C – a shortfall under the 0.5 °C threshold, so the TPI kept pausing every hour). Opt-in: when every
+    # mixing circuit that lists this room has asked (its demanded, not the tank-capped target) for a flow below
+    # catchup_low_limit for catchup_low_confirm_s, these take the place of catchup_gap / _after_s / _release. A floor
+    # circuit (or a floor room) waits the floor's time and lets go at the floor's release. Unknown circuit data: as before.
+    catchup_low: bool = False
+    catchup_low_limit: float = 45.0
+    catchup_low_confirm_s: float = 900.0
+    catchup_low_gap: float = 0.3
+    catchup_low_after_s: float = 1800.0
+    catchup_low_floor_after_s: float = 7200.0
+    catchup_low_release: float = 0.1
+    catchup_low_floor_release: float = 0.2
     keep_alive_s: float = 0.0  # resend "on" this often while heating (relay with its own auto-off timer); 0 = off
     # Safety
     sensor_max_age_s: float = 7200.0

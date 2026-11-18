@@ -233,7 +233,10 @@ def test_config_flow_forms_and_no_name_clash():
     cf = importlib.import_module("hc_thermostat.config_flow")
     hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda d: []))
     keys = {str(k) for k in cf._hpc_settings({})}
-    assert keys == set(hpc.HpConfig.__dataclass_fields__) | {"wood_on_above", "wood_off_below", "wood_confirm_s"}  # 0.61.0: wood by temperature
+    from hc_thermostat.core.heat_meter import HeatMeterConfig
+    assert keys == set(hpc.HpConfig.__dataclass_fields__) | {"wood_on_above", "wood_off_below", "wood_confirm_s"} \
+        | set(HeatMeterConfig.__dataclass_fields__) | {"hp_flow_out_temp_entity", "hp_flow_in_temp_entity",
+                                                       "hp_water_flow_entity", "hp_power_entity"}  # 0.61.0 wood, 0.75.0 heat meter
     assert {str(k) for k in cf._hpc_fields(hass, {})} == {"hp_buffer", "outdoor_entity", "hp_running_entity", "wood_entity", "wood_temp_entity",
                                                          "hp_target_entity", "hp_switch_entity", "hp_demand_entity",  # 0.56.0
                                                          "hp_summer_entity", "hp_exercise_entity",  # 0.57.0

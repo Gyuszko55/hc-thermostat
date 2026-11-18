@@ -132,6 +132,11 @@ exists (add the first one under Settings → Devices & services).
 - **Fast catch-up:** a room at least 0.5 °C below its target for 30 minutes (2 hours on a floor) gets the whole cycle,
   without a PWM pause, until it is within 0.2 °C. The holding offset learns by the hour (at most 0.02 an hour), the
   TPI's strength by the day. Both TPI coefficients are in the Regulation section.
+- **Low-temperature catch-up** (0.74.0, off by default, Regulation section): when every mixing circuit feeding the room
+  has lastingly (15 min) asked for a flow below 45 °C – its demanded target, not the measured flow or the one capped by
+  the tank – the catch-up starts at 0.3 °C, after 30 minutes on radiators (2 hours when one circuit is a floor), and
+  ends within 0.1 °C (floor 0.2 °C). Without circuit data the room keeps its own thresholds. The panel shows the
+  circuit, the classification, the thresholds in use, the wait and the last exit.
 - **Measured answer:** the panel shows from ordinary runs of at least 10 minutes how many minutes until the room warms,
   how fast, the after-heat and how fast it cools back. Shown only, nothing regulates by it.
 - **External thermostat:** sets the target and mode of any `climate` entity.
@@ -601,6 +606,18 @@ demand, the ON/OFF request and the flow target.
   without a break and a room still asks. *Summer mode* and an optional weekly *Exercise due* binary sensor (and
   outputs) for a PLC, which runs its pumps and valves itself.
 - Lost inputs keep the last request. Writing to the unit / the PLC: below.
+- **Heat meter and COP** (0.75.0, optional, *Heat meter and COP* section): with the water flow (outlet) and return
+  (inlet) temperature and the water flow (l/min) HC measures the heat the water circuit carries off the heat pump:
+  kW = l/min × ΔT × 0.06977 (pure water; a factor for a glycol mix). Sensors: *heat output* (kW), *heat produced*
+  (kWh, total increasing – the one for the Energy dashboard), *heat today* (a part of it, do not add both), *current
+  COP* and *COP today*. Energy is added by the trapezoid rule only between two valid readings at most 2 minutes
+  apart: a missing, stale (5 min), impossible reading, a restart or no flow adds nothing, nothing is filled in; a
+  negative ΔT is 0 kW. The COP takes the "runs" power reading (or an own power sensor); the current COP is the heat
+  over the electricity of the last 10 minutes of active running (after 5 minutes of a run), unavailable when it does
+  not heat (no flow, standby, defrost, a stale meter) – never 0 or infinite; *COP today* is the day's heat over the
+  day's electricity on the same intervals, with its coverage. With whole-degree thermometers a ΔT of 3 °C is ± 33 %
+  – the panel shows it. The counter is kept over restarts; it starts at 0 only with a new instance (a total can be
+  corrected in Developer tools → Statistics). The heat pump chart shows the COP on a right axis (switchable).
 
 ### Writing the targets: supervised trial, one writer
 
@@ -616,6 +633,16 @@ with a notification) or to **active**; both need an output entity and a confirma
 - **Confirmation wait** (`write_confirm_s`, 60 s): a slow device (e.g. Tuya) gets time to report the written
   value; meanwhile HC neither writes again nor calls a late or old echo a conflict. A value the device never takes is
   written at most 3 more times, then HC stops writing it (*not accepted*) and notifies you.
+- **Supervised restore** (heat pump coordination, 0.73.0, off by default – *Restore a lasting difference after*, in
+  minutes): when the unit keeps another target or ON/OFF than HC asks for that long (changed in its app, or back from
+  off with its own default, as a Tuya unit does), HC writes its value again – what it asks for now, so the safety bans,
+  frost protection and the wood priority still come first –, at most *Restore tries* times (3), as far apart; a
+  restore that holds that long starts the count again. When none helped, the *Heat pump does not follow* problem
+  sensor turns on, a Repairs entry and a notification appear, the diagram shows it in red, and HC stops writing that
+  value until it wants another one or the unit shows HC's value again. To change the unit by hand for a while, use
+  the *Writing paused* switch. With the restore on, a climate ON/OFF output's mode counts too (*auto* instead of
+  *heat* is a difference); the first lasting difference is a warning (a notification, amber), the failed restores an
+  error (the sensor, Repairs, red).
 - A climate output gets the target on its own step and within its min / max; a device that was unavailable
   and comes back with its default value is written again, not treated as another writer.
 - No write in the first 2 minutes after a start; an optional keep-alive re-sends an unchanged value for a PLC with a

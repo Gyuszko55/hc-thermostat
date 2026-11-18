@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.75.0 – 2026-11-18
+
+- Heat meter and COP for the heat pump coordination (a tester's request after the readings of a heat pump charging a
+  1000 l tank through its lower coil: 44 / 41 °C at 48 l/min ≈ 10.05 kW). Optional – the new *Heat meter and COP*
+  section takes the water flow (outlet) and return (inlet) temperature and the water flow (l/min; L/h and m³/h
+  converted); with all three given HC works out the heat the water circuit carries off the heat pump:
+  kW = l/min × ΔT × 0.06977 × factor (pure water 1.00, lower for a glycol mix). Without them nothing changes.
+- New sensors on the coordination's device: *heat output* (kW, unavailable without valid readings), *heat produced*
+  (kWh, total increasing, kept over restarts – for the Energy dashboard and long-term statistics), *heat today*
+  (a part of the total), *current COP* and *COP today*.
+- The energy is the trapezoid rule between two valid readings at most `hm_max_gap_s` (2 min) apart. A reading missing,
+  stale (`hm_max_age_s`, 5 min), not a number or impossible pauses the counting; a restart or a gap adds nothing and
+  nothing is filled in. No flow (below `hm_min_flow`) is 0 kW; a negative ΔT is 0 kW – the counter never goes down.
+- The COP takes the electric power HC already reads (the "runs" signal when it is a W / kW reading) or an own power
+  sensor (*Electric power for the COP*); a binary / Hz signal alone gives the heat but no COP. The current COP is the
+  heat over the electricity of the last `hm_cop_window_s` (10 min) of active running – water flowing, ΔT above zero,
+  a fresh power reading above `hp_running_w`, no defrost – shown after `hm_cop_min_s` (5 min) of a run, which starts
+  its window afresh (no spike at a restart); otherwise unavailable (never 0, never infinite), above `hm_cop_max`
+  implausible. *COP today* and the all-time COP divide energies of the same intervals (not a mean of COPs), with the
+  coverage. What the power meter measures (the whole unit or the compressor) is shown with it.
+- Whole-degree thermometers: ± resolution / ΔT is shown as the estimate's uncertainty (`hm_resolution`, 1 °C).
+- Info panel: a *Heat meter and COP* card (flow / return, ΔT and its uncertainty, flow, heat and electric power,
+  current and momentary COP and why there is none, today / total kWh and COP); the *Heat pump target – 24 h* chart
+  draws the current COP on its own right axis, broken where it does not heat, switchable in the browser (*COP curve*).
+  The COP's history comes with the chart's own query (`hc_thermostat/hp_history`).
+
+## 0.74.0 – 2026-11-18
+
+- Low-temperature catch-up (a tester's proposal after 24 h on a buffer house: radiator rooms stayed at 22.7–22.9 °C
+  for 23.2 °C on a circuit asking ~32 °C – a shortfall under the 0.5 °C catch-up threshold, so the TPI paused every
+  hour, and every pause moved the thermoelectric valves and could stop the pump). Off by default: *Low-temperature
+  catch-up* in the Regulation section. When every mixing circuit that lists the room has asked for a flow strictly
+  below 45.0 °C for 15 minutes, the catch-up starts at 0.3 °C, after 30 minutes on radiators or 2 hours when one of
+  the room's circuits is a floor (or the room is a floor room), and ends within 0.1 °C (floor 0.2 °C). All of these
+  can be set.
+- The circuit's demanded target decides (the one before the tank cap) – not the measured flow, which a stopped pump,
+  a cold pipe or a slow mixer would show low. A room in two circuits (a bathroom: radiator + floor) is low only when
+  both are. The classification changes only after the new state lasts the confirmation time, so 44.9 ↔ 45.0 does not
+  switch it; a circuit not loaded, failed or without a target: the room's own thresholds at once (after a restart the
+  saved classification is kept while the circuits load).
+- Unchanged: the minimum on/off times, the floor limit, the overshoot stop, sensor faults, window, season, presets, a
+  changed target and the other safety rules come first; a catch-up switched off (*from this shortfall* 0) stays off.
+- Info panel *Catch-up circuit* row and the decision details (`catchup_mode`): the circuit kind and demanded flow, the
+  classification (and a pending change), the threshold, wait and release in use, the wait so far and the last exit
+  (reached, new target, other source, paused).
+
+## 0.73.0 – 2026-11-17
+
+- Supervised restore for the heat pump coordination (a tester's request – a Tuya unit came back from off / auto with
+  12 °C and HC, as designed, stopped writing it as a conflict). Off by default: *Restore a lasting difference after*
+  (minutes) and *Restore tries* (3) on the writing page. A conflict or a value the unit did not take that lasts that
+  long is written again – HC's value as it is now, so the safety bans, frost protection and the wood priority still
+  come first –, at most that many times, as far apart; a restore that holds that long starts the count again. When
+  none helped: the new *Heat pump does not follow* problem sensor, a Repairs entry and a notification, the diagram and
+  the info panel in red; HC stops writing that value until it wants another one or the unit shows HC's value again.
+  Nothing changes with it off (a conflict stays a conflict, as before).
+- With the restore on, a climate ON/OFF output counts its mode too: a unit put into another mode than the heating one
+  HC switches to (LocalTuya: *auto* instead of *heat*) is a difference to restore.
+- The first lasting difference is a warning (a notification saying when the restore comes, the problem sensor's
+  `level: warning`, amber on the diagram); every restore failed is an error (the sensor on, Repairs, red). Each
+  restore writes what HC asks for at that moment (a wood fire started meanwhile: the new, lower target).
+
 ## 0.72.1 – 2026-11-17
 
 - The rooms form saves a room without a thermometer or a TRV head (a hallway on the house drawing, heated through the

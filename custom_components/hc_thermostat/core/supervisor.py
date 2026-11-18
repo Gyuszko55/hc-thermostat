@@ -109,6 +109,12 @@ class Supervisor:
         self._catchup_since: datetime | None = None
         self._catchup = False
         self._catchup_target: float | None = None
+        # 0.74.0 low-temperature catch-up: the mode in use (confirmed), the one seen and since when, the last exit
+        self._low = False
+        self._low_seen: bool | None = None
+        self._low_seen_since: datetime | None = None
+        self._low_info: dict | None = None
+        self._catchup_exit: dict | None = None
         self.response = ResponseMeter()  # 0.69.0: how the room answers its runs (shown only)
         self._last_partial = False  # the step before regulated with only a part of the cycle (the fault check runs first)
         self._fail_partial = False  # 0.69.0: this fault window had a heating step with only a part of the cycle
@@ -130,6 +136,8 @@ class Supervisor:
             "response": self.response.state(),
             "catchup": {"since": self._catchup_since.isoformat() if self._catchup_since else None,
                         "on": self._catchup, "target": self._catchup_target},
+            "catchup_low": {"on": self._low, "seen": self._low_seen, "kind": (self._low_info or {}).get("kind"),
+                            "since": self._low_seen_since.isoformat() if self._low_seen_since else None},
             "curve": self.curve.state(),
             "exercise": self.exercise.state(),
             "manual_target": self.manual_target,
@@ -217,6 +225,15 @@ class Supervisor:
             self._catchup_target = None if catchup.get("target") is None else float(catchup["target"])
         except (TypeError, ValueError):
             self._catchup_since, self._catchup, self._catchup_target = None, False, None
+        low = data.get("catchup_low") or {}
+        try:
+            self._low = bool(low.get("on"))
+            self._low_seen = None if low.get("seen") is None else bool(low["seen"])
+            self._low_seen_since = datetime.fromisoformat(low["since"]) if low.get("since") else None
+            if low.get("kind") in ("radiator", "floor"):
+                self._low_info = {"mode": "low" if self._low else "normal", "flow": None, "kind": low["kind"]}
+        except (TypeError, ValueError):
+            self._low, self._low_seen, self._low_seen_since = False, None, None
         self.curve.restore(data.get("curve", {}))
         self.exercise.restore(data.get("exercise") or {})
         self.manual_target = data.get("manual_target")
@@ -283,34 +300,99 @@ class Supervisor:
         if (self.preset_until is not None and inputs.now >= self.preset_until) or (self.preset_until_home and arrived):
             self.preset, self.preset_until, self.preset_until_home = None, None, False
 
+    def _catchup_limits(self) -> tuple[float, float, float]:
+        """The catch-up's threshold, wait and release now: the low-temperature ones (0.74.0) while that mode is
+        confirmed, else the room's own. A catch-up switched off (catchup_gap 0) stays off in both."""
+        cfg = self.cfg
+        if not self._low or cfg.catchup_gap <= 0:
+            return cfg.catchup_gap, cfg.catchup_after_s, cfg.catchup_release
+        floor = bool(self._low_info and self._low_info.get("kind") == "floor") or cfg.floor_system
+        return (cfg.catchup_low_gap, cfg.catchup_low_floor_after_s if floor else cfg.catchup_low_after_s,
+                cfg.catchup_low_floor_release if floor else cfg.catchup_low_release)
+
+    def _catchup_mode(self, now: datetime, circuits: tuple, starting: bool = False) -> dict | None:
+        """0.74.0: is this room on a low-temperature circuit? Every circuit that lists it must have asked for a flow
+        strictly below catchup_low_limit (45.0 °C: not low any more) – the demanded target, not the measured flow
+        (a stopped pump or a cold tank would look like a low-temperature system) nor the tank-capped one. A room in
+        two circuits (a bathroom: radiator + floor) is low only when both are, and waits like a floor when one is a
+        floor. The answer seen must hold for catchup_low_confirm_s before the mode changes (no flapping on 44.9 ↔ 45.0);
+        circuit data missing or unclear: the room's own thresholds at once. None when the option is off."""
+        cfg = self.cfg
+        if not cfg.catchup_low:
+            self._low, self._low_seen, self._low_seen_since, self._low_info = False, None, None, None
+            return None
+        flows = [c[1] for c in circuits]
+        kinds = {c[0] for c in circuits}
+        if (not circuits or any(f is None for f in flows)) and starting and self._low_info is not None:
+            pass  # just started, the circuits are not loaded yet: the restored mode for now
+        elif not circuits or any(f is None for f in flows):
+            self._low, self._low_seen, self._low_seen_since = False, None, None
+            self._low_info = {"mode": "unknown", "flow": None, "kind": None}
+        else:
+            seen = all(f < cfg.catchup_low_limit for f in flows)
+            if seen != self._low_seen:
+                self._low_seen, self._low_seen_since = seen, now
+            if seen != self._low and self._low_seen_since is not None \
+                    and (now - self._low_seen_since).total_seconds() >= cfg.catchup_low_confirm_s:
+                self._low = seen
+            self._low_info = {"mode": "low" if self._low else "normal", "flow": round(max(flows), 1),
+                              "kind": "floor" if "floor" in kinds else "radiator"}
+            if seen != self._low and self._low_seen_since is not None:
+                self._low_info["pending"] = "low" if seen else "normal"
+                self._low_info["pending_min"] = round((now - self._low_seen_since).total_seconds() / 60)
+        return self._low_info
+
+    def _catchup_mode_info(self, now: datetime) -> dict | None:
+        """What the info panel and the explanation show (after the step): mode, thresholds used, wait, last exit."""
+        if not self.cfg.catchup_low or self._low_info is None:
+            return None
+        cfg = self.cfg
+        gap, after, release = self._catchup_limits()
+        info = {**self._low_info, "gap": gap, "after_min": round(after / 60), "release": release,
+                "limit": cfg.catchup_low_limit, "active": self._catchup}
+        if self._catchup_since is not None and not self._catchup:
+            info["waiting_min"] = round((now - self._catchup_since).total_seconds() / 60)
+        if self._catchup_exit is not None:
+            info["last_exit"] = self._catchup_exit
+        return info
+
+    def _catchup_stop(self, now: datetime, why: str) -> None:
+        if self._catchup:
+            self._catchup_exit = {"why": why, "at": now.isoformat()}
+        self._catchup_since, self._catchup = None, False
+
     def _catchup_step(self, now: datetime, target: float | None, indoor: float | None, yielding: bool) -> dict | None:
         """0.69.0 (a tester's first night on a buffer house): a room catchup_gap (0.5 °C) below its target for
         catchup_after_s (30 min) gets the whole cycle until it is within catchup_release (0.2 °C) – the TPI's
         proportional share left it 0.75 °C below with 64 % and a pause every cycle. A changed target, a pause in the
-        regulation or another source in charge (yield) start the count again."""
-        cfg = self.cfg
-        if cfg.catchup_gap <= 0 or indoor is None or target is None or yielding:
-            self._catchup_since, self._catchup = None, False
+        regulation or another source in charge (yield) start the count again. 0.74.0: on a confirmed low-temperature
+        circuit the thresholds of _catchup_limits."""
+        gap_on, after_s, release = self._catchup_limits()
+        if gap_on <= 0 or indoor is None or target is None or yielding:
+            self._catchup_stop(now, "yield" if yielding else "paused")
             return None
         if self._catchup_target is not None and target != self._catchup_target:
-            self._catchup_since, self._catchup = None, False
+            self._catchup_stop(now, "target")
         self._catchup_target = target
         gap = target - indoor
         if self._catchup:
-            if gap <= cfg.catchup_release:
-                self._catchup_since, self._catchup = None, False
+            if gap <= release + 1e-9:
+                self._catchup_stop(now, "release")
                 return None
-        elif gap >= cfg.catchup_gap:
+        elif gap >= gap_on - 1e-9:
             if self._catchup_since is None:
                 self._catchup_since = now
-            if (now - self._catchup_since).total_seconds() >= cfg.catchup_after_s:
+            if (now - self._catchup_since).total_seconds() >= after_s:
                 self._catchup = True
         else:
             self._catchup_since = None
         if not self._catchup:
             return None
-        return {"since": self._catchup_since, "gap": round(gap, 2), "release": cfg.catchup_release,
-                "since_min": round((now - self._catchup_since).total_seconds() / 60)}
+        out = {"since": self._catchup_since, "gap": round(gap, 2), "release": release,
+               "since_min": round((now - self._catchup_since).total_seconds() / 60)}
+        if self._low:
+            out["low"] = True
+        return out
 
     def _coasting(self, now: datetime, target: float, indoor: float | None) -> dict | None:
         """0.44.3: after a burn the radiators keep heating for a while. While the room is just under (or at) the target
@@ -1158,6 +1240,8 @@ class Supervisor:
             while len(self._indoor_log) > 2 and self._indoor_log[1][0] <= cut:
                 self._indoor_log.pop(0)
         no_power = inputs.power_available is False  # controlled power off: no heat now, no integral wind-up
+        if cfg.control in ("tpi", "pid"):
+            self._catchup_mode(now, inputs.circuits, inputs.uptime_s < cfg.catchup_low_confirm_s)  # 0.74.0: before the catch-up – it sets its thresholds
         if reason == Reason.REGULATING and not no_power:
             if hasattr(self.regulator, "offset"):
                 self.regulator.coef_int = self.learner.tpi_coef_int
@@ -1231,6 +1315,9 @@ class Supervisor:
             details = {**details, **floor_details}
         if catchup is not None and reason == Reason.REGULATING:
             details = {**details, "catchup": catchup}
+        catchup_mode = self._catchup_mode_info(now) if cfg.control in ("tpi", "pid") else None
+        if catchup_mode is not None:
+            details = {**details, "catchup_mode": catchup_mode}
         if reason == Reason.FLOOR_TEMPER:
             details = {**details, **tempering}
         if self.load is not None and limited == "load_limit":

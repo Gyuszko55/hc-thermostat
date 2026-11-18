@@ -22,8 +22,9 @@ from homeassistant.util import dt as dt_util
 
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
-from .const import (CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
-                    CONF_WOOD, CONF_WOOD_TEMP, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
+from .const import (CONF_HM_FLOW, CONF_HM_IN, CONF_HM_OUT, CONF_HP_POWER, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
+                    CONF_WOOD, CONF_WOOD_TEMP, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_WRITE_RESTORE, CONF_WRITE_RESTORE_TRIES, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
+from .core.heat_meter import HeatMeter, HeatMeterConfig, HmSample
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
 from .core.wood import WoodConfig, WoodDetector
 from .units import state_value_c
@@ -112,6 +113,58 @@ def run_state(hass, entity_id: str | None, now: datetime | None = None, running_
 
 RUN_BOOL = {"heating": True, "standby": False, "stopped": False, "unknown": None}
 
+# 0.75.0: the heat meter's readings
+POWER_TO_W = {"W": 1.0, "kW": 1000.0, "mW": 0.001}
+FLOW_TO_LMIN = {"": 1.0, "L/min": 1.0, "l/min": 1.0, "L/h": 1 / 60, "l/h": 1 / 60, "m³/h": 1000 / 60, "m3/h": 1000 / 60,
+                "gal/min": 3.785411784}
+
+
+def _fresh_state(hass, entity_id: str | None, now: datetime, max_age_s: float):
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None or state.state in ("unavailable", "unknown", None, ""):
+        return None
+    age = reading_age_s(state, now)
+    if age is not None and age > max_age_s:
+        return None  # stale: a value stuck at its last reading is not a measurement
+    return state
+
+
+def power_unit(hass, entity_id: str | None) -> bool:
+    """Is this entity a power reading HC can convert to W (W / kW / mW)?"""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None or not entity_id.startswith(("sensor.", "input_number.", "number.")):
+        return False
+    return str(state.attributes.get("unit_of_measurement") or "").strip() in POWER_TO_W
+
+
+def read_power_w(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float | None:
+    state = _fresh_state(hass, entity_id, now, max_age_s)
+    if state is None:
+        return None
+    to_w = POWER_TO_W.get(str(state.attributes.get("unit_of_measurement") or "").strip())
+    try:
+        value = float(state.state)
+    except (TypeError, ValueError):
+        return None
+    return None if to_w is None or value != value else value * to_w
+
+
+def read_flow_lmin(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float | None:
+    state = _fresh_state(hass, entity_id, now, max_age_s)
+    if state is None:
+        return None
+    to = FLOW_TO_LMIN.get(str(state.attributes.get("unit_of_measurement") or "").strip())
+    try:
+        value = float(state.state)
+    except (TypeError, ValueError):
+        return None
+    return None if to is None or value != value else value * to
+
+
+def read_temp_c(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float | None:
+    state = _fresh_state(hass, entity_id, now, max_age_s)
+    return None if state is None else state_value_c(state)
+
 
 def on_state(hass, entity_id: str | None, now: datetime | None = None, running_w: float | None = None) -> bool | None:
     """True / False from a binary_sensor, switch, input_boolean, a climate's hvac_action or a number with a unit
@@ -138,12 +191,15 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         keep = float(data.get(CONF_WRITE_KEEPALIVE) or 0)
         confirm = data.get(CONF_WRITE_CONFIRM)
         confirm = float(WRITE_CONFIRM_DEFAULT if confirm is None else confirm)
+        # 0.73.0: supervised restore of a lasting conflict (off by default)
+        rs = {"restore_s": 60.0 * float(data.get(CONF_WRITE_RESTORE) or 0),
+              "restore_tries": int(data.get(CONF_WRITE_RESTORE_TRIES) or 3)}
         self.out_target = OutputWriter(hass, data.get(CONF_HP_TARGET_OUT), keepalive_s=keep, confirm_s=confirm,
-                                       round_mode=str(data.get(CONF_HP_TARGET_ROUND) or "device"))  # 0.64.0
-        self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep, confirm_s=confirm)
-        self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
-        self.out_summer = OutputWriter(hass, data.get(CONF_HP_SUMMER_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
-        self.out_exercise = OutputWriter(hass, data.get(CONF_HP_EXERCISE_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm)
+                                       round_mode=str(data.get(CONF_HP_TARGET_ROUND) or "device"), **rs)  # 0.64.0
+        self.out_switch = OutputWriter(hass, data.get(CONF_HP_SWITCH), onoff=True, keepalive_s=keep, confirm_s=confirm, **rs)
+        self.out_demand = OutputWriter(hass, data.get(CONF_HP_DEMAND_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm, **rs)
+        self.out_summer = OutputWriter(hass, data.get(CONF_HP_SUMMER_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm, **rs)
+        self.out_exercise = OutputWriter(hass, data.get(CONF_HP_EXERCISE_OUT), onoff=True, keepalive_s=keep, confirm_s=confirm, **rs)
         self._started = dt_util.now()
         self.hp = HeatPumpCoordinator(HpConfig.from_conf(data))
         self.wood = WoodDetector(WoodConfig.from_conf(data))  # 0.61.0: wood from the boiler's thermometer
@@ -152,10 +208,44 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         self.offset: float | None = None  # the number entity's value (restored by it)
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._last_save = dt_util.now()
+        # 0.75.0: the water-side heat meter – only with all three readings given (nothing changes without them)
+        self.heat_meter = HeatMeter(HeatMeterConfig.from_conf(data)) \
+            if all(data.get(k) for k in (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW)) else None
 
     @property
     def is_shadow(self) -> bool:
         return not self.write.writing(dt_util.now())
+
+    def power_entity(self) -> str | None:
+        """0.75.0: the electric power for the COP – an own power sensor, else the "runs" signal when it is a power."""
+        own = self.conf.get(CONF_HP_POWER)
+        if own:
+            return own
+        run = self.conf.get(CONF_HP_RUNNING)
+        return run if power_unit(self.hass, run) else None
+
+    def heat_step(self, now: datetime) -> dict | None:
+        """0.75.0: one heat meter reading (every 30 s with the coordination)."""
+        hm = self.heat_meter
+        if hm is None:
+            return None
+        age = hm.cfg.hm_max_age_s
+        run = self.hass.states.get(self.conf.get(CONF_HP_RUNNING)) if self.conf.get(CONF_HP_RUNNING) else None
+        busy = run is not None and run.entity_id.startswith("climate.") and run.attributes.get("hvac_action") == "defrosting"
+        power = self.power_entity()
+        hm.step(HmSample(now, read_temp_c(self.hass, self.conf.get(CONF_HM_OUT), now, age),
+                         read_temp_c(self.hass, self.conf.get(CONF_HM_IN), now, age),
+                         read_flow_lmin(self.hass, self.conf.get(CONF_HM_FLOW), now, age),
+                         read_power_w(self.hass, power, now, age) if power else None,
+                         self.hp.cfg.hp_running_w, busy, power is not None))
+        return {**hm.info, "power_entity": power, "scope": hm.cfg.hm_power_scope, "resolution": hm.cfg.hm_resolution}
+
+    def heat_info(self) -> dict | None:
+        hm = self.heat_meter
+        if hm is None:
+            return None
+        return {**hm.info, "power_entity": self.power_entity(), "scope": hm.cfg.hm_power_scope,
+                "resolution": hm.cfg.hm_resolution}
 
     def water_temp(self) -> float | None:
         """0.64.0: the heat pump's own water thermometer (shown on the chart next to the targets)."""
@@ -171,12 +261,18 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                 "summer": self.out_summer.info(), "exercise": self.out_exercise.info()}
 
     async def async_load(self) -> None:
-        self.hp.restore(await self._store.async_load() or {}, dt_util.now())
+        data = await self._store.async_load() or {}
+        self.hp.restore(data, dt_util.now())
+        if self.heat_meter is not None:
+            self.heat_meter.restore(data.get("heat_meter"))  # 0.75.0
 
     async def async_save(self) -> None:
         now = dt_util.now()
         self._last_save = now
-        await self._store.async_save(self.hp.state(now))
+        data = self.hp.state(now)
+        if self.heat_meter is not None:
+            data = {**data, "heat_meter": self.heat_meter.state()}
+        await self._store.async_save(data)
 
     def buffer_coordinator(self):
         entry_id = self.conf.get(CONF_HP_BUFFER)
@@ -254,8 +350,12 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         now = dt_util.now()
         was = (self.hp.enable, self.hp.heating, self.hp.cold_latched, self.hp.summer)
         decision = self.hp.step(now, self.inputs(now))
+        day = self.heat_meter.day if self.heat_meter is not None else None
+        heat = self.heat_step(now)  # 0.75.0
+        if heat is not None:
+            decision.details["heat_meter"] = heat
         if was != (self.hp.enable, self.hp.heating, self.hp.cold_latched, self.hp.summer) or decision.details.get("target_changed") \
-                or now - self._last_save >= _SAVE_EVERY:
+                or now - self._last_save >= _SAVE_EVERY or (heat is not None and day != self.heat_meter.day):
             await self.async_save()
         await self.write.tick(now)
         writing, up = self.write.writing(now), (now - self._started).total_seconds()
@@ -284,7 +384,12 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         elif self._mismatch_since is None:
             self._mismatch_since = now
         lasting = off and (now - self._mismatch_since).total_seconds() >= TARGET_MISMATCH_S
+        g = getattr(self.out_target, "guard", None)
         d.details["target_check"] = {"raw": d.raw, "given": d.target, "sent": sent if writing else None, "reported": rep,
                                      "diff": diff, "writing": writing, "mismatch": lasting,
                                      "mismatch_min": round((now - self._mismatch_since).total_seconds() / 60)
-                                     if self._mismatch_since else None}
+                                     if self._mismatch_since else None,
+                                     # 0.73.0: the supervised restore of the target (None: off)
+                                     "restore": {"status": self.out_target.status, "count": g.restore_count,
+                                                 "tries": g.restore_tries, "failed": g.failed}
+                                     if g is not None and g.restore_after_s > 0 else None}

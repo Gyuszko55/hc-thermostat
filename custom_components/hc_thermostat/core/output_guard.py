@@ -23,6 +23,14 @@ starting with its default), that is not a second writer: HC forgets the old conf
 value again. A device that restarts without ever showing unavailable in Home Assistant cannot be told from another
 writer – that stays a conflict.
 
+0.73.0 – supervised restore (a tester's request: a Tuya heat pump came back from off / auto with 12 °C, and HC – as
+designed – stopped writing it as a "conflict"): optional (`restore_after_s` > 0, off by default). A conflict or a
+value the device did not accept that lasts `restore_after_s` is written again – HC's value as it is now, so the safety
+bans, frost protection and the wood priority still come first –, at most `restore_tries` times, `restore_after_s`
+apart. A restore that holds for `restore_after_s` starts the count again. When every try failed the output is "failed":
+HC stops writing it and says so (a problem sensor, Repairs, the diagram) until the value it wants changes or the
+device shows HC's value again.
+
 The trial (`trial` mode, `trial_hours`): writing for a limited time; then the instance goes back to shadow by itself
 and a notification says so. Permanent writing is the `active` mode, chosen with a confirmation.
 """
@@ -52,6 +60,45 @@ class OutputGuard:
     conflict_value: float | None = None
     writes: int = 0
     dropped: bool = False  # 0.57.1: the output was unavailable since the last decision with a value
+    restore_after_s: float = 0.0  # 0.73.0: write a lasting conflict again after this long (0 = off, as before)
+    restore_tries: int = 3  # 0.73.0: at most this many restores, then "failed"
+    restore_count: int = 0
+    restore_at: datetime | None = None  # the last restore (or the start of the problem before the first one)
+    problem_since: datetime | None = None
+    ok_since: datetime | None = None  # the restored value holds since
+    failed: bool = False
+    failed_want: float | None = None
+
+    def _reset_restore(self) -> None:
+        self.restore_count, self.restore_at, self.problem_since, self.ok_since = 0, None, None, None
+        self.failed, self.failed_want = False, None
+
+    def _problem(self, now: datetime, want: float, status: str) -> tuple[bool, str]:
+        """0.73.0: a conflict / an unaccepted value – restore it when that is on and due, else report it."""
+        if self.restore_after_s <= 0:
+            return False, status
+        self.ok_since = None
+        if self.problem_since is None:
+            self.problem_since = now
+        ref = self.restore_at or self.problem_since
+        if (now - ref).total_seconds() < self.restore_after_s:
+            return False, status
+        if self.restore_count >= self.restore_tries:
+            self.failed, self.failed_want = True, want
+            return False, "failed"
+        self.restore_count += 1
+        self.restore_at = now
+        self.conflict, self.conflict_value, self.confirmed, self.unconfirmed = False, None, False, 0
+        self.last_at = None
+        return True, "restore"
+
+    def _ok(self, now: datetime) -> None:
+        """The value is HC's: a restore that held for `restore_after_s` starts the count again."""
+        self.problem_since = None
+        if self.restore_count and self.confirmed:
+            self.ok_since = self.ok_since or now
+            if (now - self.ok_since).total_seconds() >= self.restore_after_s:
+                self._reset_restore()
 
     def decide(self, now: datetime, want: float | None, current: float | None, current_changed: datetime | None,
                uptime_s: float) -> tuple[bool, str]:
@@ -65,6 +112,13 @@ class OutputGuard:
         if uptime_s < GRACE_S:
             return False, "grace"
         tol = self.tolerance
+        if self.failed:  # 0.73.0: given up – until HC wants another value or the device shows HC's again
+            if (self.failed_want is not None and abs(want - self.failed_want) > tol) or abs(current - want) <= tol:
+                self._reset_restore()
+                self.conflict, self.conflict_value, self.unconfirmed = False, None, 0
+                self.confirmed, self.last_at = False, None  # a clean start, as after a restart of the unit
+            else:
+                return False, "failed"
         if self.dropped:
             self.dropped = False
             if self.last_value is not None and abs(current - self.last_value) > tol:
@@ -95,11 +149,12 @@ class OutputGuard:
                 self.conflict, self.conflict_value = False, None  # the other writer gave way
             else:
                 self.conflict_value = current
-                return False, "conflict"
+                return self._problem(now, want, "conflict")
         if abs(current - want) > tol:
             if retry and self.unconfirmed >= self.max_retries:
-                return False, "not_accepted"
+                return self._problem(now, want, "not_accepted")
             return True, "write"
+        self._ok(now)
         if self.keepalive_s > 0 and (self.last_at is None or (now - self.last_at).total_seconds() >= self.keepalive_s):
             return True, "keepalive"
         return False, "in_sync"
@@ -113,7 +168,9 @@ class OutputGuard:
 
     def state(self) -> dict:
         return {"last_value": self.last_value, "last_at": self.last_at.isoformat() if self.last_at else None,
-                "confirmed": self.confirmed, "dropped": self.dropped, "unconfirmed": self.unconfirmed, "conflict": self.conflict, "conflict_value": self.conflict_value, "writes": self.writes}
+                "confirmed": self.confirmed, "dropped": self.dropped, "unconfirmed": self.unconfirmed, "conflict": self.conflict, "conflict_value": self.conflict_value, "writes": self.writes,
+                "restore_count": self.restore_count, "restore_tries": self.restore_tries if self.restore_after_s > 0 else None,
+                "failed": self.failed}
 
 
 MODES = ("shadow", "trial", "active")

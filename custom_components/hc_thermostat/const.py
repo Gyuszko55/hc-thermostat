@@ -66,7 +66,14 @@ CONF_HP_SUMMER_OUT = "hp_summer_entity"  # 0.57.0: the summer mode signal for a 
 CONF_HP_EXERCISE_OUT = "hp_exercise_entity"  # 0.57.0: the "exercise due" signal for a PLC
 CONF_HP_TARGET_ROUND = "hp_target_round"  # 0.64.0: the written flow target: device step / up to 0.5 / up to 1 °C
 CONF_HP_WATER_TEMP = "hp_water_temp_entity"  # 0.64.0: the heat pump's measured water temperature (the chart only)
+# 0.75.0: the heat pump's water-side heat meter (all three needed) and an optional electric power sensor for the COP
+CONF_HM_OUT = "hp_flow_out_temp_entity"  # water flow (outlet) temperature, °C
+CONF_HM_IN = "hp_flow_in_temp_entity"  # water return (inlet) temperature, °C
+CONF_HM_FLOW = "hp_water_flow_entity"  # water flow, l/min
+CONF_HP_POWER = "hp_power_entity"  # electric power, W / kW (when the "runs" signal is not a power reading)
 CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
+CONF_WRITE_RESTORE = "write_restore_min"  # 0.73.0: write a lasting conflict again after this many minutes (0 = off)
+CONF_WRITE_RESTORE_TRIES = "write_restore_tries"  # 0.73.0: at most this many restores, then a problem
 CONF_WRITE_CONFIRM = "write_confirm_s"  # 0.56.1: wait this long for the device to confirm a write (slow cloud devices)
 WRITE_CONFIRM_DEFAULT = 60
 CONF_TRIAL_HOURS = "trial_hours"  # 0.56.0: a supervised trial writes this long, then back to shadow

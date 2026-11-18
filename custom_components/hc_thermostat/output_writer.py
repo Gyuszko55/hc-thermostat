@@ -8,8 +8,10 @@ from datetime import datetime
 import logging
 
 from homeassistant.components import persistent_notification as pn
+from homeassistant.helpers import issue_registry as ir
 
 from .core.output_guard import MODES, OutputGuard, effective, round_target
+from .const import DOMAIN
 from .units import CELSIUS, climate_temp_c, from_c, state_value_c, system_unit, to_c
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,13 +19,15 @@ _LOGGER = logging.getLogger(__name__)
 
 class OutputWriter:
     def __init__(self, hass, entity_id: str | None, onoff: bool = False, keepalive_s: float = 0.0,
-                 confirm_s: float = 60.0, round_mode: str = "device") -> None:
+                 confirm_s: float = 60.0, round_mode: str = "device", restore_s: float = 0.0,
+                 restore_tries: int = 3) -> None:
         self.hass = hass
         self.round_mode = round_mode if round_mode in ("device", "half_up", "whole_up") else "device"  # 0.64.0
         self.sent: float | None = None  # 0.64.0: the last value really sent (in the entity's unit)
         self.entity_id = entity_id or None
         self.onoff = onoff
-        self.guard = OutputGuard(tolerance=0.0 if onoff else 0.25, keepalive_s=keepalive_s, confirm_s=confirm_s)
+        self.guard = OutputGuard(tolerance=0.0 if onoff else 0.25, keepalive_s=keepalive_s, confirm_s=confirm_s,
+                                 restore_after_s=max(0.0, float(restore_s or 0)), restore_tries=max(1, int(restore_tries or 3)))
         self.status = "none" if not self.entity_id else "shadow"
         self.error: str | None = None
 
@@ -39,7 +43,13 @@ class OutputWriter:
         changed = getattr(state, "last_changed", None)
         if self.domain == "climate":
             if self.onoff:
-                return (0.0 if state.state == "off" else 1.0), changed
+                if state.state == "off":
+                    return 0.0, changed
+                # 0.73.0: with the supervised restore on, "on" is the heating mode HC switches to (heat, else
+                # heat_cool / auto) – a unit put into another mode (LocalTuya: auto instead of heat) differs
+                if self.guard.restore_after_s > 0 and state.state != self._heat_mode(state):
+                    return 0.5, changed
+                return 1.0, changed
             # a climate's target changes in its attributes: last_updated is when it last moved
             return climate_temp_c(self.hass, state.attributes, "temperature"), getattr(state, "last_updated", changed)
         if self.onoff:
@@ -204,9 +214,33 @@ class WriteControl:
         self.hass.config_entries.async_update_entry(self.entry, options=options)
 
     def note_conflict(self, writer: "OutputWriter") -> None:
-        """One notification when a target gets a second writer; cleared when it gives way."""
+        """One notification when a target gets a second writer; cleared when it gives way. 0.73.0: a restore that
+        failed every try is also a Repairs entry (cleared with it)."""
         key = writer.entity_id or ""
-        if writer.status == "not_accepted" and key not in self._conflicts:
+        self._sync_failed(writer)
+        if writer.status == "failed" and key not in self._conflicts:
+            self._conflicts.add(key)
+            g = writer.guard
+            pn.async_create(self.hass, f"{self.entry.title}: {key} keeps another value ({writer.read()[0]}) than HC asks "
+                            f"for ({g.failed_want}); {g.restore_count} restores did not help. HC stops writing it until the "
+                            "value it wants changes or the device shows HC's value again – check the device and its mode. / "
+                            f"A(z) {key} nem a HC által kért értéken áll ({writer.read()[0]} a kért {g.failed_want} helyett); "
+                            f"{g.restore_count} visszaállítás sem segített. A HC nem írja tovább, amíg a kért érték nem "
+                            "változik, vagy az eszköz magától vissza nem áll – nézd meg az eszközt és az üzemmódját.",
+                            title="HC Thermostat", notification_id=f"hc_conflict_{self.entry.entry_id}_{key}")
+        elif writer.status in ("conflict", "not_accepted") and key not in self._conflicts and getattr(writer.guard, "restore_after_s", 0) > 0:
+            # 0.73.0: the first lasting difference – a warning; the restore comes after the set time
+            self._conflicts.add(key)
+            g = writer.guard
+            mins = round(g.restore_after_s / 60)
+            pn.async_create(self.hass, f"{self.entry.title}: {key} shows {writer.read()[0]} instead of HC's value "
+                            f"({g.last_value}). HC writes its value again in {mins} min (restore {g.restore_count + 1} of "
+                            f"{g.restore_tries}); pause writing to keep a change made by hand. / A(z) {key} nem a HC "
+                            f"értékén áll ({writer.read()[0]}, kért: {g.last_value}). A HC {mins} perc múlva újra beírja a "
+                            f"sajátját ({g.restore_count + 1}/{g.restore_tries}. visszaállítás); ha kézzel állítottad, "
+                            "szüneteltesd az írást.",
+                            title="HC Thermostat – figyelmeztetés / warning", notification_id=f"hc_conflict_{self.entry.entry_id}_{key}")
+        elif writer.status == "not_accepted" and key not in self._conflicts:
             self._conflicts.add(key)
             pn.async_create(self.hass, f"{self.entry.title}: {key} did not take HC's value ({writer.guard.last_value}; "
                             f"it shows {writer.read()[0]}) after {writer.guard.unconfirmed + 1} writes. HC stops writing "
@@ -221,9 +255,33 @@ class WriteControl:
                             "the value is HC's again – one target, one writer. / Más is írja ezt a célt: a HC nem ír bele, "
                             "amíg az érték újra az övé nem lesz.",
                             title="HC Thermostat", notification_id=f"hc_conflict_{self.entry.entry_id}_{key}")
-        elif writer.status not in ("conflict", "not_accepted") and key in self._conflicts:
+        elif writer.status not in ("conflict", "not_accepted", "failed") and key in self._conflicts \
+                and not (getattr(writer.guard, "restore_count", 0) and not getattr(writer.guard, "failed", False)):  # 0.73.0: kept while restoring
             self._conflicts.discard(key)
             pn.async_dismiss(self.hass, f"hc_conflict_{self.entry.entry_id}_{key}")
+
+    def _sync_failed(self, writer: "OutputWriter") -> None:
+        key = writer.entity_id or ""
+        issue_id = f"write_failed_{self.entry.entry_id}_{key}"
+        failed = writer.status == "failed"
+        shown = getattr(self, "_failed_shown", set())
+        self._failed_shown = shown
+        if failed == (key in shown):
+            return
+        try:
+            if failed:
+                shown.add(key)
+                ir.async_create_issue(self.hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+                                      severity=ir.IssueSeverity.ERROR, translation_key="write_failed",
+                                      translation_placeholders={"name": self.entry.title, "entity": key,
+                                                                "want": str(writer.guard.failed_want),
+                                                                "value": str(writer.read()[0]),
+                                                                "tries": str(writer.guard.restore_count)})
+            else:
+                shown.discard(key)
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+        except Exception:  # the Repairs entry is a report – it must never stop the writing
+            _LOGGER.debug("The Repairs entry could not be updated", exc_info=True)
 
     def info(self, now: datetime) -> dict:
         end = self.trial_end(now)

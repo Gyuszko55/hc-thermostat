@@ -88,7 +88,8 @@ def _instance(hass, entry) -> dict:
                 "inputs": jsonable(c.inputs(c.data.now)) if c.data else None, "offset": c.offset,
                 "wood": jsonable(c.wood_info(c.data.now)) if c.data and hasattr(c, "wood_info") else None,
                 "state": jsonable(c.hp.state(c.data.now)) if c.data else {},
-                "water": c.water_temp() if hasattr(c, "water_temp") else None}  # 0.64.0
+                "water": c.water_temp() if hasattr(c, "water_temp") else None,  # 0.64.0
+                "heat": jsonable(c.heat_info()) if hasattr(c, "heat_info") else None}  # 0.75.0
     if role in ("central", "buffer"):
         d = c.data
         extra = {"decision": jsonable(d)}
@@ -695,7 +696,9 @@ def hp_series(states: dict, ids: dict) -> dict:
             "target": pts(ids.get("target"), state_v) if ids.get("target") else [],
             "sent": pts(ids.get("target"), lambda st: _num_or_none(st.attributes.get("sent"))) if ids.get("target") else [],
             "reported": pts(rep, pick_rep) if rep else [],
-            "water": pts(ids.get("water"), state_v) if ids.get("water") else []}
+            "water": pts(ids.get("water"), state_v) if ids.get("water") else [],
+            # 0.75.0: the current COP (unavailable = None: the line breaks there)
+            "cop": pts(ids.get("cop"), state_v) if ids.get("cop") else []}
 
 
 @websocket_api.require_admin
@@ -713,7 +716,8 @@ async def ws_hp_history(hass: HomeAssistant, connection, msg) -> None:
     reg = er.async_get(hass)
     ids = {"raw": reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_hp_raw"),
            "target": reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_hp_target"),
-           "reported": conf.get("hp_target_entity") or None, "water": conf.get("hp_water_temp_entity") or None}
+           "reported": conf.get("hp_target_entity") or None, "water": conf.get("hp_water_temp_entity") or None,
+           "cop": reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_hp_cop")}
     wanted = [e for e in ids.values() if e]
     end = dt_util.utcnow()
     start = end - timedelta(hours=msg["hours"])

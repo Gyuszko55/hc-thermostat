@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfEnergy, UnitOfPower
 
 from .const import CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_ROLE, CONF_ROOM_TRVS, CONF_ROOMS
 from .core.cost import ADVICE_TEXT
@@ -31,7 +31,10 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCircuitTarget(c), HcCircuitRaw(c)])
         return
     if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
-        async_add_entities([HcHpDecision(c), HcHpTarget(c), HcHpRaw(c)])
+        hp = [HcHpDecision(c), HcHpTarget(c), HcHpRaw(c)]
+        if getattr(c, "heat_meter", None) is not None:  # 0.75.0: the water-side heat meter and the COP
+            hp += [HcHmPower(c), HcHmEnergy(c), HcHmEnergyToday(c), HcHpCop(c), HcHpCopToday(c)]
+        async_add_entities(hp)
         return
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if getattr(c, "ai", None) is not None and c.ai.ai_entity:
@@ -610,6 +613,115 @@ class HcHpRaw(HcEntity, SensorEntity):
     def native_value(self) -> float | None:
         raw = self.coordinator.data.raw
         return None if raw is None else round(raw, 1)
+
+
+class _HmSensor(HcEntity, SensorEntity):
+    """0.75.0: a value of the heat pump's water-side heat meter (core/heat_meter.py)."""
+
+    _field = ""
+    _digits = 2
+
+    @property
+    def _info(self) -> dict:
+        return self.coordinator.heat_info() or {}
+
+    @property
+    def native_value(self) -> float | None:
+        v = self._info.get(self._field)
+        return None if v is None else round(v, self._digits)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._info.get(self._field) is not None
+
+
+class HcHmPower(_HmSensor):
+    """Heat given off by the heat pump to the water now (flow × ΔT × 0.06977); unavailable without valid readings."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:heat-wave"
+    _field, _digits = "power_kw", 2
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_heat_power")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        i = self._info
+        return {"flow_temperature": i.get("t_out"), "return_temperature": i.get("t_in"), "delta_t": i.get("dt"),
+                "water_flow_l_min": i.get("flow"), "uncertainty_pct": i.get("uncertainty_pct"),
+                "resolution": i.get("resolution"), "estimate": True}
+
+
+class HcHmEnergy(_HmSensor):
+    """Heat produced in all (kWh, never goes down; for the Energy dashboard and long-term statistics)."""
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:fire-circle"
+    _field, _digits = "total_kwh", 3
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_heat_energy")
+
+    @property
+    def available(self) -> bool:
+        return super(_HmSensor, self).available  # the counter is known even while a reading is missing
+
+
+class HcHmEnergyToday(HcHmEnergy):
+    """Heat produced today (from midnight; a part of the total – do not add the two in the Energy dashboard)."""
+
+    _attr_icon = "mdi:calendar-today"
+    _field = "today_kwh"
+
+    def __init__(self, coordinator) -> None:
+        _HmSensor.__init__(self, coordinator, "hp_heat_energy_today")
+
+
+class HcHpCop(_HmSensor):
+    """The current COP: heat over electricity of the last minutes of active running; unavailable when not heating."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:gauge"
+    _attr_suggested_display_precision = 2
+    _field, _digits = "cop", 2
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_cop")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        i = self._info
+        return {"reason": i.get("cop_reason"), "raw": i.get("cop_raw"), "heat_kw": i.get("power_kw"),
+                "electric_kw": i.get("p_el_kw"), "window_s": i.get("window_s"), "cop_today": i.get("cop_today"),
+                "cop_total": i.get("cop_total"), "coverage_pct": i.get("coverage_pct"),
+                "power_entity": i.get("power_entity"), "power_scope": i.get("scope")}
+
+
+class HcHpCopToday(_HmSensor):
+    """Today's COP: today's heat over today's electricity of the same active intervals (not a mean of COPs)."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:gauge-full"
+    _attr_suggested_display_precision = 2
+    _field, _digits = "cop_today", 2
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "hp_cop_today")
+
+    @property
+    def available(self) -> bool:
+        return super(_HmSensor, self).available and self._info.get("cop_today") is not None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        i = self._info
+        return {"heat_kwh": i.get("today_kwh"), "electric_kwh": i.get("today_el_kwh"),
+                "coverage_pct": i.get("coverage_pct")}
 
 
 class HcCentralDecision(HcEntity, SensorEntity):
