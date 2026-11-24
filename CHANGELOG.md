@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.79.0 – unreleased (dev)
+## 0.79.0 – 2026-11-24 (live)
 
 - **No short run just before the morning rise** (`preheat_hold_min`, 20 min by default, 0 = off): when the optimal
   start begins within this time and the room is at most 0.3 °C under its night target, no new regulating run starts
@@ -25,7 +25,7 @@
   the first five minutes after a host boot a named add-on got 403. The first lookup now happens at once (this also
   made the CI test fail on fresh runners since 0.1.3).
 
-## 0.78.4 – 2026-11-21 (live)
+## 0.78.4 – 2026-11-21
 
 - **A missed guard renewal is no relay fault while the lease holds:** after an instance reload the Shelly refused the
   first request (`HTTP 429`), and the fault sensor – with its notification – went on for a minute although the
