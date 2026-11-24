@@ -163,4 +163,4 @@ def test_wiring_settings_entities_and_texts():
         assert tr["entity"]["sensor"]["decision"]["state"]["safety_stop"]
         assert tr["entity"]["sensor"]["hp_decision"]["state"]["safety_stop"]
         assert "{by}" in tr["issues"]["safety_stop"]["description"]
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1")

@@ -28,10 +28,28 @@ class HcHpOffset(HcEntity, RestoreNumber):
         super().__init__(coordinator, "hp_offset")
 
     async def async_added_to_hass(self) -> None:
+        """0.79.1: one correction. The restored value stays only while the settings form still holds what it held when
+        the value was set; a form saved with another value since then wins (and the form opens on the value in use)."""
         await super().async_added_to_hass()
+        form = self.coordinator.hp.cfg.hp_offset
         last = await self.async_get_last_number_data()
-        value = last.native_value if last is not None and last.native_value is not None else self.coordinator.hp.cfg.hp_offset
+        value = last.native_value if last is not None and last.native_value is not None else form
+        state = await self.async_get_last_state()
+        was = (state.attributes.get("form_offset") if state is not None else None)
+        if was is not None:
+            try:
+                if float(was) != float(form):
+                    value = form  # the form was saved with a new value: it is the one in use now
+            except (TypeError, ValueError):
+                pass
         self.coordinator.offset = max(-8.0, min(8.0, float(value)))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self.coordinator
+        form = c.hp.cfg.hp_offset
+        active = c.offset if c.offset is not None else form
+        return {"form_offset": form, "source": "entity" if active != form else "form"}
 
     @property
     def native_value(self) -> float:

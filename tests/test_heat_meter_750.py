@@ -244,7 +244,7 @@ def test_settings_errors_and_translations():
         for k in ("hp_heat_power", "hp_heat_energy", "hp_heat_energy_today", "hp_cop", "hp_cop_today"):
             assert tr["entity"]["sensor"][k]["name"]
         assert set(tr["selector"]["hm_power_scope"]["options"]) == {"unit", "compressor"}
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1")
 
 
 def test_sensors_are_made_only_with_the_heat_meter():

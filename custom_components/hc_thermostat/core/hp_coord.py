@@ -387,7 +387,11 @@ class HeatPumpCoordinator:
         cold = self._cold(now, i.outdoor)
         wood = self._wood(i)
         need = self._need(i)
-        details: dict = {"offset": offset, "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
+        # 0.79.1: where the correction in use comes from – the settings form's value, or the number entity set apart
+        # from it (it wins until the form is saved again); shown next to the offset so the two are never confused
+        details: dict = {"offset": offset, "offset_form": cfg.hp_offset,
+                         "offset_source": "entity" if i.offset is not None and i.offset != cfg.hp_offset else "form",
+                         "top": i.top, "charge": i.charge, "trend_c_h": i.trend_c_h,
                          "hp_running": i.hp_running, "hp_running_age_s": i.hp_running_age_s,
                          "hp_state": i.hp_state, "hp_power_w": i.hp_power_w}
         # 0.57.1: the buffer's own zones (no circuit linked) get the circuits' hold too: a TPI pause does not end their

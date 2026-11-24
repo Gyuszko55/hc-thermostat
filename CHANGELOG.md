@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.79.1 – 2026-11-24
+
+- **Heat pump: one correction, its source shown** (a tester's report, dev #10): the "Offset" number entity and the
+  settings form's manual correction were two values – a restored entity value silently won over the form, so the form
+  could show 0 °C while +4 °C was in use. Now the form opens on the correction in use, a form saved with a new value
+  puts that value in force (the entity follows it after the reload), and moving the entity still works between saves.
+  The info panel shows where the correction comes from ("from the Offset entity; form: 0 °C" or "from the settings");
+  the decision details carry `offset_form` and `offset_source`. The value itself and the target formula are unchanged.
+- **Mixing circuit: the weather-led reference beside the target (shadow only)** (a tester's proposal, dev #1): the
+  circuit's details now carry `shadow_ref` – the outdoor-only curve at the circuit's reference room temperature, and
+  how much the live room target (`room_lift`), the deficit correction and the trim each add on top of it. Nothing acts
+  on it; it is the data to judge a target where a room asking for heat first gets more time, not warmer water.
+
 ## 0.79.0 – 2026-11-24 (live)
 
 - **No short run just before the morning rise** (`preheat_hold_min`, 20 min by default, 0 = off): when the optimal

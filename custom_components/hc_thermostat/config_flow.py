@@ -1547,6 +1547,11 @@ class HcOptionsFlow(OptionsFlow):
         errors = _hpc_section_errors(user_input) if user_input is not None else {}
         if user_input is not None and not errors:
             return self.async_create_entry(data={**first, **user_input})
+        # 0.79.1: the form opens on the correction in use (the number entity may have moved it), so saving the form
+        # never silently brings back an older value, and what it shows is what works
+        active = getattr(getattr(self.config_entry, "runtime_data", None), "offset", None)
+        if user_input is None and isinstance(active, (int, float)):
+            current = {**current, "hp_offset": float(active)}
         return self.async_show_form(step_id="hp_coord_settings", data_schema=vol.Schema(_hpc_form({**current, **(user_input or {})})), errors=errors)
 
     async def async_step_circuit_settings(self, user_input=None):

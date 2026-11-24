@@ -1217,7 +1217,12 @@ class HcInfoPanel extends HTMLElement {
       [hu ? "Nyers cél" : "Raw target", dec.raw != null ? this._deg(Math.round(dec.raw * 10) / 10) : null],
       [hu ? "Visszatartás" : "Hold", this._reason(dec.hold_reason)],
       [hu ? "Körök igénye (+ ráhagyás)" : "Circuits' need (+ margin)", dec.need != null ? this._deg(dec.need) : null],
-      [hu ? "Tartalék / korrekció" : "Reserve / offset", `+${this._num(cfg.hp_reserve, 1)} °C / ${det.offset >= 0 ? "+" : ""}${this._num(det.offset, 1)} °C`],
+      [hu ? "Tartalék / korrekció" : "Reserve / offset", `+${this._num(cfg.hp_reserve, 1)} °C / ${det.offset >= 0 ? "+" : ""}${this._num(det.offset, 1)} °C`
+        // 0.79.1: where the correction in use comes from – the number entity set apart from the form, or the form
+        + (det.offset_source === "entity"
+          ? (hu ? ` (a Korrekció entitásból; űrlap: ${det.offset_form >= 0 ? "+" : ""}${this._num(det.offset_form, 1)} °C)`
+                : ` (from the Offset entity; form: ${det.offset_form >= 0 ? "+" : ""}${this._num(det.offset_form, 1)} °C)`)
+          : (hu ? " (beállításból)" : " (from the settings)"))],
       [hu ? "Határok" : "Limits", `${this._deg(cfg.hp_flow_min)} – ${this._deg(cfg.hp_flow_max)}`],
       [hu ? "Fatüzelés" : "Wood", woodTxt[dec.wood] || dec.wood],
       [hu ? "Hidegben-ON" : "Cold-weather ON", cfg.hp_cold_on ? (dec.cold_on ? (hu ? "aktív" : "active") : (hu ? "bekapcsolva, nem aktív" : "enabled, not active")) : (hu ? "kikapcsolva" : "off"), dec.cold_on],

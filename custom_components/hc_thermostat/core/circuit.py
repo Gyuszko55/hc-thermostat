@@ -273,6 +273,16 @@ class MixingCircuit:
                    "next_allowed": res.next_allowed.isoformat() if res.next_allowed else None,
                    "last_change": self.hold.last_change.isoformat() if self.hold.last_change else None,
                    "changed": res.changed, "room_from": room_from}
+        if outdoor is not None:
+            # 0.79.1 (shadow only, nothing acts on it): the outdoor-only reference curve at the circuit's reference room
+            # temperature, and how much the live room target, the deficit correction and the trim each add on top – the
+            # data to judge a weather-led water target where the room asks for time first, not for warmer water
+            ref = round(cfg.circuit_room + cfg.circuit_slope * max(cfg.circuit_room - outdoor, 0.0) + cfg.circuit_shift, 2)
+            details["shadow_ref"] = {"ref_curve": ref, "ref_room": cfg.circuit_room,
+                                     "room_lift": round(details["curve"] - ref, 2),
+                                     "correction": details["correction"],
+                                     "trim": round(self.trim, 2) if cfg.circuit_room_trim else 0.0,
+                                     "raw": raw}
         if cfg.circuit_room_trim:
             details.update(self.trim_info())
         if raw is None:
