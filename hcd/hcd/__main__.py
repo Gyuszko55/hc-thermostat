@@ -75,6 +75,22 @@ async def serve(config_path: str, web_host: str | None = None, web_allow: str | 
         shelly = ShellyRpcFeed(cfg, table, session)
         z2m = Z2mFeed(cfg, table) if "z2m" in cfg.kinds() else None
         tasks = [asyncio.create_task(z2m.run())] if z2m else []
+        learned = {"at": None, "ok": None, "error": None}
+
+        async def follow_learned() -> None:
+            """0.1.4: the integration's learner state, from its entry's diagnostics."""
+            try:
+                async with session.get(f"{cfg.ha_url}/api/diagnostics/config_entry/{cfg.learned_from}",
+                                       headers={"Authorization": f"Bearer {cfg.ha_token}"},
+                                       timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    r.raise_for_status()
+                    diag = await r.json()
+                sup = (((diag.get("data") or {}).get("info") or {}).get("state") or {})
+                ok = engine.follow_learned(sup.get("learner") or {})
+                learned.update(at=datetime.now(timezone.utc).isoformat(), ok=ok, error=None if ok else "no learner state")
+            except Exception as exc:  # noqa: BLE001 – a missed sync keeps the last values
+                learned.update(at=datetime.now(timezone.utc).isoformat(), ok=False, error=type(exc).__name__)
+                _LOGGER.warning("learned values not taken from %s: %s", cfg.learned_from, exc)
 
         def status() -> dict:
             d = engine.last
@@ -83,6 +99,8 @@ async def serve(config_path: str, web_host: str | None = None, web_allow: str | 
                 "name": cfg.name, "version": __version__, "core": hc_core.__version__, "mode": "shadow",
                 "started": started.isoformat(), "unsupported": engine.unsupported, "missing_sources": missing,
                 "feeds": {"Home Assistant": bool(ha and ha.ok), **({"Zigbee2MQTT": z2m.connected} if z2m else {})},
+                "learned_from": ({"entry": cfg.learned_from, "every_s": cfg.learned_every_s, **learned}
+                                 if cfg.learned_from else None),
                 "decision": None if d is None else {
                     "reason": d.reason.value, "output": d.output, "demand": round(d.demand * 100), "target": d.target,
                     "indoor": d.indoor, "outdoor": d.outdoor, "text_hu": explain(d, "hu"), "text_en": explain(d, "en"),
@@ -114,7 +132,11 @@ async def serve(config_path: str, web_host: str | None = None, web_allow: str | 
                 loop.add_signal_handler(sig, stop.set)
             except NotImplementedError:
                 pass
+        next_learned = 0.0
         while not stop.is_set():
+            if cfg.learned_from and loop.time() >= next_learned:
+                await follow_learned()
+                next_learned = loop.time() + cfg.learned_every_s
             if ha:
                 await ha.poll()
             await shelly.poll()

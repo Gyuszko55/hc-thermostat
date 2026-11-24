@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **hcd 0.1.4: in shadow it follows the integration's learned values** (`learned_from: <HC entry id>`,
+  `learned_every_s`, 900 s by default): the house follows the integration's relay, not hcd's, so hcd's own learner drew
+  lessons from decisions it never made and drifted (in the developer's house its demand ran 2–3 points higher and its
+  burn minutes 22–38 % above the integration's within four days). hcd now takes the integration's learner state from
+  the entry's diagnostics at start and every 15 minutes; `/api/status` shows when and whether it last did.
+
 ## 0.79.1 – 2026-11-24
 
 - **Heat pump: one correction, its source shown** (a tester's report, dev #10): the "Offset" number entity and the

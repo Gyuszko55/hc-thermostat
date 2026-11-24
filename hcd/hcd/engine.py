@@ -105,6 +105,13 @@ class Engine:
         self.counted_extra = float(data.get("counted_extra", 0.0))
         self.last_extra = data.get("last_extra")
 
+    def follow_learned(self, learner_state: dict[str, Any]) -> bool:
+        """0.1.4: take the integration's learner state (learned values and their running windows) as it is."""
+        if not isinstance(learner_state, dict) or not isinstance(learner_state.get("learned"), dict):
+            return False
+        self.sup.learner.restore(learner_state)
+        return True
+
     def state(self) -> dict[str, Any]:
         return {"supervisor": self.sup.state(), "outdoor": self.outdoor.state(), "counted_extra": self.counted_extra,
                 "last_extra": self.last_extra}

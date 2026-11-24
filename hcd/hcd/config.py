@@ -57,6 +57,11 @@ class Config:
     web_host: str = "127.0.0.1"  # 0.1.3 (security review): only this machine by default – the page has no login
     web_allow: list[str] = field(default_factory=list)  # 0.1.3: remote addresses let in (empty: everyone who reaches it)
     seed_state: str | None = None  # a state file to start from when hcd has none (import_ha --state)
+    # 0.1.4: in shadow the house follows the integration's relay, not hcd's – so hcd's own lessons would come from
+    # results of decisions it never made and drift away. With an HC entry id here, hcd takes the integration's learned
+    # values (its learner state, from the entry's diagnostics) at start and every `learned_every_s`.
+    learned_from: str | None = None
+    learned_every_s: float = 900.0
 
     def kinds(self) -> set[str]:
         return {s.kind for s in self.sources.values()}
@@ -101,9 +106,13 @@ def parse(raw: dict[str, Any], env: dict[str, str] | None = None) -> Config:
         web_host=str(raw.get("web_host") or "127.0.0.1"),
         web_allow=[str(a) for a in (raw.get("web_allow") or [])],
         seed_state=raw.get("seed_state") or None,
+        learned_from=(str(raw["learned_from"]) if raw.get("learned_from") else None),
+        learned_every_s=max(60.0, float(raw.get("learned_every_s") or 900.0)),
     )
     if "ha" in cfg.kinds() and not (cfg.ha_url and cfg.ha_token):
         raise ConfigError("`ha` sources need `ha.url` and a token")
+    if cfg.learned_from and not (cfg.ha_url and cfg.ha_token):
+        raise ConfigError("`learned_from` needs `ha.url` and a token")
     if "z2m" in cfg.kinds() and not cfg.mqtt.get("host"):
         raise ConfigError("`z2m` sources need `mqtt.host` (or `host: supervisor` inside a Home Assistant add-on)")
     return cfg

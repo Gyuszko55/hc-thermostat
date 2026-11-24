@@ -4,4 +4,4 @@ Phase F2: it runs beside the Home Assistant integration in shadow – it decides
 its decisions with the integration's.
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
