@@ -96,7 +96,9 @@ const REASON = {
     // 0.65.0: demand-based charging
     reserve_low: "Kevés a tartalék – tölt", reserve_low_kwh: "Kevés a hő-tartalék (kWh) – tölt", charging_reserve: "Tartalékot tölt",
     reserve_ok: "Van elég tartalék", reserve_full: "Feltöltve – megvan a tartalék", no_demand: "Nincs tartós hőigény",
-    reserve_runs_out: "Hamarosan elfogy a tartalék – tölt" },
+    reserve_runs_out: "Hamarosan elfogy a tartalék – tölt",
+    safety_stop: "ÉLETVÉDELMI LEÁLLÍTÁS",  // 0.77.0
+    failsafe: "Hibatűrés: kikapcsolva" },  // 0.78.2
   en: {},
 };
 
@@ -195,8 +197,8 @@ const KEY_EN = {
 };
 // why the output was held (Decision.limited_by)
 const LIMITED = {
-  hu: { min_on: "minimális futás", min_off: "minimális szünet", load_limit: "terheléskorlát", return_limit: "visszatérő-korlát", no_power: "nincs vezérelt áram" },
-  en: { min_on: "minimum run", min_off: "minimum pause", load_limit: "load limit", return_limit: "return limit", no_power: "no controlled power" },
+  hu: { min_on: "minimális futás", min_off: "minimális szünet", load_limit: "terheléskorlát", return_limit: "visszatérő-korlát", no_power: "nincs vezérelt áram", pre_change: "célcsökkenés előtt", preheat_soon: "felfűtés előtt" },
+  en: { min_on: "minimum run", min_off: "minimum pause", load_limit: "load limit", return_limit: "return limit", no_power: "no controlled power", pre_change: "before a lowering", preheat_soon: "before the morning rise" },
 };
 // 0.65.1: values of the circuit's / heat pump coordination's decision rows in words
 const VALS = {
@@ -321,6 +323,7 @@ const INFO = [
   // 0.69.0: the fast catch-up, the measured answer of the room, a timing suggestion
   ["catchup", "hc", "Gyors felzárkózás", "Fast catch-up", (d) => catchupText(d.decision?.details?.catchup), "text", ["relay"]],
   ["catchup_mode", "hc", "Felzárkózás köre", "Catch-up circuit", (d) => catchupModeText(d.decision?.details?.catchup_mode), "text", ["relay"]],
+  ["guard", "hc", "Helyi védő", "Local guard", (d) => guardText(d.decision?.details?.guard), "text", ["relay"]],
   ["response", "hc", "Mért válasz a fűtésre", "Measured answer to heating", (d) => responseText(d.live?.response), "text", ["relay"]],
   ["timing", "hc", "Időzítési javaslat", "Timing suggestion", (d) => timingText(d.live?.timing), "text", ["relay"]],
   ["load", "hc", "Terhelés (kW)", "Load (kW)", (d) => (d.live?.load ? `${d.live.load.load_used_kw} / ${d.live.load.load_limit_kw}` : null), "text", ["load"]],
@@ -429,6 +432,20 @@ function catchupText(c) {
     ? `teljes ciklus – ${c.since_min} perce ${_n(c.gap, 2)} °C-kal a cél alatt (vége ${_n(c.release, 2)} °C-nál)`
     : `whole cycle – ${_n(c.gap, 2)} °C below the target for ${c.since_min} min (ends at ${_n(c.release, 2)} °C)`;
 }
+// 0.76.0: the local guard next to the relay
+function guardText(g) {
+  if (!g) return null;
+  const hu = PANEL_LANG === "hu";
+  const m = { normal: hu ? "a HC vezérel" : "HC controls", grace: hu ? "türelmi idő (nincs bérlet)" : "grace (no lease)",
+    fallback: hu ? "A VÉDŐ VEZÉREL" : "THE GUARD CONTROLS", nosensor: hu ? "A VÉDŐ VEZÉREL, hőmérő nélkül" : "THE GUARD CONTROLS, no thermometer",
+    handback: hu ? "visszaadás folyamatban" : "handing back", safety: hu ? "ÉLETVÉDELMI LÁNC NYITVA – KI" : "LIFE-SAFETY CHAIN OPEN – OFF", unreachable: hu ? "NEM ÉRHETŐ EL" : "UNREACHABLE" }[g.mode] || (hu ? "még nincs válasz" : "no answer yet");
+  const parts = [m];
+  if (g.temp != null) parts.push(`${hu ? "helyi hőmérő" : "local thermometer"} ${_n(g.temp, 1)} °C`);
+  if (g.fallback_sp != null) parts.push(`${hu ? "tartalék cél" : "fallback target"} ${_n(g.fallback_sp, 1)} °C`);
+  if (g.lease_left_s != null) parts.push(`${hu ? "bérlet" : "lease"} ${Math.round(g.lease_left_s / 60)} ${hu ? "perc" : "min"}`);
+  if (g.error) parts.push(`${hu ? "hiba" : "error"}: ${g.error}`);
+  return parts.join(" · ");
+}
 // 0.74.0: the low-temperature catch-up – circuit, classification, thresholds in use, wait, last exit
 function catchupModeText(m) {
   if (!m) return null;
@@ -505,6 +522,12 @@ class HcInfoPanel extends HTMLElement {
     } catch (e) { return false; }
   }
   set panel(v) { this._panel = v; }
+  // 0.78.1: the running HC version in the header – from the panel's config, else the module's ?v=
+  _ver() {
+    const v = this._panel?.config?.version;
+    if (v) return String(v);
+    try { return new URL(import.meta.url).searchParams.get("v") || ""; } catch (e) { return ""; }
+  }
 
   // the viewer's language (profile setting first); unknown -> English
   get _t() { return String(this._hass?.locale?.language || this._hass?.language || "en").startsWith("hu") ? T.hu : T.en; }
@@ -1158,6 +1181,10 @@ class HcInfoPanel extends HTMLElement {
     cards.push(this._card(20, 20, hu ? "Hőszivattyú-koordináció" : "Heat pump coordination", [
       ...this._writeRows(d),
       [hu ? "Döntés" : "Decision", this._reason(dec.reason), true],
+      // 0.79.0: the charging reason on its own line when the ON has another reason (a tester's request: "cold-weather ON"
+      // hid "charging the reserve"), with the stop layer it charges to
+      ...(dec.heat_demand && det.heat_reason && det.heat_reason !== dec.reason ? [[hu ? "Puffertöltés oka" : "Why it charges",
+        `${this._reason(det.heat_reason)}${det.demand_charge?.stop_at != null && det.charge_mode === "demand" ? ` · ${({ top: hu ? "teteje" : "top", upper: hu ? "felső közép" : "upper middle", lower: hu ? "alsó közép" : "lower middle", bottom: hu ? "alja" : "bottom" })[det.demand_charge.stop_layer] || det.demand_charge.stop_layer} ${this._deg(det.demand_charge.stop_layer_temp)} → ${this._deg(det.demand_charge.stop_at)}` : ""}`, true]] : []),
       [hu ? "ON kérés (nem visszajelzés)" : "ON request (not a confirmation)", dec.enable ? "ON" : "OFF", dec.enable],
       [hu ? "Hőigény" : "Heat demand", dec.heat_demand ? t.yes : t.no, dec.heat_demand],
       [hu ? "Kiadott cél" : "Given-out target", this._deg(dec.target), true],
@@ -1232,12 +1259,14 @@ class HcInfoPanel extends HTMLElement {
     if (!h) return [];
     const why = { missing: hu ? "hiányzó / állott / lehetetlen mérés" : "missing / stale / impossible reading",
       no_power_meter: hu ? "nincs villamos teljesítménymérő" : "no electric power meter", stale_power: hu ? "nincs friss villamos mérés" : "no fresh electric reading",
+      stale_compressor: hu ? "nincs friss kompresszorfrekvencia" : "no fresh compressor frequency",
       no_flow: hu ? "nincs vízáram" : "no water flow", defrost: hu ? "leolvasztás" : "defrost", negative_dt: hu ? "ΔT ≤ 0" : "ΔT ≤ 0",
       not_running: hu ? "a kompresszor áll" : "the compressor stands", warming_up: hu ? "futás eleje (gyűjt)" : "start of a run (collecting)",
       implausible: hu ? "valószínűtlen érték" : "implausible value" };
     const scope = h.scope === "compressor" ? (hu ? "csak kompresszor" : "compressor only") : (hu ? "teljes egység" : "whole unit");
     return [
       [hu ? "Hőteljesítmény (víz)" : "Heat output (water)", h.valid ? `${this._num(h.power_kw, 2)} kW` : (hu ? "nem elérhető – " : "unavailable – ") + (why[h.reason] || h.reason || ""), h.valid && h.power_kw > 0],
+      [hu ? "Hőtermelés engedélyezése" : "Heat production gate", `${h.heat_gate === "compressor_hz" ? (hu ? "kompresszor Hz" : "compressor Hz") : h.heat_gate === "none" ? (hu ? "nincs üzemjel – a termelés nem igazolt" : "no running signal – production unconfirmed") : `${this._num(h.heat_min_power_w ?? 200, 0)} W`}${h.heat_reason ? ` · ${why[h.heat_reason] || h.heat_reason}` : ` · ${hu ? "termel" : "producing"}`}`],
       [hu ? "Előremenő / visszatérő" : "Flow / return", h.valid ? `${this._deg(h.t_out)} / ${this._deg(h.t_in)} · ΔT ${this._num(h.dt, 1)} °C${h.uncertainty_pct != null ? ` (± ${h.uncertainty_pct} %, ${hu ? "becslés" : "estimate"})` : ""}` : null],
       [hu ? "Vízáram" : "Water flow", h.valid ? `${this._num(h.flow, 1)} ${hu ? "l/perc" : "l/min"}` : null],
       [hu ? "Villamos teljesítmény" : "Electric power", h.p_el_kw != null ? `${this._num(h.p_el_kw, 2)} kW (${scope})` : (h.power_entity ? (hu ? "nincs friss mérés" : "no fresh reading") : (hu ? "nincs megadva" : "not given"))],
@@ -1389,7 +1418,7 @@ class HcInfoPanel extends HTMLElement {
     const aiScroll = this.shadowRoot.querySelector(".aibox")?.scrollTop || 0;  // 0.71.0: the refresh keeps it
     const pickScroll = this.shadowRoot.querySelector(".picks")?.scrollLeft || 0;
     this.shadowRoot.innerHTML = `<style>${CSS}${OV ? OV.OV_CSS : ""}</style>
-      <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1><div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
+      <div class="top"><ha-icon icon="mdi:information-outline"></ha-icon><h1>${t.title}</h1>${this._ver() ? `<span class="ver" title="HC Thermostat">v${esc(this._ver())}</span>` : ""}<div class="picks">${pick}</div><span class="muted">${t.refresh}</span></div>
       <div class="main">${main}</div>${this._aiOpen && (this._hd || this._d)?.ai_report ? this._aiModal((this._hd || this._d).ai_report) : ""}${this._wk ? this._wkModal() : ""}`;
     const slot = this.shadowRoot.querySelector(".houseslot");
     if (slot) { slot.appendChild(this._houseEl()); this._houseUpdate(); }  // one element kept across refreshes
@@ -1636,6 +1665,7 @@ table.mx td { font-size:12px; } table.mx th { text-align:left; font-weight:500; 
 table.mx tr.off td { opacity:.38; }
 .tag { display:inline-block; border-radius:6px; padding:0 5px; margin:1px 2px 1px 0; font-size:11px; background:color-mix(in srgb, var(--primary-color) 15%, transparent); }
 .tag.all { background:var(--secondary-background-color); }
+.top .ver { font-size:12px; font-variant-numeric:tabular-nums; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,.18); white-space:nowrap; flex:none; }
 .top { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--app-header-background-color, var(--primary-color)); color:var(--app-header-text-color, #fff); flex-wrap:nowrap; }
 .top h1 { font-size:20px; margin:0 8px 0 0; font-weight:500; }
 .top .muted { color:inherit; opacity:.7; margin-left:auto; font-size:12px; }

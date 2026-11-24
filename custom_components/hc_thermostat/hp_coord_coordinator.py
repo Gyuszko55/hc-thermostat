@@ -12,6 +12,7 @@ own frost protection and the PLC's safety stay in charge.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 import logging
 
@@ -22,12 +23,14 @@ from homeassistant.util import dt as dt_util
 
 from .buffer_coordinator import asking_zones
 from .circuit_coordinator import read_outdoor
-from .const import (CONF_HM_FLOW, CONF_HM_IN, CONF_HM_OUT, CONF_HP_POWER, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
+from .const import (CONF_SAFETY, CONF_HM_FLOW, CONF_HM_IN, CONF_HM_OUT, CONF_HP_POWER, CONF_HM_COMPRESSOR, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HP_BUFFER, CONF_HP_DEMAND_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_SUMMER_OUT, CONF_HP_RUNNING, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_OUTDOOR,
                     CONF_WOOD, CONF_WOOD_TEMP, CONF_WRITE_CONFIRM, CONF_WRITE_KEEPALIVE, CONF_WRITE_RESTORE, CONF_WRITE_RESTORE_TRIES, CONF_ZONES, DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.heat_meter import HeatMeter, HeatMeterConfig, HmSample
+from .safety_hub import hub_of, stop_held
 from .core.hp_coord import CircuitNeed, HeatPumpCoordinator, HpConfig, HpDecision, HpInputs
 from .core.wood import WoodConfig, WoodDetector
 from .units import state_value_c
+from .failsafe import StepFailsafe
 from .output_writer import OutputWriter, WriteControl
 
 _LOGGER = logging.getLogger(__name__)
@@ -149,6 +152,18 @@ def read_power_w(hass, entity_id: str | None, now: datetime, max_age_s: float) -
     return None if to_w is None or value != value else value * to_w
 
 
+def read_compressor_active(hass, entity_id: str | None, now: datetime, max_age_s: float) -> bool | None:
+    """Read a fresh compressor frequency (Hz): >0 = running; 0 = stopped; None = unknown."""
+    state = _fresh_state(hass, entity_id, now, max_age_s)
+    if state is None or str(state.attributes.get("unit_of_measurement") or "").strip() != "Hz":
+        return None
+    try:
+        hz = float(state.state)
+    except (TypeError, ValueError):
+        return None
+    return hz > 0 if 0 <= hz <= 500 else None
+
+
 def read_flow_lmin(hass, entity_id: str | None, now: datetime, max_age_s: float) -> float | None:
     state = _fresh_state(hass, entity_id, now, max_age_s)
     if state is None:
@@ -211,6 +226,11 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         # 0.75.0: the water-side heat meter – only with all three readings given (nothing changes without them)
         self.heat_meter = HeatMeter(HeatMeterConfig.from_conf(data)) \
             if all(data.get(k) for k in (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW)) else None
+        # 0.77.0: the life-safety latch: the heat pump gets no ON and no heat demand while it holds
+        hub = hub_of(hass)
+        hub.watch(entry.entry_id, list(data.get(CONF_SAFETY) or []))
+        self.safety = hub if data.get(CONF_SAFETY) else None
+        self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
     @property
     def is_shadow(self) -> bool:
@@ -233,18 +253,30 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         run = self.hass.states.get(self.conf.get(CONF_HP_RUNNING)) if self.conf.get(CONF_HP_RUNNING) else None
         busy = run is not None and run.entity_id.startswith("climate.") and run.attributes.get("hvac_action") == "defrosting"
         power = self.power_entity()
+        # An explicitly configured Hz sensor wins. Without one, re-use the existing
+        # HP running signal when it is expressed in Hz, otherwise gate by electric W.
+        compressor = self.conf.get(CONF_HM_COMPRESSOR)
+        if not compressor:
+            run_eid = self.conf.get(CONF_HP_RUNNING)
+            run_state_obj = self.hass.states.get(run_eid) if run_eid else None
+            if run_state_obj is not None and str(run_state_obj.attributes.get("unit_of_measurement") or "").strip() == "Hz":
+                compressor = run_eid
         hm.step(HmSample(now, read_temp_c(self.hass, self.conf.get(CONF_HM_OUT), now, age),
                          read_temp_c(self.hass, self.conf.get(CONF_HM_IN), now, age),
                          read_flow_lmin(self.hass, self.conf.get(CONF_HM_FLOW), now, age),
                          read_power_w(self.hass, power, now, age) if power else None,
-                         self.hp.cfg.hp_running_w, busy, power is not None))
-        return {**hm.info, "power_entity": power, "scope": hm.cfg.hm_power_scope, "resolution": hm.cfg.hm_resolution}
+                         self.hp.cfg.hp_running_w, busy, power is not None,
+                         compressor_active=read_compressor_active(self.hass, compressor, now, age) if compressor else None,
+                         compressor_source=bool(compressor)))
+        return {**hm.info, "power_entity": power, "compressor_entity": compressor,
+                "scope": hm.cfg.hm_power_scope, "resolution": hm.cfg.hm_resolution}
 
     def heat_info(self) -> dict | None:
         hm = self.heat_meter
         if hm is None:
             return None
-        return {**hm.info, "power_entity": self.power_entity(), "scope": hm.cfg.hm_power_scope,
+        return {**hm.info, "power_entity": self.power_entity(),
+                "compressor_entity": self.conf.get(CONF_HM_COMPRESSOR), "scope": hm.cfg.hm_power_scope,
                 "resolution": hm.cfg.hm_resolution}
 
     def water_temp(self) -> float | None:
@@ -261,6 +293,8 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
                 "summer": self.out_summer.info(), "exercise": self.out_exercise.info()}
 
     async def async_load(self) -> None:
+        if self.safety is not None:
+            await self.safety.async_load()
         data = await self._store.async_load() or {}
         self.hp.restore(data, dt_util.now())
         if self.heat_meter is not None:
@@ -349,7 +383,27 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
     async def _async_update_data(self) -> HpDecision:
         now = dt_util.now()
         was = (self.hp.enable, self.hp.heating, self.hp.cold_latched, self.hp.summer)
-        decision = self.hp.step(now, self.inputs(now))
+        # 0.78.2 (security review H1): the latch is read before the step, so a failing step cannot hide it
+        stop = self._safety_held(now)
+        try:
+            decision = self.hp.step(now, self.inputs(now))
+        except Exception:
+            # 0.78.2: a step that fails again and again must not leave the heat pump on – from the FAILSAFE_AFTER-th
+            # failure in a row: no ON, no heat demand, no exercise, the lowest flow target; summer mode stays as it
+            # was. A held safety stop does not wait for that: its decision follows below from the first failure.
+            if not self.failsafe.failed() and not stop:
+                raise
+            last = self.data
+            decision = HpDecision(now, False, False, "failsafe", self.hp.cfg.hp_flow_min, None, "failsafe",
+                                  summer=bool(last.summer) if last is not None else False,
+                                  details={"failsafe": self.failsafe.errors})
+        else:
+            self.failsafe.ok()
+        if stop:
+            # 0.77.0: no ON, no heat demand, no exercise, the lowest target – the wired chain does the real stop
+            decision = replace(decision, enable=False, heat_demand=False, exercise=False, reason="safety_stop",
+                               target=self.hp.cfg.hp_flow_min,
+                               details={**decision.details, "safety_stop": list(self._safety_by)})
         day = self.heat_meter.day if self.heat_meter is not None else None
         heat = self.heat_step(now)  # 0.75.0
         if heat is not None:
@@ -360,13 +414,22 @@ class HpCoordCoordinator(DataUpdateCoordinator[HpDecision]):
         await self.write.tick(now)
         writing, up = self.write.writing(now), (now - self._started).total_seconds()
         # the target first, so an ON finds the right water asked for; then ON / OFF, then the demand signal
-        for out, value in ((self.out_target, decision.target), (self.out_switch, decision.enable),
-                           (self.out_demand, decision.heat_demand), (self.out_summer, decision.summer),
-                           (self.out_exercise, decision.exercise)):
-            await out.apply(now, value, writing, up)
+        # 0.78.2 (security review H1): the safety stop's OFF, no demand, no exercise and lowest target are forced –
+        # shadow, an ended trial, paused writing, the grace after a start and a conflict do not hold them back
+        for out, value, forced in ((self.out_target, decision.target, stop), (self.out_switch, decision.enable, stop),
+                                   (self.out_demand, decision.heat_demand, stop),
+                                   (self.out_summer, decision.summer, False),
+                                   (self.out_exercise, decision.exercise, stop)):
+            await out.apply(now, value, writing, up, force=forced)
             self.write.note_conflict(out)
         self._target_check(now, decision, writing)
         return decision
+
+    def _safety_held(self, now: datetime) -> bool:
+        """0.78.2: the life-safety latch holds (checking it may fail too – then what the latch last knew)."""
+        # 0.78.2 (M3): its own latch, else the shared one
+        held, self._safety_by = stop_held(self.hass, now, self.safety)
+        return held
 
     def _target_check(self, now: datetime, d: HpDecision, writing: bool) -> None:
         """0.70.0 (a tester's request): does the heat pump use the target HC asks for? The worked-out (raw), the

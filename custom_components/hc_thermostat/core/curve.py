@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from .clock import rebase
+
 
 class CurveRegulator:
     def __init__(self, cfg) -> None:
@@ -95,6 +97,7 @@ class RunGate:
         return False
 
     def step(self, now: datetime, want: bool, min_on_s: float, min_off_s: float) -> tuple[bool, str | None]:
+        self.last_change = rebase(now, self.last_change, self.output, min_on_s)  # 0.78.2 (M5): clock set back
         if want == self.output:
             return self.output, None
         if self.last_change is not None:

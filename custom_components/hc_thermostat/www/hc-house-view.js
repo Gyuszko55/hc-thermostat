@@ -92,7 +92,7 @@ const isHydronic = (vm) => !ROOM_UNIT_KINDS.includes(vm.source?.kind) || (vm.sou
   || vm.rooms.some((r) => ["radiator", "floor", "fan_coil"].includes(r.emitter));
 
 // ───────────── helpers ─────────────
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));  // 0.78.2: the apostrophe too
 const isNum = (v) => typeof v === "number" && isFinite(v);
 const num = (s) => { if (isNum(s)) return s; const n = parseFloat(s); return isFinite(n) ? n : null; };
 const norm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

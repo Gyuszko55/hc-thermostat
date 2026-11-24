@@ -308,7 +308,8 @@
           "hp_exercise_entity": "Exercise due signal for a PLC (switch / input_boolean, optional)",
           "wood_temp_entity": "Wood boiler thermometer (instead of a direct signal; two thresholds)",
           "hp_target_round": "Rounding of the written target",
-          "hp_water_temp_entity": "The heat pump's measured water temperature (optional)"
+          "hp_water_temp_entity": "The heat pump's measured water temperature (optional)",
+          "safety_entities": "Life-safety inputs (smoke, fire, gas, CO, water)"
         },
         "data_description": {
           "hp_target_round": "HC keeps its decimals inside; this is only the value sent to the heat pump. Up to whole °C: 36.1 → 37 °C.",
@@ -322,7 +323,8 @@
           "hp_switch_entity": "The ON / OFF request. ON is no heating command: with no demand the target is the lowest.",
           "hp_demand_entity": "A switch telling the PLC that heat is wanted now.",
           "hp_summer_entity": "Tells the PLC it is summer mode.",
-          "hp_exercise_entity": "In summer mode it tells the PLC weekly to run the pumps and valves."
+          "hp_exercise_entity": "In summer mode it tells the PLC weekly to run the pumps and valves.",
+          "safety_entities": "The wired safety chain's auxiliary contact and / or detectors (on = alarm). On any alarm every HC instance watching them stops at once – frost protection included – and restarts only with the “Acknowledge the life-safety stop” button once every input is clear. The real stop (gas valve, contactor, water valve) is the chain's, not Home Assistant's."
         }
       },
       "hp_coord_settings": {
@@ -555,6 +557,8 @@
               "hp_flow_in_temp_entity": "Water return temperature (inlet, °C)",
               "hp_water_flow_entity": "Water flow (l/min)",
               "hp_power_entity": "Electric power for the COP (W / kW, optional)",
+              "hm_compressor_entity": "Compressor frequency (Hz, optional)",
+              "hm_heat_min_power_w": "Minimum electric power for heat production (W)",
               "hm_power_scope": "What the power meter measures",
               "hm_factor": "Heat capacity factor (pure water = 1)",
               "hm_resolution": "Thermometer resolution",
@@ -570,6 +574,8 @@
               "hp_flow_in_temp_entity": "The thermometer of the water returning to the heat pump.",
               "hp_water_flow_entity": "Water flow in l/min (L/h and m³/h converted). Heat = l/min × ΔT × 0.06977 kW.",
               "hp_power_entity": "When the “heat pump runs” signal is not a W/kW power (binary, Hz …), give a separate power meter here. Empty: the “runs” signal when it is a power; otherwise no COP, the heat is measured anyway.",
+              "hm_compressor_entity": "Compressor frequency (Hz). Preferred for heat metering; stale Hz stops metering, with no silent power fallback. If empty, reuse an Hz running signal or electric power.",
+              "hm_heat_min_power_w": "Separate heat-meter production threshold, 200 W by default. Exclude pump-only frost circulation without altering the HP control threshold.",
               "hm_power_scope": "The whole outdoor unit (compressor, fan, pump) or the compressor only – for reading the COP.",
               "hm_factor": "1.00 for pure water; lower for a glycol mix (30 % glycol ≈ 0.93). An estimate.",
               "hm_resolution": "1 °C for whole-degree (Tuya) thermometers. With a small ΔT the error is ± resolution / ΔT – the panel shows it.",
@@ -810,6 +816,7 @@
             "name": "Protections",
             "description": "Windows, frozen thermometer, zone valve, return limit.",
             "data": {
+              "safety_entities": "Life-safety inputs (smoke, fire, gas, CO, water)",
               "window_entities": "Windows and doors",
               "window_drop_entities": "Open window from a fast temperature drop – thermometers to watch (near the windows)",
               "window_drop_rate": "Drop threshold (°C/h)",
@@ -827,6 +834,7 @@
               "plaus_indoor_min": "Lowest believable room temperature"
             },
             "data_description": {
+              "safety_entities": "The wired safety chain's auxiliary contact and / or detectors (on = alarm). On any alarm every HC instance watching them stops at once – frost protection included – and restarts only with the “Acknowledge the life-safety stop” button once every input is clear. The real stop (gas valve, contactor, water valve) is the chain's, not Home Assistant's.",
               "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating. On a floor the default is 8 hours, and a value within 1 °C of the target is not judged: next to a slow screed the thermometer shows one value for hours while the regulation works.",
               "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
@@ -1034,6 +1042,7 @@
               "optimal_start": "Optimal start in the morning",
               "optimal_start_max_min": "At most this much earlier",
               "optimal_start_lag_min": "Delay of the radiators",
+              "preheat_hold_min": "No short run before the morning rise",
               "pre_change_max_s": "Hold before a lowering, with the forecast, at most",
               "pre_change_sag": "Meanwhile at most this far under the current target",
               "mould_frsi": "Mould: temperature factor of the coldest surface (fRsi)",
@@ -1049,6 +1058,7 @@
               "house_tau_h": "Without heat the room approaches the outdoor temperature at this pace (exponentially). Learned from stretches of at least 3 hours without a burn.",
               "optimal_start": "The day target starts that much before the night ends that the room reaches it in time – from the fall predicted with τ and the minutes per degree learned from the boosts.",
               "optimal_start_lag_min": "On top of the burn minutes, the time the radiators need to give their heat to the room.",
+              "preheat_hold_min": "When the optimal start begins within this many minutes and the room is at most 0.3 °C under its night target, no short regulating run starts before it – otherwise two burner starts come minutes apart. A running burn is not cut. 0 = off.",
               "pre_change_max_s": "With τ known, no new burn starts this long before a scheduled lowering while the room, left alone, stays above the coming target. 0 = only the fixed time above.",
               "pre_change_sag": "During the hold the room may fall at most this far under the current target.",
               "mould_frsi": "The mould risk is worked out at the room's coldest spot (a corner, a lintel, the wall behind a wardrobe): surface temperature = outdoor + fRsi × (indoor − outdoor); mould grows there above 80 % (EN ISO 13788). An old uninsulated wall's corner 0.6–0.7, an insulated one 0.75–0.8. The rooms' humidity sensors are taken from their thermometers' devices automatically.",
@@ -1058,6 +1068,38 @@
               "primary_factor": "Non-renewable primary factor: natural gas 1.1, electricity 2.3, district heat 1.38, solid biomass 0.6. 0 = by the heat source.",
               "rating_outdoor_entity": "The rating uses this sensor's last year (daily means from the statistics) – pick an outdoor sensor or group with a longer history. Missing days are filled from the standard Hungarian year.",
               "optimal_start_max_min": "Optimal start begins at most this much earlier to be warm on time."
+            }
+          },
+          "guard": {
+            "name": "Local guard (when Home Assistant fails)",
+            "description": "When Home Assistant or HC fails, the local guard next to the relay (a Shelly Gen3/Gen4 script) keeps regulating by its own thermometer. See guard/README in the repository.",
+            "data": {
+              "guard_url": "Local guard address",
+              "guard_token": "Token",
+              "guard_push_url": "Push URL when it takes over (optional)",
+              "guard_sp": "Fallback target",
+              "guard_hyst": "Fallback switching band",
+              "guard_no_sensor": "Without a thermometer",
+              "guard_duty_on_s": "Without a thermometer: on for",
+              "guard_duty_off_s": "Without a thermometer: off for",
+              "guard_max_on_s": "Longest continuous on (0 = none)",
+              "guard_every_s": "Lease renewal",
+              "guard_ttl_s": "Lease valid for",
+              "guard_password": "Device password (recommended)"
+            },
+            "data_description": {
+              "guard_url": "The endpoint of the guard next to the relay (Shelly Gen3/Gen4 script, guard/shelly/hc_guard.js), e.g. http://IP-ADDRESS/script/1/hc. When given, HC switches the relay through the guard and sends a lease; without a lease the guard regulates on its own with the values below after 5 minutes. Empty: HC switches the relay directly, as before.",
+              "guard_token": "Required: the same value as the guard's KVS hc_guard_token (guard/upload_shelly.py makes one when you give none). Without it the guard takes no lease.",
+              "guard_push_url": "The guard posts a message here (an ntfy topic, for example) when it takes over – independently of Home Assistant.",
+              "guard_sp": "The guard keeps this by its own thermometer while HC does not control.",
+              "guard_hyst": "Whole band: on below the target − half band, off above the target + half band.",
+              "guard_no_sensor": "When the guard's thermometer gives no reading either: off, or a fixed duty cycle.",
+              "guard_duty_on_s": "The on part of the fixed duty cycle.",
+              "guard_duty_off_s": "The off part of the fixed duty cycle.",
+              "guard_max_on_s": "The guard keeps the relay on at most this long in one go – while HC controls and in its own fallback alike – then keeps the minimum pause. 0 = no limit (electric heaters: 2 hours by default).",
+              "guard_every_s": "HC renews the lease this often (and at once on every change).",
+              "guard_ttl_s": "A lease is valid this long; at least twice the renewal.",
+              "guard_password": "The guard device's own password (Shelly → Settings → Authentication, user admin). With it set on the device, the guard's endpoint and the whole Shelly RPC need it – nobody else on the network can switch the relay or change the script. Strongly recommended."
             }
           }
         }
@@ -1343,7 +1385,8 @@
           "hp_water_temp_entity": "The heat pump's measured water temperature (optional)",
           "home_name": "House name (optional)",
           "write_restore_min": "Restore a lasting difference after (min, 0 = off)",
-          "write_restore_tries": "Restore tries before a problem is reported"
+          "write_restore_tries": "Restore tries before a problem is reported",
+          "safety_entities": "Life-safety inputs (smoke, fire, gas, CO, water)"
         },
         "data_description": {
           "house_link": "Joins the house automatically by its links (tank, circuits, zones); you can choose it here by hand. Display only.",
@@ -1366,7 +1409,8 @@
           "write_keepalive_s": "For a PLC that drops a setpoint after a while. Otherwise leave it at 0.",
           "write_confirm_s": "Raise it for a slow (cloud) device. The default suits a fast local one.",
           "write_restore_min": "Off by default (0). When the heat pump keeps another target or ON/OFF than HC asks for (it was changed on the unit or in its app, or it came back from off with its own default) for this long, HC writes its value again – what it asks for now, so the safety bans, frost protection and the wood priority still come first. Nothing is written in shadow mode, while writing is paused or after a trial. To change the unit by hand for a while, pause writing with the instance's switch.",
-          "write_restore_tries": "This many restores, as far apart as the time above; a restore that holds that long starts the count again. When none helped: the 'Heat pump does not follow' problem sensor turns on, a Repairs entry and a notification appear, the diagram shows it in red, and HC stops writing that value until it wants another one or the unit shows HC's value again."
+          "write_restore_tries": "This many restores, as far apart as the time above; a restore that holds that long starts the count again. When none helped: the 'Heat pump does not follow' problem sensor turns on, a Repairs entry and a notification appear, the diagram shows it in red, and HC stops writing that value until it wants another one or the unit shows HC's value again.",
+          "safety_entities": "The wired safety chain's auxiliary contact and / or detectors (on = alarm). On any alarm every HC instance watching them stops at once – frost protection included – and restarts only with the “Acknowledge the life-safety stop” button once every input is clear. The real stop (gas valve, contactor, water valve) is the chain's, not Home Assistant's."
         }
       },
       "hp_coord_settings": {
@@ -1599,6 +1643,8 @@
               "hp_flow_in_temp_entity": "Water return temperature (inlet, °C)",
               "hp_water_flow_entity": "Water flow (l/min)",
               "hp_power_entity": "Electric power for the COP (W / kW, optional)",
+              "hm_compressor_entity": "Compressor frequency (Hz, optional)",
+              "hm_heat_min_power_w": "Minimum electric power for heat production (W)",
               "hm_power_scope": "What the power meter measures",
               "hm_factor": "Heat capacity factor (pure water = 1)",
               "hm_resolution": "Thermometer resolution",
@@ -1614,6 +1660,8 @@
               "hp_flow_in_temp_entity": "The thermometer of the water returning to the heat pump.",
               "hp_water_flow_entity": "Water flow in l/min (L/h and m³/h converted). Heat = l/min × ΔT × 0.06977 kW.",
               "hp_power_entity": "When the “heat pump runs” signal is not a W/kW power (binary, Hz …), give a separate power meter here. Empty: the “runs” signal when it is a power; otherwise no COP, the heat is measured anyway.",
+              "hm_compressor_entity": "Compressor frequency (Hz). Preferred for heat metering; stale Hz stops metering, with no silent power fallback. If empty, reuse an Hz running signal or electric power.",
+              "hm_heat_min_power_w": "Separate heat-meter production threshold, 200 W by default. Exclude pump-only frost circulation without altering the HP control threshold.",
               "hm_power_scope": "The whole outdoor unit (compressor, fan, pump) or the compressor only – for reading the COP.",
               "hm_factor": "1.00 for pure water; lower for a glycol mix (30 % glycol ≈ 0.93). An estimate.",
               "hm_resolution": "1 °C for whole-degree (Tuya) thermometers. With a small ΔT the error is ± resolution / ΔT – the panel shows it.",
@@ -1674,7 +1722,10 @@
       "wood_order": "The off threshold must be below the on threshold.",
       "weekend_both": "The weekend night needs both a start and an end (or leave both empty).",
       "heat_meter_three": "The heat meter needs all three water readings (flow, return, water flow) – or none.",
-      "heat_meter_same": "The flow and the return thermometer cannot be the same entity."
+      "heat_meter_same": "The flow and the return thermometer cannot be the same entity.",
+      "guard_url": "The guard's address must start with http:// or https://.",
+      "guard_ttl": "The lease must be valid at least twice the renewal.",
+      "guard_token_required": "The local guard needs its token (the guard's KVS hc_guard_token)."
     }
   },
   "selector": {
@@ -1842,6 +1893,12 @@
         "unit": "the whole unit",
         "compressor": "the compressor only"
       }
+    },
+    "guard_no_sensor": {
+      "options": {
+        "off": "switch off",
+        "duty": "heat on a fixed duty cycle"
+      }
     }
   },
   "entity": {
@@ -1873,7 +1930,8 @@
           "floor_temper": "Floor tempering",
           "thermostat_call": "Wall thermostat asks for heat",
           "thermostat_idle": "Wall thermostat idle",
-          "managed_off": "Thermostat switched off by hand"
+          "managed_off": "Thermostat switched off by hand",
+          "safety_stop": "life-safety stop"
         }
       },
       "demand": {
@@ -1950,7 +2008,9 @@
           "heating": "Heating",
           "min_on": "Minimum run",
           "min_off": "Minimum pause",
-          "valves_closed": "Valves closed"
+          "valves_closed": "Valves closed",
+          "failsafe": "Failsafe: heat off (the decision keeps failing)",
+          "safety_stop": "Life-safety stop"
         }
       },
       "rooms": {
@@ -1966,7 +2026,9 @@
           "min_off": "Pause",
           "frost": "Frost protection",
           "no_sensor": "No thermometer",
-          "max_charge": "Charge took too long"
+          "max_charge": "Charge took too long",
+          "failsafe": "Failsafe: heat off (the decision keeps failing)",
+          "safety_stop": "Life-safety stop"
         }
       },
       "starts_today": {
@@ -2058,7 +2120,9 @@
           "reserve_ok": "Enough reserve",
           "reserve_full": "Charged – the reserve is there",
           "no_demand": "No lasting heat demand",
-          "reserve_runs_out": "The reserve runs out soon – charging"
+          "reserve_runs_out": "The reserve runs out soon – charging",
+          "safety_stop": "life-safety stop",
+          "failsafe": "Failsafe: heat off (the decision keeps failing)"
         }
       },
       "hp_target": {
@@ -2084,6 +2148,18 @@
       },
       "hp_cop_today": {
         "name": "Heat pump COP today"
+      },
+      "guard": {
+        "name": "Local guard",
+        "state": {
+          "normal": "HC controls",
+          "grace": "grace",
+          "fallback": "the guard controls",
+          "nosensor": "the guard controls, no thermometer",
+          "handback": "handing back",
+          "unreachable": "unreachable",
+          "safety": "life-safety chain open – off"
+        }
       }
     },
     "binary_sensor": {
@@ -2122,6 +2198,9 @@
       },
       "hp_write_problem": {
         "name": "Heat pump does not follow"
+      },
+      "safety_stop": {
+        "name": "Life-safety stop"
       }
     },
     "climate": {
@@ -2162,6 +2241,9 @@
       },
       "ai_report_now": {
         "name": "AI analysis now"
+      },
+      "safety_ack": {
+        "name": "Acknowledge the life-safety stop"
       }
     },
     "switch": {
@@ -2202,6 +2284,18 @@
     "write_failed": {
       "title": "HC – {name}: the heat pump does not take HC's value",
       "description": "**{entity}** shows {value} instead of the {want} HC asks for, and {tries} restores did not help. HC stops writing it until the value it wants changes or the unit shows HC's value again.\n\nCheck the unit: its mode (off / auto / manual), its app or controller (Tuya, a local integration), and whether something else writes it. The entry clears itself once the unit follows HC again."
+    },
+    "guard_problem": {
+      "title": "HC – {name}: local guard",
+      "description": "The local guard of **{name}** ({url}) {problem}.\n\nCheck the guard device and the network. This entry clears itself once HC controls normally again."
+    },
+    "safety_stop": {
+      "title": "HC – LIFE-SAFETY STOP",
+      "description": "Alarm from: **{by}**.\n\nHC stopped all heating and keeps it stopped. When the danger is over and every detector is clear, press **Acknowledge the life-safety stop**. The wired chain (gas valve, contactor, water valve) is reset on site by its own button."
+    },
+    "safety_input_lost": {
+      "title": "HC – a life-safety input has no reading",
+      "description": "**{inputs}** has had no reading for 10 minutes. While it has none it cannot trip HC's life-safety stop (the wired safety chain still can). Check the detector (battery, connection). This entry clears itself when it reports again."
     }
   }
 }

@@ -81,6 +81,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from .clock import rebase
 from .setpoint_hold import HoldConfig, SetpointHold
 
 
@@ -190,7 +191,9 @@ REASONS = ["fail_safe_on", "no_outdoor", "no_buffer", "cold_on", "frost", "low_c
            "charging", "wood", "summer", "idle_off", "standby", "off", "min_on", "min_off",
            # 0.65.0 demand-based charging
            "reserve_low", "reserve_low_kwh", "charging_reserve", "reserve_ok", "reserve_full", "no_demand",
-           "reserve_runs_out"]  # 0.68.0
+           "reserve_runs_out",  # 0.68.0
+           "safety_stop",  # 0.77.0
+           "failsafe"]  # 0.78.2: the step failed FAILSAFE_AFTER times in a row (security review H2)
 CHARGE_MODES = ("classic", "demand")
 TREND_MIN_C_H = 0.2  # 0.68.0: a slower cooling (°C/h of the tank mean) is no trend to time the start by
 STOP_LAYERS = ("top", "upper", "lower", "bottom")
@@ -367,6 +370,7 @@ class HeatPumpCoordinator:
         """Min on / off of the enable request; `force` (cold ON, fail-safe) ignores them."""
         if want == self.enable:
             return None
+        self.last_change = rebase(now, self.last_change, self.enable, self.cfg.hp_min_on_s)  # 0.78.2 (M5)
         since = (now - self.last_change).total_seconds() if self.last_change else None
         if not force and since is not None:
             if self.enable and since < self.cfg.hp_min_on_s:
@@ -448,6 +452,7 @@ class HeatPumpCoordinator:
             details["idle_overridden"] = idle  # the long no-demand stop would apply, the cold-weather ON wins
         elif heat:
             want, reason = True, why
+            details["heat_reason"] = why  # 0.79.0: always there while it charges (not only under the cold-weather ON)
         elif self.summer:
             want, reason = False, "summer"  # 0.57.0: it replaces standby and the 24 h stop
         elif cfg.hp_standby:

@@ -4,7 +4,7 @@ DOMAIN = "hc_thermostat"
 PLATFORMS = ["binary_sensor", "button", "climate", "sensor", "switch"]
 CENTRAL_PLATFORMS = ["binary_sensor", "sensor"]
 CIRCUIT_PLATFORMS = ["binary_sensor", "sensor", "switch"]  # 0.56.0: the writing-paused switch
-HP_COORD_PLATFORMS = ["binary_sensor", "number", "sensor", "switch"]  # 0.55.0: the offset is a number
+HP_COORD_PLATFORMS = ["binary_sensor", "button", "number", "sensor", "switch"]  # 0.55.0: the offset is a number; 0.77.0 button
 
 CONF_HEAT_SOURCE = "heat_source"
 CONF_SYSTEM = "system"
@@ -14,6 +14,11 @@ CONF_INDOOR = "indoor_entity"
 CONF_OUTDOOR = "outdoor_entity"
 CONF_ACTUATOR = "actuator_entity"
 CONF_KEEP_ALIVE_SCRIPT = "keep_alive_script"  # 0.41.0: a script run at every keep-alive of an on relay (device watchdog)
+CONF_GUARD_URL = "guard_url"  # 0.76.0: the local guard's lease endpoint (http://<ip>/script/<id>/hc)
+CONF_GUARD_TOKEN = "guard_token"  # 0.76.0: shared token (the guard's KVS hc_guard_token); required since 0.78.2
+CONF_GUARD_PASSWORD = "guard_password"  # 0.78.2: the guard device's own password (Shelly digest auth, user admin)
+CONF_GUARD_PUSH = "guard_push_url"  # 0.76.0: optional push URL the guard posts to when it takes over (ntfy topic)
+CONF_SAFETY = "safety_entities"  # 0.77.0: life-safety inputs (the wired chain's auxiliary contact, detectors); on = alarm
 CONF_EXTERNAL = "external_climate"
 CONF_REFERENCE = "reference_entity"
 CONF_WINDOWS = "window_entities"
@@ -71,6 +76,7 @@ CONF_HM_OUT = "hp_flow_out_temp_entity"  # water flow (outlet) temperature, °C
 CONF_HM_IN = "hp_flow_in_temp_entity"  # water return (inlet) temperature, °C
 CONF_HM_FLOW = "hp_water_flow_entity"  # water flow, l/min
 CONF_HP_POWER = "hp_power_entity"  # electric power, W / kW (when the "runs" signal is not a power reading)
+CONF_HM_COMPRESSOR = "hm_compressor_entity"  # optional compressor frequency (Hz), preferred over watts for heat production
 CONF_WRITE_KEEPALIVE = "write_keepalive_s"  # 0.56.0: re-send an unchanged value this often (0 = off)
 CONF_WRITE_RESTORE = "write_restore_min"  # 0.73.0: write a lasting conflict again after this many minutes (0 = off)
 CONF_WRITE_RESTORE_TRIES = "write_restore_tries"  # 0.73.0: at most this many restores, then a problem

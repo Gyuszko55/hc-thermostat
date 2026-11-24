@@ -134,7 +134,9 @@ def test_watchdog_script_keeps_a_long_burn_and_rearms_the_timer():
     assert _run(ex, relay, 40) == 0  # 40 minutes on, never cut
     scripts = [c for c in relay.calls if c[1] == "script"]
     assert len(scripts) >= 39  # about once a minute
-    assert sum(1 for c in relay.calls if c[2] == "turn_on" and c[1] != "script") == 1  # the relay itself: once
+    # 0.78.2: the relay goes on only through the script (never without its timer), run to its end
+    assert sum(1 for c in relay.calls if c[2] == "turn_on" and c[1] != "script") == 0
+    assert {c[2] for c in relay.calls if c[1] == "script"} == {"rearm"}
 
 
 def test_dead_home_assistant_still_switches_off_by_the_device():

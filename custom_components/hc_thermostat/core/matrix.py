@@ -237,6 +237,9 @@ def source_defaults(system: str | None, source: str | None) -> dict:
     out: dict = {}
     if source == "electric_heater":
         out["sensor_lost_demand"] = 0.0  # no indoor reading: an electric heater does not heat blind
+        # 0.78.2 (security review M2): the local guard stops a run after 2 h (then min_off) – an electric heater has
+        # no limit thermostat of its own to stop a stale or wrong reading
+        out["guard_max_on_s"] = 7200.0
     if electric_floor(system, source):
         out.update(floor_max=27.0, floor_required=True)
     elif system in _FLOOR:

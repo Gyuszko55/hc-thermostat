@@ -25,6 +25,8 @@ from .const import (CONF_CIRCUIT_BUFFER, CONF_CIRCUIT_FLOW, CONF_CIRCUIT_OUTPUT,
                     DOMAIN, WRITE_CONFIRM_DEFAULT)
 from .core.circuit import CircuitConfig, CircuitDecision, MixingCircuit, ZoneReading
 from .core.circuit_watch import CircuitWatch
+from .failsafe import StepFailsafe
+from .safety_hub import stop_held
 from .output_writer import OutputWriter, WriteControl
 from .units import state_value_c
 
@@ -108,6 +110,7 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         self._watch_shown: str | None = None
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._last_save = dt_util.now()
+        self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
     @property
     def is_shadow(self) -> bool:
@@ -134,17 +137,34 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         buf = self.buffer_coordinator()
         # 0.64.0: the tank's top (a fresh reading, else None) caps the target given to the mixer
         top = getattr(getattr(buf, "data", None), "top", None) if buf is not None else None
-        decision = self.circuit.step(now, self.zones, read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),
-                                     tank_top=top, tank_linked=buf is not None)
         cfg = self.circuit.cfg
+        try:
+            decision = self.circuit.step(now, self.zones, read_outdoor(self.hass, self.conf.get(CONF_OUTDOOR), now),
+                                         tank_top=top, tank_linked=buf is not None)
+        except Exception:
+            # 0.78.2: a step that fails again and again must not leave the mixer at a high flow target – from the
+            # FAILSAFE_AFTER-th failure in a row the circuit's lowest flow (circuit_flow_min) is given out
+            if not self.failsafe.failed():
+                raise
+            decision = CircuitDecision(now, cfg.circuit_flow_min, None, "failsafe", False,
+                                       details={"failsafe": self.failsafe.errors})
+        else:
+            self.failsafe.ok()
+        stop, by = stop_held(self.hass, now)
+        if stop:
+            # 0.78.2 (security review M3): the house's life-safety stop – the lowest flow, forced (also in shadow)
+            decision = CircuitDecision(now, cfg.circuit_flow_min, decision.raw, "safety_stop", False,
+                                       details={**(decision.details or {}), "safety_stop": by})
         # what the tank can give the demanded (uncapped) target
-        self.usable = buf.stock.usable(decision.demand_target, cfg.circuit_dt, cfg.circuit_margin) if buf is not None else {}
+        self.usable = buf.stock.usable(decision.demand_target, cfg.circuit_dt, cfg.circuit_margin) \
+            if buf is not None and decision.demand_target is not None else {}
         if decision.details.get("changed") or decision.cap_state != self._cap_state or now - self._last_save >= _SAVE_EVERY:
             await self.async_save()
         self._cap_state = decision.cap_state
         self._step_watch(now, decision)
         await self.write.tick(now)
-        await self.out.apply(now, decision.target, self.write.writing(now), (now - self._started).total_seconds())
+        await self.out.apply(now, decision.target, self.write.writing(now), (now - self._started).total_seconds(),
+                             force=stop)
         self.write.note_conflict(self.out)
         return decision
 

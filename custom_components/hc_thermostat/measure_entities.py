@@ -78,7 +78,11 @@ class HcStartsToday(HcEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         runs = _m(self.coordinator).get("runs") or {}
-        return {k: runs[k] for k in ("starts_week", "starts_season", "starts_last_hour", "season_from") if k in runs}
+        out = {k: runs[k] for k in ("starts_24h", "starts_week", "starts_season", "starts_last_hour", "season_from") if k in runs}
+        sw = _m(self.coordinator).get("switches_24h")
+        if sw is not None:
+            out["commanded_on_24h"] = sw  # 0.79.0: the commanded ON switches in the last 24 h (the log)
+        return out
 
 
 class HcRunHoursToday(HcEntity, SensorEntity):

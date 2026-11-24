@@ -112,6 +112,54 @@ class Limits:
         return out
 
 
+class SwitchLog:
+    """0.79.0: every change of the commanded output with what it was decided on – the indoor and target temperature,
+    the demand, the PWM cycle (length, position, carried seconds), the catch-up mode and the reason. A tester's request:
+    telling a PWM edge from a catch-up edge without reading graphs. The last `keep` changes, kept across restarts."""
+
+    FIELDS = ("t", "on", "indoor", "target", "demand", "reason", "limited_by", "cycle_s", "cycle_pos_s", "carry_s",
+              "catchup", "catchup_low")
+
+    def __init__(self, keep: int = 200) -> None:
+        self.items: deque[dict] = deque(maxlen=keep)
+        self.last: bool | None = None
+
+    def update(self, now: datetime, on: bool, **info) -> bool:
+        """Records a change (not the first value seen after a start). Returns whether it recorded."""
+        changed = self.last is not None and on != self.last
+        if changed:
+            item = {"t": now.isoformat(), "on": on}
+            for k in self.FIELDS[2:]:
+                v = info.get(k)
+                if v is not None:
+                    item[k] = round(v, 3) if isinstance(v, float) else v
+            self.items.append(item)
+        self.last = on
+        return changed
+
+    def count(self, now: datetime, hours: float = 24.0, on: bool = True) -> int:
+        out = 0
+        for x in self.items:
+            try:
+                if x.get("on") is on and now - datetime.fromisoformat(x["t"]) <= timedelta(hours=hours):
+                    out += 1
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out
+
+    def state(self) -> dict:
+        return {"items": list(self.items), "last": self.last}
+
+    def restore(self, data: dict) -> None:
+        if not isinstance(data, dict):
+            return
+        for x in data.get("items") or []:
+            if isinstance(x, dict) and isinstance(x.get("t"), str) and isinstance(x.get("on"), bool):
+                self.items.append({k: x[k] for k in self.FIELDS if k in x})
+        if isinstance(data.get("last"), bool):
+            self.last = data["last"]
+
+
 class RunCounter:
     """Starts and run time of the heat source, per local day."""
 
@@ -119,7 +167,7 @@ class RunCounter:
         self.days: dict[str, dict] = {}
         self.on: bool | None = None
         self.since: datetime | None = None
-        self.recent: deque[datetime] = deque(maxlen=200)  # start times (the last hour counts)
+        self.recent: deque[datetime] = deque(maxlen=400)  # start times (the last hour and, 0.79.0, the last 24 h count)
 
     def update(self, now: datetime, on: bool | None) -> None:
         if on is None:
@@ -142,6 +190,10 @@ class RunCounter:
     def starts_last_hour(self, now: datetime) -> int:
         return sum(1 for t in self.recent if now - t <= timedelta(hours=1))
 
+    def starts_24h(self, now: datetime) -> int:
+        """0.79.0: starts in the last 24 hours (rolling, not since midnight) – a tester's request for comparing settings."""
+        return sum(1 for t in self.recent if now - t <= timedelta(hours=24))
+
     def summary(self, now: datetime) -> dict:
         today = now.date()
         week = {(today - timedelta(days=i)).isoformat() for i in range(7)}
@@ -152,7 +204,7 @@ class RunCounter:
         ss, sh = sums([k for k in self.days if k >= season])
         return {"starts_today": t["starts"], "hours_today": round(t["on_s"] / 3600, 2),
                 "starts_week": ws, "hours_week": round(wh, 1), "starts_season": ss, "hours_season": round(sh, 1),
-                "starts_last_hour": self.starts_last_hour(now), "season_from": season}
+                "starts_last_hour": self.starts_last_hour(now), "starts_24h": self.starts_24h(now), "season_from": season}
 
     def state(self) -> dict:
         return {"days": self.days, "recent": [t.isoformat() for t in self.recent]}

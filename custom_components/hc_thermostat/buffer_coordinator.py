@@ -22,6 +22,8 @@ from .const import (CONF_BOILER, CONF_BUFFER_BOTTOM, CONF_BUFFER_CHARGE, CONF_BU
                     CONF_BUFFER_UPPER, CONF_MODE, CONF_ZONES, DOMAIN, MODE_ACTIVE, MODE_SHADOW)
 from .core.buffer import BufferCharger, BufferConfig, BufferDecision, fresh
 from .core.stratified import Stock, StockTrend, stock
+from .failsafe import StepFailsafe
+from .safety_hub import stop_held
 
 from .units import state_value_c
 
@@ -77,6 +79,7 @@ class BufferCoordinator(DataUpdateCoordinator[BufferDecision]):
         self.stock: Stock | None = None  # 0.54.0: the stratified tank
         self.trend: dict = {}
         self._trend = StockTrend()
+        self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
     @property
     def is_shadow(self) -> bool:
@@ -94,13 +97,30 @@ class BufferCoordinator(DataUpdateCoordinator[BufferDecision]):
         zones = list(self.conf.get(CONF_ZONES) or [])
         was = self.buffer.output
         max_age = self.buffer.cfg.buffer_sensor_max_age_s
-        decision = self.buffer.step(now, _temp(self.hass, self.conf.get(CONF_BUFFER_TOP), now, max_age),
-                                    _temp(self.hass, self.conf.get(CONF_BUFFER_BOTTOM), now, max_age),
-                                    asking_zones(self.hass, zones), zones_given=bool(zones))
+        try:
+            decision = self.buffer.step(now, _temp(self.hass, self.conf.get(CONF_BUFFER_TOP), now, max_age),
+                                        _temp(self.hass, self.conf.get(CONF_BUFFER_BOTTOM), now, max_age),
+                                        asking_zones(self.hass, zones), zones_given=bool(zones))
+        except Exception:
+            # 0.78.2: a step that fails again and again must not leave the heat source charging (its
+            # buffer_max_charge_s lives inside the failing step) – from the FAILSAFE_AFTER-th failure in a row it is
+            # switched off; the charger's own state follows, so a working step starts from "off"
+            if not self.failsafe.failed():
+                raise
+            self.buffer._switch(now, False)
+            decision = BufferDecision(now, False, "failsafe", details={"failsafe": self.failsafe.errors})
+        else:
+            self.failsafe.ok()
+        stop, by = stop_held(self.hass, now)
+        if stop:
+            # 0.78.2 (security review M3): the house's life-safety stop – no charging, also in shadow
+            self.buffer._switch(now, False)
+            decision = BufferDecision(now, False, "safety_stop", decision.top, decision.bottom, decision.asking,
+                                      {**(decision.details or {}), "safety_stop": by})
         self._update_stock(now, max_age)
         if decision.output != was:
             await self.async_save()
-        if self.mode == MODE_ACTIVE:
+        if self.mode == MODE_ACTIVE or stop:
             await self._switch(decision.output)
         return decision
 
@@ -131,6 +151,13 @@ class BufferCoordinator(DataUpdateCoordinator[BufferDecision]):
     async def _switch(self, on: bool) -> None:
         source = self.conf.get(CONF_BOILER)
         state = self.hass.states.get(source) if source else None
+        if source and state is None:
+            # 0.78.2 (security review): a heat source entity that is gone is said once (it was silent)
+            if not getattr(self, "_missing_said", False):
+                self._missing_said = True
+                _LOGGER.error("%s: the heat source's entity %s does not exist – HC cannot switch it", self.config_entry.title, source)
+            return
+        self._missing_said = False
         if state is None or state.state not in ("on", "off"):
             return
         want = "on" if on else "off"

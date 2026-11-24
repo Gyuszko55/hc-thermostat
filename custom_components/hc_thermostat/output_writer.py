@@ -120,13 +120,20 @@ class OutputWriter:
         await hass.services.async_call(dom, "set_value", {"entity_id": eid, "value": value}, blocking=True)
         self.sent = value
 
-    async def apply(self, now: datetime, want: float | bool | None, writing: bool, uptime_s: float) -> str:
-        """Write `want` when the guard allows it; returns (and keeps) the status."""
+    async def apply(self, now: datetime, want: float | bool | None, writing: bool, uptime_s: float,
+                    force: bool = False) -> str:
+        """Write `want` when the guard allows it; returns (and keeps) the status.
+
+        0.78.2 (security review H1): `force` – a life-safety stop. Shadow, a trial that ended, paused writing, the grace
+        after a start and a conflict / an unaccepted / a given-up value do not hold it back: whenever the output shows
+        another value than the stop's, it is written (every step, until it lands). Status "safety"."""
         if not self.entity_id:
             self.status = "none"
             return self.status
         if isinstance(want, bool):
             want = 1.0 if want else 0.0
+        if force and want is not None:
+            return await self._force(now, want)
         if not writing:
             self.status = "shadow"
             return self.status
@@ -155,6 +162,30 @@ class OutputWriter:
                 self.error, status = str(err), "error"
         self.status = status
         return status
+
+    async def _force(self, now: datetime, want: float) -> str:
+        current, _ = self.read()
+        if current is None:
+            self.status = "unavailable"
+            return self.status
+        state = self.hass.states.get(self.entity_id)
+        if self.onoff:
+            want_cmp = want
+        elif self.domain == "climate":
+            landed = self._climate_value(state, want)
+            want_cmp = landed if system_unit(self.hass) == CELSIUS else to_c(landed, system_unit(self.hass))
+        else:
+            want_cmp = to_c(self._number_value(state, want), state.attributes.get("unit_of_measurement"))
+        if abs(current - want_cmp) > (0.0 if self.onoff else 0.25):
+            try:
+                await self._call(want)
+                self.guard.wrote(now, want_cmp)
+                self.error = None
+            except Exception as err:  # the next step tries again
+                _LOGGER.warning("HC could not write the safety stop to %s: %s", self.entity_id, err)
+                self.error = str(err)
+        self.status = "safety"
+        return self.status
 
     def reported(self) -> float | None:
         """0.64.0: the target the output reports back now (°C; None: unavailable / an ON-OFF output)."""

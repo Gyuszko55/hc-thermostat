@@ -13,13 +13,14 @@ from homeassistant.data_entry_flow import section
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
     BooleanSelector, EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig,
-    NumberSelectorMode, SelectSelector, SelectSelectorConfig, SelectSelectorMode, TextSelector, TimeSelector,
+    NumberSelectorMode, SelectSelector, SelectSelectorConfig, SelectSelectorMode, TextSelector, TextSelectorConfig,
+    TextSelectorType, TimeSelector,
 )
 
 from .const import (
-    CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
+    CONF_ACTUATOR, CONF_KEEP_ALIVE_SCRIPT, CONF_GUARD_URL, CONF_GUARD_TOKEN, CONF_GUARD_PASSWORD, CONF_GUARD_PUSH, CONF_SAFETY, CONF_BOILER_LIMIT, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_COP_HIGH, CONF_COP_LOW,
     CONF_OTHER_LIMIT, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL, CONF_CONFIRM, CONF_CONTROL, CONF_ENERGY_FACTOR, CONF_EXTERNAL, CONF_EXTRA_FACTOR, CONF_EXTRA_HEAT, CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_INDOOR, CONF_MODE,
-    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, CONF_WRITE_RESTORE, CONF_WRITE_RESTORE_TRIES, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
+    CONF_OUTDOOR, CONF_PRESENCE, CONF_RATING_OUTDOOR, CONF_REFERENCE, CONF_SYSTEM, CONF_WINDOWS, CONF_FLAME, CONF_WINDOW_DROP, CONF_BOILER_POWER, CONF_FLOW, CONF_HEAT_ENABLE, CONF_ZONE_DIFF, CONF_ZONE_DOORS, CONF_ZONE_TEMP, CONF_ROLE, ROLES, CONF_ZONES, CONF_BOILER, CONF_PUMP, CONF_VALVE_FEEDBACK, CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN, CONF_BUFFER_TOP, CONF_BUFFER_BOTTOM, CONF_BUFFER_UPPER, CONF_BUFFER_LOWER, CONF_BUFFER_CHARGE, CONF_CIRCUIT_BUFFER, CONF_HP_BUFFER, CONF_HP_RUNNING, CONF_WOOD, CONF_WOOD_TEMP, CONF_CIRCUIT_OUTPUT, CONF_HP_SWITCH, CONF_HP_TARGET_OUT, CONF_HP_DEMAND_OUT, CONF_HP_SUMMER_OUT, CONF_HP_EXERCISE_OUT, CONF_HP_TARGET_ROUND, CONF_HP_WATER_TEMP, CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER, CONF_HM_COMPRESSOR, CONF_WRITE_KEEPALIVE, CONF_WRITE_CONFIRM, CONF_WRITE_RESTORE, CONF_WRITE_RESTORE_TRIES, WRITE_CONFIRM_DEFAULT, CONF_TRIAL_HOURS, DOMAIN, EXPIRY, MODE_ACTIVE, MODE_SHADOW, PRESETS, TIMED_PRESETS,
     CONF_ROOMS, CONF_ROOM_TOL, CONF_ROOM_TRVS, CONF_ROOM_TRV_DEMAND, CONF_TRV_OFFSETS, CONF_TRV_SENSORS, TRV_HEAD, CONF_ASSIST, CONF_FLOOR, CONF_TARGET_SOURCE,
     CONF_HP_DEFROST, CONF_HP_DHW, CONF_DEMAND, CONF_DHW_PUMP, CONF_DHW_TEMP, CONF_DHW_HEATER, CONF_CIRCUIT_PUMP, CONF_CIRCUIT_FLOW, CONF_HOME_NAME, CONF_HOUSE_LINK, CONF_HEAT_FUEL, CONF_HEAT_EFFICIENCY,
     CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_GAS_VALUE,
@@ -327,6 +328,8 @@ def _hpc_fields(hass, current: dict) -> dict:
         vol.Optional(CONF_WOOD_TEMP, description={"suggested_value": current.get(CONF_WOOD_TEMP)}): _ent(CONF_WOOD_TEMP, "sensor"),
         # 0.64.0: the heat pump's own water thermometer – only for the target chart
         vol.Optional(CONF_HP_WATER_TEMP, description={"suggested_value": current.get(CONF_HP_WATER_TEMP)}): _ent(CONF_HP_WATER_TEMP, "sensor"),
+        # 0.77.0: life-safety inputs – while the stop holds: no ON, no heat demand, the lowest target
+        vol.Optional(CONF_SAFETY, description={"suggested_value": current.get(CONF_SAFETY)}): _entity("binary_sensor", multiple=True),
         **_outputs("hp_coord", current),
     }
 
@@ -364,7 +367,42 @@ def _hpc_settings(current: dict) -> dict:
     ])
 
 
-HM_ENTITIES = (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER)
+GUARD_NO_SENSOR = ("off", "duty")
+
+
+def _guard_fields(cfg, current: dict) -> dict:
+    """0.76.0: the local guard – its address, an optional token and push URL, and the values it regulates by when
+    HC's lease runs out (sent with every lease, kept on the device)."""
+    text = lambda k, kind=TextSelectorType.TEXT: (  # noqa: E731
+        vol.Optional(k, description={"suggested_value": current.get(k)}), TextSelector(TextSelectorConfig(type=kind)))
+    return dict([
+        text(CONF_GUARD_URL, TextSelectorType.URL), text(CONF_GUARD_TOKEN, TextSelectorType.PASSWORD),
+        text(CONF_GUARD_PASSWORD, TextSelectorType.PASSWORD),  # 0.78.2
+        text(CONF_GUARD_PUSH, TextSelectorType.URL),
+        (vol.Required("guard_sp", default=cfg.guard_sp), _number(5, 30, 0.5, "°C")),
+        (vol.Required("guard_hyst", default=cfg.guard_hyst), _number(0.2, 3, 0.1, "°C")),
+        (vol.Required("guard_no_sensor", default=cfg.guard_no_sensor if cfg.guard_no_sensor in GUARD_NO_SENSOR else "off"),
+         _select(list(GUARD_NO_SENSOR), "guard_no_sensor")),
+        (vol.Required("guard_duty_on_s", default=cfg.guard_duty_on_s), _number(60, 7200, 60, "s")),
+        (vol.Required("guard_duty_off_s", default=cfg.guard_duty_off_s), _number(60, 14400, 60, "s")),
+        (vol.Required("guard_max_on_s", default=cfg.guard_max_on_s), _number(0, 86400, 300, "s")),
+        (vol.Required("guard_every_s", default=cfg.guard_every_s), _number(15, 300, 15, "s")),
+        (vol.Required("guard_ttl_s", default=cfg.guard_ttl_s), _number(60, 900, 30, "s")),
+    ])
+
+
+def _guard_errors(user_input: dict) -> dict:
+    url = str(user_input.get(CONF_GUARD_URL) or "").strip()
+    if url and not url.startswith(("http://", "https://")):
+        return {CONF_GUARD_URL: "guard_url"}
+    if url and not str(user_input.get(CONF_GUARD_TOKEN) or "").strip():
+        return {CONF_GUARD_TOKEN: "guard_token_required"}  # 0.78.2 (security review H3): the guard takes none without
+    if url and float(user_input.get("guard_ttl_s", 300)) < 2 * float(user_input.get("guard_every_s", 60)):
+        return {"guard_ttl_s": "guard_ttl"}
+    return {}
+
+
+HM_ENTITIES = (CONF_HM_OUT, CONF_HM_IN, CONF_HM_FLOW, CONF_HP_POWER, CONF_HM_COMPRESSOR)
 HM_SCOPES = ("unit", "compressor")
 
 
@@ -374,10 +412,10 @@ def _hm_fields(current: dict) -> list:
     n = lambda k, lo, hi, st, u="": (vol.Required(k, default=getattr(hm, k)), _number(lo, hi, st, u))  # noqa: E731
     ent = lambda k: (vol.Optional(k, description={"suggested_value": current.get(k)}),  # noqa: E731
                      _entity("sensor", "input_number", "number"))
-    return [ent(CONF_HM_OUT), ent(CONF_HM_IN), ent(CONF_HM_FLOW), ent(CONF_HP_POWER),
+    return [ent(CONF_HM_OUT), ent(CONF_HM_IN), ent(CONF_HM_FLOW), ent(CONF_HP_POWER), ent(CONF_HM_COMPRESSOR),
             (vol.Required("hm_power_scope", default=hm.hm_power_scope if hm.hm_power_scope in HM_SCOPES else "unit"),
              _select(list(HM_SCOPES), "hm_power_scope")),
-            n("hm_factor", 0.5, 1.1, 0.01), n("hm_resolution", 0.01, 2, 0.01, "°C"), n("hm_min_flow", 0, 20, 0.1, "l/min"),
+            n("hm_heat_min_power_w", 0, 5000, 10, "W"), n("hm_factor", 0.5, 1.1, 0.01), n("hm_resolution", 0.01, 2, 0.01, "°C"), n("hm_min_flow", 0, 20, 0.1, "l/min"),
             n("hm_max_age_s", 30, 3600, 30, "s"), n("hm_max_gap_s", 30, 900, 30, "s"),
             n("hm_cop_window_s", 120, 3600, 60, "s"), n("hm_cop_min_s", 60, 3600, 60, "s"), n("hm_cop_max", 3, 15, 0.5)]
 
@@ -439,7 +477,7 @@ HPC_SECTIONS = {
     "wood": ("hp_wood_rise", "hp_wood_first", "wood_on_above", "wood_off_below", "wood_confirm_s"),
     "hold": ("hp_charge_jump", "hp_deadband", "hp_confirm_s", "hp_min_interval_s", "hp_max_rise", "hp_urgent"),
     # 0.75.0
-    "heat_meter": ("hp_flow_out_temp_entity", "hp_flow_in_temp_entity", "hp_water_flow_entity", "hp_power_entity",
+    "heat_meter": ("hp_flow_out_temp_entity", "hp_flow_in_temp_entity", "hp_water_flow_entity", "hp_power_entity", "hm_compressor_entity", "hm_heat_min_power_w",
                    "hm_power_scope", "hm_factor", "hm_resolution", "hm_min_flow", "hm_max_age_s", "hm_max_gap_s",
                    "hm_cop_window_s", "hm_cop_min_s", "hm_cop_max"),
 }
@@ -716,7 +754,7 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
                   CONF_PRESENCE_VACATION, "boost_enabled", "learning_enabled", "shadow_regulator", "ai_task_entity",
                   "ai_report_time", "adopt_manual",
                   CONF_TARGET_SOURCE, CONF_DEMAND),
-    "protection": (CONF_WINDOWS, CONF_WINDOW_DROP, "window_drop_rate", "frozen_after_h", "frozen_burn_min",
+    "protection": (CONF_SAFETY, CONF_WINDOWS, CONF_WINDOW_DROP, "window_drop_rate", "frozen_after_h", "frozen_burn_min",
                    "plaus_indoor_min",
                    CONF_VALVE_FEEDBACK, "zone_own_mixer", "valve_exercise", "exercise_weekday", "exercise_time",
                    "exercise_s", CONF_RETURN, "return_max", "return_hysteresis"),
@@ -730,9 +768,12 @@ SETTINGS_SECTIONS: dict[str, tuple[str, ...]] = {
                CONF_BOILER_PRICE, CONF_OTHER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_OTHER_PRICE_MANUAL,
                CONF_BOILER_LIMIT, CONF_OTHER_LIMIT, CONF_COP_HIGH, CONF_COP_LOW),
     "adjoining": (CONF_ZONE_TEMP, CONF_ZONE_DOORS, CONF_ZONE_DIFF, CONF_HOUSE_LINK, CONF_HOME_NAME),
+    # 0.76.0
+    "guard": (CONF_GUARD_URL, CONF_GUARD_TOKEN, CONF_GUARD_PASSWORD, CONF_GUARD_PUSH, "guard_sp", "guard_hyst", "guard_no_sensor",
+              "guard_duty_on_s", "guard_duty_off_s", "guard_max_on_s", "guard_every_s", "guard_ttl_s"),
     # 0.50.0
     "house": ("house_loss_w_k", "house_gains_kw", "house_tau_h", "optimal_start", "optimal_start_max_min",
-              "optimal_start_lag_min", "pre_change_max_s", "pre_change_sag", "mould_frsi", "house_area_m2",
+              "optimal_start_lag_min", "preheat_hold_min", "pre_change_max_s", "pre_change_sag", "mould_frsi", "house_area_m2",
               "dhw_kwh_year", "aux_kwh_year", "primary_factor", CONF_RATING_OUTDOOR),
 }
 _SETTINGS_SECTION_OF = {k: name for name, keys in SETTINGS_SECTIONS.items() for k in keys}
@@ -1253,6 +1294,9 @@ class HcOptionsFlow(OptionsFlow):
                 errors = _field_error("season_on_below", "season_order", _SETTINGS_SECTION_OF)  # 0.52.0
             elif float(user_input.get("plaus_indoor_min", 3.0)) > float(user_input.get("frost_temp", 7.0)) - 2.0:
                 errors = _field_error("plaus_indoor_min", "plaus_frost", _SETTINGS_SECTION_OF)  # 0.52.0
+            elif _guard_errors(user_input):
+                key, code = next(iter(_guard_errors(user_input).items()))
+                errors = _field_error(key, code, _SETTINGS_SECTION_OF)  # 0.76.0
             elif _cycle_too_short(user_input):
                 errors = _field_error("cycle_s", "cycle_too_short", _SETTINGS_SECTION_OF)  # 0.48.1
             elif user_input.get("floor_cooling") and not user_input.get(CONF_HUMIDITY):
@@ -1333,11 +1377,14 @@ class HcOptionsFlow(OptionsFlow):
             **({vol.Required("optimal_start", default=cfg.optimal_start): BooleanSelector(),
                 vol.Required("optimal_start_max_min", default=cfg.optimal_start_max_min): _number(15, 360, 15, "min"),
                 vol.Required("optimal_start_lag_min", default=cfg.optimal_start_lag_min): _number(0, 120, 5, "min"),
+                vol.Required("preheat_hold_min", default=cfg.preheat_hold_min): _number(0, 60, 5, "min"),  # 0.79.0
                 vol.Required("pre_change_max_s", default=cfg.pre_change_max_s): _number(0, 14400, 300, "s"),
                 vol.Required("pre_change_sag", default=cfg.pre_change_sag): _number(0, 2, 0.1, "°C")}
                if cfg.control in ("tpi", "pid", "onoff") else {}),
             vol.Required("keep_alive_s", default=cfg.keep_alive_s): _number(0, 600, 10, "s"),
             vol.Optional(CONF_KEEP_ALIVE_SCRIPT, description={"suggested_value": current.get(CONF_KEEP_ALIVE_SCRIPT)}): _entity("script"),
+            # 0.76.0: the local guard next to the relay (only for a relay this instance switches)
+            **(_guard_fields(cfg, current) if current.get(CONF_ACTUATOR) and cfg.control in _RELAY else {}),
             **({vol.Required("frozen_after_h", default=cfg.frozen_after_h): _number(0, 24, 0.5, "h"),
                 vol.Required("frozen_burn_min", default=cfg.frozen_burn_min): _number(0, 240, 5, "min")}
                if cfg.control in ("tpi", "pid", "onoff") else {}),
@@ -1383,6 +1430,8 @@ class HcOptionsFlow(OptionsFlow):
             vol.Required(CONF_EXTRA_FACTOR, default=current.get(CONF_EXTRA_FACTOR, 3.0)): _number(0.1, 10, 0.1, "×"),
             vol.Optional(CONF_WINDOWS, description={"suggested_value": current.get(CONF_WINDOWS)}): _ent(CONF_WINDOWS, "binary_sensor", multiple=True),
             vol.Optional(CONF_WINDOW_DROP, description={"suggested_value": current.get(CONF_WINDOW_DROP)}): _ent(CONF_WINDOW_DROP, "sensor", multiple=True),
+            # 0.77.0: life-safety inputs – any of them on stops every instance watching them until acknowledged
+            vol.Optional(CONF_SAFETY, description={"suggested_value": current.get(CONF_SAFETY)}): _entity("binary_sensor", multiple=True),
             vol.Required("window_drop_rate", default=cfg.window_drop_rate): _number(0.5, 10, 0.1, "°C/h"),
             # 0.46.0: the rooms and their tolerance are in the "Rooms" menu item
             vol.Optional(CONF_ZONE_TEMP, description={"suggested_value": current.get(CONF_ZONE_TEMP)}): _ent(CONF_ZONE_TEMP, "sensor"),

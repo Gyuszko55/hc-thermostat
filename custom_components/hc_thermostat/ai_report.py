@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (CONF_BOILER_POWER, CONF_BOILER_PRICE, CONF_BOILER_PRICE_MANUAL, CONF_CONTROL, CONF_ENERGY_FACTOR,
                     CONF_HEAT_ENERGY, CONF_HEAT_SOURCE, CONF_MODE, CONF_OTHER_PRICE, CONF_OTHER_PRICE_MANUAL,
-                    CONF_OUTDOOR, CONF_ROLE, CONF_SYSTEM, DOMAIN)
+                    CONF_OUTDOOR, CONF_ROLE, CONF_SYSTEM, DOMAIN, MODE_ACTIVE, MODE_SHADOW)
 from .core import day_report as dr
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,7 +90,11 @@ def _series(states, kind: str) -> list:
 
 
 def house_entries(hass, host_id: str) -> list:
-    """The host instance first, then the members of its house (loaded ones only)."""
+    """The host instance first, then the members of its house (loaded ones only).
+
+    0.78.5: when the host controls (active mode), only the members that control too are analysed – a shadow member
+    (evaluation, a simulation) only computes and is not the live heating. With a shadow host (the house is still
+    being evaluated) every member stays in."""
     from .info import house_links
     link = house_links(hass).get(host_id)
     ids = [host_id] + ([m for m in link.members if m != host_id] if link is not None and link.host == host_id else [])
@@ -99,7 +103,20 @@ def house_entries(hass, host_id: str) -> list:
         e = hass.config_entries.async_get_entry(i)
         if e is not None and getattr(e, "runtime_data", None) is not None:
             out.append(e)
+    if out and _mode(out[0]) == MODE_ACTIVE:
+        out = [out[0]] + [e for e in out[1:] if _mode(e) == MODE_ACTIVE]
     return out
+
+
+def _mode(entry) -> str:
+    return {**entry.data, **entry.options}.get(CONF_MODE, MODE_SHADOW)
+
+
+def _own_issue(issue_id: str, included: set[str], all_ids: set[str]) -> bool:
+    """0.78.5: an open HC issue belongs to the report when it is one of the analysed instances' own (its entry id is
+    in the issue id) or house-wide (no instance's entry id in it, e.g. the life-safety stop)."""
+    owners = {i for i in all_ids if i in issue_id}
+    return not owners or bool(owners & included)
 
 
 async def collect(hass, host_entry, now: datetime | None = None) -> dict:
@@ -175,8 +192,10 @@ async def collect(hass, host_entry, now: datetime | None = None) -> dict:
             m["energy"] = energy
         members.append(m)
     issues = []
+    included = {e.entry_id for e in entries}
+    all_ids = {e.entry_id for e in hass.config_entries.async_entries(DOMAIN)}
     for (domain, issue_id), issue in ir.async_get(hass).issues.items():
-        if domain == DOMAIN and issue.active and not issue.dismissed_version:
+        if domain == DOMAIN and issue.active and not issue.dismissed_version and _own_issue(issue_id, included, all_ids):
             issues.append({"kind": issue.translation_key, **(issue.translation_placeholders or {})})
     out_stats = dr.number_stats(_series(hist.get(outdoor_id), "number"), start, end) if outdoor_id else None
     return {"house": host_entry.title, "day": start.date().isoformat(), "outdoor": out_stats, "members": members,
@@ -235,6 +254,14 @@ async def ask_ai(hass, ai_entity: str, facts: dict, lang: str) -> dict:
             "observations": dr.parse_lines(data.get("observations")), "todos": dr.parse_lines(data.get("todos"))}
 
 
+MANUAL_COOLDOWN_S = 900.0  # 0.78.2 (security review): a manual run at most every 15 minutes ...
+MANUAL_PER_DAY = 6  # ... and at most this many a day – each one is a (paid) AI Task call and a day of history
+
+
+class AiLimited(Exception):
+    """0.78.2: a manual run refused by the rate limit; the message says when the next one may come."""
+
+
 class AiReporter:
     """Keeps and makes the house's report; owned by the leading instance's coordinator."""
 
@@ -243,6 +270,9 @@ class AiReporter:
         self.report: dict | None = None
         self.running = False
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.ai_report")
+        self._manual_day = None  # 0.78.2: the day the manual runs are counted for
+        self._manual_count = 0
+        self._manual_last: datetime | None = None
 
     async def async_load(self) -> None:
         try:
@@ -254,11 +284,36 @@ class AiReporter:
     def ai_entity(self) -> str | None:
         return {**self.entry.data, **self.entry.options}.get(CONF_AI_TASK) or None
 
-    async def async_run(self, now: datetime | None = None) -> dict:
+    def manual_check(self, now: datetime) -> str | None:
+        """0.78.2: None when a manual run may go now, else why not (the button / the panel show it). The morning's
+        scheduled report is not counted."""
+        hu = str(getattr(self.hass.config, "language", "") or "").startswith("hu")
+        if self._manual_day != now.date():
+            self._manual_day, self._manual_count = now.date(), 0
+        if self._manual_count >= MANUAL_PER_DAY:
+            return (f"Ma már {MANUAL_PER_DAY} kézi MI-elemzés készült – a következő holnap (vagy a reggeli automatikus)."
+                    if hu else f"{MANUAL_PER_DAY} manual AI analyses were made today – the next one tomorrow (or the "
+                    "scheduled morning one).")
+        if self._manual_last is not None:
+            wait = MANUAL_COOLDOWN_S - (now - self._manual_last).total_seconds()
+            if wait > 0:
+                mins = max(1, int(wait // 60) + (1 if wait % 60 else 0))
+                return (f"Az előző kézi MI-elemzés most készült – a következő {mins} perc múlva kérhető." if hu
+                        else f"The last manual AI analysis was just made – the next one in {mins} min.")
+        return None
+
+    async def async_run(self, now: datetime | None = None, manual: bool = False) -> dict:
+        """manual (0.78.2): the button or the panel – rate limited (MANUAL_COOLDOWN_S, MANUAL_PER_DAY); raises AiLimited."""
         if self.running:
             return self.report or {}
-        self.running = True
         now = now or dt_util.now()
+        if manual:
+            why = self.manual_check(now)
+            if why is not None:
+                raise AiLimited(why)
+            self._manual_count += 1
+            self._manual_last = now
+        self.running = True
         lang = "hu" if str(getattr(self.hass.config, "language", "") or "").startswith("hu") else "en"
         try:
             facts = await collect(self.hass, self.entry, now)

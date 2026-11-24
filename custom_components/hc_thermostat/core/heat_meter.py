@@ -43,6 +43,7 @@ class HeatMeterConfig:
     hm_cop_min_s: float = 300.0  # active running needed in the window before a COP is shown
     hm_cop_max: float = 10.0  # above this a COP is implausible (a stale or wrong reading)
     hm_power_scope: str = "unit"  # what the power meter measures: "unit" (the whole unit) | "compressor"
+    hm_heat_min_power_w: float = 200.0  # heat metering only: ignore pump-only frost circulation
 
     @classmethod
     def from_conf(cls, conf: dict) -> "HeatMeterConfig":
@@ -60,6 +61,8 @@ class HmSample:
     running_w: float = 100.0  # the compressor's threshold (hp_running_w)
     busy: bool = False  # defrost / hot water: not heating the circuit
     power_source: bool = True  # an electric power reading is configured at all
+    compressor_active: bool | None = None  # optional fresh compressor frequency > 0 Hz
+    compressor_source: bool = False  # a Hz sensor is configured; missing Hz never falls back to watts
 
 
 def heat_kw(flow: float, t_out: float, t_in: float, factor: float = 1.0) -> float:
@@ -79,7 +82,7 @@ class HeatMeter:
         self.day_cop_heat_kwh = 0.0
         self.day_cop_s = 0.0  # active time with a valid electric reading
         self.day_heat_s = 0.0  # time the water carried heat
-        self._last: tuple | None = None  # (time, P_th kW, P_el kW or None, active)
+        self._last: tuple | None = None  # (time, P_th kW, P_el kW or None, COP active, heat active)
         self._window: deque = deque()  # (end time, dt s, heat kWh, electricity kWh) of active intervals
         self.info: dict = {}
 
@@ -95,13 +98,39 @@ class HeatMeter:
         if not valid:
             self._last = None  # the counting pauses; the next valid reading starts again from there
             self._window.clear()
-            self.info = {"valid": False, "reason": "missing", "power_kw": None, "cop": None, "cop_raw": None,
+            self.info = {"valid": False, "reason": "missing", "heat_reason": "missing", "power_kw": None, "cop": None, "cop_raw": None,
                          "cop_reason": "missing", **self._totals()}
             return self.info
         flowing = s.flow >= cfg.hm_min_flow
         dt_c = s.t_out - s.t_in
-        p_th = heat_kw(s.flow, s.t_out, s.t_in, cfg.hm_factor) if flowing else 0.0
+        raw_kw = heat_kw(s.flow, s.t_out, s.t_in, cfg.hm_factor) if flowing else 0.0
         p_el = None if s.p_el_w is None or s.p_el_w < 0 else s.p_el_w / 1000.0
+        # Meter compressor-produced heat, not residual buffer heat moved by frost circulation.
+        # A configured compressor-Hz sensor takes precedence; a stale Hz reading is fail-closed.
+        heat_reason = None
+        unconfirmed = False
+        if not flowing:
+            heat_reason = "no_flow"
+        elif s.busy:
+            heat_reason = "defrost"
+        elif dt_c <= 0:
+            heat_reason = "negative_dt"
+        elif s.compressor_source:
+            if s.compressor_active is None:
+                heat_reason = "stale_compressor"
+            elif not s.compressor_active:
+                heat_reason = "not_running"
+        elif not s.power_source:
+            # No watt or Hz signal is configured at all: keep metering as before 0.78.5 (water side only),
+            # but flag it as unconfirmed - a binary "runs" signal cannot tell frost circulation apart.
+            unconfirmed = True
+        elif p_el is None:
+            heat_reason = "stale_power"
+        elif s.p_el_w <= cfg.hm_heat_min_power_w:
+            heat_reason = "not_running"
+        heat_active = heat_reason is None
+        unknown_heat = heat_reason in ("stale_compressor", "stale_power")
+        p_th = None if unknown_heat else (raw_kw if heat_active else 0.0)
         cop_reason = None
         if not s.power_source:
             cop_reason = "no_power_meter"
@@ -115,17 +144,19 @@ class HeatMeter:
             cop_reason = "negative_dt"
         elif s.p_el_w <= s.running_w:
             cop_reason = "not_running"
-        active = cop_reason is None
-        # the interval since the last valid reading
+        if cop_reason is None and not heat_active:
+            cop_reason = heat_reason or "not_running"
+        active = cop_reason is None and heat_active
+        # Count only intervals with confirmed compressor operation at BOTH ends.
+        # No half-interval phantom energy at a stop/start threshold crossing.
         if self._last is not None:
-            t0, p0, e0, a0 = self._last
+            t0, p0, e0, a0, h0 = self._last
             dt = (s.now - t0).total_seconds()
-            if 0 < dt <= cfg.hm_max_gap_s:
+            if h0 and heat_active and 0 < dt <= cfg.hm_max_gap_s:
                 e_th = (p0 + p_th) / 2 * dt / 3600
                 self.total_kwh += e_th
                 self.day_heat_kwh += e_th
-                if p0 > 0 or p_th > 0:
-                    self.day_heat_s += dt
+                self.day_heat_s += dt
                 if a0 and active and e0 is not None:
                     e_el = (e0 + p_el) / 2 * dt / 3600
                     self.day_el_kwh += e_el
@@ -134,7 +165,7 @@ class HeatMeter:
                     self.total_el_kwh += e_el
                     self.total_cop_heat_kwh += e_th
                     self._window.append((s.now, dt, e_th, e_el))
-        self._last = (s.now, p_th, p_el, active)
+        self._last = None if unknown_heat else (s.now, p_th, p_el, active, heat_active)
         if not active:
             self._window.clear()  # a new run starts its own window
         while self._window and (s.now - self._window[0][0]).total_seconds() > cfg.hm_cop_window_s:
@@ -156,7 +187,11 @@ class HeatMeter:
                     cop = round(value, 2)
                 else:
                     cop_reason = "implausible"
-        self.info = {"valid": True, "reason": None, "power_kw": round(p_th, 3), "dt": round(dt_c, 2),
+        self.info = {"valid": not unknown_heat, "reason": heat_reason if unknown_heat else None,
+                     "heat_reason": heat_reason, "heat_gate": "compressor_hz" if s.compressor_source else ("electric_power" if s.power_source else "none"),
+                     "heat_confirmed": heat_active and not unconfirmed,
+                     "heat_min_power_w": cfg.hm_heat_min_power_w, "raw_power_kw": round(raw_kw, 3),
+                     "power_kw": None if p_th is None else round(p_th, 3), "dt": round(dt_c, 2),
                      "flow": round(s.flow, 2), "t_out": s.t_out, "t_in": s.t_in,
                      "uncertainty_pct": round(100 * cfg.hm_resolution / dt_c) if dt_c > 0 and flowing else None,
                      "p_el_kw": None if p_el is None else round(p_el, 3), "cop": cop,

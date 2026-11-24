@@ -70,9 +70,13 @@ def _entities(hass, conf: dict) -> dict:
     return out
 
 
+_SECRET_KEYS = ("guard_token", "guard_password")  # 0.78.2
+
+
 def _instance(hass, entry) -> dict:
     c = entry.runtime_data
-    conf = dict(c.conf)
+    # 0.78.2: the guard's token and the device password never leave Home Assistant (the panel shows only "set")
+    conf = {k: ("********" if k in _SECRET_KEYS and v else v) for k, v in dict(c.conf).items()}
     role = conf.get("role", "standalone")
     base = {"entry_id": entry.entry_id, "title": entry.title, "role": role, "mode": c.mode,
             "heat_source": conf.get("heat_source"), "system": conf.get("system"), "control": conf.get("control"),
@@ -130,6 +134,7 @@ def _instance(hass, entry) -> dict:
                     "week": week.to_raw(sup.week), "week_level": week.level_at(sup.week, dt_util.now()) if sup.week else None,
                     "levels": {lv: sup.level_target(lv) for lv in week.LEVELS}},
         "state": jsonable(sup.state()),
+        "switch_log": list(c.switch_log.items)[-100:] if hasattr(c, "switch_log") else [],  # 0.79.0
         "live": {"season_on": sup.season_on, "fault": sup.fault, "boost_forecast": None,
                  "floor_temper_on": sup.temper_on if c.cfg.floor_temper else None,
                  "floor_limit": {"value": c.cfg.floor_limit, "from": c.cfg.floor_limit_from,
@@ -587,7 +592,12 @@ async def ws_ai_report_run(hass: HomeAssistant, connection, msg) -> None:
     if ai is None:
         connection.send_error(msg["id"], "not_found", "no AI analysis for this instance")
         return
-    report = await ai.async_run()
+    from .ai_report import AiLimited
+    try:
+        report = await ai.async_run(manual=True)  # 0.78.2: rate limited
+    except AiLimited as err:
+        connection.send_error(msg["id"], "rate_limited", str(err))
+        return
     connection.send_result(msg["id"], jsonable({**report, "configured": bool(ai.ai_entity), "running": False}))
 
 

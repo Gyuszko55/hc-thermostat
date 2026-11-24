@@ -145,6 +145,8 @@ EXECUTION = [
 ROOM_COMMON = [
     ("indoor_entity", REQ, T("Room thermometer (several: the room group's mean)", "Helyiség hőmérője (több: a helyiségcsoport átlaga)")),
     ("window_entities", OPT, T("Windows and doors: frost protection while open", "Ablakok és ajtók: nyitva fagyvédelem")),
+    ("safety_entities", OPT, T("Life-safety inputs: the wired chain's auxiliary contact, detectors – stop above everything",
+                               "Életvédelmi bemenetek: a bekötött lánc segédkontaktusa, érzékelők – leállítás mindenek felett")),
     ("presence_entities", OPT, T("Presence: household or per room", "Jelenlét: háztartás vagy helyiségenként")),
     ("target_source_entity", OPT, T("Target source: a wall thermostat's knob becomes the manual target", "Célhő forrása: a fali termosztát tekerője kézi célként")),
     ("window_drop_entities", OPT, T("Fast temperature drop: a window without a contact", "Gyors hőesés: ablak érzékelő nélkül")),
@@ -180,6 +182,8 @@ ROOM_DERIVES = [
 FLOOR_DERIVES = [(DONE, T("Floor tempering, floor fallback, limit by covering and probe position", "Padló-temperálás, padló-tartalék, korlát a burkolat és a szenzor helye szerint"))]
 
 STEPS = [
+    T("Life-safety stop? (smoke, fire, gas, CO, water – latched, everything off)",
+      "Életvédelmi leállítás? (füst, tűz, gáz, CO, víz – reteszelve, minden KI)"),
     T("Inputs fresh?", "Bemenetek frissek?"), T("Paused? Shadow or live", "Szünetel? Árnyék vagy éles"),
     T("Season (summer rest)", "Szezon (nyári pihenő)"), T("Window open → frost protection", "Ablak nyitva → fagyvédelem"),
     T("Target: schedule, presence, manual, optimal start, boost", "Cél: program, jelenlét, kézi, optimális indítás, felfűtés"),

@@ -31,6 +31,7 @@ from .const import (CONF_ACTUATOR, CONF_BOILER, CONF_BUFFER_BOTTOM, CONF_BUFFER_
                     CONF_WOOD_TEMP, CONF_ZONES, DOMAIN, MODE_SHADOW)
 from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS
 from .core.matrix import default_timing
+from . import wizard_check as wc  # 0.78.2
 
 _LOGGER = logging.getLogger(__name__)
 KINDS = ("radiator", "floor")
@@ -164,6 +165,14 @@ async def _create(hass, data: dict) -> str | None:
 })
 @websocket_api.async_response
 async def ws_system(hass: HomeAssistant, connection, msg) -> None:
+    try:  # 0.78.2 (security review): every value as the panel offers it; an existing room is an HC zone
+        wc.check_system(msg)
+        bad = [r["entry_id"] for r in msg["rooms"] if r.get("entry_id") and not wc.existing_zone_ok(hass, r["entry_id"], DOMAIN)]
+        if bad:
+            raise wc.Invalid("room.entry_id")
+    except wc.Invalid as err:
+        connection.send_error(msg["id"], "invalid_value", f"{err} does not fit")
+        return
     try:
         p = plan(msg, hass.config.language or "hu")
     except ValueError as err:

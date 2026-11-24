@@ -51,6 +51,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
             entities.append(HcFlowSetpoint(c))
         if c.cfg.shadow_regulator:
             entities.append(HcShadowRegulator(c))
+    if getattr(c, "guard", None) is not None:
+        entities.append(HcGuard(c))  # 0.76.0
     if c.cfg.house_area_m2 > 0:
         entities.append(HcEnergyRating(c))  # 0.51.0
     if c.conf.get(CONF_ROOMS) or c.conf.get(CONF_ROOM_TRVS):
@@ -390,7 +392,7 @@ class HcBufferDecision(HcEntity, SensorEntity):
     """Buffer tank (0.33.0): whether the heat source charges the tank, and why."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["charging", "full", "ready", "waiting_demand", "min_off", "frost", "no_sensor", "max_charge"]
+    _attr_options = ["charging", "full", "ready", "waiting_demand", "min_off", "frost", "no_sensor", "max_charge", "failsafe", "safety_stop"]
     _attr_icon = "mdi:storage-tank"
 
     def __init__(self, coordinator) -> None:
@@ -615,6 +617,28 @@ class HcHpRaw(HcEntity, SensorEntity):
         return None if raw is None else round(raw, 1)
 
 
+class HcGuard(HcEntity, SensorEntity):
+    """0.76.0: the local guard's mode – normal (HC switches), grace, fallback / nosensor (the guard regulates on its
+    own), handback, or unreachable."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["normal", "grace", "fallback", "nosensor", "handback", "safety", "unreachable"]
+    _attr_icon = "mdi:shield-home-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "guard")
+
+    @property
+    def native_value(self) -> str | None:
+        return self.coordinator.guard.link.info(self.coordinator.data.now).get("mode") if self.coordinator.data else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self.coordinator
+        return {**(c.guard.link.info(c.data.now) if c.data else {}), "url": c.guard.url}
+
+
 class _HmSensor(HcEntity, SensorEntity):
     """0.75.0: a value of the heat pump's water-side heat meter (core/heat_meter.py)."""
 
@@ -728,7 +752,7 @@ class HcCentralDecision(HcEntity, SensorEntity):
     """Central boiler: why the boiler runs or not, which zones ask and whose valves are open."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["no_demand", "waiting_valves", "heating", "min_on", "min_off", "valves_closed"]
+    _attr_options = ["no_demand", "waiting_valves", "heating", "min_on", "min_off", "valves_closed", "failsafe", "safety_stop"]
     _attr_icon = "mdi:water-boiler"
 
     def __init__(self, coordinator) -> None:

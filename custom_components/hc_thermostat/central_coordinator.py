@@ -27,6 +27,8 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_BOILER, CONF_FLOW, CONF_MODE, CONF_PUMP, CONF_ZONES, DOMAIN, MODE_ACTIVE, MODE_SHADOW
 from .core.central import CentralBoiler, CentralConfig, CentralDecision, ZoneState, feedback_open
 from .executor import KeepAlive
+from .failsafe import StepFailsafe
+from .safety_hub import stop_held
 
 from .units import from_c
 
@@ -105,6 +107,7 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
         self._started = dt_util.utcnow()
         self._last_save = self._started
         self._saved_run: datetime | None = None
+        self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
     async def async_load(self) -> None:
         """When the pump last ran (pump exercise, 0.39.0)."""
@@ -130,8 +133,26 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
         self.zones = read_zones(self.hass, list(self.conf.get(CONF_ZONES) or []), self._valve_on, now, self._valve_off,
                                 self._exercise_on)
         uptime = (now - self._started).total_seconds()
-        decision = self.central.step(now, self.zones, uptime_s=uptime, pump_on=self._pump_on())
-        if self.mode == MODE_ACTIVE:
+        try:
+            decision = self.central.step(now, self.zones, uptime_s=uptime, pump_on=self._pump_on())
+        except Exception:
+            # 0.78.2: a step that fails again and again must not leave the boiler on – from the FAILSAFE_AFTER-th
+            # failure in a row the boiler is switched off and the flow setpoint goes to its lowest; the pump keeps
+            # its last state (an overrun that was running carries the heat away)
+            if not self.failsafe.failed():
+                raise
+            last = self.data
+            decision = CentralDecision(now, False, "failsafe", pump=bool(last.pump) if last is not None else False,
+                                       details={"failsafe": self.failsafe.errors})
+        else:
+            self.failsafe.ok()
+        stop, by = stop_held(self.hass, now)
+        if stop:
+            # 0.78.2 (security review M3): the house's life-safety stop – the boiler off, the flow setpoint to its
+            # lowest, also in shadow; the pump keeps the central's decision (an overrun carries the heat away)
+            decision = CentralDecision(now, False, "safety_stop", decision.asking, (), 0.0,
+                                       {**(decision.details or {}), "safety_stop": by}, pump=decision.pump)
+        if self.mode == MODE_ACTIVE or stop:
             await self._switch(decision.output, now)
             await self._switch_pump(decision.pump)
             await self._write_flow(decision.flow_setpoint)
@@ -175,6 +196,13 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
     async def _switch(self, on: bool, now: datetime) -> None:
         boiler = self.conf.get(CONF_BOILER)
         state = self.hass.states.get(boiler) if boiler else None
+        if boiler and state is None:
+            # 0.78.2 (security review): a boiler entity that is gone is said once (it was silent), not skipped quietly
+            if not getattr(self, "_missing_said", False):
+                self._missing_said = True
+                _LOGGER.error("%s: the boiler's entity %s does not exist – HC cannot switch it", self.config_entry.title, boiler)
+            return
+        self._missing_said = False
         if state is None or state.state not in ("on", "off"):
             return
         want = "on" if on else "off"

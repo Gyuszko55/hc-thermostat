@@ -236,10 +236,11 @@ def test_config_flow_forms_and_no_name_clash():
     from hc_thermostat.core.heat_meter import HeatMeterConfig
     assert keys == set(hpc.HpConfig.__dataclass_fields__) | {"wood_on_above", "wood_off_below", "wood_confirm_s"} \
         | set(HeatMeterConfig.__dataclass_fields__) | {"hp_flow_out_temp_entity", "hp_flow_in_temp_entity",
-                                                       "hp_water_flow_entity", "hp_power_entity"}  # 0.61.0 wood, 0.75.0 heat meter
+                                                       "hp_water_flow_entity", "hp_power_entity", "hm_compressor_entity"}  # 0.61.0 wood, 0.75.0 / compressor gate
     assert {str(k) for k in cf._hpc_fields(hass, {})} == {"hp_buffer", "outdoor_entity", "hp_running_entity", "wood_entity", "wood_temp_entity",
                                                          "hp_target_entity", "hp_switch_entity", "hp_demand_entity",  # 0.56.0
                                                          "hp_summer_entity", "hp_exercise_entity",  # 0.57.0
-                                                         "hp_target_round", "hp_water_temp_entity"}  # 0.64.0
+                                                         "hp_target_round", "hp_water_temp_entity",  # 0.64.0
+                                                         "safety_entities"}  # 0.77.0
     assert cf._hpc_errors({"hp_flow_min": 25, "hp_flow_max": 55, "hp_cold_on_below": 5, "hp_cold_release_above": 7,
                            "hp_charge_on": 0, "hp_charge_off": 10}) == {}

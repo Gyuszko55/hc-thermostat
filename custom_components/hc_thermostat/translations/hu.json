@@ -308,7 +308,8 @@
           "hp_exercise_entity": "Megjáratás esedékes jel a PLC-nek (switch / input_boolean, nem kötelező)",
           "wood_temp_entity": "Fatüzelésű kazán hőmérője (közvetlen jel helyett; két küszöbbel)",
           "hp_target_round": "A kiírt cél kerekítése",
-          "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)"
+          "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)",
+          "safety_entities": "Életvédelmi bemenetek (füst, tűz, gáz, CO, víz)"
         },
         "data_description": {
           "hp_target_round": "A HC belül tizedesre számol; ez csak a hőszivattyúnak küldött értékre vonatkozik. Egész fokra felfelé: 36,1 → 37 °C.",
@@ -322,7 +323,8 @@
           "hp_switch_entity": "Az ON/OFF kérés. Az ON nem fűtési parancs: igény nélkül a cél a legalacsonyabb.",
           "hp_demand_entity": "Egy kapcsoló, amely a PLC-nek jelzi, hogy most hő kell.",
           "hp_summer_entity": "Bekapcsolva jelzi a PLC-nek a nyári üzemet.",
-          "hp_exercise_entity": "Nyári üzemben hetente jelzi a PLC-nek, hogy járassa meg a szivattyúkat és szelepeket."
+          "hp_exercise_entity": "Nyári üzemben hetente jelzi a PLC-nek, hogy járassa meg a szivattyúkat és szelepeket.",
+          "safety_entities": "A bekötött biztonsági lánc segédkontaktusa és / vagy érzékelők (bekapcsolt = riasztás). Bármelyik riasztásakor minden ezt figyelő HC-példány azonnal leáll – a fagyvédelem is –, és csak az „Életvédelmi leállítás nyugtázása” gombbal indul újra, ha minden bemenet nyugalomban van. A valódi leállítást (gázszelep, kontaktor, vízszelep) a lánc végzi, nem a HA."
         }
       },
       "hp_coord_settings": {
@@ -555,6 +557,8 @@
               "hp_flow_in_temp_entity": "Víz visszatérő hőmérséklet (Inlet, °C)",
               "hp_water_flow_entity": "Víz térfogatáram (l/perc)",
               "hp_power_entity": "Villamos teljesítmény a COP-hoz (W / kW, opcionális)",
+              "hm_compressor_entity": "Kompresszor frekvenciája (Hz, opcionális)",
+              "hm_heat_min_power_w": "Hőtermelési mérés alsó villamos küszöbe (W)",
               "hm_power_scope": "Mit mér a villamos mérő",
               "hm_factor": "Hőkapacitás-szorzó (tiszta víz = 1)",
               "hm_resolution": "A hőmérők felbontása",
@@ -570,6 +574,8 @@
               "hp_flow_in_temp_entity": "A hőszivattyúba visszatérő víz hőmérője.",
               "hp_water_flow_entity": "Vízáram l/perc-ben (L/h és m³/h is átszámolva). Hőteljesítmény = l/perc × ΔT × 0,06977 kW.",
               "hp_power_entity": "Ha a „fut a hőszivattyú” jel nem W/kW teljesítmény (pl. bináris, Hz), itt adható meg külön wattmérő. Üresen: a „fut” jel, ha az teljesítmény; különben nincs COP, a hőmennyiség így is mér.",
+              "hm_compressor_entity": "Kompresszor frekvenciája (Hz). Ha megadod, ez az elsődleges hőtermelési üzemjel; ha nincs friss Hz-adat, nem számol. Üresen a futásjel Hz-ét vagy a villamos küszöböt használja.",
+              "hm_heat_min_power_w": "A külön hőtermelési teljesítményküszöb, alapból 200 W. A fagyvédelmi keringetés áramfelvétele alatt nem számol kWh-t; a HC vezérlésének küszöbét nem módosítja.",
               "hm_power_scope": "A teljes kültéri egység (kompresszor, ventilátor, keringető) vagy csak a kompresszor – a COP értelmezéséhez.",
               "hm_factor": "Tiszta vízre 1,00; glikolos keveréknél kisebb (pl. 30 % glikol ≈ 0,93). Becslés.",
               "hm_resolution": "Egész fokos (Tuya) hőmérőknél 1 °C. Kis ΔT mellett a hiba ± felbontás / ΔT – a panel kiírja.",
@@ -810,6 +816,7 @@
             "name": "Védelmek",
             "description": "Ablakok, befagyott hőmérő, zónaszelep, visszatérő-határ.",
             "data": {
+              "safety_entities": "Életvédelmi bemenetek (füst, tűz, gáz, CO, víz)",
               "window_entities": "Ablakok és ajtók",
               "window_drop_entities": "Ablak felismerése gyors hőesésből – figyelt hőmérők (az ablak közelében)",
               "window_drop_rate": "Hőesés küszöbe (°C/óra)",
@@ -827,6 +834,7 @@
               "plaus_indoor_min": "Legalacsonyabb hihető helyiséghőmérséklet"
             },
             "data_description": {
+              "safety_entities": "A bekötött biztonsági lánc segédkontaktusa és / vagy érzékelők (bekapcsolt = riasztás). Bármelyik riasztásakor minden ezt figyelő HC-példány azonnal leáll – a fagyvédelem is –, és csak az „Életvédelmi leállítás nyugtázása” gombbal indul újra, ha minden bemenet nyugalomban van. A valódi leállítást (gázszelep, kontaktor, vízszelep) a lánc végzi, nem a HA.",
               "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan. Padlófűtésnél alapból 8 óra, és a céltól 1 °C-on belüli értéket nem ítéli meg: a lassú esztrich mellett a hőmérő órákig ugyanazt mutatja, miközben a szabályozás rendben működik.",
               "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi helyiség ennyi fűtéstől legalább egy lépést melegszik.",
               "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
@@ -1034,6 +1042,7 @@
               "optimal_start": "Optimális reggeli indítás",
               "optimal_start_max_min": "Legfeljebb ennyivel korábban",
               "optimal_start_lag_min": "A radiátorok késése",
+              "preheat_hold_min": "Nincs rövid égés a reggeli felfűtés előtt",
               "pre_change_max_s": "Kivárás célcsökkenés előtt, előrejelzéssel legfeljebb",
               "pre_change_sag": "Közben a jelenlegi cél alá legfeljebb",
               "mould_frsi": "Penész: a leghidegebb felület hőmérsékleti tényezője (fRsi)",
@@ -1049,6 +1058,7 @@
               "house_tau_h": "Fűtés nélkül a helyiség ilyen ütemben közelít a kinti hőmérséklethez (exponenciálisan). Az égés nélküli, legalább 3 órás szakaszokból tanulom.",
               "optimal_start": "Az éjszaka vége előtt annyival korábban kezdem a nappali célt, hogy addigra elérje a helyiség: a τ-ból becsült lehűlés és a felfűtésekből tanult perc/fok alapján.",
               "optimal_start_lag_min": "Az égési perceken felül ennyi idő, amíg a radiátor hője a helyiségbe ér.",
+              "preheat_hold_min": "Ha az optimális indítás ennyi percen belül kezdődik, és a helyiség legfeljebb 0,3 °C-kal van az éjszakai cél alatt, előtte nem indul rövid szabályozó égés – különben két indítás jönne pár perc különbséggel. A futó égést nem szakítja meg. 0 = ki.",
               "pre_change_max_s": "Ismert τ-val az ütemezett célcsökkenés előtt eddig nem indítok új égést, ha a helyiség magára hagyva is a váltás utáni cél felett marad. 0 = csak a fenti fix idő.",
               "pre_change_sag": "A kivárás alatt a helyiség legfeljebb ennyivel hűlhet a jelenlegi cél alá.",
               "mould_frsi": "A penészkockázatot a helyiség leghidegebb pontján (sarok, áthidaló, szekrény mögötti fal) számolom: felületi hőmérséklet = kint + fRsi × (bent − kint), és ott 80 % felett nő a penész (EN ISO 13788). Régi, szigeteletlen fal sarka 0,6–0,7; szigetelt 0,75–0,8. A helyiségek páratartalom-érzékelőit a hőmérőik eszközéről magától felveszem.",
@@ -1058,6 +1068,38 @@
               "primary_factor": "Nem megújuló primer tényező: földgáz 1,1, villany 2,3, távhő 1,38, szilárd biomassza 0,6. 0 = a hőforrás szerint.",
               "rating_outdoor_entity": "A besoroláshoz ennek a szenzornak az elmúlt évét használja (napi átlagok a statisztikából) – adj meg egy régebbi adatsorú kinti hőmérőt vagy csoportot. A hiányzó napokat a szabványos magyar évből pótolja.",
               "optimal_start_max_min": "Az okos indítás legfeljebb ennyivel indít korábban, hogy időre meleg legyen."
+            }
+          },
+          "guard": {
+            "name": "Helyi védő (HA-kiesés esetére)",
+            "description": "Ha a Home Assistant vagy a HC kiesik, a relé melletti helyi védő (Shelly Gen3/Gen4 script) a saját hőmérője szerint vezérel tovább. Leírás: guard/README a tárolóban.",
+            "data": {
+              "guard_url": "A helyi védő címe",
+              "guard_token": "Token",
+              "guard_push_url": "Push-cím, ha átveszi (opcionális)",
+              "guard_sp": "Tartalék célhőmérséklet",
+              "guard_hyst": "Tartalék kapcsolási sáv",
+              "guard_no_sensor": "Hőmérő nélkül",
+              "guard_duty_on_s": "Hőmérő nélkül: BE ennyi ideig",
+              "guard_duty_off_s": "Hőmérő nélkül: KI ennyi ideig",
+              "guard_max_on_s": "Leghosszabb folyamatos BE (0 = nincs)",
+              "guard_every_s": "Bérlet megújítása",
+              "guard_ttl_s": "Bérlet érvényessége",
+              "guard_password": "Eszköz jelszava (ajánlott)"
+            },
+            "data_description": {
+              "guard_url": "A relé mellett futó védő (Shelly Gen3/Gen4 script, guard/shelly/hc_guard.js) végpontja, pl. http://IP-CÍM/script/1/hc. Ha meg van adva, a HC a relét a védőn át kapcsolja, és bérletet küld; bérlet nélkül a védő 5 perc után a lenti értékekkel maga szabályoz. Üresen: a relét a HC közvetlenül kapcsolja, mint eddig.",
+              "guard_token": "Kötelező: ugyanaz, mint a védő KVS hc_guard_token értéke (a guard/upload_shelly.py készít egyet, ha nem adsz meg). Nélküle a védő nem fogad bérletet.",
+              "guard_push_url": "Erre a címre küld a védő egy üzenetet (például ntfy-téma), amikor átveszi a vezérlést – a HA-tól függetlenül.",
+              "guard_sp": "A védő helyi hőmérője szerint ezt tartja, amíg a HC nem vezérel.",
+              "guard_hyst": "Teljes sáv: a cél − fél sáv alatt bekapcsol, a cél + fél sáv felett kikapcsol.",
+              "guard_no_sensor": "Ha a védő hőmérője sem ad mérést: kikapcsol, vagy fix ütemben fűt.",
+              "guard_duty_on_s": "Fix ütem bekapcsolt része.",
+              "guard_duty_off_s": "Fix ütem kikapcsolt része.",
+              "guard_max_on_s": "A védő legfeljebb ennyi ideig tartja egyfolytában bekapcsolva a relét – a HC vezérlése alatt és a saját tartalékprogramjában is –, utána kivárja a minimális szünetet. 0 = nincs korlát (villanyfűtésnél alapból 2 óra).",
+              "guard_every_s": "Ilyen gyakran újítja meg a HC a bérletet (és minden változáskor azonnal).",
+              "guard_ttl_s": "Ennyi ideig érvényes egy bérlet; legalább a megújítás kétszerese legyen.",
+              "guard_password": "A védő eszköz saját jelszava (Shelly → Beállítások → Hitelesítés, admin felhasználó). Ha az eszközön be van állítva, a védő végpontja és a teljes Shelly RPC csak vele érhető el – a hálózaton más nem kapcsolhatja a relét és nem írhatja át a szkriptet. Erősen ajánlott."
             }
           }
         }
@@ -1343,7 +1385,8 @@
           "hp_water_temp_entity": "A hőszivattyú mért vízhőmérséklete (nem kötelező)",
           "home_name": "Háznév (nem kötelező)",
           "write_restore_min": "Tartós eltérés visszaállítása ennyi perc után (0 = ki)",
-          "write_restore_tries": "Visszaállítási próbák száma a hibajelzés előtt"
+          "write_restore_tries": "Visszaállítási próbák száma a hibajelzés előtt",
+          "safety_entities": "Életvédelmi bemenetek (füst, tűz, gáz, CO, víz)"
         },
         "data_description": {
           "house_link": "Automatikusan a kapcsolataiból (puffer, keverőkörök, zónák) kerül a házba; itt kézzel is megadhatod. Csak a megjelenítést érinti.",
@@ -1366,7 +1409,8 @@
           "write_keepalive_s": "Olyan PLC-hez, amely egy idő után eldobja a kapott alapjelet. Egyébként maradjon 0.",
           "write_confirm_s": "Lassú (felhős) eszköznél növeld. Gyors helyi eszköznél az alapérték jó.",
           "write_restore_min": "Alapból ki (0). Ha a hőszivattyú ennyi ideig más célt vagy be/ki állapotot tart, mint amit a HC kér (a gépen vagy az appjában átállították, vagy kikapcsolás után a saját alapértékével indult), a HC újra beírja a sajátját – azt, amit éppen kér, így a biztonsági tiltások, a fagyvédelem és a fatüzelés elsőbbsége továbbra is előbb jön. Árnyék módban, szüneteltetett írásnál és lejárt próbánál nem ír semmit. Ha egy ideig kézzel akarod állítani a gépet, a példány kapcsolójával szüneteltesd az írást.",
-          "write_restore_tries": "Ennyi visszaállítás, a fenti idő távolságában; ha egy visszaállítás ennyi ideig kitart, a számlálás újraindul. Ha egyik sem segített: bekapcsol a „Hőszivattyú nem követi” hibaszenzor, Javítások-bejegyzés és értesítés jön, a rendszerrajz pirosan mutatja, és a HC nem írja tovább azt az értéket, amíg mást nem kér, vagy a gép magától vissza nem áll."
+          "write_restore_tries": "Ennyi visszaállítás, a fenti idő távolságában; ha egy visszaállítás ennyi ideig kitart, a számlálás újraindul. Ha egyik sem segített: bekapcsol a „Hőszivattyú nem követi” hibaszenzor, Javítások-bejegyzés és értesítés jön, a rendszerrajz pirosan mutatja, és a HC nem írja tovább azt az értéket, amíg mást nem kér, vagy a gép magától vissza nem áll.",
+          "safety_entities": "A bekötött biztonsági lánc segédkontaktusa és / vagy érzékelők (bekapcsolt = riasztás). Bármelyik riasztásakor minden ezt figyelő HC-példány azonnal leáll – a fagyvédelem is –, és csak az „Életvédelmi leállítás nyugtázása” gombbal indul újra, ha minden bemenet nyugalomban van. A valódi leállítást (gázszelep, kontaktor, vízszelep) a lánc végzi, nem a HA."
         }
       },
       "hp_coord_settings": {
@@ -1599,6 +1643,8 @@
               "hp_flow_in_temp_entity": "Víz visszatérő hőmérséklet (Inlet, °C)",
               "hp_water_flow_entity": "Víz térfogatáram (l/perc)",
               "hp_power_entity": "Villamos teljesítmény a COP-hoz (W / kW, opcionális)",
+              "hm_compressor_entity": "Kompresszor frekvenciája (Hz, opcionális)",
+              "hm_heat_min_power_w": "Hőtermelési mérés alsó villamos küszöbe (W)",
               "hm_power_scope": "Mit mér a villamos mérő",
               "hm_factor": "Hőkapacitás-szorzó (tiszta víz = 1)",
               "hm_resolution": "A hőmérők felbontása",
@@ -1614,6 +1660,8 @@
               "hp_flow_in_temp_entity": "A hőszivattyúba visszatérő víz hőmérője.",
               "hp_water_flow_entity": "Vízáram l/perc-ben (L/h és m³/h is átszámolva). Hőteljesítmény = l/perc × ΔT × 0,06977 kW.",
               "hp_power_entity": "Ha a „fut a hőszivattyú” jel nem W/kW teljesítmény (pl. bináris, Hz), itt adható meg külön wattmérő. Üresen: a „fut” jel, ha az teljesítmény; különben nincs COP, a hőmennyiség így is mér.",
+              "hm_compressor_entity": "Kompresszor frekvenciája (Hz). Ha megadod, ez az elsődleges hőtermelési üzemjel; ha nincs friss Hz-adat, nem számol. Üresen a futásjel Hz-ét vagy a villamos küszöböt használja.",
+              "hm_heat_min_power_w": "A külön hőtermelési teljesítményküszöb, alapból 200 W. A fagyvédelmi keringetés áramfelvétele alatt nem számol kWh-t; a HC vezérlésének küszöbét nem módosítja.",
               "hm_power_scope": "A teljes kültéri egység (kompresszor, ventilátor, keringető) vagy csak a kompresszor – a COP értelmezéséhez.",
               "hm_factor": "Tiszta vízre 1,00; glikolos keveréknél kisebb (pl. 30 % glikol ≈ 0,93). Becslés.",
               "hm_resolution": "Egész fokos (Tuya) hőmérőknél 1 °C. Kis ΔT mellett a hiba ± felbontás / ΔT – a panel kiírja.",
@@ -1674,7 +1722,10 @@
       "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál.",
       "weekend_both": "A hétvégi éjszakához a kezdet és a vég is kell (vagy hagyd mindkettőt üresen).",
       "heat_meter_three": "A hőmennyiségméréshez mindhárom vízoldali mérő kell (előremenő, visszatérő, vízáram) – vagy egyik sem.",
-      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás."
+      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás.",
+      "guard_url": "A védő címe http:// vagy https:// kezdetű legyen.",
+      "guard_ttl": "A bérlet érvényessége legalább a megújítás kétszerese legyen.",
+      "guard_token_required": "A helyi védőhöz kell a tokenje (a védő KVS hc_guard_token értéke)."
     }
   },
   "selector": {
@@ -1842,6 +1893,12 @@
         "unit": "a teljes egység",
         "compressor": "csak a kompresszor"
       }
+    },
+    "guard_no_sensor": {
+      "options": {
+        "off": "kikapcsol",
+        "duty": "fix ütemben fűt"
+      }
     }
   },
   "entity": {
@@ -1873,7 +1930,8 @@
           "floor_temper": "Padlótemperálás",
           "thermostat_call": "Fali termosztát fűtést kér",
           "thermostat_idle": "Fali termosztát nem kér",
-          "managed_off": "Termosztát kézzel kikapcsolva"
+          "managed_off": "Termosztát kézzel kikapcsolva",
+          "safety_stop": "életvédelmi leállítás"
         }
       },
       "demand": {
@@ -1950,7 +2008,9 @@
           "heating": "Fűt",
           "min_on": "Minimális futás",
           "min_off": "Minimális szünet",
-          "valves_closed": "Szelepek zárva"
+          "valves_closed": "Szelepek zárva",
+          "failsafe": "Hibatűrés: kikapcsolva (a döntés ismételten hibára fut)",
+          "safety_stop": "Életvédelmi leállítás"
         }
       },
       "rooms": {
@@ -1966,7 +2026,9 @@
           "min_off": "Szünet",
           "frost": "Fagyvédelem",
           "no_sensor": "Nincs hőmérő",
-          "max_charge": "Túl hosszú töltés"
+          "max_charge": "Túl hosszú töltés",
+          "failsafe": "Hibatűrés: kikapcsolva (a döntés ismételten hibára fut)",
+          "safety_stop": "Életvédelmi leállítás"
         }
       },
       "starts_today": {
@@ -2058,7 +2120,9 @@
           "reserve_ok": "Van elég tartalék",
           "reserve_full": "Feltöltve – a tartalék megvan",
           "no_demand": "Nincs tartós hőigény",
-          "reserve_runs_out": "Hamarosan elfogy a tartalék – tölt"
+          "reserve_runs_out": "Hamarosan elfogy a tartalék – tölt",
+          "safety_stop": "életvédelmi leállítás",
+          "failsafe": "Hibatűrés: kikapcsolva (a döntés ismételten hibára fut)"
         }
       },
       "hp_target": {
@@ -2084,6 +2148,18 @@
       },
       "hp_cop_today": {
         "name": "Hőszivattyú COP ma"
+      },
+      "guard": {
+        "name": "Helyi védő",
+        "state": {
+          "normal": "a HC vezérel",
+          "grace": "türelmi idő",
+          "fallback": "a védő vezérel",
+          "nosensor": "a védő vezérel, hőmérő nélkül",
+          "handback": "visszaadás",
+          "unreachable": "nem érhető el",
+          "safety": "életvédelmi lánc nyitva – KI"
+        }
       }
     },
     "binary_sensor": {
@@ -2122,6 +2198,9 @@
       },
       "hp_write_problem": {
         "name": "Hőszivattyú nem követi"
+      },
+      "safety_stop": {
+        "name": "Életvédelmi leállítás"
       }
     },
     "climate": {
@@ -2162,6 +2241,9 @@
       },
       "ai_report_now": {
         "name": "AI-elemzés most"
+      },
+      "safety_ack": {
+        "name": "Életvédelmi leállítás nyugtázása"
       }
     },
     "switch": {
@@ -2202,6 +2284,18 @@
     "write_failed": {
       "title": "HC – {name}: a hőszivattyú nem veszi át a HC értékét",
       "description": "A(z) **{entity}** {value} értéken áll a HC által kért {want} helyett, és {tries} visszaállítás sem segített. A HC nem írja tovább, amíg a kért érték nem változik, vagy a gép magától vissza nem áll.\n\nNézd meg a gépet: az üzemmódját (ki / auto / kézi), az appját vagy vezérlőjét (Tuya, helyi integráció), és hogy ír-e bele más. A bejegyzés magától eltűnik, ha a gép újra követi a HC-t."
+    },
+    "guard_problem": {
+      "title": "HC – {name}: helyi védő",
+      "description": "A(z) **{name}** helyi védője ({url}) {problem}.\n\nNézd meg a védő eszközt és a hálózatot. A bejegyzés magától eltűnik, ha a HC újra rendben vezérel."
+    },
+    "safety_stop": {
+      "title": "HC – ÉLETVÉDELMI LEÁLLÍTÁS",
+      "description": "Riasztott: **{by}**.\n\nA HC minden fűtést leállított, és így tartja. Ha a veszély elmúlt és minden érzékelő nyugalomban van, nyomd meg az **Életvédelmi leállítás nyugtázása** gombot. A bekötött lánc (gázszelep, kontaktor, vízszelep) saját nyugtázását a helyszínen kell elvégezni."
+    },
+    "safety_input_lost": {
+      "title": "HC – egy életvédelmi bemenetnek nincs értéke",
+      "description": "A(z) **{inputs}** 10 perce nem ad értéket. Amíg így van, nem tudja kioldani a HC életvédelmi leállítását (a bekötött biztonsági lánc továbbra is igen). Nézd meg az érzékelőt (elem, kapcsolat). A bejegyzés magától eltűnik, amint újra jelez."
     }
   }
 }

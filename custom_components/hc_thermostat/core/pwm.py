@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from .clock import rebase
 from .model import HcConfig
 
 
@@ -60,6 +61,11 @@ class Pwm:
         """allow_on(renew): a shared load limit (0.28.0) – asked before switching on, and by a zone that stays on
         into a new cycle (renew=True); refused, the cycle starts again later and the relay stays (or goes) off."""
         cfg = self._cfg
+        # 0.78.2 (M5): a clock that jumped back – a switch time in the future would hold the relay ON, a cycle start
+        # in the future would ask for ON with any demand
+        self.last_change = rebase(now, self.last_change, self.output, cfg.min_on_s)
+        if self.cycle_start is not None and self.cycle_start > now:
+            self.cycle_start = None
         new_cycle = self.cycle_start is None or (now - self.cycle_start).total_seconds() >= cfg.cycle_s
         self._carry(demand, new_cycle)
         if new_cycle:

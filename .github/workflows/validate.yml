@@ -14,7 +14,9 @@ jobs:
   hassfest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4 (0.78.2: pinned)
+        with:
+          persist-credentials: false
       - uses: home-assistant/actions/hassfest@86d4564712fa02543c808e3a693dd04f9d3f8361  # master, 2026-10-26 (0.48.1: pinned)
 
   hacs:
@@ -30,11 +32,44 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4 (0.78.2: pinned)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5 (0.78.2: pinned)
         with:
           python-version: "3.14"
       - name: Install Home Assistant and pytest
-        run: pip install "homeassistant==2026.10.0" pytest
+        run: pip install "homeassistant==2026.10.0" "pytest==9.2.0"  # 0.78.2: pinned
       - name: Tests
         run: python -m pytest -q tests
+
+  hc-core:
+    # 0.78.0: the decision core as its own package – built, installed without Home Assistant and run once
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4 (0.78.2: pinned)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5 (0.78.2: pinned)
+        with:
+          python-version: "3.12"
+      - name: Build and install the hc-core wheel
+        run: |
+          pip install "build==1.6.1"  # 0.78.2: pinned
+          python -m build -w -o dist .
+          pip install dist/hc_core-*.whl
+      - name: Run it without Home Assistant
+        working-directory: /tmp
+        run: |
+          python -I -c "
+          import sys, hc_core
+          from datetime import datetime, timezone
+          from hc_core.inputs import SampleTable, reading
+          from hc_core.model import HcConfig, Inputs, Reading
+          from hc_core.supervisor import Supervisor
+          now = datetime.now(timezone.utc)
+          t = SampleTable(); t.put('room', '20.0', now, {'unit_of_measurement': '°C'})
+          d = Supervisor(HcConfig()).step(Inputs(now=now, indoor=reading(t, 'room', now), outdoor=Reading(3.0)))
+          assert 'homeassistant' not in sys.modules and d.reason is not None
+          print(hc_core.__version__, d.reason)
+          "

@@ -142,12 +142,21 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
 - **Mért válasz:** a panel a szokásos, legalább 10 perces futásokból mutatja, hány perc után melegszik a helyiség,
   milyen gyorsan, mennyi az utánfűtés, és milyen gyorsan hűl vissza. Csak kijelzés, nem szabályoz belőle.
 - **Külső termosztát:** bármely `climate` entitás célhőfokát és üzemmódját állítja.
+- **Életvédelmi leállítás** (0.77.0, opcionális): füst, tűz, gáz, CO és víz bemenetek (a bekötött biztonsági lánc
+  segédkontaktusa, érzékelők) minden HC-példányt leállítanak (0.78.2: a saját bemenet nélkülieket is), mindenek
+  felett, kézi nyugtázásig reteszelve; a valódi
+  leállítás a bekötött láncé (gázszelep, kontaktor, vízszelep), a HC ezt soha nem helyettesíti. A 0.78.2 óta a
+  leállítás árnyék módban, „HC felügyelet szüneteltetve” mellett, az indulás utáni türelmi időben, ütközés esetén és
+  hibás döntési lépésnél is kiíródik.
+- **Helyi védő** (0.76.0, opcionális): a relé melletti Shelly Gen3 / Gen4 script bérletként kapja a HC parancsát, és a
+  saját hőmérője szerint vezérel tovább, ha a Home Assistant vagy a HC kiesik – lásd [guard/README.md](guard/README.md).
 - **Felügyelet:** jelenlét és éjszakai ütemezés, szünet nyitott ablaknál, nyári pihenő, fagyvédelem, tartalék üzem érzékelő-kiesésnél, újraindítás-védelem, hibafigyelés, opcionális felfűtés.
 - **Döntésnapló** magyarul és angolul.
 - **A ház AI-elemzése** (nem kötelező, a saját AI Task entitásoddal – Beállítások → Funkciók): a HC minden reggel
   kiszámolja a naplóból az egész ház előző napját (helyiség-hőmérsékletek, cél alatti és túlfűtött órák, fűtési idő és
   indítások, döntések, energia és költség – mért vagy becsült), az AI ezekből pontszámot, összefoglalót, megfigyeléseket
-  és teendőket ír. A házrajzon az **AI** gombra nyílik meg a jelentés; az *Elemzés most* azonnal elkészíti. Csak javasol,
+  és teendőket ír. A házrajzon az **AI** gombra nyílik meg a jelentés; az *Elemzés most* azonnal elkészíti (legfeljebb 15 percenként és naponta
+  6-szor – mindegyik egy MI-hívás). Csak javasol,
   semmit nem állít át. Szenzor, gomb és `hc_thermostat_ai_report` esemény is jár hozzá.
 - **Vezérlési mátrix:** a hőtermelőből és a hidraulikából javaslatot ad. Ez szakmai alapbeállítás, nem helyettesíti a gépész méretezését.
 
@@ -621,7 +630,19 @@ célt.
   hőenergia* (kWh, folyamatosan növekvő – ez kell az Energia irányítópultra), *hőenergia ma* (ennek része, a kettőt ne
   add össze), *aktuális COP* és *COP ma*. Energiát csak két, legfeljebb 2 percre lévő érvényes mérés között ad
   (trapézszabály): hiányzó, állott (5 perc), lehetetlen mérés, újraindítás vagy álló víz semmit nem ad, nem pótol;
-  negatív ΔT = 0 kW. A COP a „fut” jel teljesítménymérését (vagy egy külön wattmérőt) használja; az aktuális COP az
+  negatív ΔT = 0 kW. **Kompresszorüzemi szűrés (külön DEV-javítás):** a termelt hőteljesítményt és kWh-t
+  csak igazolt kompresszorüzemben számlálja, hogy a kompresszor nélküli fagyvédelmi keringetés
+  és az egész fokos hőmérők miatti látszólagos ΔT ne növelje a termelt energiát.
+  Elsődleges a külön megadható **kompresszorfrekvencia (Hz)**: friss >0 Hz esetén termelés, 0 Hz esetén
+  nincs termelés. Üresen a „fut” jel Hz-értékét veszi át, ha létezik; ennek hiányában a
+  villamos teljesítménymérő **alapból 200 W-os, külön állítható küszöbét** használja.
+  A 200 W kizárólag a **mérőre** hat, nem változtatja meg a hőszivattyú vezérlésének futásküszöbét.
+  Ha **sem wattmérő, sem Hz-jel nincs megadva** (például csak be/ki „fut” jel van), a hőmérés a
+  korábbiak szerint megy tovább, de a termelés „nem igazolt” jelzést kap (`heat_confirmed: false`), COP nélkül.
+  Megadott, de hiányzó vagy 5 percnél régebbi üzemjel mellett szünetel a termelt kWh számlálása;
+  álló és járó kompresszor közötti átmenetben nincs fél mintaintervallumnyi fantomenergia.
+  A nyers vízoldali teljesítmény külön diagnosztikai adatként megmarad.
+  A COP a „fut” jel teljesítménymérését (vagy egy külön wattmérőt) használja; az aktuális COP az
   aktív futás utolsó 10 percének hőenergiája osztva a villamos energiájával (egy futásban 5 perc után), ha nem fűt
   (nincs áramlás, készenlét, leolvasztás, állott mérő), nem elérhető – soha nem 0 vagy végtelen; a *COP ma* a nap
   hőenergiája osztva a nap villamos energiájával ugyanazokon az időszakokon, a lefedettséggel. Egész fokos hőmérőkkel

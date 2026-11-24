@@ -22,8 +22,11 @@ from .const import (
     CONF_HUMIDITY, CONF_COOL_MODE, CONF_COOL_FLOW, CONF_TRV_OFFSETS, CONF_POWER_AVAILABLE, CONF_DISCHARGE, CONF_FAN, CONF_COIL, CONF_RETURN,
     CONF_HEAT_SOURCE, CONF_ROLE, CONF_FLOOR, CONF_PRESENCE_HOME, CONF_PRESENCE_VACATION, CONF_HP_BUSY, CONF_SYSTEM, CONF_TARGET_SOURCE, CONF_HP_DEFROST, CONF_HP_DHW,
     CONF_CONTROL, CONF_DEMAND, CONF_PRESSURE, CONF_FLOW_TEMP, CONF_MODULATION, CONF_FAULT_CODE, CONF_HEAT_OUTPUT,
-    CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE, CONF_ZONES,
+    CONF_FLUE_TEMP, CONF_FUEL_LEVEL, CONF_CORE_TEMP, CONF_SOURCE_STATE, CONF_ZONES, CONF_GUARD_PASSWORD, CONF_GUARD_TOKEN, CONF_GUARD_URL, CONF_SAFETY,
 )
+from .safety_hub import hub_of, stop_held
+from .core.guard import GuardLink
+from .guard_client import GuardSender, settings_from
 from .core.boiler_health import QUIET_STATES, BoilerHealth, health_kind, power_levels_known
 from .core import measures as ms
 from .core import energy_rating as er_
@@ -34,20 +37,22 @@ from .core.target_source import ModeWatch, TargetFollower
 from .core.adapters import adapter_for
 from .core.model import Reason
 from .core.rooms import RoomMonitor, room_text
-from .core.trv import RoomDemand, TrvCalibration, TrvTargets
+from .core.trv import RoomDemand, TrvCalibration, TrvPlan, TrvTargets
 from .core.room_model import (
-    PRESENT, SETTLE_S, RoomControl, RoomSpec, general_windows, group_mean, presence_of,
+    PRESENT, SETTLE_S, RoomControl, RoomSpec, general_windows, presence_of,
 )
 from .core.cost import CostAdvice, compare
 from .core.messages import explain
 from .core.model import Decision, ExternalCommand, HcConfig, Inputs, Presence, Reading
+from .core import inputs as in_
+from .seen_view import SeenView
 from dataclasses import replace
 from .core.supervisor import Supervisor
 from .core.zone import coupled
 from .core.load import LoadClient, LoadManager
 from .executor import Executor, write_log
 from .rooms_ha import area_name, group_by_room, room_specs_for, room_value
-from .units import climate_attrs_c, finite, climate_temp_c, source_value_c, state_value_c, to_system
+from .units import climate_attrs_c, finite, climate_temp_c, source_value_c, to_system
 
 _LOGGER = logging.getLogger(__name__)
 _INTERVAL = timedelta(seconds=30)
@@ -66,7 +71,6 @@ SOURCE_WORDS = {
 _SAVE_EVERY = timedelta(minutes=10)
 _LOG_SIZE = 200
 _AGREEMENT_SIZE = 2880  # 24 hours
-_OUTDOOR_EVERY = timedelta(minutes=10)
 HA_STARTED = f"{DOMAIN}_ha_started"
 FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
 PROBLEM_WORDS_HU = {"lost": "nem elérhető", "stale": "rég nem jelentett", "out_of_range": "hihetetlen érték",
@@ -76,6 +80,12 @@ PROBLEM_WORDS_EN = {"lost": "unavailable", "stale": "silent for too long", "out_
 FAILSAFE_KEY = "hc_supervisor"  # its entry in sensor_problems (the fault binary sensor)
 EXECUTOR_KEY = "hc_executor"  # 0.47.0: a part of the executor that failed (relay, flow, fan, ...)
 SIDE_KEY = "hc_step"  # 0.47.0: a side step that failed (record, cost, health, rooms, trv)
+
+
+def _view_of(coordinator) -> object:
+    """0.78.1: the state view the core reads – `hass.states` where a coordinator (or a test's stand-in) has none."""
+    view = getattr(coordinator, "_view", None)
+    return view if view is not None else coordinator.hass.states
 
 
 def ha_started(hass) -> datetime | None:
@@ -120,18 +130,35 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.enabled = True
         self.log: deque[dict] = deque(maxlen=_LOG_SIZE)
         self._agreement: deque[bool] = deque(maxlen=_AGREEMENT_SIZE)
-        self._outdoor: deque[tuple[str, float]] = deque(maxlen=144)
+        self._outdoor = in_.OutdoorAverage()  # 0.78.0: the day average lives in the core
         self._executor = Executor(hass, self.mode, data.get(CONF_ACTUATOR), data.get(CONF_EXTERNAL),
                                   data.get(CONF_FLOW), data.get(CONF_HEAT_ENABLE), self.cfg.keep_alive_s,
                                   exact_mode=self.cfg.control == "ac",
                                   cool_mode=data.get(CONF_COOL_MODE), cool_flow=data.get(CONF_COOL_FLOW),
                                   discharge=data.get(CONF_DISCHARGE), fan=data.get(CONF_FAN),
                                   keep_script=data.get(CONF_KEEP_ALIVE_SCRIPT))
+        # 0.76.0: a local guard next to the relay takes HC's command as a lease (and regulates on its own without it)
+        self.guard: GuardSender | None = None
+        if data.get(CONF_GUARD_URL) and data.get(CONF_ACTUATOR):
+            self.guard = GuardSender(hass, str(data[CONF_GUARD_URL]).strip(),
+                                     GuardLink(settings_from(self.cfg, data), str(data.get(CONF_GUARD_TOKEN) or "")),
+                                     password=str(data.get(CONF_GUARD_PASSWORD) or ""))
+            self._executor.guard = self.guard
+        self._guard_issue: str | None = None
+        # 0.77.0: the life-safety latch shared by every instance that watches safety inputs
+        hub = hub_of(hass)
+        hub.watch(entry.entry_id, list(data.get(CONF_SAFETY) or []))
+        self.safety = hub if data.get(CONF_SAFETY) else None
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         # 0.45.0: the restart protection counts from Home Assistant's start, not from this entry's load – an instance
         # added or reloaded (options saved) while Home Assistant runs has its sensors already and does not wait
         self._started = ha_started(hass) or dt_util.utcnow()
         self._last_save = dt_util.utcnow()
+        # 0.77.3 / 0.78.0: has a thermometer reported again since the start (the core's restart confirmation)
+        self._restart_confirm = in_.RestartConfirm(self._started, self.cfg.restart_sensor_wait_s,
+                                                   self.cfg.restart_settle_s)
+        # 0.78.1: the states as the core reads them – with a device's own "last seen" time where there is one
+        self._view = SeenView(hass)
         self._last_key: tuple | None = None
         self._extra_samples: deque[tuple[datetime, float]] = deque()
         self._counted_extra = 0.0  # kWh of the other source that reached the house
@@ -186,6 +213,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.room_states: dict[str, dict] = {}  # room key -> what its climate and the info panel show
         # 0.48.0: measurements (core/measures.py) – information; their problems turn the boiler problem sensor on
         self.runs = ms.RunCounter()
+        self.switch_log = ms.SwitchLog()  # 0.79.0: every output change with what it was decided on
         self.energy_days = ms.EnergyDays()
         self._humid: dict[str, ms.Humidity] = {}
         self._radiators: dict[str, ms.RadiatorWatch] = {}
@@ -194,6 +222,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     # --- persistence -----------------------------------------------------------
     async def async_load(self) -> None:
+        if getattr(self, "safety", None) is not None:
+            await self.safety.async_load()  # 0.77.0: a stop from before a restart holds
         data = await self._store.async_load()
         if not data:
             return
@@ -205,7 +235,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self.supervisor.heat_need.samples.clear()  # Learned under other settings: not comparable.
         self.enabled = data.get("enabled", True)
         self.log.extend(data.get("log", []))
-        self._outdoor.extend(tuple(x) for x in data.get("outdoor", []))
+        self._outdoor = in_.OutdoorAverage(data.get("outdoor", []))
         self._counted_extra = float(data.get("counted_extra", 0.0))
         self._last_extra = data.get("last_extra")
         self.rooms.restore(data.get("rooms") or {})
@@ -215,6 +245,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self._ctl(key).restore(value)
         m = data.get("measures") or {}
         self.runs.restore(m.get("runs") or {})
+        self.switch_log.restore(m.get("switch_log") or {})
         self.energy_days.restore(m.get("energy") or {})
         for key, hours in (m.get("humidity") or {}).items():
             if isinstance(hours, dict):
@@ -265,7 +296,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "mode": self.mode,
             "enabled": self.enabled,
             "log": list(self.log),
-            "outdoor": list(self._outdoor),
+            "outdoor": self._outdoor.state(),
             "heat_basis": self._heat_basis(),
             "counted_extra": self._counted_extra,
             "rooms": self.rooms.state(),
@@ -274,7 +305,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             "trv_cal_src": dict(self.trv_cal.source),
             "room_ctl": {k: c.state() for k, c in self._ctls().items()},
             "last_extra": self._last_extra,
-            "measures": {"runs": self.runs.state(), "energy": self.energy_days.state(),
+            "measures": {"runs": self.runs.state(), "energy": self.energy_days.state(), "switch_log": self.switch_log.state(),
                          "humidity": {k: h.state() for k, h in self._humid.items()}},
             **({"managed_off": self.managed_off, "paused": self.paused, "paused_unit": self._paused_unit,
                 "adopted": self.adopted} if self.managed else {}),
@@ -282,14 +313,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
 
     # --- reading Home Assistant ------------------------------------------------
     def _reading(self, entity_id: str | None, now: datetime) -> Reading:
-        state = self.hass.states.get(entity_id) if entity_id else None
-        if state is None:
-            return Reading()
-        # 0.45.0: a temperature in °F (or K) is read in °C – by the sensor's unit, a weather entity's temperature_unit
-        value = state_value_c(state)
-        if value is None:
-            return Reading()
-        return Reading(value, (now - state.last_reported).total_seconds())
+        # 0.45.0: a temperature in °F (or K) is read in °C – by the sensor's unit, a weather entity's temperature_unit;
+        # 0.78.0: read by the core (Home Assistant's `State` is the core's sample)
+        return in_.reading(_view_of(self), entity_id, now)
 
     def _presence(self) -> Presence:
         """0.52.0: the values chosen in the settings count besides the built-in words; an unknown value of an
@@ -320,10 +346,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         return general_windows(self.conf.get(CONF_WINDOWS), specs, leading)
 
     def _window_open(self) -> bool:
-        return any(
-            (s := self.hass.states.get(e)) is not None and s.state == "on"
-            for e in self._window_ids()
-        )
+        return in_.any_on(self.hass.states, self._window_ids())
 
     def _cumulative(self, entity_id: str | None) -> float | None:
         state = self.hass.states.get(entity_id) if entity_id else None
@@ -333,7 +356,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         """Door open and coupled; without a zone the other source always counts."""
         conf = self.conf
         doors = conf.get(CONF_ZONE_DOORS) or []
-        door_open = any((s := self.hass.states.get(e)) is not None and s.state == "on" for e in doors)
+        door_open = in_.any_on(self.hass.states, doors)
         temp = self._reading(conf.get(CONF_ZONE_TEMP), now).fresh(self.cfg.sensor_max_age_s)
         is_coupled = coupled(door_open, indoor.fresh(self.cfg.sensor_max_age_s), temp,
                              float(conf.get(CONF_ZONE_DIFF, 2.0)))
@@ -386,17 +409,13 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         return state.state == "on"
 
     def _outdoor_average(self, reading: Reading, now: datetime) -> float | None:
-        fresh = reading.fresh(self.cfg.sensor_max_age_s)
-        last = datetime.fromisoformat(self._outdoor[-1][0]) if self._outdoor else None
-        if fresh is not None and (last is None or now - last >= _OUTDOOR_EVERY):
-            self._outdoor.append((now.isoformat(), fresh))
-        limit = now - timedelta(hours=24)
-        values = [v for t, v in self._outdoor if datetime.fromisoformat(t) >= limit]
-        return sum(values) / len(values) if len(values) >= 6 else None
+        return self._outdoor.update(reading.fresh(self.cfg.sensor_max_age_s), now)
 
     # --- one decision ----------------------------------------------------------
     def build_inputs(self, now: datetime) -> Inputs:
         conf = self.conf
+        # 0.78.2 (M3): its own latch, else the shared one – a room without inputs stops with the house too
+        stop, stop_by = stop_held(self.hass, now, getattr(self, "safety", None))
         outdoor = self._plaus_outdoor.check(now, self._reading(conf.get(CONF_OUTDOOR), now))
         indoor = self._plaus_indoor.check(now, self._indoor_reading(now))
         floor = self._plaus_floor.check(now, self._reading(conf.get(CONF_FLOOR), now)) if conf.get(CONF_FLOOR) else Reading()
@@ -413,6 +432,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             window_open=self._window_open() or (door_open and not counts),
             enabled=self.enabled,
             uptime_s=(now - self._started).total_seconds(),
+            indoor_confirmed=self._indoor_confirmed(now),
             actual_heating=self.actual,
             heat_energy_kwh=self._heat_energy(counts),
             other_heat_kw=self.extra_kw if counts else 0.0,
@@ -429,8 +449,19 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             return_temp=self._reading(conf.get(CONF_RETURN), now) if conf.get(CONF_RETURN) else Reading(),
             managed_off=self.managed_off,
             circuits=self._circuits() if self.cfg.catchup_low else (),
+            safety_stop=stop, safety=tuple(stop_by),
             **self._unit_inputs(),
         )
+
+    def _indoor_confirmed(self, now: datetime) -> bool:
+        """0.77.3: after a restart a sleeping thermometer's value is often the one restored from before the restart,
+        stamped with the start time – it looks fresh but is old. The room reading counts as confirmed once one of its
+        thermometers reported again after the value first seen (or the wait is over)."""
+        confirm = self._restart_confirm
+        if confirm.confirmed:
+            return True
+        lead = self.leading_spec()
+        return confirm.check(_view_of(self), [self.conf.get(CONF_INDOOR), *(lead.sensors if lead is not None else ())], now)
 
     def _indoor_reading(self, now: datetime) -> Reading:
         """The house thermometer; 0.43.0: a leading room with a thermometer group gives the mean of its fresh ones."""
@@ -438,11 +469,8 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         lead = self.leading_spec()
         if lead is None or len(lead.sensors) < 2 or not self._explicit_rooms():
             return main
-        fresh = [(r.value, r.age_s) for e in lead.sensors
-                 if (r := self._reading(e, now)).fresh(self.cfg.sensor_max_age_s) is not None]
-        if not fresh:
-            return main
-        return Reading(group_mean([v for v, _ in fresh]), min(a for _, a in fresh))
+        group = in_.group_reading(_view_of(self), lead.sensors, now, self.cfg.sensor_max_age_s)
+        return main if group is None else group
 
     def _update_sensor_problems(self, now: datetime) -> None:
         """Which sensor is missing, silent or unbelievable – reported after `sensor_problem_after_s`."""
@@ -460,12 +488,12 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         for entity, plaus in checks:
             if not entity:
                 continue
-            state = self.hass.states.get(entity)
+            state = _view_of(self).get(entity)
             if state is None or state.state in ("unknown", "unavailable"):
                 current[entity] = "lost"
             elif plaus is not None and plaus.problem:
                 current[entity] = plaus.problem
-            elif plaus is not None and (now - state.last_reported).total_seconds() > cfg.sensor_max_age_s:
+            elif plaus is not None and (now - in_.reported_at(state)).total_seconds() > cfg.sensor_max_age_s:
                 current[entity] = "stale"
         for entity in list(self._sensor_bad_since):
             if entity not in current:
@@ -481,18 +509,11 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         """Wired wall thermostat (0.38.0): its contact on / off; None when unknown, unavailable or not configured."""
         if not self.cfg.demand_contact:
             return None
-        state = self.hass.states.get(self.conf.get(CONF_DEMAND))
-        if state is None or state.state not in ("on", "off"):
-            return None
-        return state.state == "on"
+        return in_.switch_on(self.hass.states, self.conf.get(CONF_DEMAND))
 
     def _power_available(self) -> bool | None:
         """Controlled (off-peak) power on? None without a signal or when it cannot be read (then it is assumed on)."""
-        entity = self.conf.get(CONF_POWER_AVAILABLE)
-        state = self.hass.states.get(entity) if entity else None
-        if state is None or state.state not in ("on", "off"):
-            return None
-        return state.state == "on"
+        return in_.switch_on(self.hass.states, self.conf.get(CONF_POWER_AVAILABLE))
 
     def _humidity(self, now: datetime) -> Reading:
         """Room relative humidity (floor cooling); 0–100 % only."""
@@ -832,9 +853,15 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self.last_inputs = inputs  # shown by the info panel
             decision = self._managed_details(self.supervisor.step(inputs))
         except Exception:
-            # 0.45.0: a decision that fails again and again must not leave the heat on – the relay (or the managed
-            # thermostat) is switched off after FAILSAFE_AFTER failed steps in a row, and the fault sensor says so
-            decision = await self._failsafe(now)
+            # 0.78.2 (security review H1): a held life-safety stop does not wait for the failsafe – its own off
+            # decision at once, also from the first failed step
+            if self._safety_held(now):
+                decision = self._safety_fallback(now)
+            else:
+                # 0.45.0: a decision that fails again and again must not leave the heat on – the relay (or the
+                # managed thermostat) is switched off after FAILSAFE_AFTER failed steps in a row, and the fault
+                # sensor says so
+                decision = await self._failsafe(now)
         else:
             if self.step_errors:
                 _LOGGER.warning("%s: the decision works again after %d failed step(s)", self.config_entry.title,
@@ -860,6 +887,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         except Exception:
             self._side_failed("trv")
         self._sync_repair(now)
+        if getattr(self, "guard", None) is not None:  # 0.76.0
+            decision.details["guard"] = self.guard.link.info(now)
+            self._sync_guard_issue(now)
         # 0.47.0: saved at once when the output or a boost changes (a crash or a power cut lost up to 10 minutes of
         # burns – the boost resume and the flame log rely on it), else every 10 minutes
         mark = (bool(decision.output), bool(getattr(self.supervisor, "boosting", False)))
@@ -902,6 +932,30 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         except Exception:  # the Repairs entry is a report – it must never stop the decision
             _LOGGER.debug("The Repairs entry could not be updated", exc_info=True)
 
+    def _sync_guard_issue(self, now: datetime) -> None:
+        """0.76.0: the local guard unreachable, or regulating on its own while HC runs – a Repairs entry."""
+        problem = self.guard.link.problem(now) if self.guard is not None else None
+        if problem == self._guard_issue:
+            return
+        self._guard_issue = problem
+        issue_id = f"guard_problem_{self.config_entry.entry_id}"
+        try:
+            if problem is None:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                return
+            hu = str(getattr(self.hass.config, "language", "") or "").startswith("hu")
+            words = {"unreachable": ("nem érhető el – a bérlet lejár, a helyi védő átveszi a vezérlést" if hu
+                                     else "cannot be reached – the lease runs out and the local guard takes over"),
+                     "taken_over": ("a saját tartalékprogramjával szabályoz (visszaadásra vár)" if hu
+                                    else "regulates with its own fallback program (waiting to hand back)")}
+            ir.async_create_issue(
+                self.hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+                severity=ir.IssueSeverity.WARNING, translation_key="guard_problem",
+                translation_placeholders={"name": self.config_entry.title, "problem": words[problem],
+                                          "url": self.guard.url})
+        except Exception:  # a report – never stops the decision
+            _LOGGER.debug("The guard's Repairs entry could not be updated", exc_info=True)
+
     def _side(self, name: str, fn) -> None:
         try:
             fn()
@@ -915,6 +969,26 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if key not in self.sensor_problems:  # once per failure streak
             _LOGGER.exception("%s: %s failed – the decision goes on", self.config_entry.title, name)
         self.sensor_problems[key] = "internal_error"
+
+    def _safety_held(self, now: datetime) -> bool:
+        """0.78.2: the life-safety latch holds – its own, else the shared one (M3); a failing check: what the latch
+        last knew, unknown as tripped."""
+        held, self._safety_by = stop_held(getattr(self, "hass", None), now, getattr(self, "safety", None))
+        return held
+
+    def _safety_fallback(self, now: datetime) -> Decision:
+        """0.78.2: the safety stop's decision when the supervisor raised – as Supervisor._safety_stop: off, no flow."""
+        self.step_errors = getattr(self, "step_errors", 0) + 1
+        _LOGGER.exception("%s: the decision failed (%d in a row) – the safety stop holds, heat off",
+                          self.config_entry.title, self.step_errors)
+        self.sensor_problems[FAILSAFE_KEY] = "internal_error"
+        last = self.data
+        target = last.target if last is not None and last.target is not None else float(getattr(self.cfg, "frost_temp", 7.0))
+        managed = getattr(self, "managed", False) or (last is not None and last.external is not None)
+        return Decision(now, Reason.SAFETY_STOP, target, None, None, demand=0.0, output=False,
+                        limited_by="safety_stop", fault=True, flow_setpoint=None,
+                        external=ExternalCommand("off", target) if managed else None,
+                        details={"safety_by": list(getattr(self, "_safety_by", [])), "failsafe": self.step_errors})
 
     async def _failsafe(self, now: datetime) -> Decision:
         """The supervisor raised: log it; from the FAILSAFE_AFTER-th failure in a row the heat goes off (active mode
@@ -1130,6 +1204,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             return
         now = dt_util.now()
         house = decision.target
+        # 0.78.2 (security review M4): a life-safety stop takes every TRV room to the frost level – a head left open
+        # keeps asking for heat (a central boiler, another source); written also in shadow, over a hand-set target
+        stop = decision.reason == Reason.SAFETY_STOP
+        frost = float(getattr(self.cfg, "frost_temp", 7.0))
         info: dict[str, dict] = {}
         states: dict[str, dict] = {}
         advice = {a.room: a for a in getattr(self, "room_advice", [])}
@@ -1150,7 +1228,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 states[spec.key] = {**common, "target": house, "reason": "leading" if is_lead else "house",
                                     "heating": bool(decision.output), "presence": None}
                 continue
-            if is_lead:
+            if stop:
+                base, reason, presence = frost, "safety_stop", None
+            elif is_lead:
                 base, reason, presence = house, "leading", None
             else:
                 rt = self._room_target(spec, house, now)
@@ -1181,11 +1261,17 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                                   "calibration": cal, "want": want,
                                                   "state": state.state if state is not None else None,
                                                   "head_target": attrs.get("temperature")}
-                if self.mode != MODE_ACTIVE:
+                if self.mode != MODE_ACTIVE and not stop:
                     continue
                 plan = self.trv_targets.plan(head, room_base, state.state if state is not None else None,
                                              attrs.get("temperature"), attrs.get("min_temp"), attrs.get("max_temp"),
                                              want=want, now=now)
+                cur = attrs.get("temperature")
+                if (stop and plan.target is None and plan.reason in ("manual", "wait", "pending")
+                        and isinstance(cur, (int, float)) and cur - want >= 0.5):
+                    # 0.78.2 (M4): the stop does not respect a hand-set or a calibration-held higher target
+                    lo = attrs.get("min_temp")
+                    plan = TrvPlan(max(want, float(lo)) if isinstance(lo, (int, float)) else want, "safety_stop")
                 info[spec.name]["heads"][head]["plan"] = plan.reason
                 if plan.target is None:
                     continue
@@ -1311,6 +1397,22 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             keys.append("rooms")
         return keys
 
+    def _log_switch(self, decision: Decision, now: datetime) -> None:
+        """0.79.0: the commanded output's changes (in shadow mode too: what HC would switch) with the PWM cycle and the
+        catch-up state they were decided in."""
+        det = decision.details or {}
+        if not hasattr(self, "switch_log"):
+            self.switch_log = ms.SwitchLog()
+        pwm = getattr(getattr(self, "supervisor", None), "pwm", None)
+        start = getattr(pwm, "cycle_start", None)
+        self.switch_log.update(
+            now, bool(decision.output), indoor=decision.indoor, target=decision.target, demand=float(decision.demand),
+            reason=str(getattr(decision.reason, "value", decision.reason)), limited_by=decision.limited_by,
+            cycle_s=float(self.cfg.cycle_s) if self.cfg.control in ("tpi", "pid") else None,
+            cycle_pos_s=round((now - start).total_seconds()) if start is not None and self.cfg.control in ("tpi", "pid") else None,
+            carry_s=round(float(getattr(pwm, "carry_s", 0.0)), 1) if pwm is not None and self.cfg.control in ("tpi", "pid") else None,
+            catchup=bool(det.get("catchup")), catchup_low=(det.get("catchup_mode") or {}).get("mode"))
+
     def _update_measures(self, decision: Decision, now: datetime) -> None:
         conf, limits = self.conf, ms.Limits.from_conf(self.conf)
         values: dict = {}
@@ -1345,6 +1447,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if counted:
             self.runs.update(now, bool(heating))
             values["runs"] = self.runs.summary(now)
+        if self.cfg.control not in ("external", "ac"):
+            self._log_switch(decision, now)
+            values["switches_24h"] = self.switch_log.count(now)
         # COP: heat given off over the power taken
         if conf.get(CONF_HEAT_OUTPUT) and conf.get(CONF_HEAT_ENERGY):
             h, hu, _ = self._plain(CONF_HEAT_OUTPUT)

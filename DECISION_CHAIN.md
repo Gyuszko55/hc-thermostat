@@ -16,15 +16,16 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  N1["1. Inputs fresh?"] --> N2
-  N2["2. Paused? Shadow or live"] --> N3
-  N3["3. Season (summer rest)"] --> N4
-  N4["4. Window open → frost protection"] --> N5
-  N5["5. Target: schedule, presence, manual, optimal start, boost"] --> N6
-  N6["6. Limits: floor, return, dew point, off-peak power"] --> N7
-  N7["7. Regulator: demand % / flow setpoint / setpoint shift"] --> N8
-  N8["8. Execution: PWM, flow setpoint, TRV targets, fan"] --> N9
-  N9["9. Check back: real heating, flame, power"]
+  N1["1. Life-safety stop? (smoke, fire, gas, CO, water – latched, everything off)"] --> N2
+  N2["2. Inputs fresh?"] --> N3
+  N3["3. Paused? Shadow or live"] --> N4
+  N4["4. Season (summer rest)"] --> N5
+  N5["5. Window open → frost protection"] --> N6
+  N6["6. Target: schedule, presence, manual, optimal start, boost"] --> N7
+  N7["7. Limits: floor, return, dew point, off-peak power"] --> N8
+  N8["8. Regulator: demand % / flow setpoint / setpoint shift"] --> N9
+  N9["9. Execution: PWM, flow setpoint, TRV targets, fan"] --> N10
+  N10["10. Check back: real heating, flame, power"]
 ```
 
 ## 1. Heat sources
@@ -409,6 +410,7 @@ A fan coil switches its own water valve whatever feeds it: TPI, PID or an extern
 
 - **Room thermometer (several: the room group's mean)** `indoor_entity`
 - *Windows and doors: frost protection while open* `window_entities`
+- *Life-safety inputs: the wired chain's auxiliary contact, detectors – stop above everything* `safety_entities`
 - *Presence: household or per room* `presence_entities`
 - *Target source: a wall thermostat's knob becomes the manual target* `target_source_entity`
 - *Fast temperature drop: a window without a contact* `window_drop_entities`

@@ -1,0 +1,27 @@
+# 0.78.0: the decision core as a package of its own (`hc-core`, import name `hc_core`). It is built straight from the
+# integration's core folder – one source, no copy; the Home Assistant integration keeps using it as `.core`.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hc-core"
+dynamic = ["version"]
+description = "HC Thermostat's heating decision core – runs with or without Home Assistant"
+readme = "docs/hc-core.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Gyuszko55" }, { name = "Krissz55555" }]
+dependencies = []
+classifiers = ["Programming Language :: Python :: 3", "Topic :: Home Automation"]
+
+[project.urls]
+Homepage = "https://github.com/Gyuszko55/hc-thermostat"
+
+[tool.setuptools]
+packages = ["hc_core"]
+package-dir = { "hc_core" = "custom_components/hc_thermostat/core" }
+
+[tool.setuptools.dynamic]
+version = { attr = "hc_core.__version__" }

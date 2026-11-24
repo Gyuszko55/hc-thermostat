@@ -36,6 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from .clock import rebase
 from .exercise import PumpExercise
 
 EXERCISE_GRACE_S = 300.0  # no pump exercise in the first minutes after a restart
@@ -196,6 +197,7 @@ class CentralBoiler:
         stuck = [z.name for z in asking if z.valve_open is False and z.valve_on_since is not None
                  and (now - z.valve_on_since).total_seconds() >= cfg.central_stuck_s]
         enough = len(asking) >= cfg.central_min_zones or (cfg.central_min_demand > 0 and demand >= cfg.central_min_demand)
+        self.last_change = rebase(now, self.last_change, self.output, cfg.central_min_on_s)  # 0.78.2 (M5): clock set back
         since = (now - self.last_change).total_seconds() if self.last_change else None
 
         if not asking or not enough:

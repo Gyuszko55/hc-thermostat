@@ -16,15 +16,16 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  N1["1. Bemenetek frissek?"] --> N2
-  N2["2. Szünetel? Árnyék vagy éles"] --> N3
-  N3["3. Szezon (nyári pihenő)"] --> N4
-  N4["4. Ablak nyitva → fagyvédelem"] --> N5
-  N5["5. Cél: program, jelenlét, kézi, optimális indítás, felfűtés"] --> N6
-  N6["6. Korlátok: padló, visszatérő, harmatpont, vezérelt áram"] --> N7
-  N7["7. Szabályozó: igény % / előremenő cél / céleltolás"] --> N8
-  N8["8. Végrehajtás: PWM, előremenő cél, TRV-célok, ventilátor"] --> N9
-  N9["9. Visszaellenőrzés: tényleges fűtés, láng, áramfelvétel"]
+  N1["1. Életvédelmi leállítás? (füst, tűz, gáz, CO, víz – reteszelve, minden KI)"] --> N2
+  N2["2. Bemenetek frissek?"] --> N3
+  N3["3. Szünetel? Árnyék vagy éles"] --> N4
+  N4["4. Szezon (nyári pihenő)"] --> N5
+  N5["5. Ablak nyitva → fagyvédelem"] --> N6
+  N6["6. Cél: program, jelenlét, kézi, optimális indítás, felfűtés"] --> N7
+  N7["7. Korlátok: padló, visszatérő, harmatpont, vezérelt áram"] --> N8
+  N8["8. Szabályozó: igény % / előremenő cél / céleltolás"] --> N9
+  N9["9. Végrehajtás: PWM, előremenő cél, TRV-célok, ventilátor"] --> N10
+  N10["10. Visszaellenőrzés: tényleges fűtés, láng, áramfelvétel"]
 ```
 
 ## 1. Hőforrások
@@ -409,6 +410,7 @@ A fan-coil a saját vízszelepét kapcsolja, bármi táplálja: TPI, PID vagy k�
 
 - **Helyiség hőmérője (több: a helyiségcsoport átlaga)** `indoor_entity`
 - *Ablakok és ajtók: nyitva fagyvédelem* `window_entities`
+- *Életvédelmi bemenetek: a bekötött lánc segédkontaktusa, érzékelők – leállítás mindenek felett* `safety_entities`
 - *Jelenlét: háztartás vagy helyiségenként* `presence_entities`
 - *Célhő forrása: a fali termosztát tekerője kézi célként* `target_source_entity`
 - *Gyors hőesés: ablak érzékelő nélkül* `window_drop_entities`

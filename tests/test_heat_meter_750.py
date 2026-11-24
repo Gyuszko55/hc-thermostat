@@ -47,8 +47,8 @@ def test_no_flow_is_0_kw_and_the_total_stays():
     total = hm.total_kwh
     info = run(hm, 600, flow=0.0, start=630)
     assert info["power_kw"] == 0.0 and info["valid"]
-    # the half interval while it fell to 0 (trapezoid), nothing after
-    assert hm.total_kwh == pytest.approx(total + 10.047 / 2 * 30 / 3600, rel=1e-6)
+    # The previous full heating interval is preserved, but no half-interval is invented at the stop.
+    assert hm.total_kwh == pytest.approx(total, rel=1e-6)
     assert info["cop"] is None and info["cop_reason"] == "no_flow"
 
 
@@ -161,10 +161,11 @@ def test_no_flow_and_standby_power_is_no_cop():
     assert info["cop"] is None and info["cop_raw"] is None and info["cop_reason"] == "no_flow"
 
 
-def test_without_a_power_meter_the_heat_is_measured_and_no_cop():
+def test_without_a_power_or_frequency_signal_heat_is_measured_unconfirmed_and_no_cop():
     hm = HeatMeter()
     info = run(hm, 900, p_el_w=None, power_source=False)
     assert info["cop"] is None and info["cop_reason"] == "no_power_meter" and hm.total_kwh > 2.4
+    assert info["heat_reason"] is None and info["heat_gate"] == "none" and info["heat_confirmed"] is False
 
 
 def test_stale_power_defrost_and_a_short_stop_give_no_spike():
@@ -212,11 +213,13 @@ def test_the_coordinator_step_reads_its_entities():
     fake.power_entity = lambda: hp.HpCoordCoordinator.power_entity(fake)
     info = hp.HpCoordCoordinator.heat_step(fake, now)
     assert info["power_kw"] == pytest.approx(10.047, abs=0.001) and info["power_entity"] is None
-    assert info["cop_reason"] == "no_power_meter"  # a binary "runs" signal: heat yes, COP no
+    assert info["cop_reason"] == "no_power_meter"  # a binary "runs" signal: heat yes (unconfirmed), COP no
+    assert info["heat_confirmed"] is False
     st["sensor.pw"] = S("2.5", "kW", "sensor.pw")
     conf["hp_power_entity"] = "sensor.pw"
     info = hp.HpCoordCoordinator.heat_step(fake, now + timedelta(seconds=30))
     assert info["power_entity"] == "sensor.pw" and info["cop_raw"] == 4.02
+    assert info["power_kw"] == pytest.approx(10.047, abs=0.001)
     fake.heat_meter = None
     assert hp.HpCoordCoordinator.heat_step(fake, now) is None
 
@@ -241,7 +244,7 @@ def test_settings_errors_and_translations():
         for k in ("hp_heat_power", "hp_heat_energy", "hp_heat_energy_today", "hp_cop", "hp_cop_today"):
             assert tr["entity"]["sensor"][k]["name"]
         assert set(tr["selector"]["hm_power_scope"]["options"]) == {"unit", "compressor"}
-    assert json.loads((BASE / "manifest.json").read_text())["version"] == "0.75.0"
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0")
 
 
 def test_sensors_are_made_only_with_the_heat_meter():

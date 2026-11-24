@@ -1,5 +1,246 @@
 # Changelog
 
+## 0.79.0 – unreleased (dev)
+
+- **No short run just before the morning rise** (`preheat_hold_min`, 20 min by default, 0 = off): when the optimal
+  start begins within this time and the room is at most 0.3 °C under its night target, no new regulating run starts
+  before it. Seen in the developer's house on two mornings: a 6-minute run 1 and 14 minutes before the rise, then the
+  rise waited out the 5-minute minimum pause – two burner starts minutes apart. The room's small fall only brings the
+  optimal start a little earlier; a running burn is not cut. Shown as "Limited by: before the morning rise".
+- **Switch log** (a tester's request): every change of the commanded output, in shadow mode too, with the indoor and
+  target temperature, the demand, the reason, the PWM cycle (length, position, carried seconds) and the catch-up state –
+  the last 200, kept across restarts; the last 100 in the HC info data and the downloaded diagnostics.
+- **Starts in the last 24 hours:** the "Starts today" sensor gets `starts_24h` (rolling, not since midnight) and
+  `commanded_on_24h` (from the switch log) – for comparing settings without reading graphs.
+- **Heat pump: the charging reason on its own line.** Under the cold-weather ON the decision shows "ON: cold weather"
+  and the charging reason was only in the details; now the info panel and the overview show "Why it charges" beside it,
+  with the stop layer (e.g. lower middle 41 °C → 43 °C). The `heat_reason` detail is there whenever it charges.
+- **AI analysis: only the live heating.** In a house whose leading instance controls (active), the daily AI report
+  covers only the members that control too – shadow members (evaluation, simulations) are left out – and only their
+  own open issues plus the house-wide ones (an issue of another house no longer shows up). A house still being
+  evaluated in shadow mode keeps every member.
+- **Heat meter: compressor Hz / 200 W gate (a tester's contribution):** produced heat counts only with confirmed
+  compressor running; without any watt or Hz signal the water-side metering goes on, flagged `heat_confirmed: false`.
+- **hcd: host names in `web_allow` right after a boot:** the first lookup waited until the uptime passed 300 s, so in
+  the first five minutes after a host boot a named add-on got 403. The first lookup now happens at once (this also
+  made the CI test fail on fresh runners since 0.1.3).
+
+## 0.78.4 – 2026-11-21 (live)
+
+- **A missed guard renewal is no relay fault while the lease holds:** after an instance reload the Shelly refused the
+  first request (`HTTP 429`), and the fault sensor – with its notification – went on for a minute although the
+  guard still held a valid lease and the next step renewed it. A failed renewal without an answer, a 429 or a 5xx is
+  now logged once and tried again at the next step; the relay part counts as failed only from half the lease time
+  (150 s by default) after the last renewal the guard took. A refused token or password (403 / 401) and the
+  life-safety stop still count at once.
+
+- **`guard/upload_shelly.py` on a protected device:** the tool used urllib, which knows no SHA-256 digest – the only
+  one a Shelly Gen2+ offers – so `--password` and every run after `--set-password` failed. It now uses aiohttp
+  (3.12 or later): one session and one digest middleware for the whole run, so the challenge comes once and every
+  later call is signed in advance; a 429 is waited out (2, 4, 6 s) and tried again; a wrong password says so.
+
+## 0.78.3 – 2026-11-21
+
+- **Local guard with a device password:** a password-protected Shelly closes the connection on a script endpoint
+  request that carries a body and no Authorization – it sends no 401, so the digest auth never started and every
+  lease failed with `ClientOSError` (the guard fell back to its own program). HC now first GETs the guard's status
+  (that 401 brings the challenge) and sends the lease signed in advance; a broken connection gets one fresh
+  challenge and one retry. A wrong password shows as `HTTP 401 (device password)`.
+
+## 0.78.2 – 2026-11-21 (security review)
+
+- **Smaller security review items:**
+  - diagnostics replace every room name by `room:<key>` (consistently, so hcd's import still matches the rooms up);
+  - a relay entity that is gone is a failed relay part (the fault sensor, Repairs) instead of a silent skip; the
+    central boiler and the buffer log a missing switch once;
+  - with a relay watchdog script the relay goes **on only through the script**, run to its end – a failing script
+    is a failed relay part, never a relay switched on without its timer. *Upgrading:* the script itself must
+    switch the relay on (as a Shelly "turn on with timer" does);
+  - a life-safety input without a reading for 10 minutes is a Repairs entry (it still never trips the stop);
+  - the house drawing's and the overview's escape covers the apostrophe too.
+- **Workflows hardened (security review):** the release job passes the tag through the environment instead of
+  pasting it into the shell; `actions/checkout` and `actions/setup-python` are pinned to a commit like the others,
+  without persisted credentials; pytest and build have fixed versions.
+- **The setup wizard's commands check what they take (security review):** `wizard/apply`, `wizard/derive` and
+  `wizard/system` accept each entity only in a domain its field allows (as the panel's pickers offer it – no
+  `lock.*` as a relay), each setting only in its options-flow range (no string or NaN cycle), bounded lists and names;
+  `wizard/system` takes an existing room only when it is an HC instance that can be a zone. A refused value is named
+  in the error (`invalid_value`). New module `wizard_check.py`.
+- **No real address in the examples (security review):** hcd's example settings and its test use a documentation address (192.0.2.10, RFC 5737) instead of a real LAN address.
+- **The manual AI analysis is rate limited (security review):** the *Analyse now* button – which every user can
+  press – and the panel's button make a report at most every 15 minutes and 6 times a day (each is a paid AI Task
+  call and a day of history); a refused press says when the next one may come. The scheduled morning report is not
+  counted.
+- **A clock set back holds no relay ON (security review M5):** a remembered switch time in the future (NTP
+  correcting a clock, a restored backup) no longer makes a negative elapsed time – the PWM, the on/off gate, the
+  central boiler and the heat pump coordination put it back to now (`core/clock.py`): a running ON counts as having
+  had its minimum run, an OFF starts its minimum pause again; a PWM cycle start in the future starts a new cycle. A
+  reading reported more than a minute in the future has an unknown age and counts as stale.
+- **TRV heads go to the frost level in a life-safety stop (security review M4):** every room with thermostatic heads
+  gets the frost temperature (room reason `safety_stop`) – also in shadow and over a target turned up on the head
+  by hand, so no open head keeps asking a central boiler or another source for heat. A head switched off stays off.
+- **The life-safety latch is shared by every instance (security review M3):** an instance without safety inputs of
+  its own stops with the house too – the central boiler (off, flow setpoint to its lowest; the pump keeps its
+  overrun), the buffer (no charging), the mixing circuit (`circuit_flow_min`, forced), a room and the heat pump
+  coordination – whenever any HC instance watches inputs and the latch holds; also in shadow. The decision sensors
+  say `safety_stop`. The notification no longer claims more than HC does.
+- **The guard's longest run in every mode (security review M2):** `max_on` now also cuts a run in the grace, the
+  fallback and the handback (then `min_off`), not only while HC controls; electric heaters get `guard_max_on_s` 2 h
+  by default. A Bluetooth reading of unknown age (no time sync, no timestamp) is no reading, and a pushed reading
+  counts for 2 hours instead of 4.
+- **Local guard secured (security review H3):** the token is required – the guard script (version 2) takes no
+  lease and no pushed temperature without `hc_guard_token`, HC's settings refuse a guard address without a token. New
+  setting *Device password*: every lease goes with the Shelly's digest auth (aiohttp `DigestAuthMiddleware`, user
+  admin), which on a password-protected device also closes the whole Shelly RPC. `upload_shelly.py` makes a random
+  token when none is given, reads secrets from `HC_GUARD_TOKEN` / `HC_GUARD_PASSWORD`, speaks digest auth and can
+  protect the device (`--set-password`, `Shelly.SetAuth`); it warns about a device without a password. The token and
+  the password never leave Home Assistant in the info panel; diagnostics also redact the guard's address.
+- **The guard's safety command (M1):** HC's life-safety stop reaches the guard as `cmd: "safety"` – off at once
+  (no `min_on`), latched on the device (KVS `hc_guard_stop`, kept over a restart, no fallback heating) until an
+  ordinary lease after the acknowledgement; the status shows `hc_stop`.
+- *Upgrading a guard:* upload the script again (`upload_shelly.py`), and enter its token (and the device password)
+  in HC – a guard without a token now runs only its own program.
+- **The life-safety stop cannot be bypassed (security review H1):** it now reaches the output on every path.
+  The room thermostat's executor writes it also in shadow and with "HC supervision paused"; a decision step that
+  raises while the latch holds gives the stop's own off decision at once (not only after the failsafe's third
+  failure). The heat pump coordination reads the latch before its step, and its OFF, no demand, no exercise and
+  lowest target go out forced – `OutputWriter.apply(force=True)` ignores shadow, an ended trial, paused writing,
+  the grace after a start and a conflict / unaccepted / given-up value (status `safety`). A latch that cannot be
+  read counts as tripped.
+- **Failsafe in every instance that switches heat (security review H2):** the central boiler, the buffer, the mixing
+  circuit and the heat pump coordination now do what the room thermostat has done since 0.45.0 – a step that fails
+  `FAILSAFE_AFTER` (3) times in a row no longer leaves the output as it was: the boiler / the buffer's heat source is
+  switched off (the modulating boiler's flow setpoint to its lowest, the pump keeps its last state), the mixing circuit
+  gets `circuit_flow_min`, the heat pump no ON, no heat demand and no exercise with `hp_flow_min`. The decision sensor
+  says `failsafe`, a Repairs entry (error) names the instance; both clear with the first step that works again. The first
+  two failures raise as before (the entities go unavailable). New module `failsafe.py` (`StepFailsafe`).
+- **System drawing, a boiler with its rooms:** the return pipe back to the source (blue) beside the flow; the measured
+  flow and return temperatures (Settings → Measurements) in the source's box at the pipes' side; a room's
+  thermostatic heads as a valve sign with the head's target (orange while the room asks for heat; the names, targets
+  and head temperatures as a tooltip).
+
+## hcd 0.1.3 – unreleased (security review)
+
+- The page listens on `127.0.0.1` by default (`web_host`; it has no login); `web_allow` lets in only the named remote
+  addresses. The add-on listens for its ingress and lets in only the Supervisor's proxy (172.30.32.2).
+- The add-on runs the service as the unprivileged `hcd` user (`su-exec`), with a private 0600 copy of the settings in
+  `/data`; `/share` is mapped read-only; the Python packages have fixed versions.
+- The add-on's `web_allow` option: besides the ingress proxy, addresses or add-on host names (resolved, so a
+  restarted container is still let in) that may read the page and the API.
+
+## hcd 0.1.2 – 2026-11-20
+
+- The steps where hcd and the integration differ (decision reason or output) are in the API: today's (at most 200,
+  newest first) as `disagreements` in `/api/status`, any day's in `/api/disagreements?day=YYYY-MM-DD` (today by
+  default).
+
+## hcd 0.1.0 – 2026-11-19 (F2, shadow)
+
+- **hcd**, HC without Home Assistant's core (`hcd/`): the same decision core (`hc_core`), its own feeds – Home
+  Assistant states (REST, with a device "last seen" entity as `seen_from`), Zigbee2MQTT over MQTT (the payload's
+  `last_seen` as the device time; contacts inverted, a power draw over a threshold as a burner signal), Shelly Gen2+
+  RPC (the relay as it is) – a YAML settings file, a JSON state file and SQLite. It builds the inputs as the
+  integration's coordinator does for a relay-driven boiler (rooms and the leading room, windows and the zone door,
+  plausibility, the outdoor day average, presence, the restart confirmation, burner, heat delivered, the other
+  source's heat). Settings it cannot handle yet are named (`unsupported`).
+- **Shadow comparison:** every step the integration's decision, target, demand and relay are read from Home
+  Assistant and kept beside hcd's own; a page (add-on ingress) shows the day's agreement and burn minutes. A preset or
+  manual target set in Home Assistant is taken over.
+- `python -m hcd.import_ha` makes the settings from an HC instance's diagnostics and, with `--state`, starts hcd from
+  the integration's learned state. `tools/build_hcd_addon.sh` puts the local add-on together (Alpine 3.21 base,
+  `services: mqtt:need`, ingress).
+- 14 new tests (settings, feeds, engine, comparison, page, import); the test run also imports the core as `hc_core`.
+
+## 0.78.1 – 2026-11-19
+
+- The restart protection (0.77.3) now ignores reports in the first `restart_settle_s` (180 s) after Home
+  Assistant's start: those minutes bring the restore and a bridge re-sending its cached states (Zigbee2MQTT
+  ~1.5 minutes after the start), which look like new reports. A real report after that – or a device "last seen"
+  time after the start – confirms the reading. A sleeping H&T (every ~5 minutes) costs at most one more cycle.
+  (Correction to the first note on 21:11: the H&T really reported at 21:14:20; Home Assistant's REST API showed an
+  old `last_reported`, as it caches a state whose value did not change.)
+- **A device's own "last seen" time.** Where a thermometer's device has a `*_last_seen` timestamp entity (Zigbee2MQTT
+  with `last_seen` turned on), HC ages the reading by it and a message after the start confirms at once. A Zigbee
+  sensor that went silent no longer reads as fresh just because Zigbee2MQTT re-sent its last value; it shows as
+  stale after `sensor_max_age_s`. Core: `Sample.seen`, `reported_at()`; integration: `seen_view.py`.
+- The HC info panel shows the running version in its header.
+
+## 0.78.0 – 2026-11-19
+
+- The decision core is a package of its own: **`hc-core`** (import name `hc_core`, no dependencies, AGPL-3.0-only),
+  built straight from `custom_components/hc_thermostat/core` by the new `pyproject.toml` – one source, no copy. The
+  Home Assistant integration keeps using it as `.core`; the standalone service (`hcd`, next) will build on it.
+- New `core/inputs.py`: turning raw states into readings without Home Assistant – °C conversion, a reading's age,
+  on/off contacts, a thermometer group's fresh mean, the restart confirmation (0.77.3) and the outdoor day average.
+  Home Assistant's `State` is already such a sample, so the coordinator passes `hass.states` as it is and only
+  delegates. New `core/ports.py`: what a body provides (clock, state view, output, state store, notifier).
+- No change in behaviour: the same readings, the same decisions; the saved outdoor samples load as before.
+- Tests: the core imports nothing outside itself and the standard library, runs as `hc_core`, its °C conversion
+  equals Home Assistant's; a new CI job builds the wheel and runs it without Home Assistant.
+
+## 0.77.3 – 2026-11-19
+
+- After a restart a sleeping thermometer's value (a battery Shelly H&T, a Zigbee sensor) is often the one restored
+  from before the restart, stamped with the start time – it looked fresh. The room reading now counts as confirmed only
+  once one of its thermometers reports again; until then (at most `restart_sensor_wait_s`, 15 minutes) a house no more
+  than `restart_margin` below the target stays in *Waiting after restart*: no burn starts on the old value, and a
+  running after-heat watch is not ended by it. A colder house still heats at once; frost protection is unchanged.
+  (Seen live: a reading restored 0.7 °C low ended the after-heat watch and started a needless 6-minute burn.)
+
+## 0.77.2 – 2026-11-19
+
+- The local guard keeps `min_off` after its own start when the relay is off – after a power cut or a restart right
+  after the dead man switched the relay off, the boiler no longer fires again at once. A relay found on may still
+  switch off at once (no `min_on` to wait for).
+
+## 0.77.1 – 2026-11-19
+
+- The local guard's dead man: every "on" the Shelly script gives carries the relay's own flip-back timer
+  (`toggle_after`, 180 s), re-armed every minute while the script runs. A stopped or crashed script – or a failed
+  upload – lets the relay switch itself off within 3 minutes instead of keeping the boiler on; an "off" never carries
+  a timer. `upload_shelly.py --deadman <s>` (KVS `hc_guard_deadman`, 60–3600 s, 0 = none); the status shows `dm`.
+- Guard README: what other controllers taught – ESPHome's `reboot_timeout: 0s` (the default reboots every 15 minutes
+  without Home Assistant), the relay off at boot, never full power as an emergency mode, and the guard is no safety
+  device (the boiler's limits and the wired chain stay in series).
+
+## 0.77.0 – 2026-11-18
+
+- Life-safety stop (smoke, fire, gas, CO, water). The real stop belongs to a wired safety chain – certified detectors'
+  normally closed contacts in series holding a latching relay that keeps the gas valve open, the heating's contactor
+  on and the water valve open – and needs no Home Assistant. HC reads the chain's auxiliary contact (and detectors as
+  a second signal): *Settings → Protection → Life-safety inputs* on a room / boiler instance, and on the heat pump
+  coordination's first page. Any input on trips one shared latch: every instance watching it stops at once – above
+  every other reason, frost protection and the valve exercise included; the relay off without its minimum run, a
+  managed thermostat or air conditioner off, no flow asked for; the heat pump coordination gives no ON, no heat demand
+  and the lowest target. The latch survives a restart and lets go only with the new *Acknowledge the life-safety
+  stop* button once every input is clear and readable; an unreadable input does not trip on its own (the chain does)
+  but blocks the acknowledgement.
+- Announced once: the `hc_thermostat_safety_stop` event (for your own notifications), a persistent notification and a
+  critical Repairs entry; `hc_thermostat_safety_clear` when acknowledged. New *Life-safety stop* binary sensor on
+  each watching instance; the decision `safety_stop`; DECISION_CHAIN starts with it.
+- The local guard: an input wired to the chain's auxiliary contact (`hc_guard_safety`, `upload_shelly.py --safety`)
+  switches its relay off at once whatever the lease, as a second line, and announces it.
+
+## 0.76.0 – 2026-11-18
+
+- Local guard: a small program next to the relay that keeps the heating going when Home Assistant or HC fails.
+  With *Settings → Local guard → address* given, HC no longer calls the relay's switch service: it sends the command
+  as a **lease** to the guard (at once on every change, renewed every 60 s, valid 5 minutes), written from HC's own
+  decision step – a Home Assistant that runs while HC is stuck lets it run out like a stopped one. Without a lease the
+  guard keeps the last command for 5 minutes (a usual restart changes nothing), then regulates by its own thermometer
+  with the fallback target and band set in HC (sent with every lease, kept on the device); without a thermometer it
+  switches off or runs a fixed duty cycle. It hands control back only after a stable lease (2 minutes, 2 renewals),
+  starts in fallback after a power cut, keeps HC's minimum on / off times in every mode and can post a push (an ntfy
+  topic) when it takes over – independently of Home Assistant. Without an address nothing changes.
+- `guard/shelly/hc_guard.js`: the guard for Shelly Gen3 / Gen4 relays (plain ASCII; a BLU H&T over BTHome or an
+  add-on probe as the thermometer; optional token), `guard/upload_shelly.py` puts it on a relay, `guard/README.md`
+  describes the setup, a test procedure and the protocol for ESPHome or a PLC.
+- The guard also takes a room temperature pushed by a Wi-Fi thermometer (`?t=` / the Gen1 H&T's `?temp=`, with the
+  token; kept 4 hours, the Bluetooth sensor first) – for a house without a BLU H&T.
+- New *Local guard* sensor (normal / grace / fallback / nosensor / handback / unreachable) with the guard's thermometer
+  and lease; an info panel row; a Repairs entry when the guard cannot be reached for 10 minutes or regulates on its
+  own while HC runs. The token and the push URL are redacted from the diagnostics.
+
 ## 0.75.0 – 2026-11-18
 
 - Heat meter and COP for the heat pump coordination (a tester's request after the readings of a heat pump charging a

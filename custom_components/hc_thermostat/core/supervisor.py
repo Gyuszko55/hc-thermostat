@@ -85,6 +85,7 @@ class Supervisor:
         self._temper_run = False  # on/off control: the running gate was started by the tempering
         self._target_shown = 0.0
         self._pre_hold: dict | None = None  # 0.48.3: the scheduled lowering that holds a new start (see _pre_change)
+        self._preheat_hold: dict | None = None  # 0.79.0: the optimal start soon – no short run before it (_preheat_soon)
         self._window_since: datetime | None = None
         self._boost_until: datetime | None = None  # safety limit of the running boost
         self._boost_armed = True
@@ -300,6 +301,22 @@ class Supervisor:
         if (self.preset_until is not None and inputs.now >= self.preset_until) or (self.preset_until_home and arrived):
             self.preset, self.preset_until, self.preset_until_home = None, None, False
 
+    def _safety_stop(self, inputs: Inputs) -> Decision:
+        """0.77.0: a life-safety stop – the relay off at once (no minimum run), the regulator held, a managed thermostat
+        or air conditioner switched off, no flow asked for. The wired chain does the real stop; this keeps HC from
+        starting anything against it until the latch is acknowledged."""
+        cfg, now = self.cfg, inputs.now
+        self.pwm.force_off(now)
+        self._gate.force_off(now)
+        self.regulator.hold(now)
+        self._catchup_stop(now, "paused")
+        target = self._target_shown or cfg.frost_temp
+        external = ExternalCommand("off", target) if cfg.control in ("external", "ac") else None
+        return Decision(now, Reason.SAFETY_STOP, target, inputs.indoor.fresh(cfg.sensor_max_age_s),
+                        inputs.outdoor.fresh(cfg.sensor_max_age_s), demand=0.0, output=False,
+                        limited_by="safety_stop", fault=self.fault, external=external, flow_setpoint=None,
+                        details={"safety_by": list(inputs.safety)})
+
     def _catchup_limits(self) -> tuple[float, float, float]:
         """The catch-up's threshold, wait and release now: the low-temperature ones (0.74.0) while that mode is
         confirmed, else the room's own. A catch-up switched off (catchup_gap 0) stays off in both."""
@@ -491,19 +508,30 @@ class Supervisor:
                     and inputs.presence == Presence.HOME:
                 return True
             self._early = None
+        plan = self._early_plan(inputs, base)
+        if plan is None or plan["needed_min"] < plan["left_min"]:
+            return False
+        self._early = {"since": now, "until": plan["until"], "goal": plan["goal"], "needed_min": round(plan["needed_min"]),
+                       "expected": round(plan["expected"], 2), "tau_h": round(plan["tau"], 1) if plan["tau"] else None}
+        return True
+
+    def _early_plan(self, inputs: Inputs, base: float) -> dict | None:
+        """The optimal start's sum (0.79.0: apart, so the time left before it can be told too): the minutes left until
+        the night end and the minutes the rise would take. None when no optimal start is in question."""
+        cfg, now = self.cfg, inputs.now
         if not (cfg.optimal_start and cfg.control in ("tpi", "pid", "onoff")) or self.preset is not None \
                 or self.manual_target is not None or inputs.presence != Presence.HOME or not self._is_night(now):
-            return False
+            return None
         until = self._night_end_at(now)
         goal = self._wake_target(until)  # 0.72.0: with a weekly program the level after the night
         if goal <= base:
-            return False
+            return None
         indoor = inputs.indoor.fresh(cfg.sensor_max_age_s)
         if indoor is None or until is None:
-            return False
+            return None
         left_min = (until - now).total_seconds() / 60
         if left_min > cfg.optimal_start_max_min:
-            return False
+            return None
         outdoor = inputs.outdoor.fresh(cfg.sensor_max_age_s)
         tau = self.tau.tau_h
         expected = indoor
@@ -512,13 +540,27 @@ class Supervisor:
             expected = max(predict(indoor, self.equilibrium(outdoor), tau, left_min / 60), min(indoor, base))
         deficit = goal - expected
         if deficit <= 0.1:
-            return False
+            return None
         needed = deficit * self.learner.minutes_per_degree(outdoor) + cfg.optimal_start_lag_min
-        if needed < left_min:
-            return False
-        self._early = {"since": now, "until": until, "goal": goal, "needed_min": round(needed), "expected": round(expected, 2),
-                       "tau_h": round(tau, 1) if tau else None}
-        return True
+        return {"until": until, "goal": goal, "left_min": left_min, "needed_min": needed, "expected": expected, "tau": tau}
+
+    def _preheat_soon(self, inputs: Inputs, target: float, indoor: float | None) -> dict | None:
+        """0.79.0 (the developer's house, 11-23 and 11-24 mornings): a 6-minute regulating run 1 and 14 minutes before
+        the optimal start, then the start waited out the minimum pause – two burner starts minutes apart. When the
+        optimal start begins within preheat_hold_min and the room is at most preheat_hold_gap under its night target,
+        no new run starts: the room's small fall only brings the optimal start a little earlier. A running burn is
+        not cut. Returns the hold (minutes until the start, the rise's minutes, its target) or None."""
+        cfg = self.cfg
+        if cfg.preheat_hold_min <= 0 or indoor is None or self._early is not None or self._base_target is None \
+                or indoor < target - cfg.preheat_hold_gap:
+            return None
+        plan = self._early_plan(inputs, self._base_target)
+        if plan is None:
+            return None
+        slack = plan["left_min"] - plan["needed_min"]
+        if not 0 < slack <= cfg.preheat_hold_min:
+            return None
+        return {"in_min": round(slack), "needed_min": round(plan["needed_min"]), "goal": plan["goal"]}
 
     @property
     def early_start(self) -> dict | None:
@@ -896,6 +938,9 @@ class Supervisor:
                 if want and not self._gate.output and self._pre_hold is not None:
                     want = False  # 0.48.3: the target goes down soon, the room is warm enough for it
                     details = {"pre_change": self._pre_hold}
+                elif want and not self._gate.output and self._preheat_hold is not None:
+                    want = False  # 0.79.0: the optimal start begins soon – one start instead of two
+                    details = {"preheat_soon": self._preheat_hold}
             else:
                 want = demand > 0  # boost, frost; at target, window, summer, off: no
             min_on, min_off = (cfg.hp_min_on_s, cfg.hp_min_off_s) if cfg.heat_pump else (cfg.min_on_s, cfg.min_off_s)
@@ -951,7 +996,10 @@ class Supervisor:
             return Reason.WINDOW, 0.0
         if not self.season_on:
             return Reason.SEASON_OFF, 0.0
-        if inputs.uptime_s < cfg.restart_grace_s and indoor >= target - cfg.restart_margin:
+        if indoor >= target - cfg.restart_margin and (
+                inputs.uptime_s < cfg.restart_grace_s
+                or (not inputs.indoor_confirmed and inputs.uptime_s < cfg.restart_sensor_wait_s)):
+            # 0.77.3: a restored, not yet re-reported room reading starts no burn and ends no after-heat watch
             return Reason.RESTART_HOLD, 0.0
         if indoor >= target + cfg.overshoot_stop:
             # 0.48.2: the after-heat watch goes on above the target too – the boost's lesson used to wait until the
@@ -959,6 +1007,8 @@ class Supervisor:
             self._quiet(inputs.now, target, indoor)
             return Reason.AT_TARGET, 0.0
         self._pre_hold = self._pre_change(inputs, target, indoor) if not self.boosting else None
+        self._preheat_hold = self._preheat_soon(inputs, target, indoor) \
+            if self._pre_hold is None and not self.boosting else None
         if self._pre_hold is None and self._boost(inputs, target, indoor):
             return Reason.BOOST, 1.0
         if self._quiet(inputs.now, target, indoor):
@@ -1099,6 +1149,8 @@ class Supervisor:
         return (Reason.AC_COOL if mode == "cool" else Reason.AC_HEAT), ExternalCommand(mode, c.setpoint), details
 
     def step(self, inputs: Inputs) -> Decision:
+        if inputs.safety_stop:
+            return self._safety_stop(inputs)  # 0.77.0: before everything – no frost heat, no valve exercise
         decision = self._step(inputs)
         if self._early is not None:
             early = {k: v for k, v in self._early.items() if k != "since"}
@@ -1129,7 +1181,7 @@ class Supervisor:
         self._expire_preset(inputs)
         target = self._target(inputs)
         shown = target  # what the user set; the regulation may run a little lower while a cheaper source leads
-        self._target_shown, self._pre_hold = shown, None
+        self._target_shown, self._pre_hold, self._preheat_hold = shown, None, None
         yielding = inputs.yield_margin > 0 and cfg.control in ("tpi", "pid")
         if yielding:
             target = target - inputs.yield_margin
@@ -1267,13 +1319,14 @@ class Supervisor:
             catchup = self._catchup_step(now, target, indoor, yielding)
             if catchup is not None:
                 demand, coasting = 1.0, None  # 0.69.0: a room long behind gets the whole cycle, no PWM pause
-            if self._pre_hold is not None and demand > 0 and not self.pwm.output:
+            if (self._pre_hold is not None or (self._preheat_hold is not None and demand < 1.0)) and demand > 0 \
+                    and not self.pwm.output:
                 # 0.48.3: the target goes down soon and the room is already warm enough for it – no new start
                 if integral_before is not None and self.regulator.integral > integral_before:
                     self.regulator.integral = integral_before
                 demand = 0.0
             else:
-                self._pre_hold = None
+                self._pre_hold = self._preheat_hold = None
             if tempering is not None and demand < 1.0:
                 reason, demand = Reason.FLOOR_TEMPER, 1.0  # the floor asks for more than the room
         else:
@@ -1330,6 +1383,9 @@ class Supervisor:
         if self._pre_hold is not None and reason == Reason.REGULATING and not output:
             limited = limited or "pre_change"
             details = {**details, "pre_change": self._pre_hold}
+        elif self._preheat_hold is not None and reason == Reason.REGULATING and not output:
+            limited = limited or "preheat_soon"
+            details = {**details, "preheat_soon": self._preheat_hold}
         self._last_partial = reason == Reason.REGULATING and demand < 0.95
         if cfg.fan_coil:
             pct, why = self.fan.step(now, output, demand, inputs.coil.fresh(cfg.sensor_max_age_s))

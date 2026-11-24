@@ -32,6 +32,8 @@ REASONS: dict[Reason, dict[str, str]] = {
     Reason.DEW_POINT: {"hu": "Harmatpont-védelem: a padló nem hűthető most.", "en": "Dew point protection: the floor cannot be cooled now."},
     Reason.THERMOSTAT_CALL: {"hu": "A fali termosztát fűtést kér.", "en": "The wall thermostat asks for heat."},
     Reason.THERMOSTAT_IDLE: {"hu": "A fali termosztát nem kér fűtést.", "en": "The wall thermostat asks for no heat."},
+    Reason.SAFETY_STOP: {"hu": "ÉLETVÉDELMI LEÁLLÍTÁS – minden fűtés áll, amíg kézzel nem nyugtázzák.",
+                         "en": "LIFE-SAFETY STOP – all heating stands until it is acknowledged by hand."},
     Reason.MANAGED_OFF: {"hu": "A termosztátot kézzel kikapcsolták – nem kapcsolom vissza.",
                          "en": "The thermostat was switched off by hand – I do not switch it back on."},
     Reason.FLOOR_TEMPER: {"hu": "Padlótemperálás: a padló {floor} °C, a cél {floor_target} °C (a helyiség már elég meleg).",
@@ -180,6 +182,13 @@ def explain(decision: Decision, language: str = "en", room: bool = False) -> str
             p = _num(c.get("predicted"), lang)
             text += (f" Magára hagyva a váltásig kb. {p} °C-ra hűl." if lang == "hu"
                      else f" Left alone it will be about {p} °C by then.")
+    if decision.limited_by == "preheat_soon" and "preheat_soon" in details:
+        c = details["preheat_soon"]
+        mins, aim = _num(c.get("in_min"), lang), _num(c.get("goal"), lang)
+        text += (f" Kb. {mins} perc múlva indul a reggeli felfűtés {aim} °C-ra, a helyiség csak kicsit van a cél alatt: "
+                 "addig nem indítok rövid égést, hogy ne legyen két indítás pár perc különbséggel." if lang == "hu"
+                 else f" The morning rise to {aim} °C starts in about {mins} min and the room is only a little under its "
+                 "target: no short run until then, so there are not two starts minutes apart.")
     if "optimal_start" in details and decision.reason in (Reason.REGULATING, Reason.BOOST, Reason.AT_TARGET,
                                                            Reason.AFTERHEAT):
         o = details["optimal_start"]

@@ -140,13 +140,21 @@ exists (add the first one under Settings → Devices & services).
 - **Measured answer:** the panel shows from ordinary runs of at least 10 minutes how many minutes until the room warms,
   how fast, the after-heat and how fast it cools back. Shown only, nothing regulates by it.
 - **External thermostat:** sets the target and mode of any `climate` entity.
+- **Life-safety stop** (0.77.0, optional): smoke, fire, gas, CO and water inputs (a wired safety chain's auxiliary
+  contact, detectors) stop every HC instance (0.78.2: also those without inputs of their own) above every other
+  reason, latched until acknowledged; the real
+  stop is the wired chain's (gas valve, contactor, water valve), HC never replaces it. Since 0.78.2 the stop is written
+  also in shadow mode, with "HC supervision paused", in the grace after a start, over a conflict and when a decision
+  step fails.
+- **Local guard** (0.76.0, optional): a Shelly Gen3 / Gen4 script next to the relay takes HC's command as a lease and
+  regulates by its own thermometer when Home Assistant or HC fails – see [guard/README.md](guard/README.md).
 - **Supervision:** presence and night schedule, open window pause, summer rest, frost protection, lost sensor fallback, restart protection, fault detection, optional boost.
 - **Decision log** in English and Hungarian.
 - **AI analysis of the house** (optional, your own AI Task entity – Settings → Functions): every morning HC works out
   yesterday's numbers for the whole house from the recorder (room temperatures, hours below target and overheated,
   heating hours and starts, decisions, energy and cost – measured or estimated), and the AI writes a score, a summary,
   observations and things to do from them. An **AI** button on the house drawing opens the report; *Analyse now* makes
-  it at once. Advice only: nothing is changed by it. Also a sensor, a button and the `hc_thermostat_ai_report` event.
+  it at once (at most every 15 minutes and 6 times a day – each is an AI call). Advice only: nothing is changed by it. Also a sensor, a button and the `hc_thermostat_ai_report` event.
 - **Control matrix:** heat source and hydraulics give a recommended control. These are engineering defaults, not an installation design.
 
 ### Decision chain

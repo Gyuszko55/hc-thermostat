@@ -37,6 +37,7 @@ from .core.matrix import (
 from .core.model import HcConfig
 from .info import ws_ai_report_run, ws_hp_history, ws_info, ws_info_list, ws_week_set
 from .units import climate_attrs_c
+from . import wizard_check as wc  # 0.78.2: what the websocket commands take
 from .core.room_model import CONF_LEADING, CONF_ROOM_LIST, parse_rooms, rooms_options
 from .rooms_ha import (
     climates_of_other_instances, excluded_climates, hc_climates,
@@ -102,7 +103,7 @@ async def async_register_panels(hass: HomeAssistant) -> None:
     await panel_custom.async_register_panel(
         hass, frontend_url_path=INFO_URL, webcomponent_name="hc-info-panel",
         sidebar_title="HC info", sidebar_icon="mdi:information-outline", module_url=f"{STATIC_URL}/hc-info-panel.js?v={version}",
-        require_admin=True, config={})
+        require_admin=True, config={"version": version})  # 0.78.1: shown in the panel's header
 
 
 @callback
@@ -202,7 +203,7 @@ def _rooms_of(hass, conf: dict) -> dict:
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): "hc_thermostat/wizard/rooms",
-                                  vol.Optional("indoor"): vol.Any(str, None)})
+                                  vol.Optional("indoor"): vol.Any(vol.Match(wc.ENTITY_ID), None)})
 @callback
 def ws_rooms(hass: HomeAssistant, connection, msg) -> None:
     """The areas with what can go into a room; `suggest`: a room per area that has a thermometer or a TRV head, the
@@ -263,7 +264,8 @@ def wizard_rooms(hass, control: str, rooms, leading, indoor: str | None, entry_i
 
 
 @websocket_api.require_admin
-@websocket_api.websocket_command({vol.Required("type"): "hc_thermostat/wizard/trv", vol.Required("heads"): [str]})
+@websocket_api.websocket_command({vol.Required("type"): "hc_thermostat/wizard/trv",
+                                  vol.Required("heads"): vol.All([vol.Match(wc.ENTITY_ID)], vol.Length(max=wc.MAX_LIST))})
 @callback
 def ws_trv(hass: HomeAssistant, connection, msg) -> None:
     """Per head: its name, room (the key of its offset) and the thermometers offered for it."""
@@ -359,13 +361,20 @@ def _num(v):
 @websocket_api.require_admin
 @websocket_api.websocket_command({
     vol.Required("type"): "hc_thermostat/wizard/derive",
-    vol.Required("heat_source"): str, vol.Required("system"): str, vol.Required("control"): str,
+    vol.Required("heat_source"): vol.All(str, vol.Length(max=64)), vol.Required("system"): vol.All(str, vol.Length(max=64)),
+    vol.Required("control"): vol.All(str, vol.Length(max=32)),
     vol.Optional("entities", default={}): dict,
-    vol.Optional("language"): vol.Any(str, None),  # 0.45.0: the user's language (the panel's hass.language)
+    vol.Optional("language"): vol.Any(vol.All(str, vol.Length(max=16)), None),  # 0.45.0: the panel's hass.language
 })
 @websocket_api.async_response
 async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
-    source, system, control, ent = msg["heat_source"], msg["system"], msg["control"], msg["entities"]
+    source, system, control = msg["heat_source"], msg["system"], msg["control"]
+    try:  # 0.78.2: only the fields the wizard knows, each in a domain it allows (a history query runs on one)
+        ent = wc.check_entities({k: v for k, v in msg["entities"].items()
+                                 if k in ENTITY_KEYS and v not in (None, "", [])})
+    except wc.Invalid as err:
+        connection.send_error(msg["id"], "invalid_entity", str(err))
+        return
     lang = "hu" if str(msg.get("language") or hass.config.language or "en").startswith("hu") else "en"
     T = (lambda hu, en: hu) if lang == "hu" else (lambda hu, en: en)
     items: list[dict] = []
@@ -500,12 +509,13 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     vol.Required("type"): "hc_thermostat/wizard/apply",
     vol.Optional("entry_id"): vol.Any(str, None),
-    vol.Required("name"): str,
+    vol.Required("name"): vol.All(str, vol.Length(max=wc.MAX_NAME)),
     vol.Required("heat_source"): vol.In(SOURCES), vol.Required("system"): vol.In(SYSTEMS), vol.Required("control"): str,
     vol.Optional("entities", default={}): dict, vol.Optional("settings", default={}): dict,
     vol.Optional("trv"): vol.Any(dict, None),
-    vol.Optional("rooms"): vol.Any(list, None), vol.Optional("leading_room"): vol.Any(str, None),
-    vol.Optional("home_name"): vol.Any(str, None),  # 0.46.0: the home's name (the HC info house drawing)
+    vol.Optional("rooms"): vol.Any(vol.All(list, vol.Length(max=wc.MAX_LIST)), None),
+    vol.Optional("leading_room"): vol.Any(vol.All(str, vol.Length(max=wc.MAX_NAME)), None),
+    vol.Optional("home_name"): vol.Any(vol.All(str, vol.Length(max=wc.MAX_NAME)), None),  # 0.46.0: the house drawing
     vol.Optional("start_active", default=False): bool,  # 0.45.0: a new instance may start live (confirmed in the panel)
 })
 @websocket_api.async_response
@@ -516,6 +526,11 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
         return
     ents = {k: v for k, v in msg["entities"].items() if k in ENTITY_KEYS and v not in (None, "", [])}
     sets = {k: v for k, v in msg["settings"].items() if k in SETTING_KEYS and v not in (None, "")}
+    try:  # 0.78.2 (security review): each entity in a domain its field allows, each setting in its range
+        ents, sets = wc.check_entities(ents), wc.check_settings(sets)
+    except wc.Invalid as err:
+        connection.send_error(msg["id"], "invalid_value", f"{err} does not fit")
+        return
     try:  # 0.48.1: a cycle too short for the valve delay is lengthened (no useful heat left otherwise)
         from .core.matrix import fit_cycle
         if float(sets.get("valve_delay_s") or 0) > 0 and "cycle_s" in sets:

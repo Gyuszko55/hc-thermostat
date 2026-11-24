@@ -9,7 +9,7 @@
 //
 // Everything clickable carries data-key="member:<entry id>" (the panel opens that instance).
 
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));  // 0.78.2: the apostrophe too
 const isNum = (v) => typeof v === "number" && isFinite(v);
 const num = (v) => { if (isNum(v)) return v; const n = parseFloat(v); return isFinite(n) ? n : null; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -30,7 +30,7 @@ export const OV_TXT = {
     shadow: "árnyék", trial: "felügyelt próba", active: "aktív", permanent: "aktív (írás)", off: "ki",
     wood: "Fatüzelés", hp: "Hőszivattyú", active_: "aktív", inactive: "inaktív", runs: "fut", stands: "áll", unknown: "nem ismert",
     request: "HC kérés", on: "ON", offv: "OFF", demand: "hőigény", yes: "igen", no: "nem", reason: "ok", power: "teljesítmény",
-    age: "mérés kora", target: "cél", flowTarget: "előremenő cél", raw: "számított", curve: "görbe szerint", plc: "PLC célja most",
+    age: "mérés kora", target: "cél", flowTarget: "előremenő cél", flowM: "előremenő", returnM: "visszatérő", raw: "számított", curve: "görbe szerint", plc: "PLC célja most",
     written: "kiírás", lasting: "tartós igény", asking: "kér most", usable: "a pufferből", charge: "töltöttség (meglévő érzékelő)",
     stored: "becsült tárolt hő (rétegekből)", trend: "trend", charging: "töltődik", emptying: "merül", steady: "állandó",
     top: "teteje", bottom: "alja", meas: "mért", tgt: "cél", ask: "kér", cmd: "HC parancs", relay: "valódi relé",
@@ -53,6 +53,7 @@ export const OV_TXT = {
       reserve_low: "kevés a tartalék az igény fölött – tölt", reserve_low_kwh: "kevés a hő-tartalék (kWh) – tölt", charging_reserve: "tartalékot tölt a leállítási rétegig",
       reserve_ok: "van elég tartalék az igény fölött", reserve_full: "feltöltve – a tartalék megvan", no_demand: "nincs tartós hőigény", reserve_runs_out: "a fogyás üteme szerint hamarosan elfogy a tartalék – tölt" },
     chMode: { classic: "klasszikus", demand: "igény szerinti" }, reserve: "tartalék", other: "a másik szabály",
+    chargeWhy: "puffertöltés oka", layerName: { top: "teteje", upper: "felső közép", lower: "alsó közép", bottom: "alja" },
     // 0.70.0
     hpSt: { heating: "fűt (a kompresszor fut)", standby: "készenlét (a kompresszor áll)", stopped: "áll", unknown: "nem ismert" },
     hpStS: { heating: "fűt", standby: "készenlét", stopped: "áll", unknown: "nem ismert" },
@@ -66,7 +67,7 @@ export const OV_TXT = {
     shadow: "shadow", trial: "supervised trial", active: "active", permanent: "active (writing)", off: "off",
     wood: "Wood", hp: "Heat pump", active_: "active", inactive: "inactive", runs: "runs", stands: "stands", unknown: "not known",
     request: "HC request", on: "ON", offv: "OFF", demand: "heat demand", yes: "yes", no: "no", reason: "reason", power: "power",
-    age: "reading age", target: "target", flowTarget: "flow target", raw: "worked out", curve: "by the curve", plc: "PLC target now",
+    age: "reading age", target: "target", flowTarget: "flow target", flowM: "flow", returnM: "return", raw: "worked out", curve: "by the curve", plc: "PLC target now",
     written: "writing", lasting: "lasting demand", asking: "asking now", usable: "from the tank", charge: "charge (existing sensor)",
     stored: "estimated stored heat (layers)", trend: "trend", charging: "charging", emptying: "emptying", steady: "steady",
     top: "top", bottom: "bottom", meas: "measured", tgt: "target", ask: "asks", cmd: "HC command", relay: "real relay",
@@ -89,6 +90,7 @@ export const OV_TXT = {
       reserve_low: "low reserve above the need – charging", reserve_low_kwh: "low heat reserve (kWh) – charging", charging_reserve: "charging the reserve up to the stop layer",
       reserve_ok: "enough reserve above the need", reserve_full: "charged – the reserve is there", no_demand: "no lasting heat demand", reserve_runs_out: "at this pace the reserve runs out soon – charging" },
     chMode: { classic: "classic", demand: "by demand" }, reserve: "reserve", other: "the other rule",
+    chargeWhy: "why it charges", layerName: { top: "top", upper: "upper middle", lower: "lower middle", bottom: "bottom" },
     // 0.70.0
     hpSt: { heating: "heating (the compressor runs)", standby: "standby (the compressor stands)", stopped: "stands", unknown: "not known" },
     hpStS: { heating: "heating", standby: "standby", stopped: "stands", unknown: "not known" },
@@ -158,6 +160,7 @@ function why(m, T, lang) {
     const d = h.decision || {}, det = d.details || {};
     const r = T.hpWhy[d.reason] || d.reason || "";
     let s = `${T.hp}: ${d.enable ? T.on : T.offv} – ${r}`;
+    if (d.heat_demand && det.heat_reason && det.heat_reason !== d.reason) s += ` · ${T.chargeWhy}: ${T.hpWhy[det.heat_reason] || det.heat_reason}`;
     if (isNum(d.need) || isNum(det.top)) s += ` (${T.need} ${deg(d.need, lang)}, ${T.tank.toLowerCase()} ${T.top} ${deg(det.top, lang)})`;
     lines.push(s);
     if (det.low_charge_waits) lines.push(`${T.hp}: ${T.lowWaits}`);
@@ -206,6 +209,8 @@ export function renderOverview(all, opts = {}) {
     const tc = det.target_check;
     src.push(row(`· ${T.flowTarget}`, tc ? `${esc(targetLine(det, T, lang))}${tc.mismatch ? ` <span class="hot">– ${esc(T.tgtMis)}${isNum(tc.mismatch_min) ? ` (${tc.mismatch_min} ${T.min})` : ""}</span>` : !tc.writing ? ` <small>(${esc(T.tgtShadow)})</small>` : ""}` : deg(d.target, lang)));
     src.push(row(`· ${T.reason}`, esc(T.hpWhy[d.reason] || d.reason || "–")));
+    // 0.79.0: the charging reason on its own line when the ON has another reason (cold-weather ON hid it)
+    if (d.heat_demand && det.heat_reason && det.heat_reason !== d.reason) src.push(row(`· ${T.chargeWhy}`, `${esc(T.hpWhy[det.heat_reason] || det.heat_reason)}${det.charge_mode === "demand" && isNum(num(det.demand_charge?.stop_at)) ? ` · ${esc(T.layerName[det.demand_charge.stop_layer] || det.demand_charge.stop_layer || "")} ${deg(num(det.demand_charge.stop_layer_temp), lang)} → ${deg(num(det.demand_charge.stop_at), lang)}` : ""}`));
     // 0.65.0: the reserve over the need and what the rule not driving would do
     const dc = det.demand_charge || {}, mode = det.charge_mode || "classic";
     if (isNum(num(dc.reserve_c))) src.push(row(`· ${T.reserve}`, `${fx(num(dc.reserve_c), lang)} °C${isNum(num(dc.reserve_kwh)) ? ` · ${kwhMj(num(dc.reserve_kwh), lang)}` : ""}${isNum(num(dc.hours_left)) ? ` · ~${fx(num(dc.hours_left), lang)} h` : ""}`));
@@ -591,6 +596,23 @@ export function renderSchematic(all, opts = {}) {
   return `<svg class="hcsch" viewBox="0 0 ${W} ${LY + 114}" role="img" aria-label="${esc(T.plant)}"><defs>${defs.join("")}</defs>${g.join("")}</svg>`;
 }
 
+// 0.78.2: a room's thermostatic heads – a valve sign at the right of the room box with the head's target
+function trvMark(r, right, y, lang) {
+  if (!(r.heads || []).length) return "";
+  const h = r.heads[0], x = right - 70, t = num(h.head_target) ?? num(h.want);
+  const tip = r.heads.map((x) => `${x.name}${isNum(num(x.head_target)) ? ` ${deg(num(x.head_target), lang)}` : ""}${isNum(num(x.head_temp)) ? ` (${deg(num(x.head_temp), lang)})` : ""}`).join(", ");
+  return `<g class="strv ${r.asking ? "on" : ""}"><title>${esc(tip)}</title><path d="M${x},${y + 13} l12,7 v-14 l-12,7 z M${x},${y + 13} l-12,7 v-14 l12,7 z M${x},${y + 13} v-7 M${x - 5},${y + 6} h10"/>`
+    + `<text x="${x + 16}" y="${y + 17}" class="ssm">TRV${r.heads.length > 1 ? ` ×${r.heads.length}` : ""}</text>`
+    + `${isNum(t) ? `<text x="${x + 16}" y="${y + 31}" class="ssm">${esc(deg(t, lang))}</text>` : ""}</g>`;
+}
+
+// 0.78.2: the measured flow / return temperatures in the source's box, at the pipes' side
+function pipeTemps(i, right, y, lang, T) {
+  const ms = i.measures || {}, fl = num(ms.flow_temp), rt = num(ms.return_temp);
+  return (isNum(fl) ? `<text x="${right}" y="${y + 24}" class="stf" text-anchor="end"><title>${esc(T.flowM)}</title>${esc(`→ ${deg(fl, lang)}`)}</text>` : "")
+    + (isNum(rt) ? `<text x="${right}" y="${y + 42}" class="str" text-anchor="end"><title>${esc(T.returnM)}</title>${esc(`← ${deg(rt, lang)}`)}</text>` : "");
+}
+
 function renderPlainSchematic(m, opts) {
   const lang = opts.lang === "en" ? "en" : "hu", T = OV_TXT[lang];
   const g = [];
@@ -608,7 +630,8 @@ function renderPlainSchematic(m, opts) {
       const lead = !!r.leading, heated = r.heated !== false;
       return { name: r.name, temp: lead ? num(i.decision?.indoor) ?? num(r.temperature) : num(r.temperature),
         target: heated ? (lead ? num(i.decision?.target) : num(r.target) ?? num(i.decision?.target)) : null,
-        on: heated && runs(i), sub: heated ? "" : T.unheated, key: i };
+        on: heated && runs(i), sub: heated ? "" : T.unheated, key: i,
+        heads: (r.trvs || []).map((e) => ({ name: r.names?.[e] || e, ...((r.heads || {})[e] || {}) })), asking: !!r.asking };
     });
   };
   const cols = [
@@ -638,6 +661,7 @@ function renderPlainSchematic(m, opts) {
       g.push(`<g class="hs" ${key(i)}><rect x="${px + 20}" y="${y}" width="${pw - 40}" height="80" rx="8" class="sdev ${on ? "on" : ""}"/>
         <text x="${px + 32}" y="${y + 20}" class="sname">${esc(T.kinds[k] || k)}</text><text x="${px + 32}" y="${y + 37}" class="ssm">${esc(short(i.title))}</text>
         <text x="${px + 32}" y="${y + 56}" class="sval">${esc(`${on ? (burner ? T.burning : T.runs) : (burner ? T.idle : T.stands)}${isNum(num(d.flow_setpoint)) ? ` · ${T.flowTarget} ${deg(num(d.flow_setpoint), lang)}` : ""}`)}</text>
+        ${pipeTemps(i, px + pw - 32, y, lang, T)}
         ${on && burner ? `<path transform="translate(${px + pw - 44},${y + 46}) scale(1.4)" d="M0,-12 C6,-5 10,-1 8,5 C6,11 -6,11 -8,5 C-10,-1 -4,-2 -2,-8 C0,-4 2,-3 0,-12Z" class="sflame"/>` : ""}</g>`);
     });
   }
@@ -647,11 +671,13 @@ function renderPlainSchematic(m, opts) {
     g.push(`<text x="${cx + cw / 2}" y="62" class="slab" text-anchor="middle">${esc(col.title)}</text>`);
     if (col.src) {
       const j = sources.indexOf(col.src), on = runs(col.src), sy = 70 + j * 96;
-      g.push(pipe(`M${px + pw - 20},${sy + 30} H${px + pw + 6 + k * 4} V${84 + k * 4} H${cx + 6} V110`, true, on));
+      g.push(pipe(`M${px + pw - 20},${sy + 30} H${px + pw + 6 + k * 4} V${84 + k * 4} H${cx + 24} V110`, true, on));
+      // 0.78.2: the return back to the source, and the measured flow / return temperatures on the pipes
+      g.push(pipe(`M${cx + 8},110 V${98 + k * 4} H${px + pw + 16 + k * 4} V${sy + 54} H${px + pw - 20}`, false, on));
     }
     col.rooms.forEach((r, j) => {
       const y = 110 + j * 46;
-      g.push(`<g class="hs" ${key(r.key)}><title>${esc(r.tip || short(r.key?.title || ""))}</title><rect x="${cx}" y="${y}" width="${cw}" height="38" rx="8" class="sroom ${r.on ? "on" : ""}"/><text x="${cx + 10}" y="${y + 16}" class="sname">${esc(r.name)}${r.sub ? `<tspan class="ssh"> · ${esc(r.sub)}</tspan>` : ""}</text><text x="${cx + 10}" y="${y + 31}" class="ssm">${esc(`${deg(r.temp, lang)}${isNum(r.target) ? ` → ${deg(r.target, lang)}` : ""}`)}</text></g>`);
+      g.push(`<g class="hs" ${key(r.key)}><title>${esc(r.tip || short(r.key?.title || ""))}</title><rect x="${cx}" y="${y}" width="${cw}" height="38" rx="8" class="sroom ${r.on ? "on" : ""}"/><text x="${cx + 10}" y="${y + 16}" class="sname">${esc(r.name)}${r.sub ? `<tspan class="ssh"> · ${esc(r.sub)}</tspan>` : ""}</text><text x="${cx + 10}" y="${y + 31}" class="ssm">${esc(`${deg(r.temp, lang)}${isNum(r.target) ? ` → ${deg(r.target, lang)}` : ""}`)}</text>${trvMark(r, cx + cw, y, lang)}</g>`);
     });
   });
   return `<svg class="hcsch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.plant)}">${g.join("")}</svg>`;
@@ -688,7 +714,8 @@ export const OV_CSS = `
 .hcsch .sdev.wood { fill:color-mix(in srgb, #c62828 14%, var(--card-background-color)); }
 .hcsch .sfan { fill:none; stroke:var(--primary-text-color); stroke-width:2; stroke-dasharray:10 6; }
 .hcsch .stank { fill:color-mix(in srgb, #90a4ae 30%, var(--card-background-color)); stroke:var(--primary-text-color); stroke-width:1.6; }
-.hcsch .sp { fill:none; stroke-width:3.5; opacity:.8; } .hcsch .sp.sf { stroke:#e53935; } .hcsch .sp.sr { stroke:#1e88e5; }
+.hcsch .sp { fill:none; stroke-width:3.5; opacity:.8; } .hcsch .sp.sf { stroke:#e53935; } .hcsch .sp.sr { stroke:#1e88e5; } .hcsch .stf { fill:#e53935; font-size:12px; font-weight:600; } .hcsch .str { fill:#1e88e5; font-size:12px; font-weight:600; }
+.hcsch .strv path { fill:none; stroke:var(--secondary-text-color); stroke-width:1.6; stroke-linejoin:round; } .hcsch .strv.on path { stroke:#ef6c00; fill:color-mix(in srgb, #ef6c00 20%, transparent); }
 .hcsch .sp.son { opacity:1; stroke-dasharray:8 6; animation:folyik 1s linear infinite; }
 .hcsch .scoil { fill:none; stroke:#5c6bc0; stroke-width:3; } .hcsch .sflame { fill:#ff6d00; }
 .hcsch .smix { fill:#78909c; stroke:var(--primary-text-color); stroke-width:1; } .hcsch .smix.fl { fill:#ab47bc; }

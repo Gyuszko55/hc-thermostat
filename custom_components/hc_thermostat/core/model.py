@@ -44,6 +44,7 @@ class Reason(StrEnum):
     THERMOSTAT_CALL = "thermostat_call"
     THERMOSTAT_IDLE = "thermostat_idle"
     MANAGED_OFF = "managed_off"  # 0.42.0: the managed thermostat was switched off by hand; HC leaves it off
+    SAFETY_STOP = "safety_stop"  # 0.77.0: a life-safety input (smoke, fire, gas, CO, water) – everything off, latched
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class Inputs:
     window_open: bool = False
     enabled: bool = True
     uptime_s: float = 1e9
+    indoor_confirmed: bool = True  # 0.77.3: False while the room reading may still be the one restored at start
     actual_heating: bool | None = None
     heat_energy_kwh: float | None = None  # cumulative heat delivered by every source
     other_heat_kw: float = 0.0  # current heat from sources other than this boiler
@@ -88,6 +90,9 @@ class Inputs:
     managed_off: bool = False  # 0.42.0: external control – someone (not HC) switched the managed thermostat off
     # 0.74.0: (kind, demanded flow target or None) of every mixing circuit that lists this room; () = not known
     circuits: tuple = ()
+    # 0.77.0: the life-safety latch holds (above every other reason) and what tripped it
+    safety_stop: bool = False
+    safety: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -168,6 +173,10 @@ class HcConfig:
     optimal_start: bool = False
     optimal_start_max_min: float = 120.0
     optimal_start_lag_min: float = 20.0  # the radiators' delay on top of the burn minutes
+    # 0.79.0: the optimal start begins within this many minutes and the room is only a little under its target (at most
+    # preheat_hold_gap): no short regulating run before it – it would make two starts minutes apart (0 = off)
+    preheat_hold_min: float = 20.0
+    preheat_hold_gap: float = 0.3
     # 0.50.0 mould risk at the coldest surface: its temperature factor (EN ISO 13788: 0.7 an old wall's corner,
     # 0.75–0.8 an insulated one)
     mould_frsi: float = 0.7
@@ -228,6 +237,16 @@ class HcConfig:
     catchup_low_floor_after_s: float = 7200.0
     catchup_low_release: float = 0.1
     catchup_low_floor_release: float = 0.2
+    # 0.76.0 local guard (a Shelly Gen3 / Gen4 script next to the relay): with a guard URL HC sends the relay command as a
+    # lease every guard_every_s (valid guard_ttl_s); without it the guard regulates on its own with these values
+    guard_every_s: float = 60.0
+    guard_ttl_s: float = 300.0
+    guard_sp: float = 20.5
+    guard_hyst: float = 0.6
+    guard_max_on_s: float = 0.0
+    guard_no_sensor: str = "off"
+    guard_duty_on_s: float = 1200.0
+    guard_duty_off_s: float = 2400.0
     keep_alive_s: float = 0.0  # resend "on" this often while heating (relay with its own auto-off timer); 0 = off
     # Safety
     sensor_max_age_s: float = 7200.0
@@ -267,6 +286,11 @@ class HcConfig:
     # Restart behaviour
     restart_grace_s: float = 120.0
     restart_margin: float = 1.0
+    # 0.77.3: after a restart, wait this long at most for a thermometer to report again (its first value may be
+    # the one restored from before the restart, already old)
+    restart_sensor_wait_s: float = 900.0
+    # 0.78.1: reports in the first minutes after the start do not confirm a reading (restore, a bridge's re-send)
+    restart_settle_s: float = 180.0
     restart_burn_window_s: float = 900.0
     # Season (daily average outdoor temperature, with hysteresis)
     season_enabled: bool = True

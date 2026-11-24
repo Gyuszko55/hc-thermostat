@@ -21,9 +21,12 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcCircuitDemand(c)])
         return
     if entry.data.get(CONF_ROLE) == "hp_coord":  # 0.55.0
-        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c), HcHpWriteProblem(c)])
+        async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c), HcHpWriteProblem(c),
+                            *([HcSafetyStop(c)] if getattr(c, "safety", None) is not None else [])])
         return
     entities = [HcDemand(c), HcFault(c)]
+    if getattr(c, "safety", None) is not None:
+        entities.append(HcSafetyStop(c))  # 0.77.0
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
     if (c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
         entities.append(HcBoilerProblem(c))
@@ -238,3 +241,21 @@ class HcHpWriteProblem(HcEntity, BinarySensorEntity):
                 # 0.73.0: warning – a difference, a restore under way; error – every restore failed
                 "level": "error" if self.is_on else "warning" if any(
                     o.status in ("conflict", "not_accepted", "restore") or o.guard.restore_count for o in self._outs()) else "ok"}
+
+
+class HcSafetyStop(HcEntity, BinarySensorEntity):
+    """0.77.0: the life-safety stop holds (shared by every instance that watches safety inputs)."""
+
+    _attr_device_class = BinarySensorDeviceClass.SAFETY
+    _attr_icon = "mdi:fire-alert"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "safety_stop")
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.coordinator.safety.latch.tripped)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {**self.coordinator.safety.latch.info(), "inputs": self.coordinator.safety.inputs()}

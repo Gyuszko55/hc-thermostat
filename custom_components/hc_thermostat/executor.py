@@ -11,7 +11,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, MODE_ACTIVE
 from .core.adapters import GenericAdapter, adapter_for
 from .core.fancoil import fan_at_level, fan_level
-from .core.model import Decision
+from .core.model import Decision, Reason
 from .core.target_source import WriteLog
 from .units import CELSIUS, from_c, system_unit, to_c
 
@@ -72,9 +72,12 @@ class Executor:
         self.adapter: GenericAdapter = adapter_for(None)  # 0.42.0: the managed thermostat's integration (coordinator)
         self.paused = False  # 0.42.0: "HC supervision paused" – nothing is written to the managed thermostat
         self.failed: set[str] = set()  # 0.47.0: the parts whose last call failed (relay, flow, fan, ...)
+        self.guard = None  # 0.76.0: a local guard (guard_client.GuardSender) takes the relay command as a lease
 
     async def apply(self, decision: Decision) -> None:
-        if self.mode != MODE_ACTIVE or self.paused:
+        # 0.78.2 (security review H1): a life-safety stop goes out also in shadow and with "HC supervision paused" –
+        # switching heat off can never be the wrong thing then, and the latch was asked for by setting safety inputs
+        if (self.mode != MODE_ACTIVE or self.paused) and decision.reason != Reason.SAFETY_STOP:
             return
         # 0.47.0: every part on its own – a failing cooling switch, discharge fan or fan coil fan no longer takes the
         # relay / flow / managed thermostat write of the same step with it; what failed is kept for the fault sensor
@@ -98,21 +101,34 @@ class Executor:
     async def _apply_relay(self, decision: Decision) -> None:
         if not self._actuator:
             return
+        if self.guard is not None:
+            # 0.76.0: the guard switches the relay (one writer, its minimum times); the lease is renewed here, from
+            # HC's own decision step – the relay entity only shows what the guard did
+            # 0.78.2 (M1): a life-safety stop as the guard's own "safety" command – off at once, latched there
+            await self.guard.send(decision.now, bool(decision.output), safety=getattr(decision, "reason", None) == Reason.SAFETY_STOP)
+            return
         state = self._hass.states.get(self._actuator)
-        if state is None or state.state not in ("on", "off"):
+        if state is None:
+            # 0.78.2 (security review): a relay entity that is gone (removed, renamed without HC knowing) is a failed
+            # relay part – the fault sensor and Repairs show it; before, nothing was said while the device ran on
+            raise LookupError(f"{self._actuator} does not exist")
+        if state.state not in ("on", "off"):
             return
         want = "on" if decision.output else "off"
+        if want == "on" and self._keep_script:
+            # 0.41.0: e.g. a Shelly "turn on with a 15-minute timer" – re-armed at every keep-alive, so a long burn is
+            # never cut, while a dead Home Assistant leaves the relay on for 15 minutes at most. 0.78.2 (security
+            # review): the relay goes ON only through the script, run to its end (a failing script is a failed relay
+            # part, not a relay switched on without its timer)
+            if state.state != want or self.keep_alive.due(decision.now):
+                await self._hass.services.async_call("script", self._keep_script.split(".", 1)[1], {}, blocking=True)
+                self.keep_alive.sent(decision.now)
+            return
         if state.state != want or (want == "on" and self.keep_alive.due(decision.now)):
-            if state.state != want or not self._keep_script:
-                await self._hass.services.async_call(
-                    "homeassistant", f"turn_{want}", {"entity_id": self._actuator}, blocking=True
-                )
+            await self._hass.services.async_call(
+                "homeassistant", f"turn_{want}", {"entity_id": self._actuator}, blocking=True
+            )
             if want == "on":
-                if self._keep_script:
-                    # 0.41.0: e.g. a Shelly "turn on with a 15-minute timer" – re-armed at every keep-alive, so a
-                    # long burn is never cut, while a dead Home Assistant leaves the relay on for 15 minutes at most.
-                    await self._hass.services.async_call("script", "turn_on", {"entity_id": self._keep_script},
-                                                         blocking=False)
                 self.keep_alive.sent(decision.now)
 
     async def _apply_external(self, decision: Decision) -> None:
