@@ -75,10 +75,10 @@ async def serve(config_path: str, web_host: str | None = None, web_allow: str | 
         shelly = ShellyRpcFeed(cfg, table, session)
         z2m = Z2mFeed(cfg, table) if "z2m" in cfg.kinds() else None
         tasks = [asyncio.create_task(z2m.run())] if z2m else []
-        learned = {"at": None, "ok": None, "error": None}
+        learned = {"at": None, "ok": None, "error": None, "regulator": None}
 
         async def follow_learned() -> None:
-            """0.1.4: the integration's learner state, from its entry's diagnostics."""
+            """0.1.4: the integration's learner state, from its entry's diagnostics; 0.1.5: its regulator state too."""
             try:
                 async with session.get(f"{cfg.ha_url}/api/diagnostics/config_entry/{cfg.learned_from}",
                                        headers={"Authorization": f"Bearer {cfg.ha_token}"},
@@ -87,7 +87,9 @@ async def serve(config_path: str, web_host: str | None = None, web_allow: str | 
                     diag = await r.json()
                 sup = (((diag.get("data") or {}).get("info") or {}).get("state") or {})
                 ok = engine.follow_learned(sup.get("learner") or {})
-                learned.update(at=datetime.now(timezone.utc).isoformat(), ok=ok, error=None if ok else "no learner state")
+                reg = engine.follow_regulator(sup.get("regulator") or {})
+                learned.update(at=datetime.now(timezone.utc).isoformat(), ok=ok, error=None if ok else "no learner state",
+                               regulator=reg)
             except Exception as exc:  # noqa: BLE001 – a missed sync keeps the last values
                 learned.update(at=datetime.now(timezone.utc).isoformat(), ok=False, error=type(exc).__name__)
                 _LOGGER.warning("learned values not taken from %s: %s", cfg.learned_from, exc)

@@ -7,6 +7,11 @@
   lessons from decisions it never made and drifted (in the developer's house its demand ran 2–3 points higher and its
   burn minutes 22–38 % above the integration's within four days). hcd now takes the integration's learner state from
   the entry's diagnostics at start and every 15 minutes; `/api/status` shows when and whether it last did.
+- **hcd 0.1.5: the regulator's integral is followed too.** With the learned values in line the burn minutes still ran
+  ~30 % above the integration's: hcd asked 2–3 points more for the same room, with the same inputs, the same
+  feed-forward and the same proportional part. The difference was the PID integral – it only adds up, so the gap from
+  the days the two sides ran different core versions never closed. In shadow hcd now takes the integration's regulator
+  state with the learned values; `/api/status` → `learned_from.regulator` shows whether it did.
 
 ## 0.79.1 – 2026-11-24
 

@@ -1,6 +1,6 @@
 # hcd as a local Home Assistant add-on (F2: shadow mode – it decides and compares, it switches nothing)
 name: HC daemon (hcd)
-version: "0.1.4"
+version: "0.1.5"
 slug: hcd
 description: HC Thermostat without Home Assistant's core – shadow comparison with the HC integration
 url: https://github.com/Gyuszko55/hc-thermostat

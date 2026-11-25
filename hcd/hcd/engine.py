@@ -112,6 +112,21 @@ class Engine:
         self.sup.learner.restore(learner_state)
         return True
 
+    def follow_regulator(self, regulator_state: dict[str, Any]) -> bool:
+        """0.1.5: take the integration's regulator state (the PID integral). The integral only adds up, so once the
+        two sides drifted apart (for a while they ran different core versions) the gap stayed for good: hcd asked
+        2-3 points more for the same room and its burn minutes ran 30 % above the integration's."""
+        if not isinstance(regulator_state, dict):
+            return False
+        mine = self.sup.regulator.state()
+        if not mine or set(mine) != set(regulator_state):
+            return False  # another control or a stateless one: nothing to take
+        try:
+            self.sup.regulator.restore({k: float(v) for k, v in regulator_state.items()})
+        except (TypeError, ValueError):
+            return False
+        return True
+
     def state(self) -> dict[str, Any]:
         return {"supervisor": self.sup.state(), "outdoor": self.outdoor.state(), "counted_extra": self.counted_extra,
                 "last_extra": self.last_extra}
