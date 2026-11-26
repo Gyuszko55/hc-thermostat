@@ -350,11 +350,13 @@ async def _lite_check(hass, user_input: dict) -> dict:
 
 
 def _lite_settings_fields(current: dict) -> dict:
-    from .core.lite import CTL, NO_SENSOR, SENSORS, LiteSettings
+    from .core.lite import CTL, NO_SENSOR, SENSORS, SOURCES, LiteSettings
     s = LiteSettings.from_conf(current)
     n = lambda k, lo, hi, st, u="": (vol.Required(f"lite_{k}", default=getattr(s, k)), _number(lo, hi, st, u))  # noqa: E731
     t = lambda k: (vol.Required(f"lite_{k}", default=getattr(s, k) + ":00"), TimeSelector())  # noqa: E731
+    txt = lambda k, v: (vol.Optional(f"lite_{k}", default=", ".join(map(str, v))), TextSelector())  # noqa: E731
     return dict([
+        (vol.Required("lite_src", default=s.src), _select(SOURCES, "lite_src")),  # 0.80.0
         n("sp_day", 5, 30, 0.5, "°C"), n("sp_night", 5, 30, 0.5, "°C"), n("sp_away", 5, 30, 0.5, "°C"),
         n("frost", 3, 12, 0.5, "°C"),
         t("day"), t("night"), t("day_we"), t("night_we"),
@@ -366,6 +368,10 @@ def _lite_settings_fields(current: dict) -> dict:
         n("don", 60, 7200, 60, "s"), n("doff", 60, 14400, 60, "s"),
         (vol.Required("lite_sensor", default=s.sensor), _select(SENSORS, "lite_sensor")),
         n("sensor_id", 0, 299, 1), n("sensor_max_age", 300, 7200, 60, "s"),
+        # 0.80.0: cooling (a heat pump), the dew point, the buffer probes
+        n("sc_day", 16, 30, 0.5, "°C"), n("sc_night", 16, 30, 0.5, "°C"), n("sc_away", 16, 30, 0.5, "°C"),
+        n("hum_id", -1, 299, 1), n("dew_id", -1, 199, 1), n("dew_margin", 0.5, 5, 0.5, "°C"),
+        txt("buf", s.buf), txt("bufn", s.bufn),
         (vol.Required("lite_shadow", default=s.shadow), BooleanSelector()),
     ])
 

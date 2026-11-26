@@ -634,7 +634,16 @@
           "lite_sensor": "Helyiség-hőmérő",
           "lite_sensor_id": "Hőmérő komponens-azonosító",
           "lite_sensor_max_age": "A mérés ennyi idő után elavult",
-          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)"
+          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)",
+          "lite_src": "Hőforrás",
+          "lite_sc_day": "Hűtés: nappali cél",
+          "lite_sc_night": "Hűtés: éjszakai cél",
+          "lite_sc_away": "Hűtés: távolléti cél",
+          "lite_hum_id": "Páratartalom komponens-azonosító",
+          "lite_dew_id": "Előremenő cső szonda azonosító",
+          "lite_dew_margin": "Harmatpont-ráhagyás",
+          "lite_buf": "Puffer szondák",
+          "lite_bufn": "Puffer szondák neve"
         },
         "data_description": {
           "lite_ctl": "Hiszterézis: bekapcsol a cél − sáv/2 alatt, kikapcsol a cél + sáv/2 felett. TPI: igény = alap + erősítés × (cél − helyiség), minden ciklus ekkora részében fűt. PI: a TPI-hez egy integráló tag jön, ami megtanulja a ház tartós igényét, így a megmaradó eltérés magától eltűnik.",
@@ -644,7 +653,13 @@
           "lite_boost": "Csak TPI/PI-nél: ha a helyiség legalább ennyivel a cél alatt van, szünet nélkül fűt (a leghosszabb égés itt is érvényes). 0: nincs boost.",
           "lite_boost_end": "A boost addig tart, amíg a helyiség ennyire meg nem közelíti a célt; utána a ciklus szabályoz tovább.",
           "lite_pre": "A nappali időszak előtt ennyivel korábban kezd a nappali céllal, a hiány minden fokára: pl. 30 perc/°C és 1,5 °C hiány = 45 perccel korábban. Ha elkezdte, a nappali kezdésig tart. 0: nincs előfűtés.",
-          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány."
+          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány.",
+          "lite_src": "Gázkazán vagy hőszivattyú. Hűteni csak hőszivattyúval lehet (a hőszivattyút a saját vezérlőjén kell hűtésre állítani, a relé csak a kérést kapcsolja).",
+          "lite_hum_id": "-1: nincs (a Wi-Fi H&T küldi magától). BLU H&T páratartalma: bthomesensor 200.., add-on DHT22: humidity 100..",
+          "lite_dew_id": "-1: nincs. Add-on DS18B20 a hűtött előremenő csövön (temperature 100..): ha a cső a harmatpont + ráhagyás alá hűl, a hűtés azonnal leáll. Nélküle csak figyelmeztet.",
+          "lite_dew_margin": "A hűtés ennyivel a harmatpont fölött áll le (1 °C-kal fölötte indul újra).",
+          "lite_buf": "Legfeljebb 3 add-on szonda azonosítója vesszővel, pl. 100, 101, 102. Csak kijelzés, a vezérlést nem befolyásolja.",
+          "lite_bufn": "A nevük vesszővel, pl. teteje, közepe, alja (legfeljebb 16 karakter)."
         }
       }
     },
@@ -1808,7 +1823,16 @@
           "lite_sensor": "Helyiség-hőmérő",
           "lite_sensor_id": "Hőmérő komponens-azonosító",
           "lite_sensor_max_age": "A mérés ennyi idő után elavult",
-          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)"
+          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)",
+          "lite_src": "Hőforrás",
+          "lite_sc_day": "Hűtés: nappali cél",
+          "lite_sc_night": "Hűtés: éjszakai cél",
+          "lite_sc_away": "Hűtés: távolléti cél",
+          "lite_hum_id": "Páratartalom komponens-azonosító",
+          "lite_dew_id": "Előremenő cső szonda azonosító",
+          "lite_dew_margin": "Harmatpont-ráhagyás",
+          "lite_buf": "Puffer szondák",
+          "lite_bufn": "Puffer szondák neve"
         },
         "data_description": {
           "lite_ctl": "Hiszterézis: bekapcsol a cél − sáv/2 alatt, kikapcsol a cél + sáv/2 felett. TPI: igény = alap + erősítés × (cél − helyiség), minden ciklus ekkora részében fűt. PI: a TPI-hez egy integráló tag jön, ami megtanulja a ház tartós igényét, így a megmaradó eltérés magától eltűnik.",
@@ -1818,7 +1842,13 @@
           "lite_boost": "Csak TPI/PI-nél: ha a helyiség legalább ennyivel a cél alatt van, szünet nélkül fűt (a leghosszabb égés itt is érvényes). 0: nincs boost.",
           "lite_boost_end": "A boost addig tart, amíg a helyiség ennyire meg nem közelíti a célt; utána a ciklus szabályoz tovább.",
           "lite_pre": "A nappali időszak előtt ennyivel korábban kezd a nappali céllal, a hiány minden fokára: pl. 30 perc/°C és 1,5 °C hiány = 45 perccel korábban. Ha elkezdte, a nappali kezdésig tart. 0: nincs előfűtés.",
-          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány."
+          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány.",
+          "lite_src": "Gázkazán vagy hőszivattyú. Hűteni csak hőszivattyúval lehet (a hőszivattyút a saját vezérlőjén kell hűtésre állítani, a relé csak a kérést kapcsolja).",
+          "lite_hum_id": "-1: nincs (a Wi-Fi H&T küldi magától). BLU H&T páratartalma: bthomesensor 200.., add-on DHT22: humidity 100..",
+          "lite_dew_id": "-1: nincs. Add-on DS18B20 a hűtött előremenő csövön (temperature 100..): ha a cső a harmatpont + ráhagyás alá hűl, a hűtés azonnal leáll. Nélküle csak figyelmeztet.",
+          "lite_dew_margin": "A hűtés ennyivel a harmatpont fölött áll le (1 °C-kal fölötte indul újra).",
+          "lite_buf": "Legfeljebb 3 add-on szonda azonosítója vesszővel, pl. 100, 101, 102. Csak kijelzés, a vezérlést nem befolyásolja.",
+          "lite_bufn": "A nevük vesszővel, pl. teteje, közepe, alja (legfeljebb 16 karakter)."
         }
       }
     },
@@ -2043,6 +2073,12 @@
         "bthomesensor": "Shelly BLU H&T (Bluetooth)",
         "temperature": "Vezetékes add-on szonda",
         "push": "Wi-Fi H&T (küldi a mérést)"
+      }
+    },
+    "lite_src": {
+      "options": {
+        "gas": "Gázkazán (fali vagy kombi)",
+        "hp": "Hőszivattyú"
       }
     }
   },
@@ -2314,6 +2350,15 @@
       },
       "lite_on_today": {
         "name": "Mai üzemidő"
+      },
+      "lite_buffer": {
+        "name": "Puffer {n}"
+      },
+      "lite_dew_point": {
+        "name": "Harmatpont"
+      },
+      "lite_flow_pipe": {
+        "name": "Előremenő cső"
       }
     },
     "binary_sensor": {

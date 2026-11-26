@@ -19,6 +19,9 @@ export class ShellySim {
     this.endpoints = {};
     this.stopped = false;
     this.printed = [];
+    this.probes = {};           // wired add-on probes by id: temperature:<id>.tC
+    this.hums = {};             // add-on DHT22 humidity by id: humidity:<id>.rh
+    this.bt = {};               // other BTHome objects by id (e.g. a humidity)
     const self = this;
     const Shelly = {
       getComponentStatus(name, id) { return self.status(name, id); },
@@ -31,7 +34,7 @@ export class ShellySim {
       Timer: { set(ms, repeat, fn) { self.timers.push({ every: ms / 1000, next: self.uptime + ms / 1000, repeat, fn }); return self.timers.length; } },
       HTTPServer: { registerEndpoint(name, fn) { self.endpoints[name] = fn; } },
       print(s) { self.printed.push(String(s)); },
-      JSON, Math, Number, String,
+      JSON, Math, Number, String, Object,
     };
     vm.createContext(ctx);
     vm.runInContext(readFileSync(script, "utf8"), ctx, { filename: script });
@@ -48,10 +51,13 @@ export class ShellySim {
       return this.timeSynced ? { uptime: this.uptime, unixtime: this.unix, time: this.localTime() } : { uptime: this.uptime, unixtime: null, time: null };
     }
     if (name === "switch" && id === 0) return { id: 0, output: this.relay };
-    if (name === "temperature" && id === 100) return this.probe === undefined ? null : { id: 100, tC: this.probe };
+    if (name === "temperature" && id === 100 && this.probe !== undefined) return { id: 100, tC: this.probe };
+    if (name === "temperature" && this.probes[id] !== undefined) return { id, tC: this.probes[id] };
+    if (name === "humidity" && this.hums[id] !== undefined) return { id, rh: this.hums[id] };
     if (name === "bthomesensor" && id === 200) {
       return this.sensor ? { id: 200, value: this.sensor.value, last_updated_ts: this.sensor.ts } : null;
     }
+    if (name === "bthomesensor" && this.bt[id] !== undefined) return { id, value: this.bt[id], last_updated_ts: this.unix };
     return null;
   }
 
@@ -62,7 +68,11 @@ export class ShellySim {
       this.offAt = p.on && p.toggle_after ? this.uptime + p.toggle_after : null;
       return { was_on: !p.on };
     }
-    if (method === "KVS.Set") { this.kvs[p.key] = p.value; return { etag: "x" }; }
+    if (method === "KVS.Set") { // a real device refuses a value of 255 characters or more
+      if (JSON.stringify(String(p.value)).length - 2 >= 255 || Buffer.byteLength(String(p.value)) >= 255) { // counted escaped, as a real one does
+        this.kvsRefused = (this.kvsRefused || 0) + 1; return null; }
+      this.kvs[p.key] = p.value; return { etag: "x" };
+    }
     if (method === "KVS.GetMany") {
       return { items: Object.entries(this.kvs).filter(([k]) => k.startsWith(p.match.replace("*", ""))).map(([key, value]) => ({ key, value })) };
     }

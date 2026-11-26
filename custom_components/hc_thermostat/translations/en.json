@@ -634,7 +634,16 @@
           "lite_sensor": "Room thermometer",
           "lite_sensor_id": "Thermometer component id",
           "lite_sensor_max_age": "A reading is too old after",
-          "lite_shadow": "Shadow (decide only, do not switch)"
+          "lite_shadow": "Shadow (decide only, do not switch)",
+          "lite_src": "Heat source",
+          "lite_sc_day": "Cooling: day target",
+          "lite_sc_night": "Cooling: night target",
+          "lite_sc_away": "Cooling: away target",
+          "lite_hum_id": "Humidity component id",
+          "lite_dew_id": "Flow pipe probe id",
+          "lite_dew_margin": "Dew point margin",
+          "lite_buf": "Buffer probes",
+          "lite_bufn": "Buffer probe names"
         },
         "data_description": {
           "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
@@ -644,7 +653,13 @@
           "lite_boost": "TPI/PI only: this far or more below the target, it heats without a break (the longest burn still holds). 0: no boost.",
           "lite_boost_end": "The boost lasts until the room is this close to the target; then the cycle takes over.",
           "lite_pre": "The day target starts this much earlier before the day period, for each degree the room is short: e.g. 30 min/°C and 1.5 °C short = 45 minutes early. Once begun, it holds until the day starts. 0: no preheat.",
-          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is."
+          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is.",
+          "lite_src": "A gas boiler or a heat pump. Only a heat pump can cool (set the heat pump itself to cooling on its own controller; the relay switches the request only).",
+          "lite_hum_id": "-1: none (a Wi-Fi H&T sends it itself). A BLU H&T's humidity: bthomesensor 200.., an add-on DHT22: humidity 100..",
+          "lite_dew_id": "-1: none. An add-on DS18B20 on the cooled flow pipe (temperature 100..): when the pipe falls below dew point + margin, cooling stops at once. Without one it only warns.",
+          "lite_dew_margin": "Cooling stops this far above the dew point (and starts again 1 °C above that).",
+          "lite_buf": "Up to 3 add-on probe ids, comma separated, e.g. 100, 101, 102. Shown only; they do not steer anything.",
+          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters)."
         }
       }
     },
@@ -1808,7 +1823,16 @@
           "lite_sensor": "Room thermometer",
           "lite_sensor_id": "Thermometer component id",
           "lite_sensor_max_age": "A reading is too old after",
-          "lite_shadow": "Shadow (decide only, do not switch)"
+          "lite_shadow": "Shadow (decide only, do not switch)",
+          "lite_src": "Heat source",
+          "lite_sc_day": "Cooling: day target",
+          "lite_sc_night": "Cooling: night target",
+          "lite_sc_away": "Cooling: away target",
+          "lite_hum_id": "Humidity component id",
+          "lite_dew_id": "Flow pipe probe id",
+          "lite_dew_margin": "Dew point margin",
+          "lite_buf": "Buffer probes",
+          "lite_bufn": "Buffer probe names"
         },
         "data_description": {
           "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
@@ -1818,7 +1842,13 @@
           "lite_boost": "TPI/PI only: this far or more below the target, it heats without a break (the longest burn still holds). 0: no boost.",
           "lite_boost_end": "The boost lasts until the room is this close to the target; then the cycle takes over.",
           "lite_pre": "The day target starts this much earlier before the day period, for each degree the room is short: e.g. 30 min/°C and 1.5 °C short = 45 minutes early. Once begun, it holds until the day starts. 0: no preheat.",
-          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is."
+          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is.",
+          "lite_src": "A gas boiler or a heat pump. Only a heat pump can cool (set the heat pump itself to cooling on its own controller; the relay switches the request only).",
+          "lite_hum_id": "-1: none (a Wi-Fi H&T sends it itself). A BLU H&T's humidity: bthomesensor 200.., an add-on DHT22: humidity 100..",
+          "lite_dew_id": "-1: none. An add-on DS18B20 on the cooled flow pipe (temperature 100..): when the pipe falls below dew point + margin, cooling stops at once. Without one it only warns.",
+          "lite_dew_margin": "Cooling stops this far above the dew point (and starts again 1 °C above that).",
+          "lite_buf": "Up to 3 add-on probe ids, comma separated, e.g. 100, 101, 102. Shown only; they do not steer anything.",
+          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters)."
         }
       }
     },
@@ -2043,6 +2073,12 @@
         "bthomesensor": "Shelly BLU H&T (Bluetooth)",
         "temperature": "Wired add-on probe",
         "push": "Wi-Fi H&T (pushes its reading)"
+      }
+    },
+    "lite_src": {
+      "options": {
+        "gas": "Gas boiler",
+        "hp": "Heat pump"
       }
     }
   },
@@ -2314,6 +2350,15 @@
       },
       "lite_on_today": {
         "name": "Run time today"
+      },
+      "lite_buffer": {
+        "name": "Buffer {n}"
+      },
+      "lite_dew_point": {
+        "name": "Dew point"
+      },
+      "lite_flow_pipe": {
+        "name": "Flow pipe"
       }
     },
     "binary_sensor": {

@@ -13,6 +13,8 @@ CTL = ("hyst", "tpi", "pid")  # 0.79.4: pid = TPI + an integral (the script's ve
 NO_SENSOR = ("duty", "off")
 SENSORS = ("bthomesensor", "temperature", "push")  # 0.79.6: push = a Wi-Fi H&T sends its reading
 MODES = ("auto", "away", "off")
+SOURCES = ("gas", "hp")  # 0.80.0: the heat source – a gas boiler, or a heat pump (which may also cool)
+HVACS = ("heat", "cool")
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,15 @@ class LiteSettings:
     sensor_id: int = 200
     sensor_max_age: int = 1800
     shadow: bool = True  # a new instance starts in shadow, as every HC instance does
+    src: str = "gas"  # 0.80.0: gas | hp
+    sc_day: float = 25.0  # 0.80.0: cooling targets (hp)
+    sc_night: float = 26.0
+    sc_away: float = 28.0
+    hum_id: int = -1  # 0.80.0: the room's humidity: bthomesensor 200.., an add-on humidity 100.. (-1: none / the push)
+    dew_id: int = -1  # 0.80.0: an add-on probe on the cooled flow pipe (-1: none)
+    dew_margin: float = 2.0  # 0.80.0: cooling stops while the pipe is below dew point + this
+    buf: tuple = ()  # 0.80.0: up to 3 buffer probes (add-on temperature ids), shown only
+    bufn: tuple = ()  # 0.80.0: their names
 
     @classmethod
     def from_conf(cls, conf: dict[str, Any]) -> "LiteSettings":
@@ -60,8 +71,30 @@ class LiteSettings:
 _RANGES = {"sp_day": (5, 30), "sp_night": (5, 30), "sp_away": (5, 30), "frost": (3, 12), "hyst": (0.1, 3),
            "cycle": (600, 7200), "kp": (0.05, 3), "bias": (0, 0.8), "ti": (1800, 86400), "boost": (0, 5), "boost_end": (0, 2), "pre": (0, 120), "pre_max": (0, 360), "min_on": (0, 3600), "min_off": (0, 3600),
            "max_on": (0, 86400), "don": (60, 7200), "doff": (60, 14400), "sensor_id": (0, 299),
-           "sensor_max_age": (300, 7200)}
-_CHOICES = {"ctl": CTL, "ns": NO_SENSOR, "sensor": SENSORS}
+           "sensor_max_age": (300, 7200), "sc_day": (16, 30), "sc_night": (16, 30), "sc_away": (16, 30),
+           "hum_id": (-1, 299), "dew_id": (-1, 199), "dew_margin": (0.5, 5)}
+_CHOICES = {"ctl": CTL, "ns": NO_SENSOR, "sensor": SENSORS, "src": SOURCES}
+
+
+def _items(raw: Any) -> list:
+    """A list, or a form's text "100, 102" / "top, bottom"."""
+    if isinstance(raw, (list, tuple)):
+        return list(raw)
+    if isinstance(raw, str):
+        return [p.strip() for p in raw.split(",") if p.strip()]
+    return []
+
+
+def _buf(raw: Any) -> tuple:
+    out = []
+    for p in _items(raw):
+        try:
+            v = int(float(p))
+        except (TypeError, ValueError):
+            continue
+        if 100 <= v <= 199 and len(out) < 3:
+            out.append(v)
+    return tuple(out)
 
 
 def _clock(v: Any) -> str | None:
@@ -83,6 +116,10 @@ def _clean(name: str, raw: Any, default: Any) -> Any:
         return raw if raw in _CHOICES[name] else default
     if name == "shadow":
         return bool(raw)
+    if name == "buf":
+        return _buf(raw)
+    if name == "bufn":
+        return tuple(str(p)[:16] for p in _items(raw)[:3])
     lo, hi = _RANGES[name]
     try:
         v = float(raw)
@@ -95,7 +132,7 @@ def _clean(name: str, raw: Any, default: Any) -> Any:
 
 def settings_payload(s: LiteSettings) -> dict[str, Any]:
     """What the script's `set` takes (the same names as its own settings)."""
-    return {f.name: getattr(s, f.name) for f in fields(s)}
+    return {f.name: (list(getattr(s, f.name)) if isinstance(getattr(s, f.name), tuple) else getattr(s, f.name)) for f in fields(s)}
 
 
 def needs_push(device_cfg: dict[str, Any] | None, payload: dict[str, Any]) -> bool:
@@ -132,7 +169,7 @@ def sync_action(device_cfg: dict[str, Any] | None, payload: dict[str, Any], devi
 def options_from_device(device_cfg: dict[str, Any]) -> dict[str, Any]:
     """The device's settings as the instance's options (lite_*), cleaned the same way as the form's."""
     s = LiteSettings.from_conf({f"lite_{k}": v for k, v in (device_cfg or {}).items()})
-    return {f"lite_{k}": v for k, v in settings_payload(s).items()}
+    return {f"lite_{k}": (", ".join(map(str, v)) if isinstance(v, list) else v) for k, v in settings_payload(s).items()}
 
 
 @dataclass(frozen=True)
@@ -151,6 +188,14 @@ class LiteView:
     on_min_today: int | None
     version: int | None
     integral: float | None = None  # 0.79.4: pid – the learnt part of the demand
+    hvac: str = "heat"  # 0.80.0: heat | cool
+    src: str = "gas"  # 0.80.0: gas | hp
+    humidity: float | None = None
+    dew_point: float | None = None
+    pipe: float | None = None
+    dew_stop: bool = False
+    dew_warn: bool = False
+    buffer: tuple = ()  # 0.80.0: ((name, °C or None), ...)
 
 
 def view(status: dict[str, Any] | None) -> LiteView | None:
@@ -159,9 +204,25 @@ def view(status: dict[str, Any] | None) -> LiteView | None:
     num = lambda k: status.get(k) if isinstance(status.get(k), (int, float)) and not isinstance(status.get(k), bool) else None  # noqa: E731
     mode = status.get("mode") if status.get("mode") in MODES else "auto"
     rr = status.get("real_relay")
+    cfg = status.get("cfg") if isinstance(status.get("cfg"), dict) else {}
     return LiteView(temp=num("temp"), target=num("sp"), mode=mode, heating=bool(status.get("relay")),
                     shadow=bool(status.get("shadow")), real_relay=rr if isinstance(rr, bool) else None,
                     period=status.get("period"), reason=status.get("reason"), demand=num("demand"),
                     hold=status.get("hold") if isinstance(status.get("hold"), dict) else None,
                     starts_today=num("starts_today"), on_min_today=num("on_min_today"), version=num("v"),
-                    integral=num("integral"))
+                    integral=num("integral"), hvac="cool" if status.get("hvac") == "cool" else "heat",
+                    src=cfg.get("src") if cfg.get("src") in SOURCES else "gas", humidity=num("hum"), dew_point=num("dew"),
+                    pipe=num("pipe"), dew_stop=status.get("dew_stop") is True, dew_warn=status.get("dew_warn") is True,
+                    buffer=_buffer(cfg, status.get("buf")))
+
+
+def _buffer(cfg: dict, vals: Any) -> tuple:
+    ids = cfg.get("buf") if isinstance(cfg.get("buf"), list) else []
+    names = cfg.get("bufn") if isinstance(cfg.get("bufn"), list) else []
+    vals = vals if isinstance(vals, list) else []
+    out = []
+    for i, _ in enumerate(ids[:3]):
+        v = vals[i] if i < len(vals) and isinstance(vals[i], (int, float)) and not isinstance(vals[i], bool) else None
+        n = names[i] if i < len(names) and isinstance(names[i], str) and names[i] else None
+        out.append((n, v))
+    return tuple(out)

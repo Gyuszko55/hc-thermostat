@@ -11,6 +11,13 @@
 //   - limits in every mode: min on, min off, max on; the relay's own dead-man timer on every "on"
 //   - no reading (sensor lost or too old): "off" or a fixed safe duty cycle
 //   - shadow: decides and reports, never switches (for a first run beside the old thermostat)
+//   - heat source (src): "gas" or "hp" (heat pump). A heat pump may also cool ({"hvac":"cool"}): the relay then asks
+//     for cooling above the cooling targets (sc_*), with no preheat, boost or frost, and stays off without a reading.
+//     The heat pump itself is set to cooling on its own controller (one relay = the request only).
+//   - dew point (cooling): from the room's humidity (hum_id: a BTHome humidity 200.., an add-on DHT22 humidity
+//     100..; a pushing Wi-Fi H&T sends it itself). With a probe on the cooled flow pipe (dew_id) cooling stops while
+//     the pipe is below dew point + dew_margin (and without a humidity then); without one it only warns.
+//   - buffer: up to 3 add-on probes (buf, names bufn) shown in the status; they do not steer anything
 // Endpoint: GET  http://<ip>/script/<id>/lite            -> status (JSON)
 //           GET  http://<ip>/script/<id>/lite?page=1     -> a small page (read only without a device password)
 //           GET  http://<ip>/script/<id>/lite?tok=..&t=21.3 -> a pushed room temperature (sensor "push": a Wi-Fi
@@ -24,7 +31,10 @@
 // The page (?page=1) is a small status page; it also loads the full web set-up (status, settings, first steps) from
 // UI_SRC: the script's memory holds only a few kB, so the browser fetches that program and it talks to this endpoint.
 // Without the internet the small page still works.
-// KVS: hc_lite_cfg (settings JSON), hc_lite_token, hc_lite_mode, hc_lite_hold (manual target JSON), hc_lite_i (integral),
+//           POST http://<ip>/script/<id>/lite {"tok":"..","hvac":"heat"|"cool"}         -> heating or cooling (hp only)
+// KVS: hc_lite_c1..c5 (the settings, in parts: a KVS value holds less than 255 characters), hc_lite_cfg (settings
+//      JSON taken last, so an upload tool's few settings win; emptied on a save), hc_lite_token, hc_lite_mode,
+//      hc_lite_hvac, hc_lite_hold (manual target JSON), hc_lite_i (integral),
 //      hc_lite_rev (settings revision, +1 on every change), hc_lite_ui (UI_SRC)
 // Keep this file plain ASCII (Script.PutCode refuses longer code with many non-ASCII characters).
 
@@ -41,8 +51,12 @@ let C = {
   min_on: 300, min_off: 300, max_on: 7200, // s (max_on 0: no limit)
   ns: "duty", don: 600, doff: 2400,        // no reading: "off" or a duty of don / doff seconds
   deadman: 180, rearm: 60, tick: 10,
-  shadow: false
+  shadow: false,
+  src: "gas", sc_day: 25.0, sc_night: 26.0, sc_away: 28.0, // heat source; cooling targets (hp)
+  hum_id: -1, dew_id: -1, dew_margin: 2.0,                  // humidity, flow pipe probe (-1: none), C above dew point
+  buf: [], bufn: []                                          // buffer probes (temperature ids) and their names
 };
+let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@main/guard/shelly/hc_lite_ui.js";
@@ -55,7 +69,8 @@ let st = {
   temp: null, temp_age: null, sp: null, period: null, reason: "boot", demand: null,
   cyc_start: -1, day: -1, starts: 0, on_s: 0, last_t: -1, log: [],
   i: 0, i_t: -1, i_saved: -100000,
-  push_t: null, push_at: -1, pre: false, boost: false
+  push_t: null, push_at: -1, pre: false, boost: false,
+  push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: []
 };
 
 function up() {
@@ -108,10 +123,12 @@ function preheat(L, v) {
   return st.pre;
 }
 
+// cooling: its own targets, no preheat, and "off" is off (null: no frost guard in cooling)
 function target(L, v) {
-  if (MODE === "off") { st.period = "off"; st.pre = false; return C.frost; }
-  if (MODE === "away") { st.period = "away"; st.pre = false; return C.sp_away; }
-  if (L === null) { st.period = "no time"; return C.sp_day; } // no clock: comfort, never a cold house
+  let k = HVAC === "cool";
+  if (MODE === "off") { st.period = "off"; st.pre = false; return k ? null : C.frost; }
+  if (MODE === "away") { st.period = "away"; st.pre = false; return k ? C.sc_away : C.sp_away; }
+  if (L === null) { st.period = "no time"; return k ? C.sc_day : C.sp_day; } // no clock: comfort, never a cold house
   let p = period(L);
   if (HOLD !== null) {
     let over = HOLD.until > 0 ? L.unix >= HOLD.until : p !== HOLD.at;
@@ -120,8 +137,41 @@ function target(L, v) {
   if (p !== "night" || HOLD !== null) st.pre = false;
   st.period = p;
   if (HOLD !== null) { st.period = p + " (manual)"; return HOLD.sp; }
+  if (k) return p === "day" ? C.sc_day : C.sc_night;
   if (p === "night" && preheat(L, v)) { st.period = "preheat"; return C.sp_day; }
   return p === "day" ? C.sp_day : C.sp_night;
+}
+
+// ---------------------------------------------------------------- humidity, dew point, pipe and buffer probes
+function probe(id) {
+  if (id < 0) return null;
+  let s = Shelly.getComponentStatus("temperature", id);
+  return s && typeof s.tC === "number" ? s.tC : null;
+}
+
+function extra(v) {
+  let h = null, s;
+  if (C.hum_id >= 200) { s = Shelly.getComponentStatus("bthomesensor", C.hum_id); if (s) h = s.value; }
+  else if (C.hum_id >= 100) { s = Shelly.getComponentStatus("humidity", C.hum_id); if (s) h = s.rh; }
+  else if (C.sensor === "push") h = st.push_h;
+  st.hum = typeof h === "number" && h > 0 && h <= 100 ? h : null;
+  st.dp = null;
+  if (st.hum !== null && v !== null) { // Magnus formula
+    let g = Math.log(st.hum / 100) + 17.62 * v / (243.12 + v);
+    st.dp = Math.round(2431.2 * g / (17.62 - g)) / 10;
+  }
+  st.pipe = probe(C.dew_id);
+  st.bufv = [];
+  for (let i = 0; i < C.buf.length; i++) st.bufv.push(probe(C.buf[i]));
+  st.dw = st.dp !== null && v !== null && v < st.dp + C.dew_margin + 1; // the room itself is close to its dew point
+}
+
+// cooling with a pipe probe: off below dew point + margin (or with no humidity / no pipe reading), on again 1 C above
+function dewStop() {
+  if (C.dew_id < 0) { st.dew = false; return false; }
+  if (st.dp === null || st.pipe === null || st.pipe < st.dp + C.dew_margin) st.dew = true;
+  else if (st.pipe >= st.dp + C.dew_margin + 1) st.dew = false;
+  return st.dew;
 }
 
 // ---------------------------------------------------------------- the thermometer
@@ -162,11 +212,11 @@ function relayOn(t) {
   st.armed = t;
 }
 
-function want(on, t, why) {
+function want(on, t, why, now) {
   let cur = readRelay();
   if (on === cur) { st.reason = why; return; }  // the reason of the state it keeps (not only of the last switch)
   let held = t - st.changed;
-  if (cur && held < C.min_on) return;
+  if (cur && held < C.min_on && !now) return;    // now: the dew point stops cooling at once
   if (!cur && held < C.min_off) return;
   st.changed = t; st.reason = why;
   if (on) st.starts = st.starts + 1;
@@ -187,13 +237,17 @@ function tick() {
   st.last_t = t;
   if (!C.shadow && cur && C.deadman > 0 && t - st.armed >= C.rearm) relayOn(t);
   let v = readTemp();
+  extra(v);
+  let k = HVAC === "cool";
   let sp = target(L, v);
-  if (st.sp !== null && sp - st.sp >= 0.3 && !cur) st.cyc_start = -1; // a higher target: a new cycle now, not at its end
+  if (sp === null) { st.sp = null; st.demand = null; st.boost = false; want(false, t, "off"); return; }
+  // a higher heating (lower cooling) target: a new cycle now, not at its end
+  if (st.sp !== null && (k ? st.sp - sp : sp - st.sp) >= 0.3 && !cur) st.cyc_start = -1;
   st.sp = sp;
   if (C.max_on > 0 && cur && t - st.changed >= C.max_on) { want(false, t, "max on"); return; }
   if (v === null) {
     st.demand = null;
-    if (C.ns === "duty") {
+    if (C.ns === "duty" && !k) {
       let held = t - st.changed;
       if (cur && held >= C.don) want(false, t, "no reading: duty off");
       else if (!cur && held >= C.doff) want(true, t, "no reading: duty on");
@@ -202,9 +256,10 @@ function tick() {
     }
     return;
   }
+  if (k && dewStop()) { st.demand = null; st.i_t = t; want(false, t, "dew point", true); return; }
+  let e = k ? v - sp : sp - v; // > 0: it needs heating (cooling)
   if (C.ctl === "tpi" || C.ctl === "pid") {
-    let e = sp - v;
-    if (C.boost <= 0 || e <= C.boost_end) {
+    if (k || C.boost <= 0 || e <= C.boost_end) {
       if (st.boost) st.cyc_start = t; // the boost ends: a new cycle from here
       st.boost = false;
     } else if (e >= C.boost) st.boost = true;
@@ -225,8 +280,8 @@ function tick() {
     else want(false, t, "demand " + Math.round(d * 100) + " %");
   } else {
     st.demand = null; st.boost = false;
-    if (v <= sp - C.hyst / 2) want(true, t, "below target");
-    else if (v >= sp + C.hyst / 2) want(false, t, "target reached");
+    if (e >= C.hyst / 2) want(true, t, k ? "above target" : "below target");
+    else if (e <= -C.hyst / 2) want(false, t, "target reached");
     else if (st.reason === "boot") st.reason = "inside the band";
   }
 }
@@ -249,7 +304,27 @@ function integrate(e, d, t) {
 }
 
 // ---------------------------------------------------------------- settings in, status out
-function save(k, v) { Shelly.call("KVS.Set", { key: k, value: v }, function () {}); }
+// one KVS write at a time (a script may have only a few calls in flight)
+let SQ = [];
+function save(k, v) { SQ.push([k, v]); if (SQ.length === 1) flush(); }
+function flush() {
+  if (!SQ.length) return;
+  Shelly.call("KVS.Set", { key: SQ[0][0], value: SQ[0][1] }, function () { SQ.splice(0, 1); flush(); });
+}
+
+// the settings in parts of less than 255 characters, as the device counts them (hc_lite_c1..c5); hc_lite_cfg emptied (see the KVS note)
+function saveCfg() {
+  let o = cfgOut(), part = {}, n = 0, len = 2, ps = [];
+  for (let key in o) {
+    // the device counts the value as escaped JSON (a quote is two characters); room left for UTF-8 names
+    let one = JSON.stringify(JSON.stringify(key) + ":" + JSON.stringify(o[key])).length - 1;
+    if (len + one > 220 && n > 0) { ps.push(JSON.stringify(part)); part = {}; n = 0; len = 2; }
+    part[key] = o[key]; n++; len = len + one;
+  }
+  ps.push(JSON.stringify(part));
+  for (let i = 0; i < 5; i++) save("hc_lite_c" + (i + 1), i < ps.length ? ps[i] : "{}");
+  save("hc_lite_cfg", "{}");
+}
 function num(v, lo, hi, d) { return typeof v === "number" && v >= lo && v <= hi ? v : d; }
 function clock(v, d) {
   if (typeof v !== "string" || v.length !== 5 || v.charAt(2) !== ":") return d;
@@ -279,6 +354,30 @@ function takeCfg(n) {
   if (n.sensor === "bthomesensor" || n.sensor === "temperature" || n.sensor === "push") C.sensor = n.sensor;
   C.sensor_id = num(n.sensor_id, 0, 299, C.sensor_id); C.sensor_max_age = num(n.sensor_max_age, 300, 7200, C.sensor_max_age);
   if (typeof n.shadow === "boolean") { if (C.shadow && !n.shadow) st.would = false; C.shadow = n.shadow; }
+  if (n.src === "gas" || n.src === "hp") C.src = n.src;
+  if (C.src !== "hp") setHvac("heat");
+  C.sc_day = num(n.sc_day, 16, 30, C.sc_day); C.sc_night = num(n.sc_night, 16, 30, C.sc_night);
+  C.sc_away = num(n.sc_away, 16, 30, C.sc_away);
+  C.hum_id = num(n.hum_id, -1, 299, C.hum_id); C.dew_id = num(n.dew_id, -1, 199, C.dew_id);
+  C.dew_margin = num(n.dew_margin, 0.5, 5, C.dew_margin);
+  if (n.buf && n.buf.length !== undefined) {
+    let b = [];
+    for (let i = 0; i < n.buf.length && b.length < 3; i++) if (num(n.buf[i], 100, 199, -1) >= 0) b.push(n.buf[i]);
+    C.buf = b;
+  }
+  if (n.bufn && n.bufn.length !== undefined) {
+    let b = [];
+    for (let i = 0; i < n.bufn.length && b.length < 3; i++) b.push(typeof n.bufn[i] === "string" ? n.bufn[i].substr(0, 16) : "");
+    C.bufn = b;
+  }
+}
+
+// heating or cooling; a change starts the control afresh (the integral, boost, the cycle, the dew point latch)
+function setHvac(h) {
+  if (h === HVAC || (h === "cool" && C.src !== "hp")) return false;
+  HVAC = h; save("hc_lite_hvac", h);
+  st.i = 0; st.i_t = -1; st.boost = false; st.dew = false; st.cyc_start = -1; st.pre = false;
+  return true;
 }
 
 function cfgOut() {
@@ -286,7 +385,9 @@ function cfgOut() {
     day_we: C.day_we, night_we: C.night_we, ctl: C.ctl, hyst: C.hyst, cycle: C.cycle, kp: C.kp, bias: C.bias, ti: C.ti,
     boost: C.boost, boost_end: C.boost_end, pre: C.pre, pre_max: C.pre_max,
     min_on: C.min_on, min_off: C.min_off, max_on: C.max_on, ns: C.ns, don: C.don, doff: C.doff,
-    sensor: C.sensor, sensor_id: C.sensor_id, sensor_max_age: C.sensor_max_age, shadow: C.shadow };
+    sensor: C.sensor, sensor_id: C.sensor_id, sensor_max_age: C.sensor_max_age, shadow: C.shadow,
+    src: C.src, sc_day: C.sc_day, sc_night: C.sc_night, sc_away: C.sc_away, hum_id: C.hum_id, dew_id: C.dew_id,
+    dew_margin: C.dew_margin, buf: C.buf, bufn: C.bufn };
 }
 
 function status() {
@@ -294,7 +395,9 @@ function status() {
     relay: C.shadow ? st.would : st.relay, shadow: C.shadow, real_relay: C.shadow ? readRelayRaw() : st.relay,
     demand: st.demand, integral: C.ctl === "pid" ? Math.round(C.kp * st.i * 1000) / 1000 : null, reason: st.reason, boost: st.boost, hold: HOLD, since_s: up() - st.changed,
     starts_today: st.starts, on_min_today: Math.round(st.on_s / 60), log: st.log, cfg: cfgOut(),
-    token: TOKEN ? true : false, rev: REV, sv: "0.79.9" };
+    token: TOKEN ? true : false, rev: REV, sv: "0.80.0",
+    hvac: HVAC, hum: st.hum, dew: st.dp, pipe: st.pipe, dew_stop: HVAC === "cool" && st.dew, dew_warn: HVAC === "cool" && st.dw,
+    buf: st.bufv };
 }
 
 function readRelayRaw() {
@@ -330,7 +433,11 @@ function handle(body) {
     let was = JSON.stringify(cfgOut());
     takeCfg(r.set);
     let now = JSON.stringify(cfgOut());
-    if (now !== was) { REV = REV + 1; save("hc_lite_rev", String(REV)); save("hc_lite_cfg", now); }
+    if (now !== was) { REV = REV + 1; save("hc_lite_rev", String(REV)); saveCfg(); }
+  }
+  if (r.hvac === "heat" || r.hvac === "cool") {
+    if (r.hvac === "cool" && C.src !== "hp") return { code: 400, body: { error: "cooling needs a heat pump (src hp)" } };
+    setHvac(r.hvac);
   }
   if (typeof r.ui_src === "string" && r.ui_src.length <= 200 && (r.ui_src.indexOf("https://") === 0 || r.ui_src.indexOf("http://") === 0)) {
     UI_SRC = r.ui_src; save("hc_lite_ui", UI_SRC);
@@ -381,6 +488,9 @@ function pushTemp(q) {
   let v = raw === null ? NaN : Number(raw);
   if (!(v >= -30 && v <= 60)) return { code: 400, body: { error: "temperature" } };
   st.push_t = v; st.push_at = up();
+  let h = query(q, "hum");
+  if (h === null) h = query(q, "h");
+  if (h !== null) { h = Number(h); st.push_h = h > 0 && h <= 100 ? h : null; }
   tick();
   return { code: 200, body: { ok: true, temp: v, used: C.sensor === "push" } };
 }
@@ -419,8 +529,11 @@ Shelly.call("KVS.GetMany", { match: "hc_lite_*" }, function (res) {
       if (items.length !== undefined) { for (let i = 0; i < items.length; i++) if (items[i].key === k) return items[i].value; return null; }
       return items[k] ? items[k].value : null;
     };
-    let c = get("hc_lite_cfg");
-    if (c) { try { takeCfg(JSON.parse(c)); } catch (e) {} }
+    for (let p = 1; p <= 6; p++) {
+      let c = get(p < 6 ? "hc_lite_c" + p : "hc_lite_cfg");
+      if (c) { try { takeCfg(JSON.parse(c)); } catch (e) {} }
+    }
+    if (get("hc_lite_hvac") === "cool" && C.src === "hp") HVAC = "cool";
     let tok = get("hc_lite_token");
     if (tok) TOKEN = tok;
     let rv = Number(get("hc_lite_rev"));

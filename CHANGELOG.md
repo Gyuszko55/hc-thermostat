@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.80.0 – 2026-11-26
+
+- **HC Lite: gas boiler or heat pump.** A new setting, the heat source (`src`). The web set-up starts with the
+  choice, which loads the settings that suit it (a gas boiler: PI on a 45 min cycle, 5 / 5 min protection, an
+  80 min longest burn, boost; a heat pump: hysteresis 0.5 °C, 20 min shortest run, 15 min shortest pause, no
+  longest run, no boost, a longer preheat). Each can be changed afterwards.
+- **HC Lite: cooling with a heat pump.** Heating or cooling (`{"hvac": "cool"}`, the web page's Heat / Cool
+  buttons, HC's climate entity in Cool mode). Cooling has its own targets (day 25, night 26, away 28 °C), asks
+  above the target, and has no preheat, boost or frost; without a reading it stays off. One relay switches the
+  request only: the heat pump itself is set to cooling on its own controller.
+- **HC Lite: dew point guard.** From the room's humidity (a BLU H&T's humidity, an add-on DHT22, or what a Wi-Fi
+  H&T sends) the script works out the dew point. With an add-on probe on the cooled flow pipe, cooling stops at
+  once while the pipe is below dew point + margin (2 °C by default), and starts again 1 °C above that; with a pipe
+  probe but no humidity it does not cool. Without a pipe probe it only warns when the room nears its dew point.
+- **HC Lite: buffer probes.** Up to 3 DS18B20 probes on a Shelly Plus Add-on, with names, shown on the relay's
+  page and as HC sensors. They steer nothing.
+- **Fix: the relay kept its settings only until a restart.** A KVS value holds less than 255 characters, and the
+  settings had grown longer, so they were never saved; HC sent them again after a restart, but without HC a relay
+  fell back to old settings. They are now kept in parts (`hc_lite_c1`…`c5`); `hc_lite_cfg` is still read last, so
+  an upload tool's few settings win.
+- **A compact script for the relay.** `guard/shelly/hc_lite.min.js` (made by `python3 guard/compact_js.py`, and
+  what `upload_shelly.py --lite` sends) has no comments or indentation: about 20 kB instead of 29 kB, as the relay
+  keeps the text of every function in its small memory. The tests run on both files.
+- HC: new options (heat source, cooling targets, humidity id, flow pipe probe, dew point margin, buffer probes and
+  names), the climate entity's Cool mode and humidity, sensors for the buffer probes, the dew point and the pipe.
+  Needs the new script on the relay; the web page from this release.
+
 ## 0.79.9 – 2026-11-26
 
 - **HC Lite: web set-up on the relay, without Home Assistant.** The relay's page (`…/script/<id>/lite?page=1`)

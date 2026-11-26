@@ -17,7 +17,7 @@ from typing import Any
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import (
     PRESET_AWAY, PRESET_HOME, ClimateEntity, ClimateEntityFeature, HVACAction, HVACMode)
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature, UnitOfTime
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
@@ -159,7 +159,6 @@ class LiteEntity(CoordinatorEntity[LiteCoordinator]):
 
 class LiteClimate(LiteEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_preset_modes = [PRESET_HOME, PRESET_AWAY]
     _attr_min_temp = 5.0
     _attr_max_temp = 30.0
@@ -172,6 +171,14 @@ class LiteClimate(LiteEntity, ClimateEntity):
         self._attr_name = None  # the device's name
 
     @property
+    def hvac_modes(self):  # 0.80.0: a heat pump may also cool
+        return [HVACMode.HEAT, HVACMode.COOL, HVACMode.OFF] if self.coordinator.settings.src == "hp" else [HVACMode.HEAT, HVACMode.OFF]
+
+    @property
+    def current_humidity(self):
+        return self.v.humidity if self.v else None
+
+    @property
     def current_temperature(self):
         return self.v.temp if self.v else None
 
@@ -181,7 +188,11 @@ class LiteClimate(LiteEntity, ClimateEntity):
 
     @property
     def hvac_mode(self):
-        return None if self.v is None else (HVACMode.OFF if self.v.mode == "off" else HVACMode.HEAT)
+        if self.v is None:
+            return None
+        if self.v.mode == "off":
+            return HVACMode.OFF
+        return HVACMode.COOL if self.v.hvac == "cool" else HVACMode.HEAT
 
     @property
     def hvac_action(self):
@@ -189,7 +200,9 @@ class LiteClimate(LiteEntity, ClimateEntity):
             return None
         if self.v.mode == "off" and not self.v.heating:
             return HVACAction.OFF
-        return HVACAction.HEATING if self.v.heating and not self.v.shadow else HVACAction.IDLE
+        if not self.v.heating or self.v.shadow:
+            return HVACAction.IDLE
+        return HVACAction.COOLING if self.v.hvac == "cool" else HVACAction.HEATING
 
     @property
     def preset_mode(self):
@@ -204,17 +217,24 @@ class LiteClimate(LiteEntity, ClimateEntity):
                 "demand": v.demand, "integral": v.integral, "hold": v.hold, "starts_today": v.starts_today, "on_min_today": v.on_min_today,
                 # 0.79.2: the HC dial card shows "LITE·HIST" / "LITE·TPI" (0.79.4: "LITE·PID") and its shadow mark from these
                 "control_type": "lite", "lite_ctl": ((self.coordinator.data or {}).get("cfg") or {}).get("ctl"),
-                "hc_mode": "shadow" if v.shadow else "active", "settings_error": self.coordinator.pushed_error}
+                "hc_mode": "shadow" if v.shadow else "active", "settings_error": self.coordinator.pushed_error,
+                # 0.80.0: the heat source, cooling, the dew point and the buffer probes
+                "heat_source": v.src, "lite_hvac": v.hvac, "dew_point": v.dew_point, "flow_pipe": v.pipe,
+                "dew_stop": v.dew_stop, "dew_warn": v.dew_warn,
+                "buffer": [{"name": n, "temp": t} for n, t in v.buffer] or None}
 
     async def async_set_temperature(self, **kwargs) -> None:
         if (t := kwargs.get(ATTR_TEMPERATURE)) is not None:
             await self.coordinator.async_command(target=float(t), hold="next")
 
     async def async_set_hvac_mode(self, hvac_mode) -> None:
-        await self.coordinator.async_command(mode="off" if hvac_mode == HVACMode.OFF else "auto")
+        if hvac_mode == HVACMode.OFF:
+            await self.coordinator.async_command(mode="off")
+        else:  # 0.80.0: heating or cooling, and the program again
+            await self.coordinator.async_command(mode="auto", hvac="cool" if hvac_mode == HVACMode.COOL else "heat")
 
     async def async_turn_on(self) -> None:
-        await self.async_set_hvac_mode(HVACMode.HEAT)
+        await self.coordinator.async_command(mode="auto")  # 0.80.0: heating or cooling, as it was
 
     async def async_turn_off(self) -> None:
         await self.async_set_hvac_mode(HVACMode.OFF)
@@ -264,6 +284,41 @@ class LiteNumber(LiteEntity, SensorEntity):
         return None if self.v is None else getattr(self.v, self._field)
 
 
+class LiteBuffer(LiteEntity, SensorEntity):
+    """0.80.0: a buffer probe on the relay's add-on (shown only; it steers nothing)."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+    def __init__(self, coordinator, i: int, name: str | None) -> None:
+        super().__init__(coordinator, f"lite_buffer_{i + 1}")
+        self._i = i
+        self._attr_translation_key = "lite_buffer"
+        self._attr_translation_placeholders = {"n": str(i + 1)}
+        if name:
+            self._attr_name = name
+
+    @property
+    def native_value(self):
+        b = self.v.buffer if self.v else ()
+        return b[self._i][1] if self._i < len(b) else None
+
+
+class LiteTemp(LiteEntity, SensorEntity):
+    """0.80.0: the dew point and the flow pipe (cooling)."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+    def __init__(self, coordinator, key: str, field: str) -> None:
+        super().__init__(coordinator, key)
+        self._field = field
+
+    @property
+    def native_value(self):
+        return None if self.v is None else getattr(self.v, self._field)
+
+
 async def async_setup_climate(hass, entry, add) -> None:
     add([LiteClimate(entry.runtime_data)])
 
@@ -276,3 +331,9 @@ async def async_setup_sensor(hass, entry, add) -> None:
     c = entry.runtime_data
     add([LiteReason(c), LiteNumber(c, "lite_starts_today", "starts_today", None),
          LiteNumber(c, "lite_on_today", "on_min_today", UnitOfTime.MINUTES)])
+    s = c.settings  # 0.80.0: only what this relay has
+    add([LiteBuffer(c, i, s.bufn[i] if i < len(s.bufn) else None) for i in range(len(s.buf))])
+    if s.src == "hp" and (s.hum_id >= 100 or s.sensor == "push"):
+        add([LiteTemp(c, "lite_dew_point", "dew_point")])
+    if s.dew_id >= 0:
+        add([LiteTemp(c, "lite_flow_pipe", "pipe")])

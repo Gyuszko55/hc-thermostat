@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ShellySim } from "./shelly_sim.mjs";
 
-const SCRIPT = fileURLToPath(new URL("../shelly/hc_lite.js", import.meta.url));
+// 0.80.0: HC_LITE_MIN=1 runs the same tests on the compact file that goes to the relay (hc_lite_min.test.mjs)
+const SCRIPT = fileURLToPath(new URL(process.env.HC_LITE_MIN ? "../shelly/hc_lite.min.js" : "../shelly/hc_lite.js", import.meta.url));
 const TOK = "t0ken";
 // Tuesday 2026-11-24, 13:00 local (UTC+1)
 const TUE_13 = Date.UTC(2026, 10, 24, 12, 0, 0) / 1000;
@@ -93,7 +94,10 @@ test("settings, mode and a manual target need the token", () => {
   assert.equal(s.http("POST", { body: { ui: 1, target: 23 } }).code, 403, "the page needs a device password");
   assert.equal(post(s, { set: { sp_day: 22, hyst: 0.6 } }).code, 200);
   assert.equal(s.state().sp, 22);
-  assert.equal(JSON.parse(s.kvs.hc_lite_cfg).sp_day, 22);
+  const again = new ShellySim({ script: SCRIPT, kvs: s.kvs, unix: TUE_13 }); // 0.80.0: kept in parts over a restart
+  again.setTemp(20.5); again.run(20);
+  assert.equal(again.state().cfg.sp_day, 22);
+  assert.equal(again.state().cfg.hyst, 0.6);
   post(s, { mode: "away" });
   assert.equal(s.state().sp, 16.0);
   post(s, { mode: "off" });

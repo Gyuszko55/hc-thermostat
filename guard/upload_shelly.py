@@ -145,7 +145,8 @@ def lite(a) -> int:
     if kind not in ("bthomesensor", "temperature") or not sid_s.isdigit():
         print("--lite needs --sensor bthomesensor:<id> (the BLU H&T's temperature) or temperature:<id> (an add-on probe)")
         return 2
-    code = LITE.read_text("ascii")
+    from compact_js import compact  # 0.80.0: without comments and indentation (the relay keeps less in its heap)
+    code = compact(LITE.read_text("ascii"))
     info = rpc(a.host, "Shelly.GetDeviceInfo")
     rc = _auth(a, info, password)
     if rc:
