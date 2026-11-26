@@ -14,7 +14,8 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 
 TO_REDACT = {"home_name", "custom_rooms", "latitude", "longitude", "password", "token", "api_key",
-             "guard_token", "guard_push_url", "tok", "guard_password", "guard_url"}  # 0.76.0: the guard's token and push topic
+             "guard_token", "guard_push_url", "tok", "guard_password", "guard_url",
+             "lite_token", "lite_password", "lite_url"}  # 0.79.2  # 0.76.0: the guard's token and push topic
 
 
 def room_names(obj: Any, found: dict[str, str] | None = None) -> dict[str, str]:
@@ -65,6 +66,11 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry) -> dict
     data: dict[str, Any] = {"integration": manifest, "title": entry.title,
                             "data": redact_rooms(async_redact_data(dict(entry.data), TO_REDACT), names),
                             "options": redact_rooms(async_redact_data(dict(entry.options), TO_REDACT), names)}
+    if entry.data.get("role") == "lite":  # 0.79.2: the device's own status is the instance's state
+        c = getattr(entry, "runtime_data", None)
+        data["info"] = {"lite_status": async_redact_data(dict(getattr(c, "data", None) or {}), TO_REDACT),
+                        "settings_error": getattr(c, "pushed_error", None)}
+        return data
     try:
         info = jsonable(_instance(hass, entry))
         data["info"] = redact_rooms(async_redact_data(info, TO_REDACT), {**room_names(info), **names})

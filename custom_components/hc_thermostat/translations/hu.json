@@ -588,6 +588,64 @@
             }
           }
         }
+      },
+      "lite": {
+        "title": "HC Lite – az eszköz",
+        "description": "A feltöltő által kiírt cím (upload_shelly.py --lite), pl. http://IP/script/1/lite, a token, és a Shelly saját jelszava, ha van.",
+        "data": {
+          "lite_url": "Szkript címe",
+          "lite_token": "Token",
+          "lite_password": "Eszköz jelszava (nem kötelező)"
+        },
+        "data_description": {
+          "lite_url": "http://IP/script/ID/lite",
+          "lite_token": "A feltöltő egyszer kiírja; az eszközön van (hc_lite_token).",
+          "lite_password": "Akkor kell, ha a Shelly jelszóval védett (admin felhasználó). Ezzel az eszköz saját oldaláról is állítható a cél."
+        }
+      },
+      "lite_settings": {
+        "title": "HC Lite – beállítások",
+        "description": "Mentéskor az eszközre kerülnek; az eszköz ezek szerint fűt Home Assistanttal vagy nélküle. Az új példány árnyékban indul (dönt, de a relét nem kapcsolja).",
+        "data": {
+          "lite_sp_day": "Nappali cél",
+          "lite_sp_night": "Éjszakai cél",
+          "lite_sp_away": "Távol cél",
+          "lite_frost": "Fagyvédelem (Ki mód)",
+          "lite_day": "Nappal kezdete (hétköznap)",
+          "lite_night": "Éjszaka kezdete (hétköznap)",
+          "lite_day_we": "Nappal kezdete (hétvége)",
+          "lite_night_we": "Éjszaka kezdete (hétvége)",
+          "lite_ctl": "Szabályozás",
+          "lite_hyst": "Hiszterézis sáv (teljes)",
+          "lite_cycle": "TPI/PI ciklus",
+          "lite_kp": "TPI/PI erősítés (°C-onként)",
+          "lite_bias": "TPI/PI alapigény",
+          "lite_ti": "PI integrálási idő",
+          "lite_boost": "Boost a cél alatt ennyitől",
+          "lite_boost_end": "Boost vége (ennyire a céltól)",
+          "lite_pre": "Előfűtés (perc / °C)",
+          "lite_pre_max": "Leghosszabb előfűtés",
+          "lite_min_on": "Legrövidebb égés",
+          "lite_min_off": "Legrövidebb szünet",
+          "lite_max_on": "Leghosszabb égés (0: nincs korlát)",
+          "lite_ns": "Mérés nélkül",
+          "lite_don": "Biztonsági ütem: be",
+          "lite_doff": "Biztonsági ütem: ki",
+          "lite_sensor": "Helyiség-hőmérő",
+          "lite_sensor_id": "Hőmérő komponens-azonosító",
+          "lite_sensor_max_age": "A mérés ennyi idő után elavult",
+          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)"
+        },
+        "data_description": {
+          "lite_ctl": "Hiszterézis: bekapcsol a cél − sáv/2 alatt, kikapcsol a cél + sáv/2 felett. TPI: igény = alap + erősítés × (cél − helyiség), minden ciklus ekkora részében fűt. PI: a TPI-hez egy integráló tag jön, ami megtanulja a ház tartós igényét, így a megmaradó eltérés magától eltűnik.",
+          "lite_sensor_id": "A BLU H&T hőmérsékletének bthomesensor:ID azonosítója (Shelly oldal → Komponensek), vagy add-on szonda temperature:ID. Wi-Fi H&T-nél (push) nem számít: a H&T webhookja küldi a mérést a relé …/script/1/lite?tok=TOKEN&t=HŐMÉRSÉKLET címére (a H&T-n az ev.tC érték); ilyenkor az elavulási idő legyen 7200 s, mert a H&T csak változáskor küld.",
+          "lite_shadow": "Először a régi termosztát mellett fusson; vedd ki a pipát, ha kapcsolhatja a kazánt.",
+          "lite_ti": "Csak PI-nél: tartós 1 °C-os eltérésnél ennyi másodperc alatt ad hozzá az integráló tag még egy erősítésnyit az igényhez. Rövidebb: gyorsabban tanul, de lenghet; 14400 s (4 óra) a legtöbb házhoz jó.",
+          "lite_boost": "Csak TPI/PI-nél: ha a helyiség legalább ennyivel a cél alatt van, szünet nélkül fűt (a leghosszabb égés itt is érvényes). 0: nincs boost.",
+          "lite_boost_end": "A boost addig tart, amíg a helyiség ennyire meg nem közelíti a célt; utána a ciklus szabályoz tovább.",
+          "lite_pre": "A nappali időszak előtt ennyivel korábban kezd a nappali céllal, a hiány minden fokára: pl. 30 perc/°C és 1,5 °C hiány = 45 perccel korábban. Ha elkezdte, a nappali kezdésig tart. 0: nincs előfűtés.",
+          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány."
+        }
       }
     },
     "error": {
@@ -603,7 +661,11 @@
       "no_output": "Az íráshoz legalább egy kimeneti entitás kell.",
       "wood_order": "A kikapcsolási küszöb legyen alacsonyabb a bekapcsolásinál.",
       "heat_meter_three": "A hőmennyiségméréshez mindhárom vízoldali mérő kell (előremenő, visszatérő, vízáram) – vagy egyik sem.",
-      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás."
+      "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás.",
+      "lite_url": "Add meg a szkript címét: http://IP/script/ID/lite",
+      "lite_token": "Az eszköz nem fogadta el a tokent",
+      "lite_password": "Az eszköz nem fogadta el a jelszót",
+      "lite_unreachable": "Az eszköz nem válaszol ezen a címen"
     },
     "abort": {
       "already_configured": "Ilyen nevű példány már van.",
@@ -1700,6 +1762,64 @@
           "night_start_weekend": "A péntek és szombat esti éjszakára (amely szombat és vasárnap reggel ér véget). Üresen olyan, mint hétköznap. A kezdet és a vég együtt kell.",
           "night_end_weekend": "Szombat és vasárnap reggel eddig tart az alvási hőfok – pl. 08:00, ha hétvégén tovább alszotok."
         }
+      },
+      "lite": {
+        "title": "HC Lite – az eszköz",
+        "description": "A feltöltő által kiírt cím (upload_shelly.py --lite), pl. http://IP/script/1/lite, a token, és a Shelly saját jelszava, ha van.",
+        "data": {
+          "lite_url": "Szkript címe",
+          "lite_token": "Token",
+          "lite_password": "Eszköz jelszava (nem kötelező)"
+        },
+        "data_description": {
+          "lite_url": "http://IP/script/ID/lite",
+          "lite_token": "A feltöltő egyszer kiírja; az eszközön van (hc_lite_token).",
+          "lite_password": "Akkor kell, ha a Shelly jelszóval védett (admin felhasználó). Ezzel az eszköz saját oldaláról is állítható a cél."
+        }
+      },
+      "lite_settings": {
+        "title": "HC Lite – beállítások",
+        "description": "Mentéskor az eszközre kerülnek; az eszköz ezek szerint fűt Home Assistanttal vagy nélküle. Az új példány árnyékban indul (dönt, de a relét nem kapcsolja).",
+        "data": {
+          "lite_sp_day": "Nappali cél",
+          "lite_sp_night": "Éjszakai cél",
+          "lite_sp_away": "Távol cél",
+          "lite_frost": "Fagyvédelem (Ki mód)",
+          "lite_day": "Nappal kezdete (hétköznap)",
+          "lite_night": "Éjszaka kezdete (hétköznap)",
+          "lite_day_we": "Nappal kezdete (hétvége)",
+          "lite_night_we": "Éjszaka kezdete (hétvége)",
+          "lite_ctl": "Szabályozás",
+          "lite_hyst": "Hiszterézis sáv (teljes)",
+          "lite_cycle": "TPI/PI ciklus",
+          "lite_kp": "TPI/PI erősítés (°C-onként)",
+          "lite_bias": "TPI/PI alapigény",
+          "lite_ti": "PI integrálási idő",
+          "lite_boost": "Boost a cél alatt ennyitől",
+          "lite_boost_end": "Boost vége (ennyire a céltól)",
+          "lite_pre": "Előfűtés (perc / °C)",
+          "lite_pre_max": "Leghosszabb előfűtés",
+          "lite_min_on": "Legrövidebb égés",
+          "lite_min_off": "Legrövidebb szünet",
+          "lite_max_on": "Leghosszabb égés (0: nincs korlát)",
+          "lite_ns": "Mérés nélkül",
+          "lite_don": "Biztonsági ütem: be",
+          "lite_doff": "Biztonsági ütem: ki",
+          "lite_sensor": "Helyiség-hőmérő",
+          "lite_sensor_id": "Hőmérő komponens-azonosító",
+          "lite_sensor_max_age": "A mérés ennyi idő után elavult",
+          "lite_shadow": "Árnyék (csak dönt, nem kapcsol)"
+        },
+        "data_description": {
+          "lite_ctl": "Hiszterézis: bekapcsol a cél − sáv/2 alatt, kikapcsol a cél + sáv/2 felett. TPI: igény = alap + erősítés × (cél − helyiség), minden ciklus ekkora részében fűt. PI: a TPI-hez egy integráló tag jön, ami megtanulja a ház tartós igényét, így a megmaradó eltérés magától eltűnik.",
+          "lite_sensor_id": "A BLU H&T hőmérsékletének bthomesensor:ID azonosítója (Shelly oldal → Komponensek), vagy add-on szonda temperature:ID. Wi-Fi H&T-nél (push) nem számít: a H&T webhookja küldi a mérést a relé …/script/1/lite?tok=TOKEN&t=HŐMÉRSÉKLET címére (a H&T-n az ev.tC érték); ilyenkor az elavulási idő legyen 7200 s, mert a H&T csak változáskor küld.",
+          "lite_shadow": "Először a régi termosztát mellett fusson; vedd ki a pipát, ha kapcsolhatja a kazánt.",
+          "lite_ti": "Csak PI-nél: tartós 1 °C-os eltérésnél ennyi másodperc alatt ad hozzá az integráló tag még egy erősítésnyit az igényhez. Rövidebb: gyorsabban tanul, de lenghet; 14400 s (4 óra) a legtöbb házhoz jó.",
+          "lite_boost": "Csak TPI/PI-nél: ha a helyiség legalább ennyivel a cél alatt van, szünet nélkül fűt (a leghosszabb égés itt is érvényes). 0: nincs boost.",
+          "lite_boost_end": "A boost addig tart, amíg a helyiség ennyire meg nem közelíti a célt; utána a ciklus szabályoz tovább.",
+          "lite_pre": "A nappali időszak előtt ennyivel korábban kezd a nappali céllal, a hiány minden fokára: pl. 30 perc/°C és 1,5 °C hiány = 45 perccel korábban. Ha elkezdte, a nappali kezdésig tart. 0: nincs előfűtés.",
+          "lite_pre_max": "Ennél korábban sosem kezd el előfűteni (perc), akármekkora a hiány."
+        }
       }
     },
     "error": {
@@ -1725,7 +1845,11 @@
       "heat_meter_same": "Az előremenő és a visszatérő hőmérő nem lehet ugyanaz az entitás.",
       "guard_url": "A védő címe http:// vagy https:// kezdetű legyen.",
       "guard_ttl": "A bérlet érvényessége legalább a megújítás kétszerese legyen.",
-      "guard_token_required": "A helyi védőhöz kell a tokenje (a védő KVS hc_guard_token értéke)."
+      "guard_token_required": "A helyi védőhöz kell a tokenje (a védő KVS hc_guard_token értéke).",
+      "lite_url": "Add meg a szkript címét: http://IP/script/ID/lite",
+      "lite_token": "Az eszköz nem fogadta el a tokent",
+      "lite_password": "Az eszköz nem fogadta el a jelszót",
+      "lite_unreachable": "Az eszköz nem válaszol ezen a címen"
     }
   },
   "selector": {
@@ -1800,7 +1924,8 @@
         "central": "Központi kazán (a zónák igénye szerint)",
         "buffer": "Puffertartály (a hőforrást tölti)",
         "circuit": "Keverőkör pufferből (árnyék: csak előremenő cél)",
-        "hp_coord": "Hőszivattyú-koordináció pufferhez (árnyék: csak ON/OFF és cél)"
+        "hp_coord": "Hőszivattyú-koordináció pufferhez (árnyék: csak ON/OFF és cél)",
+        "lite": "HC Lite Shellyn (a relé önállóan fűt; innen kezelve)"
       }
     },
     "weekday": {
@@ -1898,6 +2023,26 @@
       "options": {
         "off": "kikapcsol",
         "duty": "fix ütemben fűt"
+      }
+    },
+    "lite_ctl": {
+      "options": {
+        "hyst": "Hiszterézis",
+        "tpi": "Időarányos (TPI)",
+        "pid": "PI (TPI + integrálás)"
+      }
+    },
+    "lite_ns": {
+      "options": {
+        "duty": "Biztonsági ütem",
+        "off": "Ki"
+      }
+    },
+    "lite_sensor": {
+      "options": {
+        "bthomesensor": "Shelly BLU H&T (Bluetooth)",
+        "temperature": "Vezetékes add-on szonda",
+        "push": "Wi-Fi H&T (küldi a mérést)"
       }
     }
   },
@@ -2160,6 +2305,15 @@
           "unreachable": "nem érhető el",
           "safety": "életvédelmi lánc nyitva – KI"
         }
+      },
+      "lite_reason": {
+        "name": "Döntés"
+      },
+      "lite_starts_today": {
+        "name": "Mai indítások"
+      },
+      "lite_on_today": {
+        "name": "Mai üzemidő"
       }
     },
     "binary_sensor": {
@@ -2201,6 +2355,9 @@
       },
       "safety_stop": {
         "name": "Életvédelmi leállítás"
+      },
+      "lite_boiler": {
+        "name": "Kazán"
       }
     },
     "climate": {
@@ -2230,6 +2387,9 @@
             }
           }
         }
+      },
+      "lite_thermostat": {
+        "name": "Termosztát"
       }
     },
     "button": {

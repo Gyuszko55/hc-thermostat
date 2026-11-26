@@ -624,6 +624,11 @@ class HcInfoPanel extends HTMLElement {
     if (s == null) return "";
     return s < 90 ? `${Math.round(s)} ${this._t.sec}` : `${Math.round(s / 60)} ${this._t.min}`;
   }
+  // 0.79.3: the hydraulic diagram's depth – user | maint (only how much it tells; remembered per browser)
+  _schDepth() {
+    if (!this._depth) { try { this._depth = localStorage.getItem("hc-info:depth"); } catch (e) { /* private mode */ } }
+    return this._depth === "maint" ? "maint" : "user";
+  }
   _reason(r) {
     if (!r) return this._t.none;
     return (this._hu ? REASON.hu[r] : null) || (r.charAt(0).toUpperCase() + r.slice(1).replace(/_/g, " "));
@@ -1412,7 +1417,11 @@ class HcInfoPanel extends HTMLElement {
         .map(([k, n]) => `<button data-view="${k}" class="${view === k ? "sel" : ""}">${esc(n)}</button>`).join("")}</div>` : "";
       let pic = dr.house ? `<div class="houseslot"></div>` : `<svg viewBox="0 0 1000 700">${dr.svg}${this._markSvg()}</svg>`, dcards = dr.cards;
       if (view === "overview") { pic = `<div class="ovwrap">${OV.renderOverview(all, { lang: L2 })}</div>`; dcards = ""; }
-      else if (view === "schematic") { pic = `<div class="schwrap">${OV.renderSchematic(all, { lang: L2 })}</div>`; dcards = ""; }
+      else if (view === "schematic") {  // 0.79.3: two depths and an info-first part panel beside the drawing
+        const depth = this._schDepth(), part = this._schKey && OV.partInfo ? OV.partInfo(all, this._schKey, { lang: L2, depth, reason: (r) => this._reason(r) }) : "";
+        if (!part) this._schKey = null;
+        pic = `${OV.depthSwitch ? OV.depthSwitch(depth, { lang: L2 }) : ""}<div class="schlay"><div class="schwrap">${OV.renderSchematic(all, { lang: L2, depth })}</div>${part}</div>`; dcards = "";
+      }
       const aiHost = this._hd || d;  // 0.71.0: the house's AI analysis – a button on the drawing, the report on a tap
       const aiBtn = view === "house" && aiHost.ai_report ? this._aiButton(aiHost.ai_report) : "";
       main = `${head}<div class="grid"><div class="draw">${tabs}<div class="stage">${aiBtn}${pic}<div class="cards">${dcards}</div></div></div>
@@ -1443,7 +1452,19 @@ class HcInfoPanel extends HTMLElement {
       try { localStorage.setItem("hc-info:view", this._view); } catch (e) { /* private mode */ }
       this._render();
     }));
-    this.shadowRoot.querySelectorAll(".ovwrap [data-key], .schwrap [data-key]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); this._pickPart(b.dataset.key); }));
+    this.shadowRoot.querySelectorAll(".ovwrap [data-key]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); this._pickPart(b.dataset.key); }));
+    // 0.79.3: on the hydraulic diagram a tap first tells about the part; "Open" goes to the instance as before
+    this.shadowRoot.querySelectorAll(".schwrap [data-key]").forEach((b) => {
+      if (this._schKey && b.dataset.key === this._schKey) b.classList.add("ssel");
+      b.addEventListener("click", (ev) => { ev.stopPropagation(); this._schKey = this._schKey === b.dataset.key ? null : b.dataset.key; this._render(); });
+    });
+    this.shadowRoot.querySelectorAll("[data-sch-open]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); const k = b.dataset.schOpen; this._schKey = null; this._pickPart(k); }));
+    this.shadowRoot.querySelectorAll("[data-sch-close]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); this._schKey = null; this._render(); }));
+    this.shadowRoot.querySelectorAll("[data-sch-depth]").forEach((b) => b.addEventListener("click", () => {
+      try { localStorage.setItem("hc-info:depth", b.dataset.schDepth); } catch (e) { /* private mode */ }
+      this._depth = b.dataset.schDepth;
+      this._render();
+    }));
     this.shadowRoot.querySelectorAll("details[data-sec]").forEach((el) => el.addEventListener("toggle", () => { this._open[el.dataset.sec] = el.open; }));
     // 0.71.0: the AI analysis – open / close / make now
     this.shadowRoot.querySelectorAll("[data-ai]").forEach((b) => b.addEventListener("click", (ev) => {

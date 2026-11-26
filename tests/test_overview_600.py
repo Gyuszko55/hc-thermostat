@@ -96,7 +96,7 @@ console.log(JSON.stringify({{
 def test_panel_has_the_three_views_and_the_curve():
     assert 'import(new URL(`./hc-overview.js${new URL(import.meta.url).search}`' in PANEL
     assert '[["house", this._hu ? "Rajz" : "Drawing"], ["overview", this._hu ? "Áttekintés" : "Overview"], ["schematic", this._hu ? "Rendszerrajz" : "Hydraulic diagram"]]' in PANEL
-    assert 'OV.renderOverview(all, { lang: L2 })' in PANEL and 'OV.renderSchematic(all, { lang: L2 })' in PANEL
+    assert 'OV.renderOverview(all, { lang: L2 })' in PANEL and 'OV.renderSchematic(all, { lang: L2, depth })' in PANEL  # 0.79.3: with the depth
     assert 'd.role === "circuit" && OV ? this._section("curve"' in PANEL
     assert 'localStorage.setItem("hc-info:view", this._view)' in PANEL
     assert "export function renderOverview" in OV and "export function renderSchematic" in OV and "export function curveSvg" in OV
@@ -122,4 +122,4 @@ def test_settings_form_curve_preview():
 
 
 def test_version_600():
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2", "0.71.3", "0.71.4", "0.72.0", "0.73.0", "0.74.0", "0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.60.0", "0.61.0", "0.62.0", "0.63.0", "0.64.0", "0.64.1", "0.65.0", "0.65.1", "0.65.2", "0.65.3", "0.66.0", "0.67.0", "0.68.0", "0.69.0", "0.70.0", "0.70.1", "0.71.0", "0.71.1", "0.71.2", "0.71.3", "0.71.4", "0.72.0", "0.73.0", "0.74.0", "0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1", "0.79.2", "0.79.3", "0.79.4", "0.79.5", "0.79.6", "0.79.7", "0.79.8", "0.79.9")

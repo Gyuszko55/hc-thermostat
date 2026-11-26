@@ -102,6 +102,38 @@ goes off at once (no `min_on`), the stop is latched on the device (KVS `hc_guard
 guard's fallback does **not** heat while it holds – even when Home Assistant is gone. The first ordinary lease after
 the stop was acknowledged in HC clears it; control comes back through the usual handback. The status shows `hc_stop`.
 
+## HC Lite – a whole thermostat on the relay (`shelly/hc_lite.js`, 0.79.2, first version)
+
+For a plain on-off boiler with one room thermometer: a Shelly 1 Mini Gen4 (or any Gen3 / Gen4 relay with scripting)
+and a Shelly BLU H&T paired to it (BTHome). The script **heats on its own** – Home Assistant only sets it up and reads
+it. It is not the guard: run one of the two on a relay, never both.
+
+- **Targets:** day / night program (separate weekday and weekend times), `away`, `off` (frost only), and a manual
+  target until the next program change (or for a time). Without a clock (no time sync) it keeps the day target.
+- **Control:** hysteresis (`ctl: "hyst"`, `hyst` total band) or a simple time-proportional one (`ctl: "tpi"`:
+  `demand = bias + kp × (target − room)`, 0…1, over `cycle` seconds; an on time under `min_on` is skipped or
+  stretched to it).
+- **Limits in every mode:** `min_on`, `min_off`, `max_on`; every "on" carries the relay's dead-man timer
+  (`toggle_after` 180 s, re-armed every 60 s while the script runs).
+- **No reading** (sensor lost or older than `sensor_max_age`): `ns: "off"` or a fixed duty (`don` / `doff`).
+- **Shadow:** `shadow: true` decides and reports (`relay` is what it would do, `real_relay` the actual one) but never
+  switches – for a first run beside the old thermostat.
+- **Endpoint** `/script/<id>/lite`: `GET` status JSON; `GET ?page=1` a small page (temperature, target, +/−, mode);
+  `POST {"tok": .., "set": {..}}` settings, `{"tok": .., "target": 21.5, "hold": "next" | seconds}`,
+  `{"tok": .., "mode": "auto" | "away" | "off"}`. The page's own buttons work only when the device has a password
+  (the browser then passes digest auth); without one the page is read only.
+- **Kept on the device** (KVS): `hc_lite_cfg`, `hc_lite_token`, `hc_lite_mode`, `hc_lite_hold`.
+
+Install: pair the BLU H&T in the Shelly's web page (Bluetooth → add device; note the temperature component id, e.g.
+`bthomesensor:200`), then
+
+```
+HC_GUARD_PASSWORD=... python guard/upload_shelly.py <ip> --lite --sensor bthomesensor:200 --set-password --shadow
+```
+
+Leave out `--shadow` when it may switch the boiler. Desk tests: `node --test "guard/tests/*.test.mjs"` (a simulated Shelly runs the
+unchanged script). Managing it from Home Assistant (an HC Lite instance with a climate entity) comes next.
+
 ## The protocol (for ESPHome, a PLC or anything else)
 
 HC sends, at least every `guard_every_s` (60 s) and at once on every change:

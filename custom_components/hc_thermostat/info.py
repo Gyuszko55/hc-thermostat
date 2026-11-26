@@ -457,7 +457,9 @@ def _trvs(hass, entry) -> list[dict]:
 
 
 def _loaded(hass) -> list:
-    return [e for e in hass.config_entries.async_entries(DOMAIN) if getattr(e, "runtime_data", None) is not None]
+    # 0.79.2: an HC Lite instance (a Shelly script heats) has no HC decision data – the panels leave it out
+    return [e for e in hass.config_entries.async_entries(DOMAIN) if getattr(e, "runtime_data", None) is not None
+            and e.data.get("role") != "lite"]
 
 
 # --- 0.53.0: one house, several heat sources -----------------------------------------------------------------------

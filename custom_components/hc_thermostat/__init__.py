@@ -15,7 +15,7 @@ from .buffer_coordinator import BufferCoordinator
 from .central_coordinator import CentralCoordinator
 from .circuit_coordinator import CircuitCoordinator
 from .hp_coord_coordinator import HpCoordCoordinator
-from .const import CENTRAL_PLATFORMS, CIRCUIT_PLATFORMS, CONF_ROLE, DOMAIN, HP_COORD_PLATFORMS, PLATFORMS
+from .const import CENTRAL_PLATFORMS, CIRCUIT_PLATFORMS, CONF_ROLE, DOMAIN, HP_COORD_PLATFORMS, LITE_PLATFORMS, PLATFORMS
 from .coordinator import HcCoordinator, note_ha_start
 from .rename import async_track_renames
 from .rooms_ha import auto_humidity
@@ -36,18 +36,24 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 def _central(entry: ConfigEntry) -> bool:
     """A central boiler, a buffer tank or a mixing circuit: no thermostat of its own, only its decision entities."""
-    return entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit", "hp_coord")
+    return entry.data.get(CONF_ROLE) in ("central", "buffer", "circuit", "hp_coord", "lite")
 
 
 def _platforms(entry: ConfigEntry) -> list[str]:
     role = entry.data.get(CONF_ROLE)
+    if role == "lite":
+        return LITE_PLATFORMS
     return HP_COORD_PLATFORMS if role == "hp_coord" else CIRCUIT_PLATFORMS if role == "circuit" else CENTRAL_PLATFORMS
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_register_panels(hass)  # 0.45.0: back after the last instance was deleted
     if _central(entry):
-        if entry.data.get(CONF_ROLE) == "buffer":
+        if entry.data.get(CONF_ROLE) == "lite":  # 0.79.2: HC Lite – a Shelly script heats, HA manages it
+            from .lite import LiteCoordinator
+            central = LiteCoordinator(hass, entry)
+            await central.async_load()  # 0.79.9: the settings revision of the last sync
+        elif entry.data.get(CONF_ROLE) == "buffer":
             central = BufferCoordinator(hass, entry)
             await central.async_load()
         elif entry.data.get(CONF_ROLE) in ("circuit", "hp_coord"):  # 0.54.0 / 0.55.0, shadow only
@@ -76,6 +82,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(coordinator.async_track_target_source())
+    entry.async_on_unload(coordinator.async_track_runs())  # 0.79.5: heating runs counted on the relay's switch-on
     entry.async_on_unload(coordinator.async_track_managed())  # 0.42.0: two-way with the managed thermostat
     entry.async_on_unload(coordinator.async_track_room_presence())  # 0.43.0: room presence sources
     # 0.71.0: the house's AI analysis – kept over a restart, made daily when an AI Task entity is given

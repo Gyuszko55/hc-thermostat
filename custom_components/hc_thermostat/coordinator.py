@@ -528,6 +528,27 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 return mode
         return None
 
+    def _run_entity(self) -> str | None:
+        """0.79.5: the relay whose switching on is one heating run (a flame also lights for hot water and relights
+        within a run, so with a relay the starts are the relay's)."""
+        entity = self.conf.get(CONF_ACTUATOR)
+        return entity if entity and entity.split(".")[0] in ("switch", "input_boolean", "light") else None
+
+    @callback
+    def async_track_runs(self):
+        """0.79.5: count each heating run when the relay switches on – on the event, not at the next decision."""
+        entity = self._run_entity()
+        if not entity:
+            return lambda: None
+
+        @callback
+        def changed(event: Event) -> None:
+            old, new = event.data.get("old_state"), event.data.get("new_state")
+            if old is not None and new is not None and old.state == "off" and new.state == "on":
+                self.runs.start(dt_util.now())
+
+        return async_track_state_change_event(self.hass, [entity], changed)
+
     @callback
     def async_track_target_source(self):
         """Follow the setpoint of a wall thermostat / number: a hand on its knob becomes the manual target here
@@ -1445,7 +1466,11 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             decision.output if self.mode == MODE_ACTIVE and conf.get(CONF_ACTUATOR) else None)
         counted = heating is not None and self.cfg.control not in ("external", "ac")
         if counted:
-            self.runs.update(now, bool(heating))
+            # 0.79.5: with a relay its switching on is counted (async_track_runs); without one the heating signal's
+            # starts, but not while it makes hot water
+            dhw = self.hass.states.get(conf.get(CONF_HP_DHW) or "")
+            self.runs.update(now, bool(heating), count_starts=self._run_entity() is None
+                             and not (dhw is not None and dhw.state == "on"))
             values["runs"] = self.runs.summary(now)
         if self.cfg.control not in ("external", "ac"):
             self._log_switch(decision, now)

@@ -43,6 +43,16 @@ jobs:
       - name: Tests
         run: python -m pytest -q tests
 
+  shelly-scripts:
+    # 0.79.2: the Shelly scripts (HC Lite) on a simulated device – the runner's own Node.js, no extra action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4 (0.78.2: pinned)
+        with:
+          persist-credentials: false
+      - name: Desk tests
+        run: node --version && node --test "guard/tests/*.test.mjs"
+
   hc-core:
     # 0.78.0: the decision core as its own package – built, installed without Home Assistant and run once
     runs-on: ubuntu-latest

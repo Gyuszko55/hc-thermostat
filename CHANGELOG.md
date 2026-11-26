@@ -1,6 +1,99 @@
 # Changelog
 
-## Unreleased
+## 0.79.9 – 2026-11-26
+
+- **HC Lite: web set-up on the relay, without Home Assistant.** The relay's page (`…/script/<id>/lite?page=1`)
+  loads a full set-up page: status (mode, ±, manual target, demand, boost, reading age, last switches), every
+  setting in groups with its range, and first steps for a new relay – create the token, check the clock and time
+  zone and that the script starts on power-up, pick the thermometer (BLU H&T and wired probes are listed; for a
+  Wi-Fi H&T the webhook URL with the token is ready to copy), and shadow / live (going live takes a second click).
+  A script holds only a few kB, so the page's program is fetched by the browser (from the public repository by
+  default; another address can be set with `ui_src`) and talks to the relay only. Without the internet the small
+  status page still works.
+- **The first token from the web page.** `{"init_tok": ".."}` sets the token only while the relay has none.
+- **HC takes over a change made on the relay.** The script counts a settings revision up on every real change. HC
+  keeps the revision it last synced: a higher one on the relay means a change made there, and HC adopts those
+  settings into its own options instead of sending its old ones back. A change made in HC still goes to the relay.
+  Needs the new script on the device.
+
+## 0.79.8 – 2026-11-26
+
+- **HC Lite: boost.** With TPI or PI, a room at least *boost* °C below the target (1.0 by default; 0 turns it off)
+  is heated without a break until it is *boost end* °C (0.3) from the target; then a new cycle starts and the
+  demand rules again. The PI integral stands still during a boost (it would only wind up), and the longest burn
+  still holds. The status shows the reason "boost" and `boost: true`. With preheat a cold morning starts as a boost.
+  Needs the new script on the device.
+
+## 0.79.7 – 2026-11-26
+
+- **HC Lite: preheat.** The night ends early by the room's shortfall: the day target starts
+  (day target − room) × *preheat* minutes before the day period (30 min per °C by default, at most *longest preheat*,
+  120 min; 0 turns it off). Once begun it holds until the day starts, so a room that warms up quickly does not drop
+  back to the night target; a manual target, "away" or "off" has no preheat. The status shows the period "preheat".
+  When the target rises by 0.3 °C or more while the relay is off, a new cycle starts at once (before, the rest of the
+  running cycle was waited out, up to a whole cycle late). Needs the new script on the device.
+
+## 0.79.6 – 2026-11-25
+
+- **HC Lite: a Wi-Fi H&T as the room thermometer.** A new sensor choice, *Wi-Fi H&T (pushes its reading)*: the
+  thermometer's own webhook sends `GET http://<relay>/script/<id>/lite?tok=<token>&t=${ev.tC}` (the H&T's own URL syntax; the settings help names it without braces, as the frontend took them for a message argument) on each temperature
+  change, straight to the relay, without Home Assistant. The token is the script's own; "?" and "&" both separate (the
+  H&T appends "?hum=.."). The reading ages by the relay's uptime; older than the age limit (set it to 7200 s, as the
+  H&T sends on a change only) or none since a script start means no reading, so the no-reading rule applies until the
+  next push. A pushed reading is taken in any sensor mode but used only with *push*. Needs the new script on the device.
+
+## 0.79.5 – 2026-11-25
+
+- **"Starts today" counts heating runs.** With a relay (switch, input_boolean, light) a start is the relay switching
+  on, counted on the state change itself, so a short run between two decisions is not missed. The flame signal used
+  to be counted at the decisions only: it also lights for hot water and relights within a run, and short lights were
+  missed, so the number was neither the runs nor all lights (a user counted 25 runs, it showed 32 of 42 flame lights).
+  Without a relay the heating signal's starts are counted as before, but not while the hot-water entity is on. The
+  run time still comes from the heating signal (the flame when one is given). The same holds for the 24-hour, week
+  and season counts and the starts in the last hour (the short-cycling watch).
+
+## 0.79.4 – 2026-11-25
+
+- **HC Lite: a third control mode, PI** (the Shelly script's version 2): besides hysteresis and TPI the settings now
+  offer *PI (TPI + integral)*. The demand is base + gain × (error + integral of the error / integral time), so a lasting
+  gap closes by itself as the integral learns the house's steady need. The integral stands still while the demand is
+  pinned at 0 or 100 % and the error pushes further (anti-windup), stays within ±1, goes to the device's KVS every 15
+  minutes (a restart keeps it) and starts from zero when the mode is switched to PI. New setting: *PI integral time*
+  (1800–86400 s, 14400 s by default). The status and the climate entity show the integral part of the demand; the HC
+  dial card labels it *LITE·PID*. The new script has to be uploaded to the device (upload_shelly.py --lite); an older
+  script ignores the PI choice and keeps its own mode.
+- **HC Lite: the reason tells the present decision.** It used to change only when the relay switched, so after a
+  script start it kept saying *boot* until the first switch; now it is the reason of the state it keeps (e.g. *target
+  reached*, *demand 0 %*, *inside the band*). A switch held back by min on / min off keeps the reason of the last switch.
+
+## 0.79.3 – 2026-11-25
+
+- **Hydraulic diagram in two depths, an info-first part panel** (a tester's design idea, dev #7, variant 2 – tried in
+  dev): a *User | Maintenance* switch above the diagram. The drawing and its data are the same; only how much it tells
+  differs, and the choice is no permission (it is remembered per browser). A tap on a part no longer jumps away: a panel
+  beside the drawing tells what the part is, what it does now and why, and lists its values each marked by kind –
+  requested, given (HC's command), measured, feedback, worked out, estimated (an estimate is never shown as measured).
+  The maintenance depth adds the demand, the reason code, limits, the heat need (estimated), the command against the
+  feedback (with a note when they differ, a calm one in shadow), reading ages, starts and run hours today, the last
+  switch, the heat source watch and the instance's entities; on the plain diagram each source gets a demand / command /
+  feedback line. *Open* goes to the instance as before. No new control logic: everything comes from the HC info data.
+
+## 0.79.2 – 2026-11-24
+
+- **HC Lite, first version (Shelly script, shadow-ready):** `guard/shelly/hc_lite.js` – a complete small thermostat
+  on a Shelly Gen3 / Gen4 relay with a BLU H&T: day / night program (weekday and weekend), away, off (frost), manual
+  target until the next change or for a time, hysteresis or a simple TPI, min on / min off / max on, the dead-man
+  timer, a safe duty without a reading, shadow mode and a small page of its own. It heats without Home Assistant.
+  `upload_shelly.py --lite` installs it; desk tests run the unchanged script on a simulated Shelly
+  (`node --test "guard/tests/*.test.mjs"`, also in CI). Tried on a real Shelly 1 Gen4 (firmware 2.2.0) in shadow: the
+  program, the manual target, the token and the page work; peak memory 9 KB. A wired add-on probe can be the room
+  thermometer instead of the BLU H&T.
+- **HC Lite in Home Assistant:** a new role, *HC Lite on a Shelly*. The setup asks for the script's address, its token
+  and the device password (checked live), then the settings (targets, day / night times, control, limits, what to do
+  without a reading, shadow). The instance keeps the device's settings in line with its own, reads it every 30 s and
+  offers a climate entity (target → a manual target until the next program change, off, away), the boiler state, the
+  decision, today's starts and run time. The device heats by itself – Home Assistant can be off. A new instance starts
+  in shadow. The HC panels leave a Lite instance out; its diagnostics carry the device's status.
 
 - **hcd 0.1.4: in shadow it follows the integration's learned values** (`learned_from: <HC entry id>`,
   `learned_every_s`, 900 s by default): the house follows the integration's relay, not hcd's, so hcd's own learner drew

@@ -17,6 +17,10 @@ from .measure_entities import measure_sensors
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    if entry.data.get(CONF_ROLE) == "lite":  # 0.79.2
+        from .lite import async_setup_sensor
+        await async_setup_sensor(hass, entry, async_add_entities)
+        return
     c = entry.runtime_data
     if entry.data.get(CONF_ROLE) == "central":
         async_add_entities([HcCentralDecision(c)])

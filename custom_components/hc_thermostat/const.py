@@ -4,6 +4,10 @@ DOMAIN = "hc_thermostat"
 PLATFORMS = ["binary_sensor", "button", "climate", "sensor", "switch"]
 CENTRAL_PLATFORMS = ["binary_sensor", "sensor"]
 CIRCUIT_PLATFORMS = ["binary_sensor", "sensor", "switch"]  # 0.56.0: the writing-paused switch
+LITE_PLATFORMS = ["binary_sensor", "climate", "sensor"]  # 0.79.2: HC Lite – the device heats, HA manages
+CONF_LITE_URL = "lite_url"  # the script's endpoint, http://<ip>/script/<id>/lite
+CONF_LITE_TOKEN = "lite_token"
+CONF_LITE_PASSWORD = "lite_password"  # the Shelly's own password (digest auth), optional
 HP_COORD_PLATFORMS = ["binary_sensor", "button", "number", "sensor", "switch"]  # 0.55.0: the offset is a number; 0.77.0 button
 
 CONF_HEAT_SOURCE = "heat_source"
@@ -48,7 +52,7 @@ CONF_FLOW = "flow_setpoint_entity"  # heating curve (EXPERIMENTAL): where the fl
 CONF_HEAT_ENABLE = "heat_enable_entity"
 # Several zones (stage 3): the role of an instance; a central boiler reads its zone thermostats
 CONF_ROLE = "role"
-ROLES = ["standalone", "zone", "central", "buffer", "circuit", "hp_coord"]
+ROLES = ["standalone", "zone", "central", "buffer", "circuit", "hp_coord", "lite"]  # 0.79.2: lite = HC Lite (Shelly)
 CONF_BUFFER_TOP = "buffer_top_entity"  # buffer tank: temperature at the top (required)
 CONF_BUFFER_BOTTOM = "buffer_bottom_entity"  # buffer tank: temperature at the bottom (optional)
 CONF_BUFFER_UPPER = "buffer_upper_entity"  # 0.54.0: temperature in the upper middle (optional)

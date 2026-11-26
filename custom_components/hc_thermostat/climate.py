@@ -19,6 +19,10 @@ from .entity import HcEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    if entry.data.get("role") == "lite":  # 0.79.2
+        from .lite import async_setup_climate
+        await async_setup_climate(hass, entry, async_add_entities)
+        return
     coordinator = entry.runtime_data
     rooms = []
     if rooms_supported(coordinator.conf) and coordinator.other_rooms():

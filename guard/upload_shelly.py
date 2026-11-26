@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 
 CODE = Path(__file__).resolve().parent / "shelly" / "hc_guard.js"
+LITE = Path(__file__).resolve().parent / "shelly" / "hc_lite.js"  # 0.79.2: HC Lite – a whole thermostat on the relay
 CHUNK = 1024
 BUSY_TRIES = 4  # a 429: wait 2, 4, 6 s and try again
 TIMEOUT_S = 10
@@ -105,6 +106,83 @@ def set_auth(host: str, info: dict, password: str) -> None:
     rpc(host, "Shelly.SetAuth", {"user": "admin", "realm": realm, "ha1": ha1})
 
 
+def _auth(a, info: dict, password: str) -> int:
+    if a.set_password:
+        if not info.get("auth_en"):
+            set_auth(a.host, info, password)
+            print("The device is now protected with the password (user admin).")
+        use_password(a.host, password)
+    elif password or info.get("auth_en"):
+        if not password:
+            print("The device has a password: give it in HC_GUARD_PASSWORD (or --password)")
+            return 2
+        use_password(a.host, password)
+    return 0
+
+
+def _put(host: str, name: str, code: str) -> int:
+    scripts = rpc(host, "Script.List").get("scripts", [])
+    sid = next((s["id"] for s in scripts if s.get("name") == name), None)
+    if sid is None:
+        sid = rpc(host, "Script.Create", {"name": name})["id"]
+    else:
+        rpc(host, "Script.Stop", {"id": sid})
+    for i in range(0, len(code), CHUNK):
+        rpc(host, "Script.PutCode", {"id": sid, "code": code[i:i + CHUNK], "append": i > 0})
+    rpc(host, "Script.SetConfig", {"id": sid, "config": {"enable": True}})
+    return sid
+
+
+def lite(a) -> int:
+    """0.79.2: HC Lite – its own script ("hc_lite"), settings in hc_lite_cfg (kept; only the sensor and shadow are
+    set here), the token in hc_lite_token. The guard script, if any, is left alone (do not run both on one relay)."""
+    token = a.token or os.environ.get("HC_GUARD_TOKEN", "")
+    password = a.password or os.environ.get("HC_GUARD_PASSWORD", "")
+    if a.set_password and len(password) < 8:
+        print("--set-password: give a password of at least 8 characters (HC_GUARD_PASSWORD)")
+        return 2
+    kind, _, sid_s = a.sensor.partition(":")
+    if kind not in ("bthomesensor", "temperature") or not sid_s.isdigit():
+        print("--lite needs --sensor bthomesensor:<id> (the BLU H&T's temperature) or temperature:<id> (an add-on probe)")
+        return 2
+    code = LITE.read_text("ascii")
+    info = rpc(a.host, "Shelly.GetDeviceInfo")
+    rc = _auth(a, info, password)
+    if rc:
+        return rc
+    if int(info.get("gen", 0)) < 2:
+        print(f"{info.get('model')}: generation {info.get('gen')} has no scripting – use a Gen3 / Gen4 relay")
+        return 1
+    guard = next((s for s in rpc(a.host, "Script.List").get("scripts", []) if s.get("name") == "hc_guard"), None)
+    if guard and guard.get("running"):
+        print("hc_guard runs on this relay – stop it first: one script must own the relay")
+        return 1
+    sid = _put(a.host, "hc_lite", code)
+    items = rpc(a.host, "KVS.GetMany", {"match": "hc_lite_cfg"}).get("items") or []
+    if isinstance(items, dict):  # older firmware: an object by key
+        items = [{"key": k, **v} for k, v in items.items()]
+    try:
+        cfg = json.loads(next((i.get("value") for i in items if i.get("key") == "hc_lite_cfg"), None) or "{}")
+    except ValueError:
+        cfg = {}
+    cfg.update(sensor=kind, sensor_id=int(sid_s), shadow=bool(a.shadow))
+    rpc(a.host, "KVS.Set", {"key": "hc_lite_cfg", "value": json.dumps(cfg)})
+    made = not token
+    if made:
+        token = secrets.token_urlsafe(18)
+    rpc(a.host, "KVS.Set", {"key": "hc_lite_token", "value": token})
+    rpc(a.host, "Script.Start", {"id": sid})
+    print(f"HC Lite is running as script {sid} on {info.get('model')} ({info.get('ver')})"
+          + (" – SHADOW: it decides, the relay is not switched" if a.shadow else ""))
+    print(f"Status: http://{a.host}/script/{sid}/lite   page: http://{a.host}/script/{sid}/lite?page=1")
+    if made:
+        print(f"Token (new, shown only now): {token}")
+    if not info.get("auth_en") and not a.set_password:
+        print("WARNING: the device has no password – the page stays read only and anyone on the network can switch "
+              "the relay. Run again with --set-password (HC_GUARD_PASSWORD).")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("host")
@@ -116,7 +194,12 @@ def main() -> int:
                     "auxiliary contact and its state when the chain is closed (all clear)")
     ap.add_argument("--deadman", type=int, default=None, help="0.77.1: seconds after which the relay switches itself "
                     "off unless the running script re-arms it (default 180 on the device; 0 = none, else 60-3600)")
+    ap.add_argument("--lite", action="store_true", help="0.79.2: upload HC Lite (a complete thermostat on the relay) "
+                    "instead of the guard; --sensor gives its BLU H&T (bthomesensor:<id>)")
+    ap.add_argument("--shadow", action="store_true", help="with --lite: decide and report, never switch the relay")
     a = ap.parse_args()
+    if a.lite:
+        return lite(a)
     if a.deadman is not None and a.deadman != 0 and not 60 <= a.deadman <= 3600:
         print("--deadman: 0 or 60-3600 seconds")
         return 2

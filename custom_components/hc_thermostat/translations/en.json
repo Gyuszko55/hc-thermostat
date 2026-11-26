@@ -588,6 +588,64 @@
             }
           }
         }
+      },
+      "lite": {
+        "title": "HC Lite – the device",
+        "description": "The address the uploader printed (upload_shelly.py --lite), e.g. http://IP/script/1/lite, its token, and the Shelly's own password if it has one.",
+        "data": {
+          "lite_url": "Script address",
+          "lite_token": "Token",
+          "lite_password": "Device password (optional)"
+        },
+        "data_description": {
+          "lite_url": "http://IP/script/ID/lite",
+          "lite_token": "Shown once by the uploader; kept on the device (hc_lite_token).",
+          "lite_password": "Needed when the Shelly is protected with a password (user admin). With it, the device's own page may change the target too."
+        }
+      },
+      "lite_settings": {
+        "title": "HC Lite – settings",
+        "description": "Sent to the device when saved; the device heats by them with or without Home Assistant. A new instance starts in shadow (it decides, the relay is not switched).",
+        "data": {
+          "lite_sp_day": "Day target",
+          "lite_sp_night": "Night target",
+          "lite_sp_away": "Away target",
+          "lite_frost": "Frost protection (mode off)",
+          "lite_day": "Day starts (weekdays)",
+          "lite_night": "Night starts (weekdays)",
+          "lite_day_we": "Day starts (weekend)",
+          "lite_night_we": "Night starts (weekend)",
+          "lite_ctl": "Control",
+          "lite_hyst": "Hysteresis band (total)",
+          "lite_cycle": "TPI/PI cycle",
+          "lite_kp": "TPI/PI gain (per °C)",
+          "lite_bias": "TPI/PI base demand",
+          "lite_ti": "PI integral time",
+          "lite_boost": "Boost from this far below the target",
+          "lite_boost_end": "Boost end (this close to the target)",
+          "lite_pre": "Preheat (min per °C)",
+          "lite_pre_max": "Longest preheat",
+          "lite_min_on": "Minimum run",
+          "lite_min_off": "Minimum pause",
+          "lite_max_on": "Longest run (0: no limit)",
+          "lite_ns": "Without a reading",
+          "lite_don": "Safe duty: on",
+          "lite_doff": "Safe duty: off",
+          "lite_sensor": "Room thermometer",
+          "lite_sensor_id": "Thermometer component id",
+          "lite_sensor_max_age": "A reading is too old after",
+          "lite_shadow": "Shadow (decide only, do not switch)"
+        },
+        "data_description": {
+          "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
+          "lite_sensor_id": "bthomesensor:ID of the BLU H&T's temperature (Shelly page → Components), or temperature:ID of an add-on probe. Not used with a Wi-Fi H&T (push): its webhook sends the reading to the relay's …/script/1/lite?tok=TOKEN&t=TEMPERATURE (ev.tC on the H&T); set the age limit to 7200 s then, as the H&T sends on a change only.",
+          "lite_shadow": "Run it first beside the old thermostat; untick when it may switch the boiler.",
+          "lite_ti": "PI only: in how many seconds the integral adds one more step of the gain for a steady 1 °C error. Shorter learns faster but may swing; 14400 s (4 h) suits most houses.",
+          "lite_boost": "TPI/PI only: this far or more below the target, it heats without a break (the longest burn still holds). 0: no boost.",
+          "lite_boost_end": "The boost lasts until the room is this close to the target; then the cycle takes over.",
+          "lite_pre": "The day target starts this much earlier before the day period, for each degree the room is short: e.g. 30 min/°C and 1.5 °C short = 45 minutes early. Once begun, it holds until the day starts. 0: no preheat.",
+          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is."
+        }
       }
     },
     "error": {
@@ -603,7 +661,11 @@
       "no_output": "Writing needs at least one output entity.",
       "wood_order": "The off threshold must be below the on threshold.",
       "heat_meter_three": "The heat meter needs all three water readings (flow, return, water flow) – or none.",
-      "heat_meter_same": "The flow and the return thermometer cannot be the same entity."
+      "heat_meter_same": "The flow and the return thermometer cannot be the same entity.",
+      "lite_url": "Give the script's address: http://IP/script/ID/lite",
+      "lite_token": "The device refused the token",
+      "lite_password": "The device refused the password",
+      "lite_unreachable": "The device does not answer at that address"
     },
     "abort": {
       "already_configured": "An instance with this name already exists.",
@@ -1700,6 +1762,64 @@
           "night_start_weekend": "For Friday and Saturday evening's night (ending on Saturday and Sunday morning). Empty: as on weekdays. Give both the start and the end.",
           "night_end_weekend": "On Saturday and Sunday morning the sleep target lasts until this – e.g. 08:00 if you sleep longer at the weekend."
         }
+      },
+      "lite": {
+        "title": "HC Lite – the device",
+        "description": "The address the uploader printed (upload_shelly.py --lite), e.g. http://IP/script/1/lite, its token, and the Shelly's own password if it has one.",
+        "data": {
+          "lite_url": "Script address",
+          "lite_token": "Token",
+          "lite_password": "Device password (optional)"
+        },
+        "data_description": {
+          "lite_url": "http://IP/script/ID/lite",
+          "lite_token": "Shown once by the uploader; kept on the device (hc_lite_token).",
+          "lite_password": "Needed when the Shelly is protected with a password (user admin). With it, the device's own page may change the target too."
+        }
+      },
+      "lite_settings": {
+        "title": "HC Lite – settings",
+        "description": "Sent to the device when saved; the device heats by them with or without Home Assistant. A new instance starts in shadow (it decides, the relay is not switched).",
+        "data": {
+          "lite_sp_day": "Day target",
+          "lite_sp_night": "Night target",
+          "lite_sp_away": "Away target",
+          "lite_frost": "Frost protection (mode off)",
+          "lite_day": "Day starts (weekdays)",
+          "lite_night": "Night starts (weekdays)",
+          "lite_day_we": "Day starts (weekend)",
+          "lite_night_we": "Night starts (weekend)",
+          "lite_ctl": "Control",
+          "lite_hyst": "Hysteresis band (total)",
+          "lite_cycle": "TPI/PI cycle",
+          "lite_kp": "TPI/PI gain (per °C)",
+          "lite_bias": "TPI/PI base demand",
+          "lite_ti": "PI integral time",
+          "lite_boost": "Boost from this far below the target",
+          "lite_boost_end": "Boost end (this close to the target)",
+          "lite_pre": "Preheat (min per °C)",
+          "lite_pre_max": "Longest preheat",
+          "lite_min_on": "Minimum run",
+          "lite_min_off": "Minimum pause",
+          "lite_max_on": "Longest run (0: no limit)",
+          "lite_ns": "Without a reading",
+          "lite_don": "Safe duty: on",
+          "lite_doff": "Safe duty: off",
+          "lite_sensor": "Room thermometer",
+          "lite_sensor_id": "Thermometer component id",
+          "lite_sensor_max_age": "A reading is too old after",
+          "lite_shadow": "Shadow (decide only, do not switch)"
+        },
+        "data_description": {
+          "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
+          "lite_sensor_id": "bthomesensor:ID of the BLU H&T's temperature (Shelly page → Components), or temperature:ID of an add-on probe. Not used with a Wi-Fi H&T (push): its webhook sends the reading to the relay's …/script/1/lite?tok=TOKEN&t=TEMPERATURE (ev.tC on the H&T); set the age limit to 7200 s then, as the H&T sends on a change only.",
+          "lite_shadow": "Run it first beside the old thermostat; untick when it may switch the boiler.",
+          "lite_ti": "PI only: in how many seconds the integral adds one more step of the gain for a steady 1 °C error. Shorter learns faster but may swing; 14400 s (4 h) suits most houses.",
+          "lite_boost": "TPI/PI only: this far or more below the target, it heats without a break (the longest burn still holds). 0: no boost.",
+          "lite_boost_end": "The boost lasts until the room is this close to the target; then the cycle takes over.",
+          "lite_pre": "The day target starts this much earlier before the day period, for each degree the room is short: e.g. 30 min/°C and 1.5 °C short = 45 minutes early. Once begun, it holds until the day starts. 0: no preheat.",
+          "lite_pre_max": "It never starts preheating earlier than this (minutes), however short the room is."
+        }
       }
     },
     "error": {
@@ -1725,7 +1845,11 @@
       "heat_meter_same": "The flow and the return thermometer cannot be the same entity.",
       "guard_url": "The guard's address must start with http:// or https://.",
       "guard_ttl": "The lease must be valid at least twice the renewal.",
-      "guard_token_required": "The local guard needs its token (the guard's KVS hc_guard_token)."
+      "guard_token_required": "The local guard needs its token (the guard's KVS hc_guard_token).",
+      "lite_url": "Give the script's address: http://IP/script/ID/lite",
+      "lite_token": "The device refused the token",
+      "lite_password": "The device refused the password",
+      "lite_unreachable": "The device does not answer at that address"
     }
   },
   "selector": {
@@ -1800,7 +1924,8 @@
         "central": "Central boiler (by the zones' demand)",
         "buffer": "Buffer tank (charges from the heat source)",
         "circuit": "Mixing circuit from a buffer (shadow: flow target only)",
-        "hp_coord": "Heat pump coordination for a buffer (shadow: ON/OFF and target only)"
+        "hp_coord": "Heat pump coordination for a buffer (shadow: ON/OFF and target only)",
+        "lite": "HC Lite on a Shelly (the relay heats on its own; managed here)"
       }
     },
     "weekday": {
@@ -1898,6 +2023,26 @@
       "options": {
         "off": "switch off",
         "duty": "heat on a fixed duty cycle"
+      }
+    },
+    "lite_ctl": {
+      "options": {
+        "hyst": "Hysteresis",
+        "tpi": "Time-proportional (TPI)",
+        "pid": "PI (TPI + integral)"
+      }
+    },
+    "lite_ns": {
+      "options": {
+        "duty": "A safe duty cycle",
+        "off": "Off"
+      }
+    },
+    "lite_sensor": {
+      "options": {
+        "bthomesensor": "Shelly BLU H&T (Bluetooth)",
+        "temperature": "Wired add-on probe",
+        "push": "Wi-Fi H&T (pushes its reading)"
       }
     }
   },
@@ -2160,6 +2305,15 @@
           "unreachable": "unreachable",
           "safety": "life-safety chain open – off"
         }
+      },
+      "lite_reason": {
+        "name": "Decision"
+      },
+      "lite_starts_today": {
+        "name": "Starts today"
+      },
+      "lite_on_today": {
+        "name": "Run time today"
       }
     },
     "binary_sensor": {
@@ -2201,6 +2355,9 @@
       },
       "safety_stop": {
         "name": "Life-safety stop"
+      },
+      "lite_boiler": {
+        "name": "Boiler"
       }
     },
     "climate": {
@@ -2230,6 +2387,9 @@
             }
           }
         }
+      },
+      "lite_thermostat": {
+        "name": "Thermostat"
       }
     },
     "button": {

@@ -169,17 +169,24 @@ class RunCounter:
         self.since: datetime | None = None
         self.recent: deque[datetime] = deque(maxlen=400)  # start times (the last hour and, 0.79.0, the last 24 h count)
 
-    def update(self, now: datetime, on: bool | None) -> None:
+    def update(self, now: datetime, on: bool | None, count_starts: bool = True) -> None:
+        """Run time from the heating signal; starts too unless they are counted by `start` (0.79.5)."""
         if on is None:
             self.on, self.since = None, None
             return
         day = self.days.setdefault(now.date().isoformat(), {"starts": 0, "on_s": 0.0})
         if self.on and self.since is not None:  # the time since the last look (a long gap – a restart – is not counted)
             day["on_s"] += max(0.0, min((now - self.since).total_seconds(), 600.0))
-        if on and self.on is False:
+        if count_starts and on and self.on is False:
             day["starts"] += 1
             self.recent.append(now)
         self.on, self.since = on, now
+        self._trim(now)
+
+    def start(self, now: datetime) -> None:
+        """0.79.5: one heating run, counted when the relay switches on (an event, so no short one is missed)."""
+        self.days.setdefault(now.date().isoformat(), {"starts": 0, "on_s": 0.0})["starts"] += 1
+        self.recent.append(now)
         self._trim(now)
 
     def _trim(self, now: datetime) -> None:

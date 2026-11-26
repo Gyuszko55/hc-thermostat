@@ -644,7 +644,8 @@ function renderPlainSchematic(m, opts) {
   const px = 200, pw = sources.length ? 230 : 0, rx0 = (pw ? px + pw : 190) + 24, colW = 200;
   const W = Math.max(760, rx0 + cols.length * colW + 10);
   const maxRooms = Math.max(1, ...cols.map((c) => c.rooms.length));
-  const H = Math.max(260, 110 + Math.max(maxRooms * 46, sources.length * 96, outN * 70) + 30);
+  const maint = opts.depth === "maint", SP = maint ? 112 : 96, BH = maint ? 96 : 80;  // 0.79.3: room for the maintenance lines
+  const H = Math.max(260, 110 + Math.max(maxRooms * 46, sources.length * SP, outN * 70) + 30);
   // outdoors: the outdoor temperature, AC outdoor units, a heat pump's outdoor unit
   g.push(box(10, 40, 170, Math.max(150, 70 + outN * 70), T.outside));
   if (isNum(m.outdoor)) g.push(`<text x="20" y="${40 + 40}" class="sval">${esc(`${T.outdoor} ${deg(m.outdoor, lang)}`)}</text>`);
@@ -656,11 +657,12 @@ function renderPlainSchematic(m, opts) {
   if (pw) {
     g.push(box(px, 40, pw, H - 60, T.plant));
     sources.forEach((i, j) => {
-      const y = 70 + j * 96, on = runs(i), k = kindOf(i), d = i.decision || {};
+      const y = 70 + j * SP, on = runs(i), k = kindOf(i), d = i.decision || {};
       const burner = ["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(k);
-      g.push(`<g class="hs" ${key(i)}><rect x="${px + 20}" y="${y}" width="${pw - 40}" height="80" rx="8" class="sdev ${on ? "on" : ""}"/>
+      g.push(`<g class="hs" ${key(i)}><rect x="${px + 20}" y="${y}" width="${pw - 40}" height="${BH}" rx="8" class="sdev ${on ? "on" : ""}"/>
         <text x="${px + 32}" y="${y + 20}" class="sname">${esc(T.kinds[k] || k)}</text><text x="${px + 32}" y="${y + 37}" class="ssm">${esc(short(i.title))}</text>
         <text x="${px + 32}" y="${y + 56}" class="sval">${esc(`${on ? (burner ? T.burning : T.runs) : (burner ? T.idle : T.stands)}${isNum(num(d.flow_setpoint)) ? ` · ${T.flowTarget} ${deg(num(d.flow_setpoint), lang)}` : ""}`)}</text>
+        ${maint ? `<text x="${px + 32}" y="${y + 73}" class="smaint">${esc(`${PART_TXT[lang].demandS} ${isNum(num(d.demand)) ? `${fx(num(d.demand) * 100, lang, 0)} %` : "–"}${d.reason ? ` · ${d.reason}` : ""}`)}</text><text x="${px + 32}" y="${y + 88}" class="smaint">${esc(`${PART_TXT[lang].cmdS} ${d.output ? T.on : T.offv}${i.actual === true || i.actual === false ? ` · ${PART_TXT[lang].kind.fb} ${i.actual ? T.on : T.offv}` : ""}`)}</text>` : ""}
         ${pipeTemps(i, px + pw - 32, y, lang, T)}
         ${on && burner ? `<path transform="translate(${px + pw - 44},${y + 46}) scale(1.4)" d="M0,-12 C6,-5 10,-1 8,5 C6,11 -6,11 -8,5 C-10,-1 -4,-2 -2,-8 C0,-4 2,-3 0,-12Z" class="sflame"/>` : ""}</g>`);
     });
@@ -670,7 +672,7 @@ function renderPlainSchematic(m, opts) {
     const cx = rx0 + k * colW, cw = colW - 14;
     g.push(`<text x="${cx + cw / 2}" y="62" class="slab" text-anchor="middle">${esc(col.title)}</text>`);
     if (col.src) {
-      const j = sources.indexOf(col.src), on = runs(col.src), sy = 70 + j * 96;
+      const j = sources.indexOf(col.src), on = runs(col.src), sy = 70 + j * SP;
       g.push(pipe(`M${px + pw - 20},${sy + 30} H${px + pw + 6 + k * 4} V${84 + k * 4} H${cx + 24} V110`, true, on));
       // 0.78.2: the return back to the source, and the measured flow / return temperatures on the pipes
       g.push(pipe(`M${cx + 8},110 V${98 + k * 4} H${px + pw + 16 + k * 4} V${sy + 54} H${px + pw - 20}`, false, on));
@@ -681,6 +683,122 @@ function renderPlainSchematic(m, opts) {
     });
   });
   return `<svg class="hcsch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.plant)}">${g.join("")}</svg>`;
+}
+
+// 0.79.3: the hydraulic diagram in two depths (a tester's design #7, variant 2) and an info-first part panel.
+// The depth is only how much the drawing and the panel tell – "user" (what happens) or "maint" (why: demand, command
+// and feedback, sensor ages, entities). It never grants anything: the panel only reads, a button opens the instance.
+// Every value carries its kind: requested, given (HC's command), measured, feedback, worked out or estimated – an
+// estimate is never shown as a measurement.
+export const PART_TXT = {
+  hu: {
+    depth: { user: "Felhasználói", maint: "Karbantartói" }, depthNote: "csak a részletesség – nem jogosultság",
+    kind: { req: "kért", out: "kiadott", meas: "mért", fb: "visszajelzés", calc: "számított", est: "becsült" },
+    now: "Most", why: "Miért", values: "Értékek", tech: "Műszaki részletek", open: "Megnyitás", close: "Bezárás",
+    heats: "fűt", rests: "nem fűt", burns: "ég", idle: "áll", target: "Cél", flowTarget: "Előremenő cél", indoor: "Bent",
+    outdoor: "Kint", command: "HC parancs", cmdShadow: "árnyék – a HC nem kapcsol", feedback: "Hőforrás", flowM: "Előremenő",
+    returnM: "Visszatérő", demand: "Igény", need: "Hőigény", reason: "Ok (kód)", limited: "Korlátozza", ageS: "mérés kora",
+    starts: "Indítás ma", hours: "Üzemóra ma", lastSw: "Utolsó kapcsolás", health: "Hőforrás-figyelés", mode: "Vezérlés",
+    unitSet: "A hőforrás beállított célja", unitAsk: "HC kéri", unitRaw: "Számolt cél", pump: "Szivattyú", entities: "Entitások",
+    mismatch: "A parancs és a visszajelzés most eltér.", mismatchShadow: "Árnyékban a valódi hőforrás a régi vezérlés szerint megy – az eltérés itt rendben van.",
+    layers: "Puffer-rétegek", stored: "Tárolt hő", charge: "Töltöttség", none: "–", min: "perc", h: "óra", s: "mp", on: "be", off: "ki",
+    roomsOf: "Helyiségek", demandS: "igény", cmdS: "parancs", healthSt: { ok: "rendben" },
+  },
+  en: {
+    depth: { user: "User", maint: "Maintenance" }, depthNote: "detail only – not a permission",
+    kind: { req: "requested", out: "given", meas: "measured", fb: "feedback", calc: "worked out", est: "estimated" },
+    now: "Now", why: "Why", values: "Values", tech: "Technical details", open: "Open", close: "Close",
+    heats: "heating", rests: "not heating", burns: "burning", idle: "idle", target: "Target", flowTarget: "Flow target", indoor: "Indoor",
+    outdoor: "Outdoor", command: "HC command", cmdShadow: "shadow – HC does not switch", feedback: "Heat source", flowM: "Flow",
+    returnM: "Return", demand: "Demand", need: "Heat need", reason: "Reason (code)", limited: "Limited by", ageS: "reading age",
+    starts: "Starts today", hours: "Run hours today", lastSw: "Last switch", health: "Heat source watch", mode: "Control",
+    unitSet: "The heat source's own target", unitAsk: "HC asks", unitRaw: "Worked-out target", pump: "Pump", entities: "Entities",
+    mismatch: "Command and feedback differ now.", mismatchShadow: "In shadow the real heat source follows the old control – a difference is fine here.",
+    layers: "Tank layers", stored: "Stored heat", charge: "Charge", none: "–", min: "min", h: "h", s: "s", on: "on", off: "off",
+    roomsOf: "Rooms", demandS: "demand", cmdS: "command", healthSt: { ok: "fine" },
+  },
+};
+
+const ageTxt = (s, P, lang) => (isNum(s) ? (s < 120 ? `${fx(s, lang, 0)} ${P.s}` : s < 7200 ? `${fx(s / 60, lang, 0)} ${P.min}` : `${fx(s / 3600, lang, 1)} ${P.h}`) : "");
+const inVal = (x) => (x && typeof x === "object" ? num(x.value) : num(x));
+const inAge = (x) => (x && typeof x === "object" ? num(x.age_s) : null);
+
+// The part panel of one instance (data-key "member:<entry id>"): what it is, what it does now and why, its values by
+// kind; in maintenance depth also demand, reason, limits, the command against the feedback, ages and entities.
+export function partInfo(all, key, opts = {}) {
+  const lang = opts.lang === "en" ? "en" : "hu", T = OV_TXT[lang], P = PART_TXT[lang], maint = opts.depth === "maint";
+  const id = String(key || "").startsWith("member:") ? String(key).slice(7) : null;
+  const i = id ? (all || []).find((x) => x && x.entry_id === id) : null;
+  if (!i) return "";
+  const d = i.decision || {}, det = d.details || {}, role = i.role || "standalone", k = i.heat_source || "onoff_boiler";
+  const inp = i.inputs || {}, ms = i.measures || {}, shadow = (i.mode || "shadow") === "shadow";
+  const burner = ["onoff_boiler", "modulating_boiler", "pellet_boiler"].includes(k);
+  const fb = i.actual === true || i.actual === false ? i.actual : null;
+  const rows = [];
+  const add = (kind, label, value, extra = "") => { if (value !== null && value !== undefined && value !== "" && value !== "–") rows.push({ kind, label, value, extra }); };
+  const circuit = role === "circuit";
+  add("req", circuit ? P.flowTarget : P.target, isNum(num(d.target)) ? deg(num(d.target), lang) : null);
+  add("meas", P.indoor, isNum(inVal(inp.indoor) ?? num(d.indoor)) ? deg(inVal(inp.indoor) ?? num(d.indoor), lang) : null,
+    maint && isNum(inAge(inp.indoor)) ? `${P.ageS} ${ageTxt(inAge(inp.indoor), P, lang)}` : "");
+  add("meas", P.outdoor, isNum(inVal(inp.outdoor) ?? num(d.outdoor)) ? deg(inVal(inp.outdoor) ?? num(d.outdoor), lang) : null,
+    maint && isNum(inAge(inp.outdoor)) ? `${P.ageS} ${ageTxt(inAge(inp.outdoor), P, lang)}` : "");
+  if (role !== "buffer" && role !== "zone") {
+    add("out", P.command, d.output === true ? P.on : d.output === false ? P.off : null, shadow ? P.cmdShadow : "");
+    if (fb !== null) add("fb", P.feedback, fb ? (burner ? P.burns : P.heats) : (burner ? P.idle : P.rests));
+  }
+  if (isNum(num(d.flow_setpoint))) add("out", P.flowTarget, deg(num(d.flow_setpoint), lang));
+  add("meas", P.flowM, isNum(num(ms.flow_temp)) ? deg(num(ms.flow_temp), lang) : circuit && isNum(num(ent(i, "circuit_flow_entity")?.state)) ? deg(num(ent(i, "circuit_flow_entity").state), lang) : null);
+  add("meas", P.returnM, isNum(num(ms.return_temp)) ? deg(num(ms.return_temp), lang) : null);
+  const tc = det.target_check;
+  if (tc) {
+    add("fb", P.unitSet, isNum(num(tc.reported)) ? deg(num(tc.reported), lang) : null);
+    add("out", P.unitAsk, isNum(num(tc.writing && tc.sent != null ? tc.sent : tc.given)) ? deg(num(tc.writing && tc.sent != null ? tc.sent : tc.given), lang) : null, tc.writing ? "" : P.cmdShadow);
+    add("calc", P.unitRaw, isNum(num(tc.raw)) ? deg(num(tc.raw), lang) : null);
+  }
+  if (circuit) { const ps = isOn(ent(i, "circuit_pump_entity")); add("fb", P.pump, ps === true ? T.runs : ps === false ? T.stands : null); }
+  if (role === "buffer") {
+    (i.stock?.layers || []).forEach((l, j) => add("meas", `${P.layers} ${j + 1}`, isNum(num(l.temp)) ? deg(num(l.temp), lang) : null));
+    add("est", P.stored, isNum(num(i.stock?.stored_kwh)) ? kwhMj(num(i.stock.stored_kwh), lang) : null);
+    add("est", P.charge, isNum(num(i.stock?.charge)) ? `${fx(num(i.stock.charge), lang, 0)} %` : null);
+  }
+  if (maint) {
+    add("calc", P.demand, isNum(num(d.demand)) ? `${fx(num(d.demand) * 100, lang, 0)} %` : null);
+    add("est", P.need, isNum(num(d.heat_need_kw)) ? `${fx(num(d.heat_need_kw), lang, 2)} kW` : null);
+    add("calc", P.reason, d.reason || null);
+    add("calc", P.limited, d.limited_by || null);
+    const r = ms.runs || {};
+    add("meas", P.starts, isNum(num(r.starts_today)) ? fx(num(r.starts_today), lang, 0) : null);
+    add("meas", P.hours, isNum(num(r.hours_today)) ? `${fx(num(r.hours_today), lang, 2)} ${P.h}` : null);
+    const sw = (i.switch_log || []).slice(-1)[0];
+    if (sw && sw.t) add("out", P.lastSw, `${String(sw.t).slice(11, 16)} · ${sw.on ? P.on : P.off}`);
+    if (i.health && i.health.state) add("fb", P.health, P.healthSt[i.health.state] || (T.hst && T.hst[i.health.state]) || i.health.state);
+  }
+  const heating = fb ?? d.output;
+  const reasonTxt = typeof opts.reason === "function" ? opts.reason(d.reason) : (d.reason || "");
+  const text = (lang === "hu" ? i.text_hu : i.text_en) || reasonTxt;
+  const nowTxt = [heating === true ? P.heats : heating === false ? P.rests : null,
+    isNum(num(d.indoor)) && isNum(num(d.target)) && !circuit ? `${deg(num(d.indoor), lang)} → ${deg(num(d.target), lang)}` : null].filter(Boolean).join(" · ");
+  const warn = maint && d.output !== undefined && fb !== null && !!d.output !== fb && role !== "buffer"
+    ? `<div class="spwarn ${shadow ? "ok" : ""}">${esc(shadow ? P.mismatchShadow : P.mismatch)}</div>` : "";
+  const ents = maint ? Object.entries(i.entities || {}).flatMap(([, list]) => (list || []).map((e) => e && e.entity_id)).filter(Boolean) : [];
+  const roomNames = (i.room_list || []).map((r) => String(r.name || "").replace(/^room:/, "")).filter(Boolean);
+  return `<div class="spart" data-part-key="${esc(key)}">
+    <div class="sphead"><div><div class="spt">${esc(short(i.title))}</div><div class="spk">${esc(T.kinds[k] || k)} · ${esc(modeTxt(i, T))}</div></div>
+      <button class="spx" data-sch-close title="${esc(P.close)}">×</button></div>
+    ${nowTxt ? `<div class="spsec">${esc(P.now)}</div><div class="spnow ${heating ? "on" : ""}">${esc(nowTxt)}</div>` : ""}
+    ${text ? `<div class="spsec">${esc(P.why)}</div><div class="spwhy">${esc(text)}</div>` : ""}
+    ${warn}
+    ${rows.length ? `<div class="spsec">${esc(P.values)}</div><table class="spv">${rows.map((r) => `<tr><td><span class="spkind ${r.kind}">${esc(P.kind[r.kind])}</span></td><td>${esc(r.label)}</td><td class="v">${esc(r.value)}${r.extra ? `<small>${esc(r.extra)}</small>` : ""}</td></tr>`).join("")}</table>` : ""}
+    ${roomNames.length > 1 ? `<div class="spsec">${esc(P.roomsOf)}</div><div class="spwhy">${esc(roomNames.join(", "))}</div>` : ""}
+    ${maint && ents.length ? `<details class="spents"><summary>${esc(P.entities)} (${ents.length})</summary>${ents.map((e) => `<div>${esc(e)}</div>`).join("")}</details>` : ""}
+    <button class="spopen" data-sch-open="${esc(key)}">${esc(P.open)}</button>
+  </div>`;
+}
+
+// the depth switch above the drawing
+export function depthSwitch(depth, opts = {}) {
+  const P = PART_TXT[opts.lang === "en" ? "en" : "hu"];
+  return `<div class="schdepth" title="${esc(P.depthNote)}">${["user", "maint"].map((k) => `<button data-sch-depth="${k}" class="${depth === k ? "sel" : ""}">${esc(P.depth[k])}</button>`).join("")}</div>`;
 }
 
 export const OV_CSS = `
@@ -738,4 +856,26 @@ export const OV_CSS = `
 .hcsch .sheat { fill:none; stroke:#9e9e9e; stroke-width:2.4; } .hcsch .sheat.on { stroke:#ff6d00; }
 .hcsch .hs { cursor:pointer; } .hcsch .ssh { font-weight:400; font-size:11px; fill:var(--secondary-text-color); }
 @media (prefers-reduced-motion: reduce) { .hcsch .sp.son { animation:none; } }
+/* 0.79.3: depth switch, the selected part and the info-first part panel */
+.schdepth { display:inline-flex; border:1px solid var(--divider-color); border-radius:16px; overflow:hidden; margin:0 0 8px; }
+.schdepth button { border:0; background:var(--card-background-color); color:var(--primary-text-color); padding:4px 12px; cursor:pointer; font:inherit; font-size:13px; }
+.schdepth button.sel { background:color-mix(in srgb, var(--primary-color) 16%, var(--card-background-color)); color:var(--primary-color); font-weight:600; }
+.schlay { display:flex; gap:12px; align-items:flex-start; } .schlay .schwrap { flex:1 1 auto; min-width:0; }
+.hcsch .hs.ssel rect, .hcsch .hs.ssel circle { stroke:var(--primary-color) !important; stroke-width:3 !important; }
+.hcsch .smaint { font-size:11px; fill:var(--secondary-text-color); }
+.spart { flex:0 0 300px; max-width:340px; border:1px solid var(--divider-color); border-radius:12px; padding:10px 12px; background:var(--card-background-color); font-size:13px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.sphead { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; } .spt { font-weight:600; font-size:15px; } .spk { color:var(--secondary-text-color); font-size:12px; }
+.spx { border:0; background:none; color:var(--secondary-text-color); font-size:20px; line-height:1; cursor:pointer; padding:0 2px; }
+.spsec { margin:10px 0 3px; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--secondary-text-color); }
+.spnow { font-weight:600; } .spnow.on { color:#e65100; } .spwhy { line-height:1.35; }
+.spwarn { margin:8px 0 0; padding:6px 8px; border-radius:8px; background:color-mix(in srgb, #e65100 14%, var(--card-background-color)); color:#e65100; font-size:12px; }
+.spwarn.ok { background:var(--secondary-background-color); color:var(--secondary-text-color); }
+.spv { width:100%; border-collapse:collapse; } .spv td { padding:3px 4px; border-bottom:1px solid var(--divider-color); vertical-align:top; }
+.spv td.v { text-align:right; font-variant-numeric:tabular-nums; } .spv small { display:block; color:var(--secondary-text-color); font-size:11px; }
+.spkind { display:inline-block; font-size:10.5px; border-radius:6px; padding:0 5px; white-space:nowrap; border:1px solid var(--divider-color); color:var(--secondary-text-color); }
+.spkind.req { border-color:#1e88e5; color:#1e88e5; } .spkind.out { border-color:#e65100; color:#e65100; } .spkind.meas { border-color:#2e7d32; color:#2e7d32; }
+.spkind.fb { border-color:#2e7d32; color:#2e7d32; border-style:dashed; } .spkind.calc { border-color:#8e7cc3; color:#8e7cc3; } .spkind.est { border-color:#9e9e9e; color:#757575; border-style:dotted; }
+.spents { margin-top:8px; font-size:12px; color:var(--secondary-text-color); word-break:break-all; }
+.spopen { margin-top:10px; width:100%; border:1px solid var(--primary-color); color:var(--primary-color); background:none; border-radius:8px; padding:6px; cursor:pointer; font:inherit; }
+@media (max-width: 900px) { .schlay { flex-direction:column; } .spart { flex:1 1 auto; max-width:none; width:100%; box-sizing:border-box; } }
 `;

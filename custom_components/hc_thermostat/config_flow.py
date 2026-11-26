@@ -314,6 +314,62 @@ def curve_preview(hass, conf: dict, kind: str) -> str:
     return "\n".join((head, sep, r0, r1))
 
 
+# --- 0.79.2: HC Lite (a Shelly script heats; HA manages it) ------------------------------------------------------------
+def _lite_conn_fields(current: dict) -> dict:
+    pw = lambda k: (vol.Optional(k, description={"suggested_value": current.get(k)}),  # noqa: E731
+                    TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)))
+    return dict([
+        (vol.Required("lite_url", default=current.get("lite_url") or vol.UNDEFINED) if current.get("lite_url")
+         else vol.Required("lite_url"), TextSelector(TextSelectorConfig(type=TextSelectorType.URL))),
+        (vol.Required("lite_token", default=current.get("lite_token") or vol.UNDEFINED) if current.get("lite_token")
+         else vol.Required("lite_token"), TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))),
+        pw("lite_password"),
+    ])
+
+
+async def _lite_check(hass, user_input: dict) -> dict:
+    """The device answers, and takes the token (a write without changes)."""
+    from .lite import LiteClient, LiteError
+    url = str(user_input.get("lite_url") or "").strip()
+    if not url.startswith(("http://", "https://")) or not url.rstrip("/").endswith("/lite"):
+        return {"lite_url": "lite_url"}
+    client = LiteClient(hass, url, str(user_input.get("lite_token") or ""), str(user_input.get("lite_password") or ""))
+    try:
+        st = await client.status()
+        if not isinstance(st, dict) or "mode" not in st:
+            return {"lite_url": "lite_url"}
+        await client.send()
+    except LiteError as exc:
+        text = str(exc)
+        if "401" in text:
+            return {"lite_password": "lite_password"}
+        if "403" in text:
+            return {"lite_token": "lite_token"}
+        return {"base": "lite_unreachable"}
+    return {}
+
+
+def _lite_settings_fields(current: dict) -> dict:
+    from .core.lite import CTL, NO_SENSOR, SENSORS, LiteSettings
+    s = LiteSettings.from_conf(current)
+    n = lambda k, lo, hi, st, u="": (vol.Required(f"lite_{k}", default=getattr(s, k)), _number(lo, hi, st, u))  # noqa: E731
+    t = lambda k: (vol.Required(f"lite_{k}", default=getattr(s, k) + ":00"), TimeSelector())  # noqa: E731
+    return dict([
+        n("sp_day", 5, 30, 0.5, "°C"), n("sp_night", 5, 30, 0.5, "°C"), n("sp_away", 5, 30, 0.5, "°C"),
+        n("frost", 3, 12, 0.5, "°C"),
+        t("day"), t("night"), t("day_we"), t("night_we"),
+        (vol.Required("lite_ctl", default=s.ctl), _select(CTL, "lite_ctl")),
+        n("hyst", 0.1, 3, 0.1, "°C"), n("cycle", 600, 7200, 60, "s"), n("kp", 0.05, 3, 0.05), n("bias", 0, 0.8, 0.05),
+        n("ti", 1800, 86400, 300, "s"), n("boost", 0, 5, 0.1, "°C"), n("boost_end", 0, 2, 0.1, "°C"), n("pre", 0, 120, 5, "min/°C"), n("pre_max", 0, 360, 15, "min"),
+        n("min_on", 0, 3600, 30, "s"), n("min_off", 0, 3600, 30, "s"), n("max_on", 0, 86400, 300, "s"),
+        (vol.Required("lite_ns", default=s.ns), _select(NO_SENSOR, "lite_ns")),
+        n("don", 60, 7200, 60, "s"), n("doff", 60, 14400, 60, "s"),
+        (vol.Required("lite_sensor", default=s.sensor), _select(SENSORS, "lite_sensor")),
+        n("sensor_id", 0, 299, 1), n("sensor_max_age", 300, 7200, 60, "s"),
+        (vol.Required("lite_shadow", default=s.shadow), BooleanSelector()),
+    ])
+
+
 def _hpc_fields(hass, current: dict) -> dict:
     """Heat pump coordination (0.55.0), first page: the tank it charges, the outdoor thermometer, optional signals."""
     buffers = [{"value": e.entry_id, "label": e.title} for e in _buffers(hass)]
@@ -928,6 +984,8 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_circuit()
             if user_input.get(CONF_ROLE) == "hp_coord":
                 return await self.async_step_hp_coord()
+            if user_input.get(CONF_ROLE) == "lite":  # 0.79.2
+                return await self.async_step_lite()
             return await self.async_step_control()
         last = user_input or {}
         schema = vol.Schema({
@@ -1026,6 +1084,21 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         fields = _circuit_settings(values, kind)
         return self.async_show_form(step_id="circuit_settings", data_schema=vol.Schema(fields), errors=errors,
                                     description_placeholders={"curve": curve_preview(self.hass, values, kind)})
+
+    async def async_step_lite(self, user_input=None):
+        """0.79.2: HC Lite – the script's address (printed by upload_shelly.py --lite), its token, the device password."""
+        errors = await _lite_check(self.hass, user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            self._data.update(user_input)
+            return await self.async_step_lite_settings()
+        return self.async_show_form(step_id="lite", data_schema=vol.Schema(_lite_conn_fields(user_input or {})),
+                                    errors=errors)
+
+    async def async_step_lite_settings(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input,
+                                                                             CONF_MODE: MODE_SHADOW})
+        return self.async_show_form(step_id="lite_settings", data_schema=vol.Schema(_lite_settings_fields({})))
 
     async def async_step_hp_coord(self, user_input=None):
         """Heat pump coordination (0.55.0, shadow only): needs a buffer instance."""
@@ -1155,6 +1228,8 @@ class HcOptionsFlow(OptionsFlow):
             return await self.async_step_circuit(user_input)
         if current.get(CONF_ROLE) == "hp_coord":
             return await self.async_step_hp_coord(user_input)
+        if current.get(CONF_ROLE) == "lite":  # 0.79.2
+            return await self.async_step_lite(user_input)
         live = current.get(CONF_MODE, MODE_SHADOW) == MODE_ACTIVE
         menu = ["targets", "settings"]  # 0.66.0: the targets and the night first – the most common change
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
@@ -1539,6 +1614,22 @@ class HcOptionsFlow(OptionsFlow):
         # 0.64.0: the house's own name (shown over the drawings instead of the host instance's title)
         fields[vol.Optional(CONF_HOME_NAME, description={"suggested_value": current.get(CONF_HOME_NAME)})] = TextSelector()
         return self.async_show_form(step_id="hp_coord", data_schema=vol.Schema(fields), errors=errors)
+
+    async def async_step_lite(self, user_input=None):
+        """0.79.2: HC Lite – the connection; then its settings (sent to the device when saved)."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        errors = await _lite_check(self.hass, user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            self._lite = user_input
+            return await self.async_step_lite_settings()
+        return self.async_show_form(step_id="lite", data_schema=vol.Schema(_lite_conn_fields({**current, **(user_input or {})})),
+                                    errors=errors)
+
+    async def async_step_lite_settings(self, user_input=None):
+        current = {**self.config_entry.data, **self.config_entry.options}
+        if user_input is not None:
+            return self.async_create_entry(data={**getattr(self, "_lite", {}), **user_input})
+        return self.async_show_form(step_id="lite_settings", data_schema=vol.Schema(_lite_settings_fields(current)))
 
     async def async_step_hp_coord_settings(self, user_input=None):
         current = {**self.config_entry.data, **self.config_entry.options}
