@@ -1336,6 +1336,11 @@ class HcOptionsFlow(OptionsFlow):
                 data = {**self.config_entry.options, **user_input, CONF_CONTROL: new, CONF_MODE: MODE_SHADOW}
                 if not relay:
                     data.pop(CONF_DEMAND, None)  # a wall thermostat's contact drives a relay only
+                if new == "trv":
+                    # 0.81.2: TRV heads only drives no relay and has no burner: the old ones are cleared (set to None,
+                    # so they also override what the entry's data still holds)
+                    for k in (CONF_ACTUATOR, CONF_FLAME, CONF_BOILER_POWER, CONF_EXTERNAL, CONF_FLOW, CONF_HEAT_ENABLE):
+                        data[k] = None
                 if curve and current.get(CONF_CONTROL) != "curve":
                     data = {**default_curve(current.get(CONF_SYSTEM), current.get(CONF_HEAT_SOURCE)), **data}
                 return self.async_create_entry(data=data)

@@ -214,4 +214,4 @@ def test_settings_translations_panel_and_version():
             assert sec["data"][k] and sec["data_description"][k]
     js = (BASE / "www" / "hc-info-panel.js").read_text()
     assert "catchupModeText" in js and "catchup_mode" in js
-    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.74.0", "0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1", "0.79.2", "0.79.3", "0.79.4", "0.79.5", "0.79.6", "0.79.7", "0.79.8", "0.79.9", "0.80.0", "0.81.0", "0.81.1")
+    assert json.loads((BASE / "manifest.json").read_text())["version"] in ("0.74.0", "0.75.0", "0.76.0", "0.77.0", "0.77.1", "0.77.2", "0.77.3", "0.78.0", "0.78.1", "0.78.2", "0.78.3", "0.78.4", "0.79.0", "0.79.1", "0.79.2", "0.79.3", "0.79.4", "0.79.5", "0.79.6", "0.79.7", "0.79.8", "0.79.9", "0.80.0", "0.81.0", "0.81.1", "0.81.2")

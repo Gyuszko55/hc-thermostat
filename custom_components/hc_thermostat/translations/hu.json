@@ -2502,6 +2502,10 @@
     "safety_input_lost": {
       "title": "HC – egy életvédelmi bemenetnek nincs értéke",
       "description": "A(z) **{inputs}** 10 perce nem ad értéket. Amíg így van, nem tudja kioldani a HC életvédelmi leállítását (a bekötött biztonsági lánc továbbra is igen). Nézd meg az érzékelőt (elem, kapcsolat). A bejegyzés magától eltűnik, amint újra jelez."
+    },
+    "trv_no_heads": {
+      "title": "HC – {name}: nincs szelepfej",
+      "description": "A(z) **{name}** „Csak szelepfejek” vezérlésű, de egyik helyiségében sincs szelepfej – így semmit nem állít.\n\nVedd fel a helyiségeket a fejeikkel: Beállítások → Eszközök és szolgáltatások → HC Thermostat → Konfigurálás → Helyiségek (vagy futtasd újra a HC beállítás varázslót). Minden fej eszközét tedd a helyisége területére. A bejegyzés magától eltűnik, ha egy helyiségben van fej."
     }
   }
 }

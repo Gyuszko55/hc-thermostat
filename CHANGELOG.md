@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.81.2 – 2026-11-26
+
+From a review of 0.81.1 (TRV heads only):
+
+- **The thermostat off, summer and the leading room's window reach the heads.** With no relay to stop, HC kept
+  writing the room targets: the flat's thermostat switched off (or the season off) now takes every head to the frost
+  level, and an open window of the leading room its own heads (the other rooms already watched their own windows).
+  No offset is added to these – the valve is to close.
+- **Switching an existing instance to TRV heads only** clears the old relay (and flame, boiler power, external
+  thermostat, flow) – before, an old zone valve relay stayed in the options and was held off in live mode. The
+  executor never drives a relay in this control in any case.
+- **The head goes onto the room thermometer after 30 minutes of learning** on its own sensor (an offset kept from
+  before a restart counts as learned). One sample, taken with a cold radiator, could be 0 – the fallback when the
+  input drops out. Meanwhile the head is calibrated by offset as before.
+- **The switch cycle writes the room's own target** at once – before, an unconfirmed write could repeat the offset
+  target for half an hour.
+- The 0.1 °C step of the input is rounded (15.1 − 15.0 is 0.0999… in floating point: about 4 in 10 tenth steps were
+  written only at 0.2 °C or after 10 minutes).
+- A Repairs entry when a TRV-heads-only instance has no room with a head (the classic setup creates it without rooms).
+- Behaviour tests for these (a two-room flat with TRVZB-like heads), not only source checks.
+
+Known limits: a head with an input but no sensor select keeps the last value written when the room thermometer
+drops out (the TRVZB goes `remote_source_offline` itself); the area fallback search for the input needs one climate in
+the area (the Zigbee2MQTT TRVZB is found on its own device).
+
 ## 0.81.1 – 2026-11-26
 
 - **TRV heads only: the head's sensor select.** The SONOFF TRVZB on Zigbee2MQTT names the option

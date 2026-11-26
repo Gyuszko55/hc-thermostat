@@ -131,7 +131,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.log: deque[dict] = deque(maxlen=_LOG_SIZE)
         self._agreement: deque[bool] = deque(maxlen=_AGREEMENT_SIZE)
         self._outdoor = in_.OutdoorAverage()  # 0.78.0: the day average lives in the core
-        self._executor = Executor(hass, self.mode, data.get(CONF_ACTUATOR), data.get(CONF_EXTERNAL),
+        # 0.81.2: TRV heads only switches no relay – an old one left in the options is never driven
+        self._executor = Executor(hass, self.mode, None if self.cfg.control == "trv" else data.get(CONF_ACTUATOR),
+                                  data.get(CONF_EXTERNAL),
                                   data.get(CONF_FLOW), data.get(CONF_HEAT_ENABLE), self.cfg.keep_alive_s,
                                   exact_mode=self.cfg.control == "ac",
                                   cool_mode=data.get(CONF_COOL_MODE), cool_flow=data.get(CONF_COOL_FLOW),
@@ -1222,6 +1224,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             return
         if not specs:
             self.trv_info, self.room_states = {}, {}
+            self._sync_trv_heads_issue(self.cfg.control == "trv")  # 0.81.2: nothing to set at all
             return
         now = dt_util.now()
         house = decision.target
@@ -1229,6 +1232,12 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         # keeps asking for heat (a central boiler, another source); written also in shadow, over a hand-set target
         stop = decision.reason == Reason.SAFETY_STOP
         frost = float(getattr(self.cfg, "frost_temp", 7.0))
+        # 0.81.2: with TRV heads only there is no relay to stop – the thermostat off (or summer) takes every head to
+        # the frost level, an open window of the leading room its own heads (the other rooms watch their own windows)
+        trv_only = self.cfg.control == "trv"
+        all_off = trv_only and decision.reason in (Reason.DISABLED, Reason.SEASON_OFF)
+        lead_window = trv_only and decision.reason == Reason.WINDOW
+        self._sync_trv_heads_issue(trv_only and not any(sp.trvs for sp in specs))
         info: dict[str, dict] = {}
         states: dict[str, dict] = {}
         advice = {a.room: a for a in getattr(self, "room_advice", [])}
@@ -1251,6 +1260,10 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 continue
             if stop:
                 base, reason, presence = frost, "safety_stop", None
+            elif all_off:
+                base, reason, presence = frost, "off", None
+            elif is_lead and lead_window:
+                base, reason, presence = frost, "window", None
             elif is_lead:
                 base, reason, presence = house, "leading", None
             else:
@@ -1278,16 +1291,30 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                     # 0.81.1: the head changed thermometer (onto the input / offline): the whole offset comes or goes
                     # at once – written now, not after the battery-sparing wait of a calibration drift
                     self.trv_targets.last_write.pop(head, None)
-                seen[head] = on_ext
+                # 0.81.2: the head goes onto the input only after its offset was learned for a while on its own sensor
+                # (one sample may be 0 with a cold radiator – the fallback when the input drops out); an offset kept
+                # from before a restart counts as learned
+                since = self.__dict__.setdefault("_cal_since", {})
+                if ref_ids and head not in since:
+                    since[head] = now - timedelta(seconds=self.EXT_LEARN_S) if head in self.trv_cal.offset else now
+                learned = bool(ref_ids) and (now - since[head]).total_seconds() >= self.EXT_LEARN_S
                 # 0.81.1: on the input the head reports the room's own value – nothing to learn there; the offset
                 # learned on its own sensor is kept for when the input drops out (remote_source_offline)
                 cal = (self.trv_cal.offset.get(head, 0.0) if on_ext
                        else self.trv_cal.update(head, self._trv_temp(head), ref, now)) if ref_ids else 0.0
                 if ext is not None:  # 0.81.0: the head measures by the room's thermometer itself – no offset needed
                     if self.mode == MODE_ACTIVE and ref is not None:
-                        await self._write_trv_ext(head, ext, ref, now)
+                        switched = await self._write_trv_ext(head, ext, ref, now, select=learned)
+                        if switched and not on_ext:
+                            # 0.81.2: switched in this very cycle – the room's own target now (not the offset one,
+                            # which an unconfirmed write would otherwise repeat for half an hour)
+                            on_ext = True
+                            self.trv_targets.last_write.pop(head, None)
                     if on_ext:  # 0.81.1: only while the head really uses it (else the offset stays)
                         cal = 0.0
+                seen[head] = on_ext
+                if reason in ("off", "window"):  # 0.81.2: the frost level as it is – the valve is to close
+                    cal = 0.0
                 room_base = round(base / step) * step
                 want = round((base + cal) / step) * step
                 ref_st = self.hass.states.get(ref_ids[0]) if len(ref_ids) == 1 else None
@@ -1338,6 +1365,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     _EXT_NUM = ("external_temperature_input", "kulso_homerseklet")
     _EXT_SEL = ("temperature_sensor_select", "homero_valasztas")
     EXT_EVERY_S = 600.0  # the room temperature is written again at least this often (or on a 0.1 °C change)
+    EXT_LEARN_S = 1800.0  # 0.81.2: the head's offset is learned this long on its own sensor before it goes onto the input
     _EXT_ON = ("remote_temperature", "external")  # 0.81.1: the select's option that makes the head use the input
     _EXT_OFFLINE = "remote_source_offline"  # TRVZB: the input went stale, the head measures itself until a new value
 
@@ -1382,11 +1410,14 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         cache[head] = (now, found)
         return found
 
-    async def _write_trv_ext(self, head: str, ext: tuple[str, str | None], temp: float, now: datetime) -> None:
+    async def _write_trv_ext(self, head: str, ext: tuple[str, str | None], temp: float, now: datetime,
+                             select: bool = True) -> bool:
+        """Writes the room temperature to the head's input; with select, puts the head onto it. True: switched now."""
         num, sel = ext
         last = self.__dict__.setdefault("_ext_written", {})
+        switched = False
         try:
-            if sel:
+            if sel and select:
                 st = self.hass.states.get(sel)
                 opts = (st.attributes.get("options") or []) if st is not None else []
                 on = next((o for o in self._EXT_ON if o in opts), None)
@@ -1394,15 +1425,35 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 if on is not None and st.state not in (on, self._EXT_OFFLINE):
                     await self.hass.services.async_call(sel.split(".", 1)[0], "select_option",
                                                         {"entity_id": sel, "option": on}, blocking=True)
+                    switched = True
             value = round(float(temp), 1)
             prev = last.get(head)
-            if prev is not None and abs(prev[1] - value) < 0.1 and (now - prev[0]).total_seconds() < self.EXT_EVERY_S:
-                return
+            # 0.81.2: rounded – 15.1 − 15.0 is 0.0999… in floating point
+            if (prev is not None and round(abs(prev[1] - value), 1) < 0.1
+                    and (now - prev[0]).total_seconds() < self.EXT_EVERY_S):
+                return switched
             await self.hass.services.async_call(num.split(".", 1)[0], "set_value", {"entity_id": num, "value": value},
                                                 blocking=True)
             last[head] = (now, value)
         except Exception:  # noqa: BLE001 – a head that does not answer must not stop the next decision
             _LOGGER.warning("Could not write the room temperature to %s", num, exc_info=True)
+        return switched
+
+    def _sync_trv_heads_issue(self, missing: bool) -> None:
+        """0.81.2: a TRV-heads-only instance without any room with a head does nothing – a Repairs entry says so."""
+        if missing == getattr(self, "_trv_heads_missing", False):
+            return
+        self._trv_heads_missing = missing
+        issue_id = f"trv_no_heads_{self.config_entry.entry_id}"
+        try:
+            if missing:
+                ir.async_create_issue(self.hass, DOMAIN, issue_id, is_fixable=False, is_persistent=False,
+                                      severity=ir.IssueSeverity.WARNING, translation_key="trv_no_heads",
+                                      translation_placeholders={"name": self.config_entry.title})
+            else:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+        except Exception:  # a report – never stops the decision
+            _LOGGER.debug("The TRV heads Repairs entry could not be updated", exc_info=True)
 
     def _update_rooms(self, decision: Decision, now: datetime) -> None:
         """Single zone: the other rooms against the main thermometer; advice only, never the boiler."""

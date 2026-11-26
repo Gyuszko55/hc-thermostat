@@ -335,7 +335,9 @@ are shown side by side; a setting picks the one that drives (classic by default)
   and where a head takes an external temperature (SONOFF TRVZB on Zigbee2MQTT: `external_temperature_input` with
   `temperature_sensor_select` = `remote_temperature`) HC writes the room thermometer to it and sets the head to
   use it. When the room thermometer drops out and the head goes `remote_source_offline`, HC falls back on the
-  offset it learned on the head's own sensor. The wizard asks no relay, flame or gas meter for this control.
+  offset it learned on the head's own sensor (it learns for the first 30 minutes before the switch). The thermostat
+  off or summer takes every head to the frost level, an open window of the leading room its heads. The wizard asks no
+  relay, flame or gas meter for this control.
 - **Fan coil** (new system, fed by any water source – also a heat pump): TPI / PID switches its water valve, the fan
   (a `fan` entity, by percentage) runs at `fan_min_pct` + the demand while the valve is open and runs on for 2
   minutes after it closes; with a coil sensor it waits until the coil is 30 °C warm (no cold draught).

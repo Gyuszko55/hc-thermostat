@@ -2502,6 +2502,10 @@
     "safety_input_lost": {
       "title": "HC – a life-safety input has no reading",
       "description": "**{inputs}** has had no reading for 10 minutes. While it has none it cannot trip HC's life-safety stop (the wired safety chain still can). Check the detector (battery, connection). This entry clears itself when it reports again."
+    },
+    "trv_no_heads": {
+      "title": "HC – {name}: no TRV head",
+      "description": "**{name}** is set to *TRV heads only*, but none of its rooms has a TRV head – it sets nothing.\n\nAdd the rooms with their heads: Settings → Devices & services → HC Thermostat → Configure → Rooms (or run the HC setup wizard again). Put each head's device in its room's area. This entry clears itself once a room has a head."
     }
   }
 }

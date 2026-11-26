@@ -339,7 +339,9 @@ a csőkígyó hője felér. A kettő egymás mellett látszik; egy beállítás 
   a fej külső hőmérsékletet fogad (SONOFF TRVZB Zigbee2MQTT-n: `external_temperature_input`, a
   `temperature_sensor_select` = `remote_temperature`), a HC beírja a helyiség hőmérőjét, és a fejet erre állítja. Ha a
   helyiség hőmérője kiesik és a fej `remote_source_offline`-ra vált, a HC a fej saját mérésén tanult eltérésre áll
-  vissza. A varázsló ennél a vezérlésnél nem kér relét, lángjelzőt, gázmérőt.
+  vissza (az első 30 percben tanul, csak utána vált). A kikapcsolt termosztát vagy a nyári üzem minden fejet
+  fagyvédelmi célra állít, a vezető helyiség nyitott ablaka az ő fejeit. A varázsló ennél a vezérlésnél nem kér relét,
+  lángjelzőt, gázmérőt.
 - **Fan-coil** (új rendszer, bármely vizes hőforrásról – hőszivattyúról is): a vízszelepet TPI / PID kapcsolja, a
   ventilátor (`fan` entitás, százalékban) nyitott szelepnél `fan_min_pct` + az igény szerint forog, zárás után 2 percig
   utánfut; hőcserélő-szenzorral megvárja, amíg az 30 °C-ra melegszik (nem fúj hideget).
