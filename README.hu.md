@@ -16,6 +16,7 @@
 | Elektromos fűtőtest reléről (olajradiátor) | Valódi eszköz, többnyire árnyék módban (röviden élesben) |
 | Moduláló / OpenThermes kazán, fűtési görbe | **Próba-példány**: szimulált kazán és ház egy élő Home Assistantban, valós időjárással |
 | Hőszivattyú fan-coillal | **Próba-példány**: szimulált, mint fent |
+| Távfűtéses lakás, csak szelepfejek (SONOFF TRVZB + SNZB-02 Zigbee2MQTT-n) | **Próba-példány**: szimulált fejek és hőmérők a Zigbee2MQTT entitásneveivel és értékeivel, élő Home Assistantban |
 | Hőtárolós kályha, távfűtés, pellet / puffer, padlófűtés és -hűtés, elektromos padló, központi zónák | **Csak szimulátor és tesztek** |
 
 Élesítés előtt az árnyék mód és a döntésnapló mutatja meg, hogyan viszonyul a HC a saját vezérlésedhez: az egyezési
@@ -333,6 +334,12 @@ a csőkígyó hője felér. A kettő egymás mellett látszik; egy beállítás 
 - **Távfűtés** (új hőforrás): lakásonkénti zónaszelep TPI-vel / PID-del, hosszú, nyugodt ciklussal (30 perc, legalább
   10 perc nyitva), vagy szelepfejek külső termosztát módban. Nem kötelező **visszatérő-korlát**: visszatérő-szenzorral
   és `return_max` beállítással a szelep zárva marad, amíg a visszatérő víz ilyen meleg (3 °C hiszterézis).
+- **Csak szelepfejek** (távfűtés radiátorokkal, zónaszelep és kazán nélkül – társasházi lakás): a HC nem kapcsol
+  semmit. A helyiségek fejei a helyiség célját kapják (menetrend, eltérés vagy saját program, jelenlét, ablak), és ahol
+  a fej külső hőmérsékletet fogad (SONOFF TRVZB Zigbee2MQTT-n: `external_temperature_input`, a
+  `temperature_sensor_select` = `remote_temperature`), a HC beírja a helyiség hőmérőjét, és a fejet erre állítja. Ha a
+  helyiség hőmérője kiesik és a fej `remote_source_offline`-ra vált, a HC a fej saját mérésén tanult eltérésre áll
+  vissza. A varázsló ennél a vezérlésnél nem kér relét, lángjelzőt, gázmérőt.
 - **Fan-coil** (új rendszer, bármely vizes hőforrásról – hőszivattyúról is): a vízszelepet TPI / PID kapcsolja, a
   ventilátor (`fan` entitás, százalékban) nyitott szelepnél `fan_min_pct` + az igény szerint forog, zárás után 2 percig
   utánfut; hőcserélő-szenzorral megvárja, amíg az 30 °C-ra melegszik (nem fúj hideget).

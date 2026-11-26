@@ -16,6 +16,7 @@
 | Electric heater on a relay (oil radiator) | Real device, mostly in shadow mode (live briefly) |
 | Modulating / OpenTherm boiler, heating curve | **Test instance**: a simulated boiler and house in a live Home Assistant, real weather |
 | Heat pump with fan coil | **Test instance**: simulated, as above |
+| District heating flat, TRV heads only (SONOFF TRVZB + SNZB-02 on Zigbee2MQTT) | **Test instance**: simulated heads and thermometers with the Zigbee2MQTT entity names and values, live Home Assistant |
 | Storage heater, district heating, pellet / buffer, floor heating and cooling, electric floor, central zones | **Simulator and tests only** |
 
 Shadow mode and the decision log are the way to check HC against your own control before going live: the
@@ -329,6 +330,12 @@ are shown side by side; a setting picks the one that drives (classic by default)
 - **District heating** (new heat source): a zone valve per flat with TPI / PID and a long, calm cycle (30 minutes,
   10 minutes minimum open), or TRV heads in external thermostat mode. Optional **return limit**: with a return water
   sensor and `return_max` set, the valve stays closed while the return is that warm (3 °C hysteresis).
+- **TRV heads only** (district heating on radiators, no zone valve, no boiler – a flat in a block of flats): HC
+  switches nothing. Each room's heads get the room's target (schedule, offset or own program, presence, windows),
+  and where a head takes an external temperature (SONOFF TRVZB on Zigbee2MQTT: `external_temperature_input` with
+  `temperature_sensor_select` = `remote_temperature`) HC writes the room thermometer to it and sets the head to
+  use it. When the room thermometer drops out and the head goes `remote_source_offline`, HC falls back on the
+  offset it learned on the head's own sensor. The wizard asks no relay, flame or gas meter for this control.
 - **Fan coil** (new system, fed by any water source – also a heat pump): TPI / PID switches its water valve, the fan
   (a `fan` entity, by percentage) runs at `fan_min_pct` + the demand while the valve is open and runs on for 2
   minutes after it closes; with a coil sensor it waits until the coil is 30 °C warm (no cold draught).

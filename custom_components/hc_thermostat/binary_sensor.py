@@ -28,11 +28,11 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HcHpEnable(c), HcHpHeatDemand(c), HcHpSummer(c), HcHpExercise(c), HcHpWriteProblem(c),
                             *([HcSafetyStop(c)] if getattr(c, "safety", None) is not None else [])])
         return
-    entities = [HcDemand(c), HcFault(c)]
+    entities = [HcFault(c)] if c.cfg.control == "trv" else [HcDemand(c), HcFault(c)]  # 0.81.0: trv – no demand
     if getattr(c, "safety", None) is not None:
         entities.append(HcSafetyStop(c))  # 0.77.0
     # 0.48.0: a measurement with a limit (pressure, fuel, a fault code, a radiator…) gets the problem sensor too
-    if (c.cfg.control not in ("external", "ac") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
+    if (c.cfg.control not in ("external", "ac", "trv") and c.conf.get("heat_source") != "external_heat") or c.measure_keys():
         entities.append(HcBoilerProblem(c))
     # 0.46.0: a room with two or more presence sources / window contacts gets its group
     groups = [RoomBinaryGroup(c, s, k) for s, k in groups_of(c, ("presence", "window"))]

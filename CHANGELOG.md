@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.81.1 – 2026-11-26
+
+- **TRV heads only: the head's sensor select.** The SONOFF TRVZB on Zigbee2MQTT names the option
+  `remote_temperature` (with `local_temperature` and `remote_source_offline`), not `external`: HC wrote the room
+  temperature to the head but never switched the head to it, and took the offset calibration away – the head kept
+  regulating by its own reading next to the hot radiator and closed early. HC now selects `remote_temperature`
+  (`external` is kept for other heads), leaves `remote_source_offline` alone (the head goes back by itself on the
+  next value) and keeps the offset calibration while the head is not on the input. The offset is no longer learned
+  while the head is on the input (it reports the room's own value there): what it learned on its own sensor stays
+  for when the input drops out.
+  When the head changes thermometer (onto the input, or offline) the new target is written at once, not after the
+  half-hour wait of a calibration drift.
+- The heat type shown for district heating and for "TRV heads only" is a radiator (or a floor), not a gas boiler.
+- Wizard, "TRV heads only": no "may ask the boiler for short burns" per room, the leading room's hint and the
+  "start live" line speak of the heads, not of a boiler.
+
+## 0.81.0 – 2026-11-26
+
+- **"TRV heads only" – a flat on district heating.** A tester's panel flat (district heating, TRV heads on the
+  radiators, a thermometer in each room, no zone valve, no boiler) could not be set up: every control the wizard
+  offered for district heating asked for a relay, and with it for a flame, a boiler power and a gas meter. The new
+  control has no device of its own: each room's heads get the room's target (the flat's schedule, the room's own
+  offset or schedule, presence, windows), by the room's thermometer. It is offered for district heating on
+  radiators, first on the "radiators with TRV heads" system; the wizard then asks for no relay, no burner fields and
+  no return temperature, and needs at least one room with a head. No demand, run or switch counting.
+- **A head's external sensor input.** Where a head can take the room temperature itself (SONOFF TRVZB on
+  Zigbee2MQTT: `external_temperature_input` with `temperature_sensor_select` = external), HC writes the room's
+  thermometer to it (on a 0.1 °C change, at least every 10 minutes, only live) and sets the head to use it – the
+  head then regulates by the room, not by its own reading next to the hot radiator, and needs no offset
+  calibration. Found on the head's own device; otherwise in its area by name. Heads without it keep the offset
+  calibration.
+
 ## 0.80.0 – 2026-11-26
 
 - **HC Lite: gas boiler or heat pump.** A new setting, the heat source (`src`). The web set-up starts with the

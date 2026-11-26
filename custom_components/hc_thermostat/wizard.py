@@ -192,7 +192,7 @@ def _entries(hass) -> list[dict]:
 
 
 def _rooms_of(hass, conf: dict) -> dict:
-    if conf.get(CONF_ROLE, "standalone") != "standalone" or conf.get(CONF_CONTROL) not in ("tpi", "pid"):
+    if conf.get(CONF_ROLE, "standalone") != "standalone" or conf.get(CONF_CONTROL) not in ("tpi", "pid", "trv"):
         return {"rooms": [], "leading_room": None}
     try:
         specs, leading = room_specs_for(hass, conf)
@@ -238,7 +238,7 @@ def ws_rooms(hass: HomeAssistant, connection, msg) -> None:
 def wizard_rooms(hass, control: str, rooms, leading, indoor: str | None, entry_id: str | None = None) -> dict | None:
     """The room options the wizard writes (tpi / pid only; None: leave them as they are). HC's own climates are no
     TRV heads; a head is in one room only."""
-    if not isinstance(rooms, list) or control not in ("tpi", "pid"):
+    if not isinstance(rooms, list) or control not in ("tpi", "pid", "trv"):
         return None
     from homeassistant.helpers import entity_registry as er
     try:
@@ -280,7 +280,7 @@ def ws_trv(hass: HomeAssistant, connection, msg) -> None:
 def trv_options(control: str, trv: dict | None) -> dict | None:
     """The TRV options the wizard writes (tpi / pid only; None: leave them as they are). Every head not given a
     thermometer uses its own; the old switch trv_calibration is replaced by trv_sensors."""
-    if trv is None or control not in ("tpi", "pid"):
+    if trv is None or control not in ("tpi", "pid", "trv"):
         return None
     heads = [h for h in dict.fromkeys(trv.get(CONF_ROOM_TRVS) or []) if isinstance(h, str) and h.startswith("climate.")]
     sensors = {h: v for h, v in (trv.get(CONF_TRV_SENSORS) or {}).items()
@@ -498,7 +498,7 @@ async def ws_derive(hass: HomeAssistant, connection, msg) -> None:
     add("night_start", "22:00:00", T("éjszakai cél kezdete", "night target from"))
     add("night_end", "06:00:00", T("éjszakai cél vége", "night target until"))
     rooms = []
-    if control in ("tpi", "pid") and ent.get(CONF_INDOOR):
+    if control in ("tpi", "pid", "trv") and ent.get(CONF_INDOOR):
         rooms = suggest_room_sensors(hass, {CONF_INDOOR: ent.get(CONF_INDOOR), CONF_OUTDOOR: ent.get(CONF_OUTDOOR)})
     c = cell(system, source)
     connection.send_result(msg["id"], {"items": items, "rooms": rooms,
@@ -543,13 +543,22 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "missing_indoor", "an indoor thermometer (or a wall thermostat contact) is required")
         return
     need = {"tpi": CONF_ACTUATOR, "pid": CONF_ACTUATOR, "onoff": CONF_ACTUATOR, "storage": CONF_ACTUATOR, "external": CONF_EXTERNAL, "ac": CONF_EXTERNAL,
-            "curve": CONF_FLOW}[control]
+            "curve": CONF_FLOW, "trv": CONF_INDOOR}[control]  # 0.81.0: trv – no device of its own; its heads are in the rooms
     if not ents.get(need):
         connection.send_error(msg["id"], "missing_device", f"{need} is required")
         return
     if electric_floor(system, source) and control in ("tpi", "pid") and not ents.get(CONF_FLOOR):
         connection.send_error(msg["id"], "missing_floor", "an electric floor needs a floor temperature sensor")
         return
+    if control == "trv":  # 0.81.0: TRV heads only – at least one room with a head, or nothing would heat
+        from .core.room_model import parse_rooms
+        try:
+            heads = any(s.trvs for s in parse_rooms(msg.get("rooms") or []))
+        except Exception:  # noqa: BLE001 – a malformed list: no heads
+            heads = False
+        if not heads:
+            connection.send_error(msg["id"], "missing_heads", "TRV heads only: give at least one room a TRV head")
+            return
     trv = trv_options(control, msg.get("trv"))
     rooms = wizard_rooms(hass, control, msg.get("rooms"), msg.get("leading_room"), ents.get(CONF_INDOOR), msg.get("entry_id"))
     if rooms is not None:  # 0.43.0: the rooms card replaces the TRV card (and the room thermometer list)

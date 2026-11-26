@@ -1271,7 +1271,23 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                 ref = self._fresh_value(ref_ids, now) if ref_ids else None
                 if ref is not None and info[spec.name]["room_temp"] is None:
                     info[spec.name]["room_temp"] = ref
-                cal = self.trv_cal.update(head, self._trv_temp(head), ref, now) if ref_ids else 0.0
+                ext = self._trv_ext(head, now) if ref_ids else None
+                on_ext = ext is not None and self._ext_active(ext)
+                seen = self.__dict__.setdefault("_ext_on", {})
+                if ext is not None and seen.get(head) is not None and seen[head] != on_ext:
+                    # 0.81.1: the head changed thermometer (onto the input / offline): the whole offset comes or goes
+                    # at once – written now, not after the battery-sparing wait of a calibration drift
+                    self.trv_targets.last_write.pop(head, None)
+                seen[head] = on_ext
+                # 0.81.1: on the input the head reports the room's own value – nothing to learn there; the offset
+                # learned on its own sensor is kept for when the input drops out (remote_source_offline)
+                cal = (self.trv_cal.offset.get(head, 0.0) if on_ext
+                       else self.trv_cal.update(head, self._trv_temp(head), ref, now)) if ref_ids else 0.0
+                if ext is not None:  # 0.81.0: the head measures by the room's thermometer itself – no offset needed
+                    if self.mode == MODE_ACTIVE and ref is not None:
+                        await self._write_trv_ext(head, ext, ref, now)
+                    if on_ext:  # 0.81.1: only while the head really uses it (else the offset stays)
+                        cal = 0.0
                 room_base = round(base / step) * step
                 want = round((base + cal) / step) * step
                 ref_st = self.hass.states.get(ref_ids[0]) if len(ref_ids) == 1 else None
@@ -1279,6 +1295,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                                   **({"sensor_name": ref_st.attributes.get("friendly_name", ref_ids[0])}
                                                      if ref_st is not None else {}),
                                                   "sensor_temp": ref, "head_temp": self._trv_temp(head),
+                                                  "external_input": ext[0] if ext else None,
                                                   "calibration": cal, "want": want,
                                                   "state": state.state if state is not None else None,
                                                   "head_target": attrs.get("temperature")}
@@ -1313,6 +1330,79 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
                                 "heads": info[spec.name]["heads"]}
         self.trv_info = info
         self.room_states = states
+
+    # 0.81.0: a head's external temperature input (SONOFF TRVZB on Zigbee2MQTT: number.<head>_external_temperature_input
+    # with select.<head>_temperature_sensor_select = "remote_temperature"; 0.81.1: the real option, "external" kept for
+    # other heads). Found on the head's own device; else, in the head's
+    # area, the one number / input_number named …external_temperature_input or …kulso_homerseklet (and its select).
+    _EXT_NUM = ("external_temperature_input", "kulso_homerseklet")
+    _EXT_SEL = ("temperature_sensor_select", "homero_valasztas")
+    EXT_EVERY_S = 600.0  # the room temperature is written again at least this often (or on a 0.1 °C change)
+    _EXT_ON = ("remote_temperature", "external")  # 0.81.1: the select's option that makes the head use the input
+    _EXT_OFFLINE = "remote_source_offline"  # TRVZB: the input went stale, the head measures itself until a new value
+
+    def _ext_active(self, ext: tuple[str, str | None]) -> bool:
+        """The head measures by the written room temperature: no select (the input alone decides), or the select on
+        the input. Off (local) or offline: the head's own sensor – HC's offset calibration stays."""
+        sel = ext[1]
+        if not sel:
+            return True
+        st = self.hass.states.get(sel)
+        return st is not None and st.state in self._EXT_ON
+
+    def _trv_ext(self, head: str, now: datetime) -> tuple[str, str | None] | None:
+        cache = self.__dict__.setdefault("_ext_cache", {})
+        hit = cache.get(head)
+        if hit is not None and (now - hit[0]).total_seconds() < 600:
+            return hit[1]
+        found = None
+        try:
+            from homeassistant.helpers import device_registry as dr, entity_registry as er
+            ents, devs = er.async_get(self.hass), dr.async_get(self.hass)
+            me = ents.async_get(head)
+            if me is not None:
+                pick = lambda cands, ends: [e for e in cands if e.entity_id.split(".", 1)[1].endswith(ends)]  # noqa: E731
+                if me.device_id:
+                    on_dev = er.async_entries_for_device(ents, me.device_id)
+                    num = pick([e for e in on_dev if e.domain == "number"], self._EXT_NUM[:1])
+                    sel = pick([e for e in on_dev if e.domain == "select"], self._EXT_SEL[:1])
+                    if len(num) == 1:
+                        found = (num[0].entity_id, sel[0].entity_id if len(sel) == 1 else None)
+                area = me.area_id or (devs.async_get(me.device_id).area_id if me.device_id and devs.async_get(me.device_id) else None)
+                if found is None and area:
+                    in_area = [e for e in ents.entities.values() if e.area_id == area
+                               or (not e.area_id and e.device_id and (d := devs.async_get(e.device_id)) is not None and d.area_id == area)]
+                    num = pick([e for e in in_area if e.domain in ("number", "input_number")], self._EXT_NUM)
+                    sel = pick([e for e in in_area if e.domain in ("select", "input_select")], self._EXT_SEL)
+                    heads = [e for e in in_area if e.domain == "climate" and e.platform != DOMAIN]  # not HC's own room climate
+                    if len(num) == 1 and len(heads) == 1:
+                        found = (num[0].entity_id, sel[0].entity_id if len(sel) == 1 else None)
+        except Exception:  # noqa: BLE001 – no registry: the offset calibration stays
+            found = None
+        cache[head] = (now, found)
+        return found
+
+    async def _write_trv_ext(self, head: str, ext: tuple[str, str | None], temp: float, now: datetime) -> None:
+        num, sel = ext
+        last = self.__dict__.setdefault("_ext_written", {})
+        try:
+            if sel:
+                st = self.hass.states.get(sel)
+                opts = (st.attributes.get("options") or []) if st is not None else []
+                on = next((o for o in self._EXT_ON if o in opts), None)
+                # offline: the head goes back by itself on the next value – no select written every cycle
+                if on is not None and st.state not in (on, self._EXT_OFFLINE):
+                    await self.hass.services.async_call(sel.split(".", 1)[0], "select_option",
+                                                        {"entity_id": sel, "option": on}, blocking=True)
+            value = round(float(temp), 1)
+            prev = last.get(head)
+            if prev is not None and abs(prev[1] - value) < 0.1 and (now - prev[0]).total_seconds() < self.EXT_EVERY_S:
+                return
+            await self.hass.services.async_call(num.split(".", 1)[0], "set_value", {"entity_id": num, "value": value},
+                                                blocking=True)
+            last[head] = (now, value)
+        except Exception:  # noqa: BLE001 – a head that does not answer must not stop the next decision
+            _LOGGER.warning("Could not write the room temperature to %s", num, exc_info=True)
 
     def _update_rooms(self, decision: Decision, now: datetime) -> None:
         """Single zone: the other rooms against the main thermometer; advice only, never the boiler."""
@@ -1464,7 +1554,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         # starts and run time: from the real heating signal
         heating = self.actual if self.actual is not None else (
             decision.output if self.mode == MODE_ACTIVE and conf.get(CONF_ACTUATOR) else None)
-        counted = heating is not None and self.cfg.control not in ("external", "ac")
+        counted = heating is not None and self.cfg.control not in ("external", "ac", "trv")
         if counted:
             # 0.79.5: with a relay its switching on is counted (async_track_runs); without one the heating signal's
             # starts, but not while it makes hot water
@@ -1472,7 +1562,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
             self.runs.update(now, bool(heating), count_starts=self._run_entity() is None
                              and not (dhw is not None and dhw.state == "on"))
             values["runs"] = self.runs.summary(now)
-        if self.cfg.control not in ("external", "ac"):
+        if self.cfg.control not in ("external", "ac", "trv"):
             self._log_switch(decision, now)
             values["switches_24h"] = self.switch_log.count(now)
         # COP: heat given off over the power taken

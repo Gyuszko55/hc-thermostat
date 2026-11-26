@@ -43,7 +43,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     entities = [HcDecision(c), HcHeatNeed(c), HcHeatLoss(c), HcSourceAdvice(c)]
     if getattr(c, "ai", None) is not None and c.ai.ai_entity:
         entities.append(HcAiReport(c))  # 0.71.0
-    if c.cfg.control not in ("external", "ac"):
+    if c.cfg.control not in ("external", "ac", "trv"):  # 0.81.0: TRV heads only – no demand of its own
         entities += [HcDemandPercent(c), HcAgreement(c), HcLearned(c)]
         if c.cfg.control in ("tpi", "pid", "onoff"):
             entities.append(HcTimeConstant(c))  # 0.50.0

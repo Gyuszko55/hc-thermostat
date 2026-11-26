@@ -24,7 +24,7 @@ _RISK_WORD = {"hu": "Penész-kockázat", "en": "Mould risk"}
 
 
 def counted(c) -> bool:
-    return c.cfg.control not in ("external", "ac") and any(c.conf.get(k) for k in (CONF_ACTUATOR, CONF_FLAME, CONF_REFERENCE))
+    return c.cfg.control not in ("external", "ac", "trv") and any(c.conf.get(k) for k in (CONF_ACTUATOR, CONF_FLAME, CONF_REFERENCE))
 
 
 def measure_sensors(hass, entry, c) -> list:

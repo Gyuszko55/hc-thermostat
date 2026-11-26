@@ -1253,6 +1253,9 @@ class Supervisor:
         if cfg.floor_cooling and cfg.control in ("curve", "onoff") and reason == Reason.SEASON_OFF:
             return self._cool_decision(inputs, indoor, outdoor, loss, need)
 
+        if cfg.control == "trv":  # 0.81.0: TRV heads only – the rooms' heads get their targets; nothing to switch here
+            return Decision(now, reason, target, indoor, outdoor, fault=self.fault, loss_kw_per_k=loss, heat_need_kw=need,
+                            other_heat_kw=inputs.other_heat_kw, details=dict(floor_details))
         if cfg.control in ("external", "ac"):
             reason, command = self._external(inputs, reason, target, indoor)
             details: dict = dict(floor_details)

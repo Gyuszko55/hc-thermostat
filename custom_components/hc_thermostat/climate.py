@@ -35,7 +35,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 def rooms_supported(conf: dict) -> bool:
     """Rooms with their own climate (0.43.0): a single zone (standalone) with TPI / PID, like the TRV rooms before."""
-    return conf.get(CONF_ROLE, "standalone") == "standalone" and conf.get("control", "tpi") in ("tpi", "pid")
+    return conf.get(CONF_ROLE, "standalone") == "standalone" and conf.get("control", "tpi") in ("tpi", "pid", "trv")  # 0.81.0: trv
 
 
 def _host_device_id(hass, entry) -> str | None:
@@ -247,6 +247,8 @@ def heat_type(conf: dict) -> str:
         return "electric"
     if system.startswith("floor"):
         return "floor"
+    if source == "district_heating" or conf.get("control") == "trv":  # 0.81.1: no boiler of its own
+        return "radiator"
     return "gas_boiler"
 
 

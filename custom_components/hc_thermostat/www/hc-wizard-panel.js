@@ -33,6 +33,7 @@ const T = {
       tpi: ["TPI + PWM", "Arányos impulzusok a hiba és a hőigény szerint; a legtöbb relés kazánhoz."],
       pid: ["PID + PWM", "Integráló taggal: nem marad tartósan a cél alatt."],
       external: ["Külső termosztát", "Egy meglévő termosztátot (TRV, BT) állít; a hőt az szabályozza."],
+      trv: ["Csak szelepfejek", "Panellakás, távfűtés: nincs zónaszelep, nincs kazán. Helyiségenként a szelepfejek kapják a célt, a helyiség hőmérője szerint (a fej külső hőmérő bemenetén, ha van)."],
       curve: ["Fűtési görbe (kísérleti)", "Előremenő hőfok a kinti hőmérséklet szerint, helyiségkorrekcióval."],
       ac: ["Klíma – virtuális i-Feel", "A klíma célját tolja el a helyiséghőmérő szerint; nem kapcsolgat."],
       onoff: ["On-off, hosszú futással", "A hőszivattyú termosztát-bemenetét kapcsolja: a cél alatt indul, fölötte áll le; nincs szaggatás."],
@@ -52,9 +53,10 @@ const T = {
       demand_entity: "Vezetékes fali termosztát érintkezője (ha van; ezzel a helyiséghőmérő elhagyható)",
     },
     derived_hint: "Ezeket a választott hőforrásból, rendszerből és eszközökből számoltam. Mindegyik mellett ott az indok; bármelyik átírható.",
-    rm: { title: "Helyiségek", hint: "Egy helyiség = egy hőmérő vagy hőmérő-csoport (az elérhetők átlaga), nulla vagy több szelepfej, de egy kazán. A vezető helyiség (szelepfej nélkül, általában a nappali) hőmérője vezérli a kazánt; minden más helyiség saját HC termosztátot kap. Szelepfejes helyiség: a fejek a helyiség célját kapják, a helyiség hőmérőjéhez kalibrálva. Szelepfej nélküli helyiség: csak a kazánon át fűthető, a ház célját mutatja és radiátorszelep-tanácsot kap. A sorrend (↑ ↓) a HC info házrajzáé: alsó sor először, balról jobbra, aztán felfelé.",
+    rm: { title: "Helyiségek", hint_trv: "Csak szelepfejek: minden fűtött helyiségnek legyen hőmérője és legalább egy szelepfeje – a fejek a helyiség célját kapják, a helyiség hőmérője szerint (a fej külső hőmérő bemenetén, ha van; különben kalibrálva). Nincs kazán: a vezető helyiség csak a lakás fő hőmérőjét adja.", hint: "Egy helyiség = egy hőmérő vagy hőmérő-csoport (az elérhetők átlaga), nulla vagy több szelepfej, de egy kazán. A vezető helyiség (szelepfej nélkül, általában a nappali) hőmérője vezérli a kazánt; minden más helyiség saját HC termosztátot kap. Szelepfejes helyiség: a fejek a helyiség célját kapják, a helyiség hőmérőjéhez kalibrálva. Szelepfej nélküli helyiség: csak a kazánon át fűthető, a ház célját mutatja és radiátorszelep-tanácsot kap. A sorrend (↑ ↓) a HC info házrajzáé: alsó sor először, balról jobbra, aztán felfelé.",
       add: "Helyiség hozzáadása (terület)…", custom: "Egyéni helyiség (terület nélkül)", custom_name: "Új helyiség", empty: "Még nincs helyiség.", name: "Név", no_area: "nincs terület",
       leading: "Vezető helyiség", remove: "Levesz", up: "Előrébb", down: "Hátrébb", sensors: "Hőmérők", trvs: "Szelepfejek", add_sensor: "Másik hőmérő…", add_trv: "Másik szelepfej…",
+      lead_hint_trv: "Ennek a hőmérője a lakás fő hőmérője (a lakás célja: menetrend, presetek, háztartás-jelenlét). A HC példány termosztátja ennek a helyiségnek a termosztátja.",
       lead_hint: "Ennek a hőmérője vezérli a kazánt (a ház célja: menetrend, presetek, háztartás-jelenlét). A HC példány termosztátja ennek a helyiségnek a termosztátja.",
       trv_hint: "Saját HC termosztát: a fejek a helyiség célját kapják.", notrv_hint: "Megfigyelt helyiség: saját HC termosztát, de csak a kazánon át fűthető – a ház célját követi, radiátorszelep-tanácsot kap.", unheated: "Nincs fűtőteste ennek a hőforrásnak – csak mérés", unheated_hint: "Csak mért helyiség: a házrajzon látszik a hőmérséklete, de nem kap célt, saját termosztátot és radiátorszelep-tanácsot (pl. előtér, kamra, vagy egy helyiség, amit egy másik HC-példány fűt).",
       head_hint: "Fejenként: mihez kalibrálja a HC.", head_room: "A helyiség hőmérő(i) – kalibrálás", head_room_none: "A helyiség hőmérője (nincs: a fej saját mérése)", head_own: "A fej saját hőmérője – nincs kalibrálás",
@@ -84,10 +86,12 @@ const T = {
     },
     summary_new: "Új példány jön létre árnyék módban: számol és naplóz, de nem kapcsol. Ha a döntései rendben vannak, élesíthető: Beállítások → Eszközök és szolgáltatások → HC Thermostat → Konfigurálás → Élesítés.",
     start_active: "Élesen indul: a HC azonnal kapcsolja a fűtést (csak ha semmi más nem vezérli ugyanazt a kimenetet)",
-    start_active_on: "Élesen indul – azonnal kapcsol.", name_taken: "Már van ilyen nevű példány.",
+    start_active_on: "Élesen indul – azonnal kapcsol.",
+    start_active_trv: "Élesen indul: a HC azonnal állítja a szelepfejeket (csak ha semmi más nem vezérli ugyanazokat a fejeket)",
+    start_active_on_trv: "Élesen indul – azonnal állítja a fejeket.", name_taken: "Már van ilyen nevű példány.",
     summary_edit: "A meglévő példány beállításai frissülnek; az üzemmódja (éles/árnyék) nem változik. A példány újratöltődik.",
     done_new: "Elkészült az új példány.", done_edit: "A példány beállításai frissültek.", open_integration: "Megnyitás a beállításokban",
-    load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:", pick_need: "Válaszd ki, mit állítunk be.", source_need: "Válassz hőforrást.",
+    load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:", trv_need: "Csak szelepfejek: legalább egy helyiségnek adj szelepfejet.", pick_need: "Válaszd ki, mit állítunk be.", source_need: "Válassz hőforrást.",
     system_need: "Válassz rendszert és vezérlést.", name_need: "Adj nevet a példánynak.",
     field_bug: "Belső hiba: ennél a kombinációnál ({combo}) nincs beviteli mező ehhez: {field}. Kérlek jelezd – addig a Beállítások → Eszközök és szolgáltatások → HC Thermostat → Integráció hozzáadása úton vehető fel.",
   },
@@ -118,6 +122,7 @@ const T = {
     controls: {
       tpi: ["TPI + PWM", "Proportional pulses by the error and the heat need; fits most relay boilers."],
       pid: ["PID + PWM", "With an integral: does not stay below the target."],
+      trv: ["TRV heads only", "A flat on district heating: no zone valve, no boiler. The heads of each room get its target, by the room's thermometer (on the head's external sensor input where it has one)."],
       external: ["External thermostat", "Sets an existing thermostat (TRV, BT); that one regulates the heat."],
       curve: ["Heating curve (experimental)", "Flow temperature by the outdoor temperature, with room correction."],
       ac: ["AC – virtual i-Feel", "Moves the unit's setpoint by the room thermometer; never switches it to regulate."],
@@ -138,9 +143,10 @@ const T = {
       demand_entity: "Wired wall thermostat contact (if any; with it the room thermometer is optional)",
     },
     derived_hint: "Worked out from the chosen heat source, system and devices. Each shows its reason; any can be changed.",
-    rm: { title: "Rooms", hint: "One room = one thermometer or a group (the mean of the available ones), none or several TRV heads, but one boiler. The leading room's thermometer (no TRV head, usually the living room) runs the boiler; every other room gets its own HC thermostat. A TRV room: its heads get the room's target, calibrated to the room's thermometer. A room without a TRV: heated only through the boiler, shows the house target and gets radiator valve advice. The order (↑ ↓) is the order in the HC info house drawing: bottom row first, left to right, then upwards.",
+    rm: { title: "Rooms", hint_trv: "TRV heads only: give every heated room a thermometer and at least one TRV head – the heads get the room's target, by the room's thermometer (on the head's external sensor input where it has one; calibrated otherwise). No boiler: the leading room only gives the flat's main thermometer.", hint: "One room = one thermometer or a group (the mean of the available ones), none or several TRV heads, but one boiler. The leading room's thermometer (no TRV head, usually the living room) runs the boiler; every other room gets its own HC thermostat. A TRV room: its heads get the room's target, calibrated to the room's thermometer. A room without a TRV: heated only through the boiler, shows the house target and gets radiator valve advice. The order (↑ ↓) is the order in the HC info house drawing: bottom row first, left to right, then upwards.",
       add: "Add a room (area)…", custom: "Custom room (no area)", custom_name: "New room", empty: "No rooms yet.", name: "Name", no_area: "no area",
       leading: "Leading room", remove: "Remove", up: "Move up", down: "Move down", sensors: "Thermometers", trvs: "TRV heads", add_sensor: "Another thermometer…", add_trv: "Another TRV head…",
+      lead_hint_trv: "Its thermometer is the home's main thermometer (the home's target: schedule, presets, household presence). The HC instance's thermostat is this room's thermostat.",
       lead_hint: "Its thermometer runs the boiler (the house target: schedule, presets, household presence). The HC instance's thermostat is this room's thermostat.",
       trv_hint: "Its own HC thermostat: the heads get the room's target.", notrv_hint: "Watched room: its own HC thermostat, but heated only through the boiler – follows the house target, gets radiator valve advice.", unheated: "No heater of this heat source – measured only", unheated_hint: "Measured-only room: its temperature shows in the house drawing, but it gets no target, no thermostat of its own and no radiator valve advice (e.g. a hall, a store room, or a room another HC instance heats).",
       head_hint: "Per head: what HC calibrates it to.", head_room: "The room's thermometer(s) – calibrated", head_room_none: "The room's thermometer (none: the head's own reading)", head_own: "The head's own thermometer – no calibration",
@@ -170,10 +176,12 @@ const T = {
     },
     summary_new: "A new instance is created in shadow mode: it calculates and logs, but switches nothing. When its decisions look right, make it live: Settings → Devices & services → HC Thermostat → Configure → Go live.",
     start_active: "Start live: HC switches the heating at once (only when nothing else controls the same output)",
-    start_active_on: "Starts live – switches at once.", name_taken: "An instance with this name exists already.",
+    start_active_on: "Starts live – switches at once.",
+    start_active_trv: "Start live: HC sets the TRV heads at once (only when nothing else controls the same heads)",
+    start_active_on_trv: "Starts live – sets the heads at once.", name_taken: "An instance with this name exists already.",
     summary_edit: "The instance's settings are updated; its mode (live/shadow) stays. The instance reloads.",
     done_new: "The new instance is ready.", done_edit: "The instance's settings are updated.", open_integration: "Open in settings",
-    load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:", pick_need: "Choose what to set up.", source_need: "Choose a heat source.",
+    load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:", trv_need: "TRV heads only: give at least one room a TRV head.", pick_need: "Choose what to set up.", source_need: "Choose a heat source.",
     system_need: "Choose a system and a control.", name_need: "Give the instance a name.",
     field_bug: "Internal error: this combination ({combo}) has no input field for {field}. Please report it – until then add it under Settings → Devices & services → HC Thermostat → Add integration.",
   },
@@ -186,7 +194,7 @@ const SETTING_KEYS = ["cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power
   "target_home", "target_night", "target_away", "target_cool", "night_start", "night_end", "curve_slope", "flow_max", "flow_min",
   "room_tolerance", "ac_min_change_s", "floor_max", "hp_min_on_s", "hp_min_off_s", "onoff_hysteresis",
   "floor_temper", "floor_temper_offset", "floor_temper_night", "floor_fallback", "floor_covering", "floor_probe", "valve_delay_s"];
-const CONTROL_DEVICE = { tpi: "actuator_entity", pid: "actuator_entity", onoff: "actuator_entity", storage: "actuator_entity", external: "external_climate", ac: "external_climate", curve: "flow_setpoint_entity" };
+const CONTROL_DEVICE = { tpi: "actuator_entity", pid: "actuator_entity", onoff: "actuator_entity", storage: "actuator_entity", external: "external_climate", ac: "external_climate", curve: "flow_setpoint_entity", trv: "indoor_entity" };  // 0.81.0: trv – its heads are in the rooms
 
 // Small line drawings of the systems (stroke = currentColor)
 const rad = (x, y, w = 34, h = 26) => {
@@ -283,6 +291,8 @@ class HcWizardPanel extends HTMLElement {
         if (!s.entry_id && this._nameTaken(s.name)) return t.name_taken;  // 0.45.0: said here, not lost at the save
         return null;
       }
+      case 4:  // 0.81.0: TRV heads only – at least one room with a head
+        return s.control === "trv" && !(s.roomList || []).some((r) => (r.trvs || []).length) ? t.trv_need : null;
       default: return null;
     }
   }
@@ -305,6 +315,7 @@ class HcWizardPanel extends HTMLElement {
       case 1: return !!s.heat_source;
       case 2: return !!s.system && !!s.control;
       case 3: return !this._whyNot();
+      case 4: return !this._whyNot();
       default: return true;
     }
   }
@@ -329,7 +340,7 @@ class HcWizardPanel extends HTMLElement {
     if (this._trvOk()) await this._loadRooms();
   }
   // ---------- rooms (0.43.0): single zone TPI / PID – one boiler, a leading room, every other room its own ----------
-  _trvOk() { return ["tpi", "pid"].includes(this._s.control); }
+  _trvOk() { return ["tpi", "pid", "trv"].includes(this._s.control); }
   async _loadRooms() {
     const s = this._s;
     try {
@@ -339,7 +350,12 @@ class HcWizardPanel extends HTMLElement {
       const e = s.entry_id ? (this._start.entries || []).find((x) => x.entry_id === s.entry_id) : null;
       if (e && (e.rooms || []).length) { s.roomList = e.rooms.map((r) => ({ ...r })); s.leading = e.leading_room || null; }
       else { s.roomList = []; s.leading = null; }  // 0.46.0: nothing ticked – the areas are chosen in the check list
-      if (s.multi == null) s.multi = s.roomList.length > 0;
+      if (s.control === "trv" && !s.roomList.length) {  // 0.81.0: TRV heads only – the areas with free heads, ticked
+        const excl = new Set(this._excluded());
+        for (const ar of this._rc.areas || [])
+          if (!ar.outdoor && (ar.trvs || []).some((x) => x.head && !x.taken_by && !excl.has(x.id) && !this._usedHead(x.id))) this._newRoom(ar.area);
+      }
+      if (s.multi == null) s.multi = s.roomList.length > 0 || s.control === "trv";
       if (s.home_name == null) s.home_name = (e && e.home_name) || "";
     }
     if (s.leading && !s.roomList.some((r) => r.key === s.leading)) s.leading = null;
@@ -367,6 +383,7 @@ class HcWizardPanel extends HTMLElement {
     const s = this._s, t = this._t.rm, out = [];
     if (!s.roomList?.length) return out;
     const lead = this._room(s.leading);
+    if (s.control === "trv") return out;  // 0.81.0: no boiler – a leading room with heads is fine
     if (!lead) out.push(t.warn_no_leading);
     else if ((lead.trvs || []).length) out.push(t.warn_leading_trv.replace("{room}", lead.name));
     const indoor = s.entities.indoor_entity;
@@ -408,7 +425,7 @@ class HcWizardPanel extends HTMLElement {
           <label class="chk"><input type="radio" name="leading" data-rm-lead="${esc(r.key)}" ${lead ? "checked" : ""}>${t.leading}</label>
           <span class="order"><button class="btn ghost small" data-rm-move="${esc(r.key)}|-1" ${i ? "" : "disabled"} title="${esc(t.up)}" aria-label="${esc(t.up)}">↑</button><button class="btn ghost small" data-rm-move="${esc(r.key)}|1" ${i < list.length - 1 ? "" : "disabled"} title="${esc(t.down)}" aria-label="${esc(t.down)}">↓</button></span>
           <button class="btn ghost small" data-rm-remove="${esc(r.key)}">${t.remove}</button></div>
-        <div class="muted small">${lead ? t.lead_hint : unheated ? t.unheated_hint : trv ? t.trv_hint : t.notrv_hint}</div>
+        <div class="muted small">${lead ? (this._s.control === "trv" ? t.lead_hint_trv : t.lead_hint) : unheated ? t.unheated_hint : trv ? t.trv_hint : t.notrv_hint}</div>
         ${lead ? "" : `<label class="chk"><input type="checkbox" data-rm-unheated="${esc(r.key)}" ${unheated ? "checked" : ""}>${t.unheated}</label>`}
         <div class="sub"><b>${t.sensors}</b>${checks(r, "sensors", a.sensors, r.sensors || [])}${adder(r, "sensors", rc.temperature, r.sensors || [], t.add_sensor)}</div>
         ${unheated ? "" : `<div class="sub"><b>${t.trvs}</b>${checks(r, "trvs", a.trvs.filter((c) => !this._usedHead(c.id, r.key) && !excl.has(c.id)), r.trvs || [])}${adder(r, "trvs", rc.climates.filter((c) => !excl.has(c.id)), r.trvs || [], t.add_trv)}
@@ -422,7 +439,7 @@ class HcWizardPanel extends HTMLElement {
             : num(r, "offset", r.offset ?? 0, -5, 5, 0.5, "°C")}</div>
         <div class="sub"><b>${t.presence}</b><div class="muted small">${t.presence_hint}</div>${presC.length || (r.presence || []).length ? checks(r, "presence", presC, r.presence || []) : `<span class="muted small">${t.no_presence}</span>`}
           ${(r.presence || []).length ? num(r, "absent_min", r.absent_min ?? 15, 1, 720, 1, t.min) + num(r, "setback", r.setback ?? 2, 0, 10, 0.5, "°C") : ""}</div>
-        <label class="chk"><input type="checkbox" data-rm-demand="${esc(r.key)}" ${r.demand ? "checked" : ""}>${t.demand}</label>` : ""}
+        ${this._s.control === "trv" ? "" : `<label class="chk"><input type="checkbox" data-rm-demand="${esc(r.key)}" ${r.demand ? "checked" : ""}>${t.demand}</label>`}` : ""}
       </div>`;
     }).join("");
     const used = new Set(list.map((r) => r.area).filter(Boolean));
@@ -434,7 +451,7 @@ class HcWizardPanel extends HTMLElement {
       <div class="sub"><label class="chk"><input type="radio" name="rmmulti" data-rm-multi="0" ${s.multi ? "" : "checked"}>${t.single}</label>
         <label class="chk"><input type="radio" name="rmmulti" data-rm-multi="1" ${s.multi ? "checked" : ""}>${t.multi}</label></div>`;
     if (!s.multi) return `<div class="card trv rooms2"><b>${t.title}</b>${top}</div>`;
-    return `<div class="card trv rooms2"><b>${t.title}</b><p class="hint">${t.hint}</p>${top}
+    return `<div class="card trv rooms2"><b>${t.title}</b><p class="hint">${s.control === "trv" ? t.hint_trv : t.hint}</p>${top}
       <div class="sub"><b>${t.areas}</b><div class="muted small">${t.areas_hint}</div>${areaList || `<span class="muted small">${t.no_areas}</span>`}</div>
       ${warn}${cards || `<p class="muted">${t.empty}</p>`}
       <button class="btn ghost small" id="rmcustom">${t.custom}</button></div>`;
@@ -675,7 +692,7 @@ class HcWizardPanel extends HTMLElement {
           <svg viewBox="0 0 120 72" aria-hidden="true">${(k === "room_unit" && ["electric_heater", "storage_heater"].includes(s.heat_source) ? DRAW.heater_unit : DRAW[k])?.() || ""}</svg><b>${t.systems[k] || k}</b>
           <span class="badge ${esc(m.status)}">${t.status[m.status]}</span><small>${esc(m[lang])}</small></button>`;
       }).join("");
-      const ctl = s.system ? `<h1 style="font-size:18px">${t.control_title}</h1><div class="grid">${((s.system === "fan_coil" ? st.controls_fan_coil : st.controls)?.[s.heat_source] || []).map((k) =>
+      const ctl = s.system ? `<h1 style="font-size:18px">${t.control_title}</h1><div class="grid">${((s.system === "fan_coil" ? st.controls_fan_coil : st.controls)?.[s.heat_source] || []).filter((k) => k !== "trv" || !String(s.system).startsWith("floor")).map((k) =>
         `<button class="opt ${s.control === k ? "sel" : ""}" data-control="${k}"><b>${t.controls[k][0]}</b><small>${t.controls[k][1]}</small></button>`).join("")}</div>` : "";
       return top + `<div class="grid">${sys}</div>${ctl}` + this._nav();
     }
@@ -712,12 +729,12 @@ class HcWizardPanel extends HTMLElement {
       const u = typeof v === "boolean" || typeof v === "string" ? "" : unitOf(k);
       return line(this._keyLabel(k), `${shown(k, v)}${u ? " " + u : ""}`);
     }).join("");
-    const live = s.entry_id ? "" : `<label class="chk live"><input type="checkbox" id="start_active" ${s.start_active ? "checked" : ""}>${esc(t.start_active)}</label>`;
+    const live = s.entry_id ? "" : `<label class="chk live"><input type="checkbox" id="start_active" ${s.start_active ? "checked" : ""}>${esc(s.control === "trv" ? t.start_active_trv : t.start_active)}</label>`;
     return top + `<div class="card sum">
       ${line(t.fields.name, s.name || "–")}${line(t.steps[1], t.sources[s.heat_source][0])}${line(t.steps[2], `${t.systems[s.system]} · ${t.controls[s.control][0]}`)}
       ${m ? line("", `<span class="badge ${esc(m.status)}">${t.status[m.status]}</span> ${esc(m.text)}`, true) : ""}${ents}${sets}
       ${this._trvOk() && (s.roomList || []).length ? line(t.rm.rooms_line, this._roomsSummary()) : ""}
-      </div><p class="hint">${s.entry_id ? t.summary_edit : t.summary_new}</p>${live}${s.start_active && !s.entry_id ? `<p class="warn">⚠ ${esc(t.start_active_on)}</p>` : ""}${this._error ? `<p class="err">${esc(this._error)}</p>` : ""}` + this._nav(true);
+      </div><p class="hint">${s.entry_id ? t.summary_edit : t.summary_new}</p>${live}${s.start_active && !s.entry_id ? `<p class="warn">⚠ ${esc(s.control === "trv" ? t.start_active_on_trv : t.start_active_on)}</p>` : ""}${this._error ? `<p class="err">${esc(this._error)}</p>` : ""}` + this._nav(true);
   }
   _renderDone() {
     const t = this._t;
@@ -773,6 +790,8 @@ class HcWizardPanel extends HTMLElement {
       sc.push(ent("heat_energy_entity", [f("sensor", "gas"), f("sensor", "energy"), f("sensor", "volume")]));
       if (String(s.system || "").startsWith("floor"))
         sc.push({ ...ent("floor_entity", TEMP), required: this._floorNeeded() });
+    } else if (c === "trv") {  // 0.81.0: no relay, no boiler – a heat meter (the flat's sum) may still be given
+      sc.push(ent("heat_energy_entity", [f("sensor", "energy")]));
     } else if (c === "external" || c === "ac") {
       // 0.45.0: not an HC thermostat, nor a climate another instance drives
       sc.push({ name: "external_climate", required: true, selector: { entity: { filter: [f("climate")], exclude_entities: this._excluded() } } });
@@ -787,7 +806,7 @@ class HcWizardPanel extends HTMLElement {
     if (["electric_heater", "electric_boiler", "storage_heater"].includes(s.heat_source) && c !== "external")
       sc.push(ent("power_available_entity", [f("binary_sensor"), f("switch"), f("input_boolean")]));
     if (s.system === "fan_coil" && c !== "external") sc.push(ent("fan_entity", f("fan")), ent("coil_temp_entity", TEMP));
-    if (s.heat_source === "district_heating" && c !== "external") sc.push(ent("return_temp_entity", TEMP));
+    if (s.heat_source === "district_heating" && c !== "external" && c !== "trv") sc.push(ent("return_temp_entity", TEMP));
     if (s.heat_source === "heat_pump" && (c === "onoff" || c === "curve"))
       sc.push(ent("hp_defrost_entity", [f("binary_sensor"), f("sensor"), f("switch"), f("input_boolean")]),
         ent("hp_dhw_entity", [f("binary_sensor"), f("sensor"), f("switch"), f("input_boolean")]));
@@ -815,8 +834,10 @@ class HcWizardPanel extends HTMLElement {
     }));
     r.querySelectorAll("[data-system]").forEach((b) => b.addEventListener("click", () => {
       s.system = b.dataset.system;
-      const ctl = (s.system === "fan_coil" ? this._start.controls_fan_coil : this._start.controls)?.[s.heat_source] || [];
+      const ctl = ((s.system === "fan_coil" ? this._start.controls_fan_coil : this._start.controls)?.[s.heat_source] || [])
+        .filter((k) => k !== "trv" || !String(s.system).startsWith("floor"));  // 0.81.0: no TRV heads on a floor
       if (!ctl.includes(s.control)) s.control = ctl[0];
+      if (s.system === "radiator_trv" && ctl.includes("trv")) s.control = "trv";  // 0.81.0: a flat with TRV heads
       this._render();
     }));
     r.querySelectorAll("[data-control]").forEach((b) => b.addEventListener("click", () => { s.control = b.dataset.control; this._render(); }));

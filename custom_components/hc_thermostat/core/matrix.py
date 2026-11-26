@@ -90,8 +90,10 @@ _FANCOIL = Cell(Status.RECOMMENDED,
 _DISTRICT = {
     "radiator_single": Cell(R, "Távfűtés lakásonkénti zónaszeleppel: TPI vagy PID + PWM hosszú ciklussal; visszatérő-korlát lehetséges",
                             "District heating with a flat zone valve: TPI or PID + PWM with a long cycle; return limit possible"),
-    "radiator_trv": Cell(R, "Távfűtés szelepfejekkel: a fejek kapják a célt (külső termosztát mód), nincs kazán",
-                         "District heating with TRV heads: the heads get the target (external thermostat), no boiler"),
+    "radiator_trv": Cell(R, "Távfűtés szelepfejekkel (panellakás): „Csak szelepfejek” – helyiségenként a fejek kapják a célt, a "
+                            "helyiség hőmérője szerint (a fej külső hőmérő bemenetén, ha van); nincs zónaszelep, nincs kazán",
+                         "District heating with TRV heads (a flat): \"TRV heads only\" – the heads of each room get its target, by "
+                         "the room's thermometer (on the head's external sensor input where it has one); no zone valve, no boiler"),
     "radiator_zones": Cell(R, "Zónánként zónaszelep TPI-vel", "A zone valve per zone with TPI"),
     "floor_single": Cell(R, "Hőközpont keverővel, zónaszelep hosszú ciklussal; padlóhőfok-limit", "Substation with mixing, zone valve with a long cycle; floor limit"),
     "floor_zones": Cell(R, "Hőközpont keverővel, zónánként szelep; padlóhőfok-limit", "Substation with mixing, a valve per zone; floor limit"),
@@ -171,7 +173,13 @@ def controls(source: str, system: str | None = None) -> list[str]:
         out.append("onoff")  # on its thermostat input: long runs, no PWM
     if own_control_supported(source):
         out += ["tpi", "pid"]
+    if source in TRV_SOURCES and system not in _FLOOR:
+        # 0.81.0: TRV heads only – no zone valve, no boiler (a flat on district heating); first on a TRV system
+        out = ["trv"] + out if system == "radiator_trv" else out + ["trv"]
     return out + ["external"]
+
+
+TRV_SOURCES = ("district_heating",)  # 0.81.0: the heat comes from the building – HC only sets the heads
 
 
 def curve_supported(source: str) -> bool:

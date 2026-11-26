@@ -1919,7 +1919,8 @@
         "curve": "Fűtési görbe + helyiségkorrekció (KÍSÉRLETI)",
         "ac": "Klíma: céleltolás helyiséghőmérő szerint (virtuális i-Feel)",
         "onoff": "On-off, hosszú futással (hőszivattyú)",
-        "storage": "Hőtároló: éjszakai töltés + kisütés"
+        "storage": "Hőtároló: éjszakai töltés + kisütés",
+        "trv": "Csak szelepfejek (távfűtéses lakás: nincs zónaszelep, nincs kazán)"
       }
     },
     "mode": {

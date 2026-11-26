@@ -22,7 +22,7 @@ def test_district_heating_cells_and_controls():
     assert cell("radiator_trv", "district_heating").status == Status.RECOMMENDED
     assert cell("mixed_rtl", "district_heating").status == Status.POSSIBLE
     assert cell("room_unit", "district_heating").status == Status.NOT_RECOMMENDED
-    assert controls("district_heating") == ["tpi", "pid", "external"]
+    assert controls("district_heating") == ["tpi", "pid", "trv", "external"]  # 0.81.0: trv
     assert default_timing("radiator_single", "district_heating") == {"cycle_s": 1800.0, "min_on_s": 600.0, "min_off_s": 300.0}
 
 

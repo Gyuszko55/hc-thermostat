@@ -104,8 +104,8 @@ def _ent(key: str, *domains: str, multiple: bool = False) -> EntitySelector:
 
 
 def _rooms_ok(conf: dict, control: str | None) -> bool:
-    """Rooms (0.43.0; TRV rooms before): a single zone with TPI / PID."""
-    return conf.get(CONF_ROLE, "standalone") == "standalone" and control in ("tpi", "pid")
+    """Rooms (0.43.0; TRV rooms before): a single zone with TPI / PID, or TRV heads only (0.81.0)."""
+    return conf.get(CONF_ROLE, "standalone") == "standalone" and control in ("tpi", "pid", "trv")
 
 
 def _number(minimum: float, maximum: float, step: float, unit: str = "") -> NumberSelector:
@@ -1190,7 +1190,7 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         elif curve:
             fields[vol.Required(CONF_FLOW)] = _entity("number", "input_number")
             fields[vol.Optional(CONF_HEAT_ENABLE)] = _entity("switch", "input_boolean")
-        else:
+        elif self._data[CONF_CONTROL] != "trv":  # 0.81.0: TRV heads only – no relay; the heads come in the rooms
             fields[vol.Required(CONF_ACTUATOR)] = _entity("switch", "input_boolean")
         fields[_key(curve, CONF_OUTDOOR, sug.get(CONF_OUTDOOR))] = _ent(CONF_OUTDOOR, "sensor", "weather")  # the curve needs it
         fields[vol.Optional(CONF_WINDOWS)] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
@@ -1202,7 +1202,7 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         fields.update(_fuel_fields({}))
         fields[vol.Optional(CONF_EXTRA_HEAT)] = _ent(CONF_EXTRA_HEAT, "sensor")
         fields[vol.Optional(CONF_EXTRA_FACTOR, default=3.0)] = _number(0.1, 10, 0.1, "×")
-        if source != "external_heat":  # 0.47.0: HC does not drive that heat source
+        if source != "external_heat" and self._data[CONF_CONTROL] != "trv":  # 0.47.0: HC does not drive that heat source
             fields[vol.Optional("boiler_power_kw", default=0.0)] = _number(0, 100, 0.1, "kW")
         # 0.45.0: the adjoining room (a second heat source behind a door) is rare – it is set in the options
         if self._data.get(CONF_ROLE) == "zone":
@@ -1353,7 +1353,7 @@ class HcOptionsFlow(OptionsFlow):
         elif curve:
             pick(True, CONF_FLOW, _entity("number", "input_number"))
             pick(False, CONF_HEAT_ENABLE, _entity("switch", "input_boolean"))
-        else:  # TPI, PID, on-off and the storage heater switch a relay
+        elif new != "trv":  # TPI, PID, on-off and the storage heater switch a relay (0.81.0: trv – the heads only)
             pick(True, CONF_ACTUATOR, _entity("switch", "input_boolean"))
         pick(curve, CONF_OUTDOOR, _ent(CONF_OUTDOOR, "sensor", "weather"))
         return self.async_show_form(step_id="change_entities", data_schema=vol.Schema(fields), errors=errors,

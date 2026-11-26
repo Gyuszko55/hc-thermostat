@@ -1919,7 +1919,8 @@
         "curve": "Heating curve + room correction (EXPERIMENTAL)",
         "ac": "AC: setpoint shift by the room thermometer (virtual i-Feel)",
         "onoff": "On/off, long runs (heat pump)",
-        "storage": "Storage: night charge + discharge"
+        "storage": "Storage: night charge + discharge",
+        "trv": "TRV heads only (a flat on district heating: no zone valve, no boiler)"
       }
     },
     "mode": {

@@ -299,7 +299,7 @@ flowchart TD
 - ✅ Cheaper heat source by price and allowance
 - ✅ Agreement with the real heating, heating fault
 
-**Controls (recommended first):** **TPI + PWM** · PID + PWM · External thermostat
+**Controls (recommended first):** **TPI + PWM** · PID + PWM · TRV heads only (a flat on district heating: no zone valve, no boiler) · External thermostat
 
 **Starting timing (cycle / min. on / min. off):**
 
@@ -512,7 +512,7 @@ The setup shows this cell as its advice; in a cell: the status and the recommend
 | | On/off boiler | Modulating boiler | Hydronic heat pump | Electric boiler | Air conditioner | Electric heater | Storage heater | District heating | Pellet boiler | Heat source with its own control |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Radiators, one loop, one thermostat | ✅ TPI | ✅ curve | ✅ curve | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
-| Radiators with TRVs | ✅ TPI | ✅ curve | 🟡 curve | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
+| Radiators with TRVs | ✅ TPI | ✅ curve | 🟡 curve | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ trv | ✅ on-off | ✅ TPI |
 | Radiators, zone valve loops | ✅ TPI | ✅ curve | 🟡 curve | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
 | Floor only, mixing manifold, one zone | ✅ TPI | ✅ curve | ✅ curve | ✅ TPI | ⛔ | ✅ TPI | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
 | Floor manifold with valve actuators | ✅ TPI | ✅ curve | ✅ curve | ✅ TPI | ⛔ | ✅ TPI | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |

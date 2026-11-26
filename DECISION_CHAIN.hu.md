@@ -299,7 +299,7 @@ flowchart TD
 - ✅ Olcsóbb hőforrás ár és keret szerint
 - ✅ Egyezés a tényleges fűtéssel, fűtési hiba
 
-**Szabályzók (az ajánlott elöl):** **TPI + PWM** · PID + PWM · Külső termosztát
+**Szabályzók (az ajánlott elöl):** **TPI + PWM** · PID + PWM · Csak szelepfejek (távfűtéses lakás: nincs zónaszelep, nincs kazán) · Külső termosztát
 
 **Kezdő időzítés (ciklus / min. be / min. ki):**
 
@@ -512,7 +512,7 @@ A beállítás ezt a cellát mutatja ajánlásként; cellánként az állapot é
 | | Be-ki fali kazán | Moduláló kazán | Vízoldali hőszivattyú | Elektromos kazán | Klíma | Elektromos fűtő | Hőtárolós kályha | Távfűtés | Pellet kazán | Külső vezérlésű hőtermelő |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Radiátor, egy kör, egy termosztát | ✅ TPI | ✅ görbe | ✅ görbe | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
-| Radiátor TRV-kkel | ✅ TPI | ✅ görbe | 🟡 görbe | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
+| Radiátor TRV-kkel | ✅ TPI | ✅ görbe | 🟡 görbe | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ trv | ✅ on-off | ✅ TPI |
 | Radiátor, zónaszelepes körök | ✅ TPI | ✅ görbe | 🟡 görbe | ✅ TPI | ⛔ | ⛔ | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
 | Csak padló, keverős osztó, egy zóna | ✅ TPI | ✅ görbe | ✅ görbe | ✅ TPI | ⛔ | ✅ TPI | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
 | Padlóosztó szelepmotorokkal | ✅ TPI | ✅ görbe | ✅ görbe | ✅ TPI | ⛔ | ✅ TPI | ⛔ | ✅ TPI | ✅ on-off | ✅ TPI |
