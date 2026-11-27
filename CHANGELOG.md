@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.82.5 – 2026-11-27
+
+From a clean install as someone else would do it (the relay emptied, only the public release and the READMEs):
+
+- **The thermometer is found, not guessed.** A fresh pairing numbers the BLU H&T's sensors by object id – measured on
+  a Shelly 1 Gen4: 200 battery, 201 humidity, 202 temperature – so the documented `--sensor bthomesensor:200` was the
+  battery: the relay saw no temperature and would have heated blind on the safe duty. The uploader now finds the
+  temperature and the humidity itself (`--sensor auto`, the default; a given id that is no temperature is said and
+  replaced), and the script, if the id set is no temperature, uses the first BTHome temperature on the relay (checked
+  again every 5 minutes) and reports it (`sensor_used`, `sensor_warn`); a humidity id that is no humidity is not used
+  (`hum_warn`). The relay's page warns on *First steps*.
+- **The READMEs say how to start:** a short HC Lite quick start in README (en / hu) – pairing, upload, the token to
+  keep, the relay's page, adding it to Home Assistant; `guard/README.md` brought up to date.
+- Also checked on the way: an instance added to Home Assistant took the relay's own settings (the form started from
+  them, nothing was pushed back); twelve instances from 0.48 loaded with this version unchanged.
+
 ## 0.82.4 – 2026-11-27
 
 From a second outside review (of 0.82.2–0.82.3):

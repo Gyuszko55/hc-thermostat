@@ -159,3 +159,38 @@ test("no clock, as the real relay: the packet id keeps the reading fresh; no pac
   s.run(1900, { keepFresh: false });
   assert.equal(s.state().temp, null, "the packets stop: stale after sensor_max_age");
 });
+
+// 0.82.5: a clean install, as measured on a Shelly 1 Gen4: a fresh pairing numbers the BLU H&T's sensors by object
+// id – 200 battery (obj 1), 201 humidity (46), 202 temperature (69) – so "bthomesensor:200" was the battery
+test("a fresh pairing: the set sensor is the battery – the script finds the temperature itself and says so", () => {
+  const s = sim();
+  s.tempId = 202; s.bt[200] = 100; s.btObj[200] = 1; s.bt[201] = 41; s.btObj[201] = 46;
+  s.setTemp(21.4); s.run(310); // paired after the script started: looked at again within 5 minutes
+  const st = s.state();
+  assert.equal(st.temp, 21.4);
+  assert.equal(st.sensor_used, 202);
+  assert.equal(st.sensor_warn, true);
+  assert.equal(post(s, { set: { sensor_id: 202 } }).body.sensor_warn, false, "set right: no warning");
+});
+
+test("no temperature at all on the relay: no reading (never the battery's 100)", () => {
+  const s = sim();
+  s.tempId = 299; s.bt[200] = 100; s.btObj[200] = 1;
+  s.setTemp(null); s.run(310);
+  const st = s.state();
+  assert.equal(st.temp, null);
+  assert.equal(st.sensor_used, -1);
+  assert.equal(st.sensor_warn, true);
+});
+
+test("a humidity id that is not a humidity is not used (dew point)", () => {
+  const s = sim();
+  s.bt[202] = 100; s.btObj[202] = 1; s.bt[201] = 45; s.btObj[201] = 46;
+  post(s, { set: { hum_id: 202 } });
+  s.setTemp(21.0); s.run(30);
+  assert.equal(s.state().hum, null);
+  assert.equal(s.state().hum_warn, true);
+  post(s, { set: { hum_id: 201 } }); s.run(20);
+  assert.equal(s.state().hum, 45);
+  assert.equal(s.state().hum_warn, false);
+});

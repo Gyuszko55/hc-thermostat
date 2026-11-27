@@ -21,6 +21,8 @@ export class ShellySim {
     this.printed = [];
     this.events = [];           // 0.82.0: Shelly.addEventHandler callbacks
     this.packet = 0;            // 0.82.4: the BLU device's packet id (one per reading)
+    this.tempId = 200;          // 0.82.5: the BLU H&T's temperature sensor id (a fresh pairing: 202)
+    this.btObj = {};            // 0.82.5: object ids of the other BTHome sensors (default humidity, 46)
     this.realNoClock = false;   // 0.82.4: as measured: without a clock the sensor's last_updated_ts stands still
     this.probes = {};           // wired add-on probes by id: temperature:<id>.tC
     this.hums = {};             // add-on DHT22 humidity by id: humidity:<id>.rh
@@ -28,8 +30,10 @@ export class ShellySim {
     const self = this;
     const Shelly = {
       getComponentStatus(name, id) { return self.status(name, id); },
-      getComponentConfig(name, id) { // 0.82.4: the BLU H&T's address on its sensors and its device
-        if ((name === "bthomesensor" && (id === 200 || self.bt[id] !== undefined)) || (name === "bthomedevice" && id === 200)) return { id, addr: "aa:bb:cc:dd:ee:ff" };
+      getComponentConfig(name, id) { // 0.82.4: the BLU H&T's address on its sensors and its device; 0.82.5: object ids
+        if (name === "bthomedevice" && id === 200) return { id, addr: "aa:bb:cc:dd:ee:ff" };
+        if (name === "bthomesensor" && (id === self.tempId || self.bt[id] !== undefined))
+          return { id, addr: "aa:bb:cc:dd:ee:ff", obj_id: self.btObj[id] !== undefined ? self.btObj[id] : (id === self.tempId ? 69 : 46) };
         return null;
       },
       getDeviceInfo() { return { id: "shelly1minig4-sim", auth_en: self.auth }; },
@@ -62,8 +66,8 @@ export class ShellySim {
     if (name === "temperature" && id === 100 && this.probe !== undefined) return { id: 100, tC: this.probe };
     if (name === "temperature" && this.probes[id] !== undefined) return { id, tC: this.probes[id] };
     if (name === "humidity" && this.hums[id] !== undefined) return { id, rh: this.hums[id] };
-    if (name === "bthomesensor" && id === 200) {
-      return this.sensor ? { id: 200, value: this.sensor.value, last_updated_ts: this.realNoClock && !this.timeSynced ? 1795793099 : this.sensor.ts } : null;
+    if (name === "bthomesensor" && id === this.tempId) {
+      return this.sensor ? { id, value: this.sensor.value, last_updated_ts: this.realNoClock && !this.timeSynced ? 1795793099 : this.sensor.ts } : null;
     }
     if (name === "bthomedevice" && id === 200) return this.sensor ? { id: 200, packet_id: this.packet % 256, last_updated_ts: null } : null;
     if (name === "bthomesensor" && this.bt[id] !== undefined) return { id, value: this.bt[id], last_updated_ts: this.unix };

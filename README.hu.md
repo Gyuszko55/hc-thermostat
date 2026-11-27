@@ -94,6 +94,26 @@ Beállítások → Eszközök és szolgáltatások alatt kell felvenni).
   kWh, egyéni) és a `heat_efficiency` (%) kiszámolja az energiatényezőt; az automatikus a mérő mértékegységét nézi
   (m³, kWh, MJ, GJ), mérő nélkül a hőtermelőt. A korábban mentett példány megtartja a számát (egyéni).
 
+### HC Lite: termosztát magán a relén (Home Assistanttal vagy nélküle)
+
+Sima on-off kazánhoz és egy helyiséghez: egy szkriptet futtató Shelly Gen3 / Gen4 relé (pl. Shelly 1 Gen4, 1 Mini
+Gen4) és egy Shelly BLU H&T. A relén futó szkript mér, dönt és kapcsol – Home Assistant, Wi-Fi és internet nélkül is
+fűt. A Home Assistant (egy HC Lite példány) csak beállítja és megmutatja.
+
+1. **A BLU H&T párosítása a reléhez** a Shelly saját oldalán (Components → Add BTHome device; nyomd meg a H&T
+   gombját). A relé maga számozza az érzékelőket (a 200-as gyakran az elem) – a feltöltő és a szkript magától
+   megtalálja a hőmérőt.
+2. **A szkript feltöltése** számítógépről (Python, `pip install aiohttp`, a tároló `guard/` mappája):
+   `HC_GUARD_PASSWORD=... python3 guard/upload_shelly.py <relé-IP> --lite --set-password --shadow`.
+   Kiírja a megtalált hőmérőt és **egyszer a tokent – őrizd meg**: a relé oldala és a Home Assistant is kéri.
+   `--shadow`: dönt és jelent, de még nem kapcsol.
+3. **Befejezés a relé oldalán:** `http://<relé-IP>/script/1/lite?page=1` → *Első lépések* (token, hőforrás, óra,
+   hőmérő), majd *Beállítások* (célok, program, szabályozás). Ha jól dönt, ott lehet *élesíteni*.
+4. **Home Assistant (nem kötelező):** Beállítások → Eszközök és szolgáltatások → Hozzáadás → HC Thermostat → kézi →
+   szerep **HC Lite** → a szkript címe (`http://<relé-IP>/script/1/lite`), a token és az eszköz jelszava. Az űrlap
+   abból indul, amit a relé már tud. Előbeállítások (komfort, alvás, távol, szabadság), jelenlét, naptár, ablakok:
+   `guard/README.md`.
+
 ## Mit csinál a HC
 
 ### Funkciók

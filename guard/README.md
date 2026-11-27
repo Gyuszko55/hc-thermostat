@@ -28,13 +28,13 @@ A Wi-Fi thermometer can push its readings to the guard instead (it then needs th
 `http://<ip>/script/<id>/hc?tok=<token>` (it appends `?hum=..&temp=..`). A pushed reading counts for 2 hours (these
 wake only on a change); the Bluetooth sensor, when there is one, comes first.
 
-1. Pair the BLU H&T in the relay's web UI (Components → BTHome) and note the temperature component's id
-   (e.g. `bthomesensor:200`).
+1. Pair the BLU H&T in the relay's web UI (Components → BTHome). The uploader finds its temperature itself (a fresh
+   pairing numbers the sensors by object id, 200 is often the battery); `--sensor bthomesensor:<id>` picks one.
 2. Upload and start the script, protecting the device with a password at the same time (0.78.2, strongly
    recommended):
 
    ```sh
-   HC_GUARD_PASSWORD='<device password>' python3 guard/upload_shelly.py <ip> --sensor bthomesensor:200 --set-password
+   HC_GUARD_PASSWORD='<device password>' python3 guard/upload_shelly.py <ip> --set-password
    ```
 
    The tool needs aiohttp 3.12 or later (`pip install aiohttp`; Python's own urllib knows no SHA-256 digest, the
@@ -102,7 +102,7 @@ goes off at once (no `min_on`), the stop is latched on the device (KVS `hc_guard
 guard's fallback does **not** heat while it holds – even when Home Assistant is gone. The first ordinary lease after
 the stop was acknowledged in HC clears it; control comes back through the usual handback. The status shows `hc_stop`.
 
-## HC Lite – a whole thermostat on the relay (`shelly/hc_lite.js`, 0.79.2, first version)
+## HC Lite – a whole thermostat on the relay (`shelly/hc_lite.js`, since 0.79.2; script 0.82.5)
 
 For a plain on-off boiler with one room thermometer: a Shelly 1 Mini Gen4 (or any Gen3 / Gen4 relay with scripting)
 and a Shelly BLU H&T paired to it (BTHome). The script **heats on its own** – Home Assistant only sets it up and reads
@@ -134,15 +134,20 @@ it. It is not the guard: run one of the two on a relay, never both.
   Button) paired to the relay – the device itself sends its button's pushes (a button cannot be added as a sensor):
   one push comfort, two pushes away / back, a long push all back to the program.
 
-Install: pair the BLU H&T in the Shelly's web page (Bluetooth → add device; note the temperature component id, e.g.
-`bthomesensor:200`), then
+Install: pair the BLU H&T in the Shelly's web page (Components → Add BTHome device, press the H&T's button). The
+relay numbers the sensors itself by object id – on a Shelly 1 Gen4 a fresh pairing gave 200 battery, 201 humidity,
+202 temperature – so the uploader finds the temperature (and the humidity) on its own (`--sensor auto`, the default),
+and the script, if the id set is no temperature, uses the first BTHome temperature on the relay and says so
+(`sensor_warn`, also on the page's *First steps*). Then
 
 ```
-HC_GUARD_PASSWORD=... python guard/upload_shelly.py <ip> --lite --sensor bthomesensor:200 --set-password --shadow
+HC_GUARD_PASSWORD=... python guard/upload_shelly.py <ip> --lite --set-password --shadow
 ```
 
-Leave out `--shadow` when it may switch the boiler. Desk tests: `node --test "guard/tests/*.test.mjs"` (a simulated Shelly runs the
-unchanged script). Managing it from Home Assistant (an HC Lite instance with a climate entity) comes next.
+It prints a token once – keep it: the relay's page (*First steps* → *Token*) and Home Assistant ask for it. Leave out
+`--shadow` when it may switch the boiler (or go live later on the page). In Home Assistant: add HC Thermostat →
+manual → role *HC Lite* → the script's address, the token and the device password; the form starts from the relay's
+own settings. Desk tests: `node --test "guard/tests/*.test.mjs"` (a simulated Shelly runs the unchanged script).
 
 ## The protocol (for ESPHome, a PLC or anything else)
 

@@ -69,7 +69,7 @@ let C = {
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
-let SV = "0.82.4";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
+let SV = "0.82.5";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@v" + SV + "/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
 let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
@@ -84,7 +84,8 @@ let st = {
   i: 0, i_t: -1, i_saved: -100000,
   push_t: null, push_at: -1, pre: false, boost: false,
   push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: [], btn: null,
-  bt_ts: null, bt_at: -1, of: 0, of_at: -2, i_saved_v: null
+  bt_ts: null, bt_at: -1, of: 0, of_at: -2, i_saved_v: null,
+  tid: -1, tid_for: null, tid_t: -100000, swarn: false, hum_ok: false, hum_ok_for: null
 };
 
 function up() {
@@ -175,7 +176,8 @@ function probe(id) {
 
 function extra(v) {
   let h = null, s;
-  if (C.hum_id >= 200) { s = Shelly.getComponentStatus("bthomesensor", C.hum_id); if (s) h = s.value; }
+  if (C.hum_id >= 200) { if (st.hum_ok_for !== C.hum_id) { st.hum_ok_for = C.hum_id; st.hum_ok = isObj(C.hum_id, 46, 3); }
+    s = st.hum_ok ? Shelly.getComponentStatus("bthomesensor", C.hum_id) : null; if (s) h = s.value; } // 0.82.5: a humidity only
   else if (C.hum_id >= 100) { s = Shelly.getComponentStatus("humidity", C.hum_id); if (s) h = s.rh; }
   else if (C.sensor === "push") h = st.push_h;
   st.hum = typeof h === "number" && h > 0 && h <= 100 ? h : null;
@@ -209,7 +211,9 @@ function readTemp() {
     st.temp = st.push_t; st.temp_age = pa;
     return st.push_t;
   }
-  let s = Shelly.getComponentStatus(C.sensor, C.sensor_id);
+  let sid = C.sensor === "bthomesensor" ? tempId() : C.sensor_id;
+  if (sid < 0) return null;
+  let s = Shelly.getComponentStatus(C.sensor, sid);
   if (!s) return null;
   let v = C.sensor === "temperature" ? s.tC : s.value;
   if (typeof v !== "number" || v < -30 || v > 60) return null;
@@ -218,7 +222,7 @@ function readTemp() {
   // power cut) still uses a fresh BLU reading; with a clock the first one seen keeps its real age
   // 0.82.4: measured on a relay without a clock, the sensor's last_updated_ts stands still while the packets keep
   // coming (and the values change) - so the BLU device's packet id counts as a fresh reading too
-  let pk = blePacket();
+  let pk = blePacket(sid);
   let key = String(s.last_updated_ts) + "/" + String(pk);
   if (key !== st.bt_ts) {
     let sys = Shelly.getComponentStatus("sys");
@@ -231,11 +235,27 @@ function readTemp() {
   return v;
 }
 
+// 0.82.5: the BTHome objects of a temperature and a humidity (0x45 / 0x02, 0x2E / 0x03)
+function isObj(id, a, b) { let c = Shelly.getComponentConfig("bthomesensor", id); return !!c && (c.obj_id === a || c.obj_id === b); }
+
+// 0.82.5: the thermometer's id - the set one when it is a temperature; otherwise (a fresh pairing numbers the sensors
+// by object id, so 200 is often the battery) the first BTHome temperature on the relay
+function tempId() {
+  if (st.tid_for !== C.sensor_id || up() - st.tid_t >= 300) { // checked again every 5 minutes (a pairing may change)
+    st.tid_for = C.sensor_id; st.tid_t = up(); st.tid = C.sensor_id; st.swarn = false;
+    if (!isObj(C.sensor_id, 69, 2)) {
+      st.swarn = true; st.tid = -1;
+      for (let i = 200; i < 230 && st.tid < 0; i++) if (isObj(i, 69, 2)) st.tid = i;
+    }
+  }
+  return st.tid;
+}
+
 // the packet id of the BLU device that holds the thermometer (found once by its address; null: none)
-function blePacket() {
-  if (st.bt_dev === undefined || st.bt_dev_for !== C.sensor_id) {
-    st.bt_dev_for = C.sensor_id; st.bt_dev = null;
-    let sc = Shelly.getComponentConfig("bthomesensor", C.sensor_id);
+function blePacket(sid) {
+  if (st.bt_dev === undefined || st.bt_dev_for !== sid) {
+    st.bt_dev_for = sid; st.bt_dev = null;
+    let sc = Shelly.getComponentConfig("bthomesensor", sid);
     for (let i = 200; sc && i < 220 && st.bt_dev === null; i++) {
       let dc = Shelly.getComponentConfig("bthomedevice", i);
       if (dc && dc.addr === sc.addr) st.bt_dev = i;
@@ -459,7 +479,9 @@ function status() {
     demand: st.demand, integral: C.ctl === "pid" ? Math.round(C.kp * st.i * 1000) / 1000 : null, reason: st.reason, boost: st.boost, hold: HOLD, since_s: up() - st.changed,
     starts_today: st.starts, on_min_today: Math.round(st.on_s / 60), log: st.log, cfg: cfgOut(),
     token: TOKEN ? true : false, rev: REV, sv: SV,
-    preset: preset(), psrc: psrc(), puntil: puntil(), vac: MX.vac > 0 ? MX.vac : null,
+    preset: preset(), psrc: psrc(), puntil: puntil(),
+    sensor_used: C.sensor === "bthomesensor" ? st.tid : C.sensor_id, sensor_warn: C.sensor === "bthomesensor" && st.swarn,
+    hum_warn: C.hum_id >= 200 && st.hum_ok_for === C.hum_id && !st.hum_ok, vac: MX.vac > 0 ? MX.vac : null,
     win_s: WIN >= 0 ? WIN - up() : null, we_today: st.period !== null && MX.we >= 0 && MX.we === st.day, btn_ev: st.btn,
     hvac: HVAC, hum: st.hum, dew: st.dp, pipe: st.pipe, dew_stop: HVAC === "cool" && st.dew, dew_warn: HVAC === "cool" && st.dw,
     buf: st.bufv };

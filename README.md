@@ -92,6 +92,26 @@ exists (add the first one under Settings → Devices & services).
   electricity kWh, custom) and `heat_efficiency` (%) work the energy factor out; automatic reads the meter's unit (m³,
   kWh, MJ, GJ), without a meter the heat source. An instance saved before keeps its number (custom).
 
+### HC Lite: a thermostat on the relay itself (with or without Home Assistant)
+
+For a plain on-off boiler and one room: a Shelly Gen3 / Gen4 relay with scripting (e.g. Shelly 1 Gen4, 1 Mini Gen4)
+and a Shelly BLU H&T. The script on the relay measures, decides and switches – it heats on without Home Assistant,
+Wi-Fi or the internet. Home Assistant (an HC Lite instance) only sets it up and shows it.
+
+1. **Pair the BLU H&T to the relay** on the Shelly's own page (Components → Add BTHome device; press the H&T's
+   button). The relay numbers its sensors itself (often 200 is the battery) – the uploader and the script find the
+   temperature on their own.
+2. **Upload the script** from a computer (Python with `pip install aiohttp`, this repository's `guard/` folder):
+   `HC_GUARD_PASSWORD=... python3 guard/upload_shelly.py <relay-ip> --lite --set-password --shadow`.
+   It prints the thermometer it found and a **token, only once – keep it**: the relay's page and Home Assistant ask
+   for it. `--shadow`: it decides and reports, but does not switch yet.
+3. **Finish on the relay's page:** `http://<relay-ip>/script/1/lite?page=1` → *First steps* (token, heat source,
+   clock, thermometer), then *Settings* (targets, program, control). When it decides well, *go live* there.
+4. **Home Assistant (optional):** Settings → Devices & services → Add → HC Thermostat → manual → role **HC Lite** →
+   the script's address (`http://<relay-ip>/script/1/lite`), the token and the device password. The form starts from
+   what the relay already holds. Presets (comfort, sleep, away, vacation), presence, a calendar and windows: see
+   `guard/README.md`.
+
 ## What HC does
 
 ### Features

@@ -26,7 +26,9 @@
     newTok: "Ennek a relének még nincs tokene. Hozz létre egyet: ezzel lehet majd állítani (és a HC-t is ezzel kötheted be).",
     gen: "Új token", create: "Token beállítása", tokSaved: "Token beállítva",
     clock: "Óra és időzóna", clockOk: "Rendben", clockBad: "Nincs pontos idő: a program nem tud váltani. Állítsd be az időzónát és az NTP-t a Shelly beállításaiban (Settings → Time).",
-    tz: "Időzóna", sensor: "Hőmérő", pick: "Ezt használja", found: "Talált hőmérők", none: "Nem találtam BTHome hőmérőt. BLU H&T-t a Shelly saját oldalán (Components → Add BTHome device) lehet felvenni.",
+    tz: "Időzóna", sensor: "Hőmérő",
+    sensorWarnUsing: "A beállított érzékelő nem hőmérő (pl. az elem) – a relé most a(z) {id}-t használja. Válaszd ki alább, hogy így is maradjon.",
+    sensorWarnNone: "A beállított érzékelő nem hőmérő, és a relén nincs BTHome hőmérő – párosítsd a BLU H&T-t.", pick: "Ezt használja", found: "Talált hőmérők", none: "Nem találtam BTHome hőmérőt. BLU H&T-t a Shelly saját oldalán (Components → Add BTHome device) lehet felvenni.",
     pushTitle: "Wi-Fi H&T (küldi a mérést)", pushHow: "A Wi-Fi H&T saját oldalán: Actions → új Webhook, esemény: Temperature change, cím az alábbi (az ${ev.tC} részt hagyd így). A H&T akkor érhető el, amikor felébred (nyomd meg a gombját).",
     copy: "Másolás", copied: "Kimásolva", run: "Indulás bekapcsoláskor", runOk: "A szkript bekapcsoláskor magától indul.",
     runBad: "A szkript bekapcsoláskor nem indul el magától.", runFix: "Bekapcsolás", modeTitle: "Árnyék vagy élesben",
@@ -59,7 +61,9 @@
     newTok: "This relay has no token yet. Create one: changes need it (and HC connects with it too).",
     gen: "New token", create: "Set the token", tokSaved: "Token set",
     clock: "Clock and time zone", clockOk: "OK", clockBad: "No exact time: the program cannot switch. Set the time zone and NTP in the Shelly settings (Settings → Time).",
-    tz: "Time zone", sensor: "Thermometer", pick: "Use this", found: "Thermometers found", none: "No BTHome thermometer found. Add a BLU H&T on the Shelly's own page (Components → Add BTHome device).",
+    tz: "Time zone", sensor: "Thermometer",
+    sensorWarnUsing: "The sensor set is not a thermometer (e.g. the battery) – the relay now uses {id}. Pick it below to keep it so.",
+    sensorWarnNone: "The sensor set is not a thermometer and the relay has no BTHome thermometer – pair the BLU H&T.", pick: "Use this", found: "Thermometers found", none: "No BTHome thermometer found. Add a BLU H&T on the Shelly's own page (Components → Add BTHome device).",
     pushTitle: "Wi-Fi H&T (pushes its reading)", pushHow: "On the Wi-Fi H&T's own page: Actions → new Webhook, event: Temperature change, the URL below (keep the ${ev.tC} part as it is). The H&T answers when it wakes (press its button).",
     copy: "Copy", copied: "Copied", run: "Start on power-up", runOk: "The script starts by itself on power-up.",
     runBad: "The script does not start by itself on power-up.", runFix: "Turn it on", modeTitle: "Shadow or live",
@@ -354,6 +358,7 @@
       ${clockOk ? "" : `<p class="msg bad">${T.clockBad}</p>`}
       <div class="row"><span>${T.run}</span><span>${runCfg == null ? "…" : runCfg ? T.runOk : `${T.runBad} <button class="btn" data-run="1">${T.runFix}</button>`}</span></div></div>
     <div class="card"><h2 style="margin-top:0">4. ${T.sensor}: <span class="mut">${cur}</span></h2>
+      ${S && S.sensor_warn ? `<div class="chip bad" style="margin:6px 0">${S.sensor_used >= 0 ? T.sensorWarnUsing.replace("{id}", "bthomesensor:" + S.sensor_used) : T.sensorWarnNone}</div>` : ""}
       <div class="mut">${T.found}</div>${sens}
       <h2>${T.pushTitle}</h2><p class="mut">${T.pushHow}</p><code id="hook">${esc(hook)}</code>
       <div class="btns"><button class="btn" data-copy="1">${T.copy}</button>

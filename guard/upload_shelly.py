@@ -133,6 +133,28 @@ def _put(host: str, name: str, code: str) -> int:
     return sid
 
 
+# 0.82.5: the BTHome object ids of a temperature and a humidity (0x45 / 0x02, 0x2E / 0x03)
+TEMP_OBJ = (69, 2)
+HUM_OBJ = (46, 3)
+
+
+def bthome_find(host: str) -> tuple[int | None, int | None]:
+    """The relay's own BTHome sensors: the first temperature and humidity id (a fresh pairing numbers them by object
+    id, so 200 is often the battery – measured on a Shelly 1 Gen4 with a BLU H&T)."""
+    comps = rpc(host, "Shelly.GetComponents", {"dynamic_only": True}).get("components") or []
+    temp = hum = None
+    for c in comps:
+        key, cfg = str(c.get("key", "")), c.get("config") or {}
+        if not key.startswith("bthomesensor:"):
+            continue
+        sid, obj = int(key.split(":")[1]), cfg.get("obj_id")
+        if obj in TEMP_OBJ and temp is None:
+            temp = sid
+        elif obj in HUM_OBJ and hum is None:
+            hum = sid
+    return temp, hum
+
+
 def lite(a) -> int:
     """0.79.2: HC Lite – its own script ("hc_lite"), settings in hc_lite_cfg (kept; only the sensor and shadow are
     set here), the token in hc_lite_token. The guard script, if any, is left alone (do not run both on one relay)."""
@@ -142,8 +164,21 @@ def lite(a) -> int:
         print("--set-password: give a password of at least 8 characters (HC_GUARD_PASSWORD)")
         return 2
     kind, _, sid_s = a.sensor.partition(":")
+    hum_id = None
+    if a.sensor in ("auto", "bthomesensor", "bthomesensor:auto") or (kind == "bthomesensor" and sid_s.isdigit()):
+        # 0.82.5: find the BLU H&T's temperature (and humidity) on the relay; a given id must be a temperature
+        temp, hum_id = bthome_find(a.host)
+        if kind == "bthomesensor" and sid_s.isdigit() and int(sid_s) != temp:
+            print(f"bthomesensor:{sid_s} is not a temperature on this relay"
+                  + (f" – using bthomesensor:{temp}" if temp is not None else ""))
+        if temp is None:
+            print("No BTHome temperature on the relay: pair the BLU H&T first (Shelly page → Components / Bluetooth"
+                  " → add device), then run this again")
+            return 2
+        kind, sid_s = "bthomesensor", str(temp)
+        print(f"Thermometer: bthomesensor:{temp}" + (f", humidity: bthomesensor:{hum_id}" if hum_id is not None else ""))
     if kind not in ("bthomesensor", "temperature") or not sid_s.isdigit():
-        print("--lite needs --sensor bthomesensor:<id> (the BLU H&T's temperature) or temperature:<id> (an add-on probe)")
+        print("--lite needs --sensor auto (the BLU H&T paired to the relay), bthomesensor:<id> or temperature:<id> (an add-on probe)")
         return 2
     from compact_js import compact  # 0.80.0: without comments and indentation (the relay keeps less in its heap)
     code = compact(LITE.read_text("ascii"))
@@ -167,6 +202,8 @@ def lite(a) -> int:
     except ValueError:
         cfg = {}
     cfg.update(sensor=kind, sensor_id=int(sid_s), shadow=bool(a.shadow))
+    if hum_id is not None and int(cfg.get("hum_id", -1)) < 0:
+        cfg["hum_id"] = hum_id
     rpc(a.host, "KVS.Set", {"key": "hc_lite_cfg", "value": json.dumps(cfg)})
     made = not token
     if made:
@@ -178,6 +215,7 @@ def lite(a) -> int:
     print(f"Status: http://{a.host}/script/{sid}/lite   page: http://{a.host}/script/{sid}/lite?page=1")
     if made:
         print(f"Token (new, shown only now): {token}")
+        print("  Keep it: the relay's page asks for it (First steps → Token), and Home Assistant too (HC Lite).")
     if not info.get("auth_en") and not a.set_password:
         print("WARNING: the device has no password – the page stays read only and anyone on the network can switch "
               "the relay. Run again with --set-password (HC_GUARD_PASSWORD).")
@@ -187,7 +225,8 @@ def lite(a) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("host")
-    ap.add_argument("--sensor", default="bthomesensor:200", help="bthomesensor:<id>, temperature:<id> or none")
+    ap.add_argument("--sensor", default="auto",
+                    help="auto (with --lite: the BLU H&T paired to the relay), bthomesensor:<id>, temperature:<id> or none")
     ap.add_argument("--token", default="", help="better: HC_GUARD_TOKEN in the environment; none: a new one is made")
     ap.add_argument("--password", default="", help="the device's password; better: HC_GUARD_PASSWORD in the environment")
     ap.add_argument("--set-password", action="store_true", help="protect the device with that password first")
@@ -233,6 +272,10 @@ def main() -> int:
     for i in range(0, len(code), CHUNK):
         rpc(a.host, "Script.PutCode", {"id": sid, "code": code[i:i + CHUNK], "append": i > 0})
     rpc(a.host, "Script.SetConfig", {"id": sid, "config": {"enable": True}})
+    if a.sensor == "auto":  # 0.82.5: the guard's own thermometer, if a BLU H&T is paired to the relay
+        temp, _ = bthome_find(a.host)
+        a.sensor = f"bthomesensor:{temp}" if temp is not None else "none"
+        print(f"Guard thermometer: {a.sensor}")
     rpc(a.host, "KVS.Set", {"key": "hc_guard_sensor", "value": a.sensor})
     made = not token
     if made:
