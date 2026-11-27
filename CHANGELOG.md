@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.82.7 – 2026-11-27
+
+- HC Lite: the relay page's loader no longer puts its own font and margin over the web set-up (0.82.6 set them on the
+  page itself, so the set-up showed in another font, a little indented); they apply only to the offline view.
+
 ## 0.82.6 – 2026-11-27
 
 - **HC Lite: a smaller script on the relay.** The relay's own page is now only a loader of the web set-up (which

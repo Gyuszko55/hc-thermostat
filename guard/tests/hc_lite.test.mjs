@@ -338,7 +338,8 @@ test("web set-up: the page loads the set-up program from its address (0.79.9)", 
   let r = s.http("GET", { query: "page=1" });
   assert.match(r.body, /<meta charset=utf-8>/);
   assert.match(r.body, /<script src='https:\/\/cdn\.jsdelivr\.net\/gh\/[^']+\/hc_lite_ui\.js' charset=utf-8 onerror=o\(\)><\/script>$/);
-  assert.match(r.body, /function o\(\)\{fetch\('lite'\)/, "0.82.6: offline it still shows the reading (read only)");
+  assert.match(r.body, /function o\(\)\{document\.body\.style\.cssText='[^']+';fetch\('lite'\)/, "0.82.6: offline it still shows the reading (read only)");
+  assert.doesNotMatch(r.body, /<body style/, "0.82.7: no own style over the web set-up's (only offline)");
   assert.ok(r.body.length < 700, `0.82.6: a small loader (${r.body.length} characters)`);
   assert.equal(post(s, { ui_src: "javascript:alert(1)" }).code, 200);
   assert.doesNotMatch(s.http("GET", { query: "page=1" }).body, /javascript:/, "only an http(s) address");

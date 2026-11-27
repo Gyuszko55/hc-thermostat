@@ -69,7 +69,7 @@ let C = {
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
-let SV = "0.82.6";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
+let SV = "0.82.7";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@v" + SV + "/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
 let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
@@ -647,7 +647,7 @@ function handle(body) {
 // 0.82.6: the page is only a loader - the web set-up (from UI_SRC, this release) draws everything. Without the
 // internet it shows the reading, the target, the mode and the boiler from /lite (read only), to keep the script small.
 let PAGE = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>HC Lite</title>" +
-  "<body style='font:16px sans-serif;margin:16px'><div id=s>HC Lite...</div><script>function o(){fetch('lite').then(r=>r.json())" +
+  "<div id=s>HC Lite...</div><script>function o(){document.body.style.cssText='font:16px sans-serif;margin:16px';fetch('lite').then(r=>r.json())" +
   ".then(j=>{document.getElementById('s').innerHTML='<b style=font-size:40px>'+(j.temp==null?'--':j.temp)+' C</b><br>'+j.sp+' C, '+" +
   "j.mode+' / '+(j.preset||'')+'<br>'+(j.relay?'ON':'off')+(j.shadow?' (shadow)':'')})}</script>";
 
