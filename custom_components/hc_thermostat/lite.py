@@ -202,8 +202,16 @@ class LiteEntity(CoordinatorEntity[LiteCoordinator]):
         return view(self.coordinator.data)
 
 
+# 0.82.3: Home Assistant 2026.11 serves the climate temperatures as native_* (the old names warn, and stop in
+# 2027.11); 2026.10 knows only the old names – as the room thermostats (climate.py, 0.71.4)
+NATIVE_TEMPS = hasattr(ClimateEntity, "native_current_temperature")
+
+
 class LiteClimate(LiteEntity, ClimateEntity):
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    if NATIVE_TEMPS:
+        _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    else:
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_preset_modes = [PRESET_HOME, PRESET_COMFORT, PRESET_SLEEP, PRESET_AWAY, PRESET_VACATION]  # 0.82.0
     _attr_min_temp = 5.0
     _attr_max_temp = 30.0
@@ -223,13 +231,18 @@ class LiteClimate(LiteEntity, ClimateEntity):
     def current_humidity(self):
         return self.v.humidity if self.v else None
 
-    @property
-    def current_temperature(self):
+    def _room_temp(self):
         return self.v.temp if self.v else None
 
-    @property
-    def target_temperature(self):
+    def _target_temp(self):
         return self.v.target if self.v else None
+
+    if NATIVE_TEMPS:
+        native_current_temperature = property(_room_temp)
+        native_target_temperature = property(_target_temp)
+    else:
+        current_temperature = property(_room_temp)
+        target_temperature = property(_target_temp)
 
     @property
     def hvac_mode(self):

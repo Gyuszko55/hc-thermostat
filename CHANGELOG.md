@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.82.3 – 2026-11-27
+
+- **The HC Lite thermostat no longer warns about deprecated names:** Home Assistant 2026.11 serves the climate
+  temperatures as `native_*` (the old `current_temperature`, `target_temperature` and `temperature_unit` warn and stop
+  working in 2027.11). The Lite thermostat now picks the names the running Home Assistant knows, as the room
+  thermostats do since 0.71.4.
+
 ## 0.82.2 – 2026-11-27
 
 From an outside review of HC Lite 0.82.0:
