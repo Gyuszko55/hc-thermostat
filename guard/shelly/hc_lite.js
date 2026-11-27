@@ -19,7 +19,7 @@
 //     the pipe is below dew point + dew_margin (and without a humidity then); without one it only warns.
 //   - buffer: up to 3 add-on probes (buf, names bufn) shown in the status; they do not steer anything
 // Endpoint: GET  http://<ip>/script/<id>/lite            -> status (JSON)
-//           GET  http://<ip>/script/<id>/lite?page=1     -> a small page (read only without a device password)
+//           GET  http://<ip>/script/<id>/lite?page=1     -> the page: a loader of the web set-up (read only offline)
 //           GET  http://<ip>/script/<id>/lite?tok=..&t=21.3 -> a pushed room temperature (sensor "push": a Wi-Fi
 //                H&T's webhook; "?" and "&" both separate, as the H&T appends "?hum=..")
 //           POST http://<ip>/script/<id>/lite {"tok":"..","set":{..settings..}}           -> new settings
@@ -69,7 +69,7 @@ let C = {
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
-let SV = "0.82.5";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
+let SV = "0.82.6";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@v" + SV + "/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
 let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
@@ -644,17 +644,12 @@ function handle(body) {
   return { code: 200, body: status() };
 }
 
-// a page small enough for the script's memory: the numbers, +/- and the mode; it reads /lite every 30 s
+// 0.82.6: the page is only a loader - the web set-up (from UI_SRC, this release) draws everything. Without the
+// internet it shows the reading, the target, the mode and the boiler from /lite (read only), to keep the script small.
 let PAGE = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>HC Lite</title>" +
-  "<style>body{font:16px sans-serif;margin:16px;max-width:420px}b{font-size:44px}button{font-size:20px;margin:4px;padding:8px 16px}" +
-  "small{color:#777}</style><div id=s>...</div><p><button onclick=t(-0.5)>-</button><button onclick=t(0.5)>+</button>" +
-  "<button onclick=p({preset:'comfort'})>Comfort</button><button onclick=m('auto')>Auto</button><button onclick=m('away')>Away</button><button onclick=m('off')>Off</button></p>" +
-  "<small id=n></small><script>var S;function g(){fetch('lite').then(r=>r.json()).then(j=>{S=j;var e=document.getElementById('s');if(!e)return;" +
-  "e.innerHTML='<b>'+(j.temp===null?'--':j.temp.toFixed(1))+' C</b><br>target '+j.sp+' C, '+" +
-  "j.mode+' / '+j.period+'<br>boiler '+(j.relay?'ON':'off')+(j.shadow?' (shadow)':'')+', '+j.reason+'<br>today '+" +
-  "j.starts_today+' starts, '+j.on_min_today+' min'})}function p(b){b.ui=1;fetch('lite',{method:'POST',body:JSON.stringify(b)})" +
-  ".then(r=>r.json()).then(j=>{if(j.error)document.getElementById('n').textContent=j.error;g()})}" +
-  "function t(d){p({target:S.sp+d,hold:'next'})}function m(x){p({mode:x})}g();setInterval(g,30000)</script>";
+  "<body style='font:16px sans-serif;margin:16px'><div id=s>HC Lite...</div><script>function o(){fetch('lite').then(r=>r.json())" +
+  ".then(j=>{document.getElementById('s').innerHTML='<b style=font-size:40px>'+(j.temp==null?'--':j.temp)+' C</b><br>'+j.sp+' C, '+" +
+  "j.mode+' / '+(j.preset||'')+'<br>'+(j.relay?'ON':'off')+(j.shadow?' (shadow)':'')})}</script>";
 
 // a pushed reading: "t=21.3" (or "temp=21.3"); "?" and "&" both separate (the H&T appends "?hum=..")
 function query(q, key) {
@@ -688,7 +683,7 @@ function endpoint(req, res) {
   else if (query(q, "t") !== null || query(q, "temp") !== null) r = pushTemp(q);
   else if (q.indexOf("page=1") >= 0) {
     res.code = 200; res.headers = [["Content-Type", "text/html; charset=utf-8"]];
-    res.body = PAGE + "<script src='" + UI_SRC + "' charset=utf-8></script>"; res.send(); return;
+    res.body = PAGE + "<script src='" + UI_SRC + "' charset=utf-8 onerror=o()></script>"; res.send(); return;
   } else r = { code: 200, body: status() };
   res.code = r.code;
   res.headers = [["Content-Type", "application/json"]];

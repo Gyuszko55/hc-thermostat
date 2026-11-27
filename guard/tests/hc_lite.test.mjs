@@ -337,7 +337,9 @@ test("web set-up: the page loads the set-up program from its address (0.79.9)", 
   const s = sim({ unix: TUE_13 });
   let r = s.http("GET", { query: "page=1" });
   assert.match(r.body, /<meta charset=utf-8>/);
-  assert.match(r.body, /<script src='https:\/\/cdn\.jsdelivr\.net\/gh\/[^']+\/hc_lite_ui\.js' charset=utf-8><\/script>$/);
+  assert.match(r.body, /<script src='https:\/\/cdn\.jsdelivr\.net\/gh\/[^']+\/hc_lite_ui\.js' charset=utf-8 onerror=o\(\)><\/script>$/);
+  assert.match(r.body, /function o\(\)\{fetch\('lite'\)/, "0.82.6: offline it still shows the reading (read only)");
+  assert.ok(r.body.length < 700, `0.82.6: a small loader (${r.body.length} characters)`);
   assert.equal(post(s, { ui_src: "javascript:alert(1)" }).code, 200);
   assert.doesNotMatch(s.http("GET", { query: "page=1" }).body, /javascript:/, "only an http(s) address");
   post(s, { ui_src: "http://192.168.1.10:8123/local/hc_lite_ui.js" });

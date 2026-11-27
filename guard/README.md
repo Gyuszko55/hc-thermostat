@@ -118,7 +118,8 @@ it. It is not the guard: run one of the two on a relay, never both.
 - **No reading** (sensor lost or older than `sensor_max_age`): `ns: "off"` or a fixed duty (`don` / `doff`).
 - **Shadow:** `shadow: true` decides and reports (`relay` is what it would do, `real_relay` the actual one) but never
   switches – for a first run beside the old thermostat.
-- **Endpoint** `/script/<id>/lite`: `GET` status JSON; `GET ?page=1` a small page (temperature, target, +/−, mode);
+- **Endpoint** `/script/<id>/lite`: `GET` status JSON; `GET ?page=1` the page (it loads the web set-up; offline it
+  shows the reading, target, mode and boiler, read only);
   `POST {"tok": .., "set": {..}}` settings, `{"tok": .., "target": 21.5, "hold": "next" | seconds}`,
   `{"tok": .., "mode": "auto" | "away" | "off"}`. The page's own buttons work only when the device has a password
   (the browser then passes digest auth); without one the page is read only.

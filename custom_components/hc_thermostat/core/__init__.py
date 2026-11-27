@@ -4,4 +4,4 @@
 it. Its version is the integration's version.
 """
 
-__version__ = "0.82.5"
+__version__ = "0.82.6"
