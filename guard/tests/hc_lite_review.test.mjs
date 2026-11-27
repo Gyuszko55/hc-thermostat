@@ -130,3 +130,32 @@ test("the web set-up comes from the script's own release, not from main", () => 
   assert.match(own.http("GET", { query: "page=1" }).body, /192\.0\.2\.10\/ui\.js/, "a chosen address stays");
   assert.equal(s.state().sv, page.match(/@v(\d+\.\d+\.\d+)\//)[1], "the same version as the script");
 });
+
+// 0.82.4: the on time fixed at the cycle's start may only get shorter (a second review: off, a window, away and a
+// warm room ran the boiler to the end of the on part)
+for (const ctl of ["tpi", "pid"]) {
+  for (const [name, cmd, temp] of [["off", { mode: "off" }, null], ["window", { window: true }, null], ["away", { mode: "away" }, null], ["a warm room", null, 22.0]]) {
+    test(`${ctl}: ${name} while heating stops within min on`, () => {
+      const s = sim();
+      post(s, { set: { ctl, cycle: 1800, kp: 0.5, bias: 0.15, min_on: 300, min_off: 300 } });
+      s.setTemp(20.0); s.run(400);
+      while (!s.relay) s.run(10);
+      s.run(100);
+      if (cmd) post(s, cmd);
+      if (temp !== null) s.setTemp(temp);
+      let t = 0;
+      while (s.relay && t < 4000) { s.run(10); t += 10; }
+      assert.ok(t <= 210, `${t} s`);
+    });
+  }
+}
+
+// 0.82.4: measured on the relay without a clock: the sensor's timestamp stands still, the device's packet id moves
+test("no clock, as the real relay: the packet id keeps the reading fresh; no packets: stale", () => {
+  const s = sim();
+  s.timeSynced = false; s.realNoClock = true;
+  s.setTemp(21.5); s.run(3 * 3600);
+  assert.equal(s.state().temp, 21.5, "3 hours on: still fresh");
+  s.run(1900, { keepFresh: false });
+  assert.equal(s.state().temp, null, "the packets stop: stale after sensor_max_age");
+});

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.82.4 – 2026-11-27
+
+From a second outside review (of 0.82.2–0.82.3):
+
+- **TPI / PI: a lower need cuts the burn at once again.** 0.82.2 fixed the on time at the start of each cycle (one
+  start per cycle with a noisy reading), but it did not get shorter when the need fell: switching off, an open
+  window, away or a room warming above the target let the boiler run to the end of the on part (up to the whole
+  cycle). The fixed on time may now only get shorter – still one start per cycle, and min on still holds.
+- **No clock, really:** measured on a relay with its time sync broken, the BLU sensor's `last_updated_ts` stands
+  still while the packets keep coming and the values change – so 0.82.2's uptime age would have gone stale after 30
+  minutes. The BLU device's packet id now counts as a fresh reading too (tested live without a clock: the age goes
+  back to 0 with every packet).
+- The relay script's version is 0.82.4, so its web set-up loads from this release; a test keeps the script's version
+  pointing at a release in this changelog.
+
 ## 0.82.3 – 2026-11-27
 
 - **The HC Lite thermostat no longer warns about deprecated names:** Home Assistant 2026.11 serves the climate

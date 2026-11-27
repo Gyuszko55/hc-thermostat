@@ -20,12 +20,18 @@ export class ShellySim {
     this.stopped = false;
     this.printed = [];
     this.events = [];           // 0.82.0: Shelly.addEventHandler callbacks
+    this.packet = 0;            // 0.82.4: the BLU device's packet id (one per reading)
+    this.realNoClock = false;   // 0.82.4: as measured: without a clock the sensor's last_updated_ts stands still
     this.probes = {};           // wired add-on probes by id: temperature:<id>.tC
     this.hums = {};             // add-on DHT22 humidity by id: humidity:<id>.rh
     this.bt = {};               // other BTHome objects by id (e.g. a humidity)
     const self = this;
     const Shelly = {
       getComponentStatus(name, id) { return self.status(name, id); },
+      getComponentConfig(name, id) { // 0.82.4: the BLU H&T's address on its sensors and its device
+        if ((name === "bthomesensor" && (id === 200 || self.bt[id] !== undefined)) || (name === "bthomedevice" && id === 200)) return { id, addr: "aa:bb:cc:dd:ee:ff" };
+        return null;
+      },
       getDeviceInfo() { return { id: "shelly1minig4-sim", auth_en: self.auth }; },
       call(method, params, cb) { const r = self.rpc(method, params); if (cb) cb(r, 0, ""); },
       addStatusHandler() {},
@@ -57,8 +63,9 @@ export class ShellySim {
     if (name === "temperature" && this.probes[id] !== undefined) return { id, tC: this.probes[id] };
     if (name === "humidity" && this.hums[id] !== undefined) return { id, rh: this.hums[id] };
     if (name === "bthomesensor" && id === 200) {
-      return this.sensor ? { id: 200, value: this.sensor.value, last_updated_ts: this.sensor.ts } : null;
+      return this.sensor ? { id: 200, value: this.sensor.value, last_updated_ts: this.realNoClock && !this.timeSynced ? 1795793099 : this.sensor.ts } : null;
     }
+    if (name === "bthomedevice" && id === 200) return this.sensor ? { id: 200, packet_id: this.packet % 256, last_updated_ts: null } : null;
     if (name === "bthomesensor" && this.bt[id] !== undefined) return { id, value: this.bt[id], last_updated_ts: this.unix };
     return null;
   }
@@ -88,7 +95,7 @@ export class ShellySim {
     const end = this.uptime + seconds;
     while (this.uptime < end) {
       this.uptime += 1; this.unix += 1;
-      if (keepFresh && this.sensor) this.sensor.ts = this.unix;
+      if (keepFresh && this.sensor) { this.sensor.ts = this.unix; if (this.uptime % 60 === 0) this.packet += 1; }
       if (this.offAt !== null && this.uptime >= this.offAt) { this.relay = !this.relay; this.offAt = null; }
       if (this.stopped) continue;
       for (const t of this.timers) {

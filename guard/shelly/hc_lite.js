@@ -69,7 +69,7 @@ let C = {
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
-let SV = "0.82.2";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
+let SV = "0.82.4";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@v" + SV + "/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
 let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
@@ -216,16 +216,34 @@ function readTemp() {
   if (C.sensor === "temperature") { st.temp = v; st.temp_age = 0; return v; } // a wired add-on probe: read live
   // 0.82.2: the age by the uptime since the reading last changed, so a relay without a clock (no internet after a
   // power cut) still uses a fresh BLU reading; with a clock the first one seen keeps its real age
-  if (typeof s.last_updated_ts !== "number") return null;
-  if (s.last_updated_ts !== st.bt_ts) {
+  // 0.82.4: measured on a relay without a clock, the sensor's last_updated_ts stands still while the packets keep
+  // coming (and the values change) - so the BLU device's packet id counts as a fresh reading too
+  let pk = blePacket();
+  let key = String(s.last_updated_ts) + "/" + String(pk);
+  if (key !== st.bt_ts) {
     let sys = Shelly.getComponentStatus("sys");
-    let back = sys && typeof sys.unixtime === "number" && sys.unixtime > 0 && st.bt_ts === null ? sys.unixtime - s.last_updated_ts : 0;
-    st.bt_ts = s.last_updated_ts; st.bt_at = up() - (back > 0 ? back : 0);
+    let back = sys && typeof sys.unixtime === "number" && sys.unixtime > 0 && st.bt_ts === null && typeof s.last_updated_ts === "number" ? sys.unixtime - s.last_updated_ts : 0;
+    st.bt_ts = key; st.bt_at = up() - (back > 0 ? back : 0);
   }
   let age = up() - st.bt_at;
   if (age < 0 || age > C.sensor_max_age) return null;
   st.temp = v; st.temp_age = age;
   return v;
+}
+
+// the packet id of the BLU device that holds the thermometer (found once by its address; null: none)
+function blePacket() {
+  if (st.bt_dev === undefined || st.bt_dev_for !== C.sensor_id) {
+    st.bt_dev_for = C.sensor_id; st.bt_dev = null;
+    let sc = Shelly.getComponentConfig("bthomesensor", C.sensor_id);
+    for (let i = 200; sc && i < 220 && st.bt_dev === null; i++) {
+      let dc = Shelly.getComponentConfig("bthomedevice", i);
+      if (dc && dc.addr === sc.addr) st.bt_dev = i;
+    }
+  }
+  if (st.bt_dev === null) return null;
+  let d = Shelly.getComponentStatus("bthomedevice", st.bt_dev);
+  return d && typeof d.packet_id === "number" ? d.packet_id : null;
 }
 
 // ---------------------------------------------------------------- the relay with its limits
@@ -313,6 +331,7 @@ function tick() {
       st.of = d * C.cycle;
       if (st.of > 0 && st.of < C.min_on) st.of = d >= 0.5 * C.min_on / C.cycle ? C.min_on : 0; // too short: skip or min
     }
+    if (d * C.cycle < st.of) st.of = d * C.cycle; // 0.82.4: only shorter - a lower need (off, a window, away, a warm room) cuts at once
     let onFor = st.of;
     if (pos < onFor) want(true, t, "demand " + Math.round(d * 100) + " %");
     else want(false, t, "demand " + Math.round(d * 100) + " %");
