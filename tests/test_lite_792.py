@@ -57,7 +57,8 @@ def test_the_role_its_platforms_and_the_words():
     assert "lite" in const.ROLES and set(const.LITE_PLATFORMS) == {"binary_sensor", "climate", "sensor"}
     cf = importlib.import_module("hc_thermostat.config_flow")
     form = {str(k) for k in cf._lite_settings_fields({})}
-    assert form == {f"lite_{k}" for k in lite.settings_payload(lite.LiteSettings())}
+    # 0.82.0: plus Home Assistant's own inputs (presence, calendar, windows), which never go to the device
+    assert form == {f"lite_{k}" for k in lite.settings_payload(lite.LiteSettings())} | {"lite_presence", "lite_calendar", "lite_windows"}
     for lang in ("en", "hu"):
         tr = json.loads((BASE / "translations" / f"{lang}.json").read_text("utf-8"))
         assert "lite" in tr["selector"]["role"]["options"]

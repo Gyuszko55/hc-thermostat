@@ -25,6 +25,14 @@
 //           POST http://<ip>/script/<id>/lite {"tok":"..","set":{..settings..}}           -> new settings
 //           POST http://<ip>/script/<id>/lite {"tok":"..","target":21.5,"hold":"next"|seconds} -> manual target
 //           POST http://<ip>/script/<id>/lite {"tok":"..","mode":"auto"|"away"|"off"}     -> mode
+//                (0.82.0: "away" with "for": seconds ends by itself - Home Assistant's presence sends it so)
+//           0.82.0 presets: {"preset":"comfort"} (the target + cf_delta for cf_time s; again: longer),
+//                {"preset":"sleep"} (the night target until the program changes), {"preset":"home"} (all back to
+//                the program), {"vacation":<unixtime>|0} (away until then, preheated back), {"window":true,"for":s}
+//                / {"window":false} (frost while open, at most "for" s), {"we_today":true} (the weekend program
+//                today); "src":"ha"|"web" tells who asked. A BLU button (btn: its bthomedevice id): one push
+//                comfort, two pushes away / back, a long push all back to the program.
+//                Order: off > window > vacation > away > comfort / sleep / manual > the program.
 //           The page's own buttons send {"ui":1,...}: accepted only when the device has a password (digest auth).
 //           POST {"init_tok":".."}  -> the first token, only while the device has none (a set-up without Home Assistant)
 //           POST {"tok":"..","ui_src":"https://.."} -> where the web set-up page loads its program from
@@ -35,7 +43,8 @@
 // KVS: hc_lite_c1..c5 (the settings, in parts: a KVS value holds less than 255 characters), hc_lite_cfg (settings
 //      JSON taken last, so an upload tool's few settings win; emptied on a save), hc_lite_token, hc_lite_mode,
 //      hc_lite_hvac, hc_lite_hold (manual target JSON), hc_lite_i (integral),
-//      hc_lite_rev (settings revision, +1 on every change), hc_lite_ui (UI_SRC)
+//      hc_lite_rev (settings revision, +1 on every change), hc_lite_ui (UI_SRC),
+//      hc_lite_mx (0.82.0: {mu: away until, ms: who set the mode, vac: vacation until, vs: who set it, we: day})
 // Keep this file plain ASCII (Script.PutCode refuses longer code with many non-ASCII characters).
 
 // ---------------------------------------------------------------- settings
@@ -54,14 +63,17 @@ let C = {
   shadow: false,
   src: "gas", sc_day: 25.0, sc_night: 26.0, sc_away: 28.0, // heat source; cooling targets (hp)
   hum_id: -1, dew_id: -1, dew_margin: 2.0,                  // humidity, flow pipe probe (-1: none), C above dew point
-  buf: [], bufn: []                                          // buffer probes (temperature ids) and their names
+  buf: [], bufn: [],                                         // buffer probes (temperature ids) and their names
+  cf_delta: 1.0, cf_time: 7200, btn: -1                      // 0.82.0: comfort +C for s; a BLU button (bthomedevice id)
 };
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
 let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@main/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
-let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night"}
+let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
+let MX = { mu: 0, ms: "", vac: 0, vs: "", we: -1 }; // 0.82.0: away until, vacation until, weekend program today
+let WIN = -1;               // 0.82.0: the window is open until this uptime
 
 // ---------------------------------------------------------------- state
 let st = {
@@ -70,7 +82,7 @@ let st = {
   cyc_start: -1, day: -1, starts: 0, on_s: 0, last_t: -1, log: [],
   i: 0, i_t: -1, i_saved: -100000,
   push_t: null, push_at: -1, pre: false, boost: false,
-  push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: []
+  push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: [], btn: null
 };
 
 function up() {
@@ -98,7 +110,7 @@ function weekend(wd) { return wd === 0 || wd === 6; }
 
 // "day" or "night" now, and the unixtime of the next change
 function period(L) {
-  let we = weekend(L.wd);
+  let we = weekend(L.wd) || L.day === MX.we;
   let d = hm(we ? C.day_we : C.day), n = hm(we ? C.night_we : C.night);
   let isDay = d <= n ? (L.min >= d && L.min < n) : (L.min >= d || L.min < n);
   return isDay ? "day" : "night";
@@ -106,7 +118,7 @@ function period(L) {
 
 // minutes until the next day period starts (today's, or tomorrow's with its own weekday / weekend time)
 function toDay(L) {
-  let d = hm(weekend(L.wd) ? C.day_we : C.day);
+  let d = hm(weekend(L.wd) || L.day === MX.we ? C.day_we : C.day);
   if (L.min < d) return d - L.min;
   let w = (L.wd + 1) % 7;
   return hm(weekend(w) ? C.day_we : C.day) + 1440 - L.min;
@@ -127,6 +139,16 @@ function preheat(L, v) {
 function target(L, v) {
   let k = HVAC === "cool";
   if (MODE === "off") { st.period = "off"; st.pre = false; return k ? null : C.frost; }
+  if (WIN >= 0 && up() >= WIN) WIN = -1;
+  if (WIN >= 0) { st.period = "window"; st.pre = false; return k ? null : C.frost; }
+  if (MX.vac > 0 && L !== null && L.unix >= MX.vac) { MX.vac = 0; MX.vs = ""; saveMx(); }
+  if (MX.vac > 0) { // away until the date; the day target early by the room's shortfall (as preheat), so it is warm on arrival
+    let lead = C.pre > 0 && v !== null && !k ? (C.sp_day - v) * C.pre : 0;
+    if (lead > C.pre_max) lead = C.pre_max;
+    if (L !== null && lead > 0 && (MX.vac - L.unix) / 60 <= lead) { st.period = "vacation preheat"; return C.sp_day; }
+    st.period = "vacation"; st.pre = false; return k ? C.sc_away : C.sp_away;
+  }
+  if (MODE === "away" && MX.mu > 0 && L !== null && L.unix >= MX.mu) { MODE = "auto"; save("hc_lite_mode", MODE); MX.mu = 0; MX.ms = ""; saveMx(); }
   if (MODE === "away") { st.period = "away"; st.pre = false; return k ? C.sc_away : C.sp_away; }
   if (L === null) { st.period = "no time"; return k ? C.sc_day : C.sp_day; } // no clock: comfort, never a cold house
   let p = period(L);
@@ -136,7 +158,7 @@ function target(L, v) {
   }
   if (p !== "night" || HOLD !== null) st.pre = false;
   st.period = p;
-  if (HOLD !== null) { st.period = p + " (manual)"; return HOLD.sp; }
+  if (HOLD !== null) { st.period = p + " (" + (HOLD.p || "manual") + ")"; return HOLD.sp; }
   if (k) return p === "day" ? C.sc_day : C.sc_night;
   if (p === "night" && preheat(L, v)) { st.period = "preheat"; return C.sp_day; }
   return p === "day" ? C.sp_day : C.sp_night;
@@ -365,6 +387,8 @@ function takeCfg(n) {
     for (let i = 0; i < n.buf.length && b.length < 3; i++) if (num(n.buf[i], 100, 199, -1) >= 0) b.push(n.buf[i]);
     C.buf = b;
   }
+  C.cf_delta = num(n.cf_delta, 0.5, 3, C.cf_delta); C.cf_time = num(n.cf_time, 1800, 21600, C.cf_time);
+  C.btn = num(n.btn, -1, 299, C.btn);
   if (n.bufn && n.bufn.length !== undefined) {
     let b = [];
     for (let i = 0; i < n.bufn.length && b.length < 3; i++) b.push(typeof n.bufn[i] === "string" ? n.bufn[i].substr(0, 16) : "");
@@ -387,7 +411,7 @@ function cfgOut() {
     min_on: C.min_on, min_off: C.min_off, max_on: C.max_on, ns: C.ns, don: C.don, doff: C.doff,
     sensor: C.sensor, sensor_id: C.sensor_id, sensor_max_age: C.sensor_max_age, shadow: C.shadow,
     src: C.src, sc_day: C.sc_day, sc_night: C.sc_night, sc_away: C.sc_away, hum_id: C.hum_id, dew_id: C.dew_id,
-    dew_margin: C.dew_margin, buf: C.buf, bufn: C.bufn };
+    dew_margin: C.dew_margin, buf: C.buf, bufn: C.bufn, cf_delta: C.cf_delta, cf_time: C.cf_time, btn: C.btn };
 }
 
 function status() {
@@ -395,9 +419,95 @@ function status() {
     relay: C.shadow ? st.would : st.relay, shadow: C.shadow, real_relay: C.shadow ? readRelayRaw() : st.relay,
     demand: st.demand, integral: C.ctl === "pid" ? Math.round(C.kp * st.i * 1000) / 1000 : null, reason: st.reason, boost: st.boost, hold: HOLD, since_s: up() - st.changed,
     starts_today: st.starts, on_min_today: Math.round(st.on_s / 60), log: st.log, cfg: cfgOut(),
-    token: TOKEN ? true : false, rev: REV, sv: "0.80.0",
+    token: TOKEN ? true : false, rev: REV, sv: "0.82.0",
+    preset: preset(), psrc: psrc(), puntil: puntil(), vac: MX.vac > 0 ? MX.vac : null,
+    win_s: WIN >= 0 ? WIN - up() : null, we_today: st.period !== null && MX.we >= 0 && MX.we === st.day, btn_ev: st.btn,
     hvac: HVAC, hum: st.hum, dew: st.dp, pipe: st.pipe, dew_stop: HVAC === "cool" && st.dew, dew_warn: HVAC === "cool" && st.dw,
     buf: st.bufv };
+}
+
+// 0.82.0: which preset rules now, who asked for it, and until when (unixtime; null: open-ended or by the program)
+function preset() {
+  if (MODE === "off") return "off";
+  if (WIN >= 0) return "window";
+  if (MX.vac > 0) return "vacation";
+  if (MODE === "away") return "away";
+  if (HOLD !== null) return HOLD.p || "manual";
+  return "schedule";
+}
+function psrc() {
+  let p = preset();
+  if (p === "vacation") return MX.vs || null;
+  if (p === "away" || p === "off") return MX.ms || null;
+  if (HOLD !== null && p !== "schedule" && p !== "window") return HOLD.s || null;
+  return null;
+}
+function puntil() {
+  let p = preset();
+  if (p === "vacation") return MX.vac;
+  if (p === "away") return MX.mu > 0 ? MX.mu : null;
+  if (p === "window") { let L = localNow(); return L !== null ? L.unix + WIN - up() : null; }
+  if (HOLD !== null && p !== "off" && HOLD.until > 0) return HOLD.until;
+  return null;
+}
+function saveMx() { save("hc_lite_mx", JSON.stringify(MX)); }
+
+// the program's own target now (no manual target), for comfort's "+ cf_delta"
+function base(L) {
+  let h = HOLD, w = WIN; HOLD = null; WIN = -1;
+  let t = target(L, st.temp);
+  HOLD = h; WIN = w;
+  return t;
+}
+
+// the presets; who: "ha", "web" or "button"
+function setMode(m, who, secs) {
+  let L = localNow();
+  MODE = m; save("hc_lite_mode", MODE);
+  MX.ms = who; MX.mu = m === "away" && typeof secs === "number" && secs >= 600 && L !== null ? L.unix + secs : 0;
+  if (MODE !== "auto") { HOLD = null; save("hc_lite_hold", ""); }
+  saveMx();
+}
+function home(who) {
+  HOLD = null; save("hc_lite_hold", "");
+  MX.vac = 0; MX.vs = ""; WIN = -1;
+  setMode("auto", who);
+}
+function comfort(who) {
+  let L = localNow();
+  if (MODE !== "auto" || MX.vac > 0) { MX.vac = 0; MX.vs = ""; setMode("auto", who); }
+  if (HOLD !== null && HOLD.p === "comfort" && HOLD.until > 0 && L !== null) {
+    HOLD.until = HOLD.until + C.cf_time;
+    if (HOLD.until > L.unix + 3 * C.cf_time) HOLD.until = L.unix + 3 * C.cf_time;
+  } else {
+    let b = base(L);
+    if (b === null) return;
+    let k = HVAC === "cool";
+    let sp = Math.round((k ? b - C.cf_delta : b + C.cf_delta) * 2) / 2;
+    HOLD = { sp: sp, until: L !== null ? L.unix + C.cf_time : -1, at: L !== null ? period(L) : "day", p: "comfort", s: who };
+  }
+  save("hc_lite_hold", JSON.stringify(HOLD));
+}
+function sleep(who) {
+  let L = localNow();
+  if (MODE !== "auto") setMode("auto", who);
+  HOLD = { sp: HVAC === "cool" ? C.sc_night : C.sp_night, until: -1, at: L !== null ? period(L) : "day", p: "sleep", s: who };
+  save("hc_lite_hold", JSON.stringify(HOLD));
+}
+
+// a BLU button paired to the relay (BTHome): one push comfort, two pushes away / back, a long push all back
+function button(ev) {
+  if (C.btn < 0 || !ev || !ev.info) return;
+  let c = ev.info.component; // the BLU device itself (bthomedevice:200) sends its button's pushes; a sensor id works too
+  if (c !== "bthomedevice:" + C.btn && c !== "bthomesensor:" + C.btn) return;
+  let e = ev.info.event;
+  if (typeof e !== "string" || e.indexOf("push") < 0) return;
+  st.btn = e;
+  if (e === "single_push") comfort("button");
+  else if (e === "double_push") { if (MODE === "away" || MX.vac > 0) home("button"); else setMode("away", "button"); }
+  else if (e === "long_push") home("button");
+  else return;
+  tick();
 }
 
 function readRelayRaw() {
@@ -429,6 +539,7 @@ function handle(body) {
   }
   if (r.ui === 1) { if (!authOn()) return { code: 403, body: { error: "set a device password to change it here" } }; }
   else if (!TOKEN || r.tok !== TOKEN) return { code: 403, body: { error: "bad token" } };
+  let who = r.ui === 1 ? "web" : (r.src === "web" ? "web" : "ha");
   if (r.set) {
     let was = JSON.stringify(cfgOut());
     takeCfg(r.set);
@@ -443,14 +554,27 @@ function handle(body) {
     UI_SRC = r.ui_src; save("hc_lite_ui", UI_SRC);
   }
   if (r.mode === "auto" || r.mode === "away" || r.mode === "off") {
-    MODE = r.mode; save("hc_lite_mode", MODE);
-    if (MODE !== "auto") { HOLD = null; save("hc_lite_hold", ""); }
+    if (r.mode === "auto") { MX.vac = 0; MX.vs = ""; }
+    setMode(r.mode, who, r.for);
   }
+  if (r.preset === "home") home(who);
+  if (r.preset === "comfort") comfort(who);
+  if (r.preset === "sleep") sleep(who);
+  if (typeof r.vacation === "number") {
+    let L = localNow();
+    if (r.vacation > 0 && (L === null || r.vacation > L.unix)) { MX.vac = r.vacation; MX.vs = who; HOLD = null; save("hc_lite_hold", ""); }
+    else { MX.vac = 0; MX.vs = ""; }
+    saveMx();
+  }
+  if (r.window === true) WIN = up() + num(r.for, 60, 7200, 3600);
+  if (r.window === false) WIN = -1;
+  if (r.we_today === true) { let L = localNow(); if (L !== null) { MX.we = L.day; saveMx(); } }
+  if (r.we_today === false) { MX.we = -1; saveMx(); }
   if (typeof r.target === "number" && r.target >= 5 && r.target <= 30) {
     let L = localNow();
     let until = typeof r.hold === "number" && r.hold >= 600 && L !== null ? L.unix + r.hold : -1;
     MODE = "auto"; save("hc_lite_mode", MODE);
-    HOLD = { sp: Math.round(r.target * 2) / 2, until: until, at: L !== null ? period(L) : "day" };
+    HOLD = { sp: Math.round(r.target * 2) / 2, until: until, at: L !== null ? period(L) : "day", p: "manual", s: who };
     save("hc_lite_hold", JSON.stringify(HOLD));
   }
   if (r.clear_hold === true) { HOLD = null; save("hc_lite_hold", ""); }
@@ -462,7 +586,7 @@ function handle(body) {
 let PAGE = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>HC Lite</title>" +
   "<style>body{font:16px sans-serif;margin:16px;max-width:420px}b{font-size:44px}button{font-size:20px;margin:4px;padding:8px 16px}" +
   "small{color:#777}</style><div id=s>...</div><p><button onclick=t(-0.5)>-</button><button onclick=t(0.5)>+</button>" +
-  "<button onclick=m('auto')>Auto</button><button onclick=m('away')>Away</button><button onclick=m('off')>Off</button></p>" +
+  "<button onclick=p({preset:'comfort'})>Comfort</button><button onclick=m('auto')>Auto</button><button onclick=m('away')>Away</button><button onclick=m('off')>Off</button></p>" +
   "<small id=n></small><script>var S;function g(){fetch('lite').then(r=>r.json()).then(j=>{S=j;var e=document.getElementById('s');if(!e)return;" +
   "e.innerHTML='<b>'+(j.temp===null?'--':j.temp.toFixed(1))+' C</b><br>target '+j.sp+' C, '+" +
   "j.mode+' / '+j.period+'<br>boiler '+(j.relay?'ON':'off')+(j.shadow?' (shadow)':'')+', '+j.reason+'<br>today '+" +
@@ -518,6 +642,7 @@ function start() {
   st.relay = on;
   st.changed = on ? up() - 100000 : up();
   HTTPServer.registerEndpoint("lite", endpoint);
+  Shelly.addEventHandler(button);
   Timer.set(C.tick * 1000, true, tick);
   tick();
 }
@@ -542,6 +667,8 @@ Shelly.call("KVS.GetMany", { match: "hc_lite_*" }, function (res) {
     if (us) UI_SRC = us;
     let m = get("hc_lite_mode");
     if (m === "auto" || m === "away" || m === "off") MODE = m;
+    let x = get("hc_lite_mx");
+    if (x) { try { let o = JSON.parse(x); if (o && typeof o === "object") { MX.mu = o.mu || 0; MX.ms = o.ms || ""; MX.vac = o.vac || 0; MX.vs = o.vs || ""; MX.we = typeof o.we === "number" ? o.we : -1; } } catch (e) {} }
     let h = get("hc_lite_hold");
     if (h) { try { HOLD = JSON.parse(h); } catch (e) { HOLD = null; } }
     let i = Number(get("hc_lite_i"));

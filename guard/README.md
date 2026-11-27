@@ -123,6 +123,16 @@ it. It is not the guard: run one of the two on a relay, never both.
   `{"tok": .., "mode": "auto" | "away" | "off"}`. The page's own buttons work only when the device has a password
   (the browser then passes digest auth); without one the page is read only.
 - **Kept on the device** (KVS): `hc_lite_cfg`, `hc_lite_token`, `hc_lite_mode`, `hc_lite_hold`.
+- **Presets (0.82.0)** – every one with an end, so a lost Home Assistant never leaves the relay stuck:
+  `{"preset": "comfort"}` (the program's target + `cf_delta` for `cf_time`; again: longer), `{"preset": "sleep"}`
+  (the night target until the program changes), `{"preset": "home"}` (all back to the program),
+  `{"mode": "away", "for": 43200}` (away that ends by itself), `{"vacation": <unixtime> | 0}` (away until then,
+  preheated back), `{"window": true, "for": 3600}` / `{"window": false}`, `{"we_today": true}` (the weekend
+  program today); `"src": "ha" | "web"` says who asked. Order: off > window > vacation > away > comfort / sleep /
+  manual > the program. The status shows `preset`, `psrc` (ha / web / button), `puntil`.
+- **A BLU button without Home Assistant (0.82.0):** set `btn` to the bthomedevice id of the BLU H&T (or a BLU
+  Button) paired to the relay – the device itself sends its button's pushes (a button cannot be added as a sensor):
+  one push comfort, two pushes away / back, a long push all back to the program.
 
 Install: pair the BLU H&T in the Shelly's web page (Bluetooth → add device; note the temperature component id, e.g.
 `bthomesensor:200`), then

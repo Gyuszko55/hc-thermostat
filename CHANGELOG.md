@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.82.0 – 2026-11-27
+
+HC Lite presets – with and without Home Assistant (the relay keeps every one of them, each with an end):
+
+- **Comfort** (the program's target + `cf_delta`, 1 °C, for `cf_time`, 2 hours; asked again: longer, at most three
+  times), **Sleep** (the night target until the program changes), **Away** (by hand open-ended, from presence for 12
+  hours), **Vacation** until a date and time (preheated back so it is warm on arrival, then the program), **Window**
+  (frost while open, at most an hour) and **the weekend program today**. Order: off > window > vacation > away >
+  comfort / sleep / manual > the program.
+- **A BLU button on the relay, without Home Assistant** (`btn`: the bthomedevice id of the BLU H&T or BLU Button
+  paired to the relay; its pushes come from the device itself): one push comfort (again: longer; during away or a vacation it ends them), two pushes away / back, a
+  long push all back to the program.
+- **The relay's page:** Comfort / Sleep / Program buttons, a vacation date, and what rules now, who asked for it and
+  until when. The small built-in page has a Comfort button.
+- **Home Assistant:** the thermostat's presets are Program, Comfort, Sleep, Away and Vacation; actions
+  `hc_thermostat.lite_comfort` and `hc_thermostat.lite_vacation` (until / clear). Optional inputs of an HC Lite
+  instance: **presence** (everyone away for 20 minutes → away for 12 hours, renewed while away; someone back → the
+  program, also over a vacation), a **calendar** (an event with "szabadság" / "nyaralás" / "távol" / "vacation" in
+  its title → vacation until its end; "otthon" / "home office" → the weekend program that day) and **windows** (any
+  open for 2 minutes → frost, at most an hour; closed → back). A gesture on the relay wins until the next real
+  presence change. The thermostat's attributes show the preset, its source and end.
+- Script version 0.82.0 (`sv`); its status adds `preset`, `psrc`, `puntil`, `vac`, `win_s`, `we_today`, `btn_ev`.
+  An older manual target reads as "manual". Desk tests for every preset and the button; Python tests for the
+  presence / calendar / window decisions.
+
 ## 0.81.2 – 2026-11-26
 
 From a review of 0.81.1 (TRV heads only):

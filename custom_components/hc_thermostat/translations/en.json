@@ -643,7 +643,13 @@
           "lite_dew_id": "Flow pipe probe id",
           "lite_dew_margin": "Dew point margin",
           "lite_buf": "Buffer probes",
-          "lite_bufn": "Buffer probe names"
+          "lite_bufn": "Buffer probe names",
+          "lite_cf_delta": "Comfort: above the program's target",
+          "lite_cf_time": "Comfort: for",
+          "lite_btn": "BLU button (component id)",
+          "lite_presence": "Presence (away → away for 12 h)",
+          "lite_calendar": "Calendar (vacation / home day)",
+          "lite_windows": "Windows"
         },
         "data_description": {
           "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
@@ -659,7 +665,13 @@
           "lite_dew_id": "-1: none. An add-on DS18B20 on the cooled flow pipe (temperature 100..): when the pipe falls below dew point + margin, cooling stops at once. Without one it only warns.",
           "lite_dew_margin": "Cooling stops this far above the dew point (and starts again 1 °C above that).",
           "lite_buf": "Up to 3 add-on probe ids, comma separated, e.g. 100, 101, 102. Shown only; they do not steer anything.",
-          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters)."
+          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters).",
+          "lite_cf_delta": "The comfort preset (and one push of the BLU button) raises the program's target this much (cooling: lowers it).",
+          "lite_cf_time": "…for this long, then the program again. Asked again: this much longer (at most 3×).",
+          "lite_btn": "-1: none. The bthomedevice:ID of the BLU H&T (or BLU Button) paired to the relay (its button's pushes): one push comfort, two pushes away / back, a long push all back to the program. Works without Home Assistant.",
+          "lite_presence": "Everyone away for 20 minutes → away for 12 hours (renewed while away); someone back → the program again, also over a vacation. A person, a group or a sensor with Otthon / Távol (home / away) states.",
+          "lite_calendar": "An event whose title has 'szabadság' / 'nyaralás' / 'távol' / 'vacation' → vacation until its end, preheated back on time; 'otthon' / 'home office' → the weekend program that day.",
+          "lite_windows": "Any open for 2 minutes → frost protection while open (at most an hour); closed → back at once."
         }
       }
     },
@@ -1832,7 +1844,13 @@
           "lite_dew_id": "Flow pipe probe id",
           "lite_dew_margin": "Dew point margin",
           "lite_buf": "Buffer probes",
-          "lite_bufn": "Buffer probe names"
+          "lite_bufn": "Buffer probe names",
+          "lite_cf_delta": "Comfort: above the program's target",
+          "lite_cf_time": "Comfort: for",
+          "lite_btn": "BLU button (component id)",
+          "lite_presence": "Presence (away → away for 12 h)",
+          "lite_calendar": "Calendar (vacation / home day)",
+          "lite_windows": "Windows"
         },
         "data_description": {
           "lite_ctl": "Hysteresis: on below target − band/2, off above target + band/2. TPI: demand = base + gain × (target − room), it heats for that share of each cycle. PI: TPI plus an integral that learns the steady need of the house, so a lasting gap closes by itself.",
@@ -1848,7 +1866,13 @@
           "lite_dew_id": "-1: none. An add-on DS18B20 on the cooled flow pipe (temperature 100..): when the pipe falls below dew point + margin, cooling stops at once. Without one it only warns.",
           "lite_dew_margin": "Cooling stops this far above the dew point (and starts again 1 °C above that).",
           "lite_buf": "Up to 3 add-on probe ids, comma separated, e.g. 100, 101, 102. Shown only; they do not steer anything.",
-          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters)."
+          "lite_bufn": "Their names, comma separated, e.g. top, middle, bottom (at most 16 characters).",
+          "lite_cf_delta": "The comfort preset (and one push of the BLU button) raises the program's target this much (cooling: lowers it).",
+          "lite_cf_time": "…for this long, then the program again. Asked again: this much longer (at most 3×).",
+          "lite_btn": "-1: none. The bthomedevice:ID of the BLU H&T (or BLU Button) paired to the relay (its button's pushes): one push comfort, two pushes away / back, a long push all back to the program. Works without Home Assistant.",
+          "lite_presence": "Everyone away for 20 minutes → away for 12 hours (renewed while away); someone back → the program again, also over a vacation. A person, a group or a sensor with Otthon / Távol (home / away) states.",
+          "lite_calendar": "An event whose title has 'szabadság' / 'nyaralás' / 'távol' / 'vacation' → vacation until its end, preheated back on time; 'otthon' / 'home office' → the weekend program that day.",
+          "lite_windows": "Any open for 2 minutes → frost protection while open (at most an hour); closed → back at once."
         }
       }
     },
@@ -2435,7 +2459,18 @@
         }
       },
       "lite_thermostat": {
-        "name": "Thermostat"
+        "name": "Thermostat",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "home": "Program",
+              "comfort": "Comfort",
+              "sleep": "Sleep",
+              "away": "Away",
+              "vacation": "Vacation"
+            }
+          }
+        }
       }
     },
     "button": {
@@ -2506,6 +2541,26 @@
     "trv_no_heads": {
       "title": "HC – {name}: no TRV head",
       "description": "**{name}** is set to *TRV heads only*, but none of its rooms has a TRV head – it sets nothing.\n\nAdd the rooms with their heads: Settings → Devices & services → HC Thermostat → Configure → Rooms (or run the HC setup wizard again). Put each head's device in its room's area. This entry clears itself once a room has a head."
+    }
+  },
+  "services": {
+    "lite_comfort": {
+      "name": "HC Lite comfort",
+      "description": "The program's target plus the comfort step, for the comfort time (again: longer). The relay ends it by itself."
+    },
+    "lite_vacation": {
+      "name": "HC Lite vacation",
+      "description": "Away until the given time; the relay preheats so it is warm on arrival, then follows its program.",
+      "fields": {
+        "until": {
+          "name": "Until",
+          "description": "The end of the vacation."
+        },
+        "clear": {
+          "name": "Clear",
+          "description": "End the vacation now."
+        }
+      }
     }
   }
 }

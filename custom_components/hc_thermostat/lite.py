@@ -16,19 +16,21 @@ from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.climate import (
-    PRESET_AWAY, PRESET_HOME, ClimateEntity, ClimateEntityFeature, HVACAction, HVACMode)
+    PRESET_AWAY, PRESET_COMFORT, PRESET_HOME, PRESET_SLEEP, ClimateEntity, ClimateEntityFeature, HVACAction, HVACMode)
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature, UnitOfTime
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
 
-from .const import CONF_LITE_PASSWORD, CONF_LITE_TOKEN, CONF_LITE_URL, DOMAIN
-from .core.lite import LiteSettings, options_from_device, settings_payload, sync_action, view
+from .const import (CONF_LITE_CALENDAR, CONF_LITE_PASSWORD, CONF_LITE_PRESENCE, CONF_LITE_TOKEN, CONF_LITE_URL,
+                    CONF_LITE_WINDOWS, DOMAIN)
+from .core.lite import LiteSettings, options_from_device, plan_commands, presence_away, settings_payload, sync_action, view
 
 _LOGGER = logging.getLogger(__name__)
 SCAN = timedelta(seconds=30)
 TIMEOUT_S = 8.0
 SHELLY_USER = "admin"
+PRESET_VACATION = "vacation"  # 0.82.0: set with the lite_vacation service (it needs a date)
 
 
 class LiteError(Exception):
@@ -92,6 +94,8 @@ class LiteCoordinator(DataUpdateCoordinator[dict]):
         self.settings = LiteSettings.from_conf(self.conf)
         self.pushed_error: str | None = None
         self.known_rev: int | None = None  # 0.79.9: the device's settings revision at the last sync
+        self.memo: dict = {}  # 0.82.0: which presence / calendar / window episode got its command
+        self.auto_error: str | None = None
         from homeassistant.helpers.storage import Store
         self._store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
 
@@ -129,6 +133,42 @@ class LiteCoordinator(DataUpdateCoordinator[dict]):
             except LiteError as exc:
                 self.pushed_error = str(exc)  # shown; the device keeps heating by what it has
         await self._remember(st.get("rev"))
+        return await self._automate(st)
+
+    def _inputs(self) -> dict:
+        """0.82.0: presence, the calendar's active event and the windows, as plain values for plan_commands."""
+        from homeassistant.util import dt as dt_util
+        hass, out = self.hass, {}
+        pid = self.conf.get(CONF_LITE_PRESENCE)
+        if pid and (s := hass.states.get(pid)) is not None:
+            out["away"] = presence_away(pid.split(".")[0], s.state)
+            out["away_since"] = s.last_changed.timestamp()
+        cid = self.conf.get(CONF_LITE_CALENDAR)
+        if cid and (s := hass.states.get(cid)) is not None and s.state == "on":
+            end = dt_util.parse_datetime(str(s.attributes.get("end_time") or ""))
+            if end is not None and end.tzinfo is None:
+                end = end.replace(tzinfo=dt_util.get_default_time_zone())
+            out["event"] = (s.attributes.get("message"), end.timestamp() if end else None)
+            out["today"] = dt_util.now().date().isoformat()
+        wins = self.conf.get(CONF_LITE_WINDOWS) or []
+        if isinstance(wins, str):
+            wins = [wins]
+        if wins:
+            out["has_windows"] = True
+            opened = [s.last_changed.timestamp() for w in wins if (s := hass.states.get(w)) is not None and s.state == "on"]
+            out["window_since"] = min(opened) if opened else None
+        return out
+
+    async def _automate(self, st: dict) -> dict:
+        from homeassistant.util import dt as dt_util
+        cmds = plan_commands(dt_util.utcnow().timestamp(), view(st), self.memo, **self._inputs())
+        for c in cmds:
+            try:
+                st = await self.client.send(**c)
+                self.auto_error = None
+                _LOGGER.info("%s: %s", self.config_entry.title, c)
+            except LiteError as exc:
+                self.auto_error = str(exc)  # tried again on the next episode / renewal; the relay goes on by itself
         return st
 
     async def async_command(self, **body) -> None:
@@ -159,7 +199,7 @@ class LiteEntity(CoordinatorEntity[LiteCoordinator]):
 
 class LiteClimate(LiteEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_preset_modes = [PRESET_HOME, PRESET_AWAY]
+    _attr_preset_modes = [PRESET_HOME, PRESET_COMFORT, PRESET_SLEEP, PRESET_AWAY, PRESET_VACATION]  # 0.82.0
     _attr_min_temp = 5.0
     _attr_max_temp = 30.0
     _attr_target_temperature_step = 0.5
@@ -206,7 +246,10 @@ class LiteClimate(LiteEntity, ClimateEntity):
 
     @property
     def preset_mode(self):
-        return None if self.v is None else (PRESET_AWAY if self.v.mode == "away" else PRESET_HOME)
+        if self.v is None:
+            return None
+        return {"away": PRESET_AWAY, "vacation": PRESET_VACATION, "comfort": PRESET_COMFORT,
+                "sleep": PRESET_SLEEP}.get(self.v.preset, PRESET_HOME)
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -221,7 +264,11 @@ class LiteClimate(LiteEntity, ClimateEntity):
                 # 0.80.0: the heat source, cooling, the dew point and the buffer probes
                 "heat_source": v.src, "lite_hvac": v.hvac, "dew_point": v.dew_point, "flow_pipe": v.pipe,
                 "dew_stop": v.dew_stop, "dew_warn": v.dew_warn,
-                "buffer": [{"name": n, "temp": t} for n, t in v.buffer] or None}
+                "buffer": [{"name": n, "temp": t} for n, t in v.buffer] or None,
+                # 0.82.0: the preset on the relay, who asked for it, its end; the weekend program today; the button
+                "lite_preset": v.preset, "preset_source": v.psrc, "preset_until": _iso(v.puntil),
+                "vacation_until": _iso(v.vacation), "window_left_s": v.window_s, "weekend_program_today": v.we_today,
+                "last_button": v.btn_ev, "automation_error": self.coordinator.auto_error}
 
     async def async_set_temperature(self, **kwargs) -> None:
         if (t := kwargs.get(ATTR_TEMPERATURE)) is not None:
@@ -240,7 +287,32 @@ class LiteClimate(LiteEntity, ClimateEntity):
         await self.async_set_hvac_mode(HVACMode.OFF)
 
     async def async_set_preset_mode(self, preset_mode) -> None:
-        await self.coordinator.async_command(mode="away" if preset_mode == PRESET_AWAY else "auto")
+        if preset_mode == PRESET_VACATION:
+            from homeassistant.exceptions import ServiceValidationError
+            raise ServiceValidationError("HC Lite: a vacation needs its end – use the hc_thermostat.lite_vacation action")
+        cmd = {PRESET_AWAY: {"mode": "away"}, PRESET_COMFORT: {"preset": "comfort"},
+               PRESET_SLEEP: {"preset": "sleep"}}.get(preset_mode, {"preset": "home"})
+        await self.coordinator.async_command(**cmd, src="ha")
+
+    async def async_lite_comfort(self) -> None:
+        """0.82.0 action: comfort (the program's target + its comfort step, for its comfort time; again: longer)."""
+        await self.coordinator.async_command(preset="comfort", src="ha")
+
+    async def async_lite_vacation(self, until=None, clear: bool = False) -> None:
+        """0.82.0 action: away until `until` (preheated back on time); clear: end it now."""
+        from homeassistant.exceptions import ServiceValidationError
+        from homeassistant.util import dt as dt_util
+        if clear or until is None:
+            await self.coordinator.async_command(vacation=0, src="ha")
+            return
+        when = until if hasattr(until, "timestamp") else dt_util.parse_datetime(str(until))
+        if when is None:
+            raise ServiceValidationError("HC Lite: give the vacation's end as a date and time")
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=dt_util.get_default_time_zone())
+        if when <= dt_util.now():
+            raise ServiceValidationError("HC Lite: the vacation's end is already past")
+        await self.coordinator.async_command(vacation=int(when.timestamp()), src="ha")
 
 
 class LiteBoiler(LiteEntity, BinarySensorEntity):
@@ -319,8 +391,16 @@ class LiteTemp(LiteEntity, SensorEntity):
         return None if self.v is None else getattr(self.v, self._field)
 
 
+def _iso(ts: int | None) -> str | None:
+    if ts is None:
+        return None
+    from homeassistant.util import dt as dt_util
+    return dt_util.as_local(dt_util.utc_from_timestamp(ts)).isoformat()
+
+
 async def async_setup_climate(hass, entry, add) -> None:
     add([LiteClimate(entry.runtime_data)])
+
 
 
 async def async_setup_binary_sensor(hass, entry, add) -> None:
@@ -337,3 +417,17 @@ async def async_setup_sensor(hass, entry, add) -> None:
         add([LiteTemp(c, "lite_dew_point", "dew_point")])
     if s.dew_id >= 0:
         add([LiteTemp(c, "lite_flow_pipe", "pipe")])
+
+
+def async_register_actions(hass) -> None:
+    """0.82.0: the presets' actions, once for the integration (async_setup); only an HC Lite thermostat answers them."""
+    import voluptuous as vol
+    from homeassistant.components.climate import DOMAIN as CLIMATE
+    from homeassistant.helpers import config_validation as cv
+    from homeassistant.helpers.service import async_register_platform_entity_service
+    async_register_platform_entity_service(hass, DOMAIN, "lite_comfort", entity_domain=CLIMATE, schema={},
+                                           func="async_lite_comfort")
+    async_register_platform_entity_service(
+        hass, DOMAIN, "lite_vacation", entity_domain=CLIMATE,
+        schema={vol.Optional("until"): cv.datetime, vol.Optional("clear", default=False): cv.boolean},
+        func="async_lite_vacation")

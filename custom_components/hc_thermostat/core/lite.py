@@ -15,6 +15,7 @@ SENSORS = ("bthomesensor", "temperature", "push")  # 0.79.6: push = a Wi-Fi H&T 
 MODES = ("auto", "away", "off")
 SOURCES = ("gas", "hp")  # 0.80.0: the heat source – a gas boiler, or a heat pump (which may also cool)
 HVACS = ("heat", "cool")
+PRESETS = ("off", "window", "vacation", "away", "comfort", "sleep", "manual", "schedule")  # 0.82.0, as the script reports
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,9 @@ class LiteSettings:
     dew_margin: float = 2.0  # 0.80.0: cooling stops while the pipe is below dew point + this
     buf: tuple = ()  # 0.80.0: up to 3 buffer probes (add-on temperature ids), shown only
     bufn: tuple = ()  # 0.80.0: their names
+    cf_delta: float = 1.0  # 0.82.0: comfort = the program's target + this …
+    cf_time: int = 7200  # 0.82.0: … for this long (s)
+    btn: int = -1  # 0.82.0: the BLU device (bthomedevice id) whose button pushes the relay takes (-1: none)
 
     @classmethod
     def from_conf(cls, conf: dict[str, Any]) -> "LiteSettings":
@@ -72,7 +76,8 @@ _RANGES = {"sp_day": (5, 30), "sp_night": (5, 30), "sp_away": (5, 30), "frost": 
            "cycle": (600, 7200), "kp": (0.05, 3), "bias": (0, 0.8), "ti": (1800, 86400), "boost": (0, 5), "boost_end": (0, 2), "pre": (0, 120), "pre_max": (0, 360), "min_on": (0, 3600), "min_off": (0, 3600),
            "max_on": (0, 86400), "don": (60, 7200), "doff": (60, 14400), "sensor_id": (0, 299),
            "sensor_max_age": (300, 7200), "sc_day": (16, 30), "sc_night": (16, 30), "sc_away": (16, 30),
-           "hum_id": (-1, 299), "dew_id": (-1, 199), "dew_margin": (0.5, 5)}
+           "hum_id": (-1, 299), "dew_id": (-1, 199), "dew_margin": (0.5, 5),
+           "cf_delta": (0.5, 3), "cf_time": (1800, 21600), "btn": (-1, 299)}
 _CHOICES = {"ctl": CTL, "ns": NO_SENSOR, "sensor": SENSORS, "src": SOURCES}
 
 
@@ -196,6 +201,13 @@ class LiteView:
     dew_stop: bool = False
     dew_warn: bool = False
     buffer: tuple = ()  # 0.80.0: ((name, °C or None), ...)
+    preset: str = "schedule"  # 0.82.0: off | window | vacation | away | comfort | sleep | manual | schedule
+    psrc: str | None = None  # 0.82.0: who asked for it: ha | web | button
+    puntil: int | None = None  # 0.82.0: its end (unixtime), None: open-ended / by the program
+    vacation: int | None = None
+    window_s: int | None = None
+    we_today: bool = False
+    btn_ev: str | None = None
 
 
 def view(status: dict[str, Any] | None) -> LiteView | None:
@@ -213,7 +225,16 @@ def view(status: dict[str, Any] | None) -> LiteView | None:
                     integral=num("integral"), hvac="cool" if status.get("hvac") == "cool" else "heat",
                     src=cfg.get("src") if cfg.get("src") in SOURCES else "gas", humidity=num("hum"), dew_point=num("dew"),
                     pipe=num("pipe"), dew_stop=status.get("dew_stop") is True, dew_warn=status.get("dew_warn") is True,
-                    buffer=_buffer(cfg, status.get("buf")))
+                    buffer=_buffer(cfg, status.get("buf")),
+                    preset=status.get("preset") if status.get("preset") in PRESETS else "schedule",
+                    psrc=status.get("psrc") if status.get("psrc") in ("ha", "web", "button") else None,
+                    puntil=_int(status.get("puntil")), vacation=_int(status.get("vac")), window_s=_int(status.get("win_s")),
+                    we_today=status.get("we_today") is True,
+                    btn_ev=status.get("btn_ev") if isinstance(status.get("btn_ev"), str) else None)
+
+
+def _int(v: Any) -> int | None:
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _buffer(cfg: dict, vals: Any) -> tuple:
@@ -226,3 +247,98 @@ def _buffer(cfg: dict, vals: Any) -> tuple:
         n = names[i] if i < len(names) and isinstance(names[i], str) and names[i] else None
         out.append((n, v))
     return tuple(out)
+
+
+# ---------------------------------------------------------------------------------------------------------------- 0.82.0
+# Home Assistant's side of the presets: presence, a calendar and windows turn into commands for the relay. The relay
+# keeps every one of them with an end, so a lost Home Assistant never leaves it stuck. Pure: the instance gathers the
+# inputs, this decides, the instance sends.
+
+AWAY_FOR_S = 43200  # away from presence: 12 hours, renewed while still away
+AWAY_RENEW_S = 39600  # renewed when less than 11 hours are left
+AWAY_AFTER_S = 1200  # everyone away for 20 minutes
+WINDOW_AFTER_S = 120  # a window open for 2 minutes
+WINDOW_FOR_S = 3600  # frost while open, at most an hour
+VACATION_WORDS = ("szabadság", "szabadsag", "nyaralás", "nyaralas", "távol", "tavol", "vacation", "holiday", "away")
+HOME_DAY_WORDS = ("otthon", "itthon", "home office", "homeoffice", "home-office", "wfh")
+
+
+def presence_away(domain: str, state: str | None) -> bool | None:
+    """Away (True), home (False) or unknown (None) from a presence entity's state."""
+    if state is None or state in ("unknown", "unavailable", ""):
+        return None
+    st = state.strip().lower()
+    if domain in ("person", "device_tracker"):
+        return st != "home"
+    if st in ("home", "on", "otthon", "present", "igen", "jelen"):
+        return False
+    if st in ("not_home", "off", "away", "távol", "tavol", "szabadság", "szabadsag", "vacation", "nem", "absent"):
+        return True
+    return None
+
+
+def calendar_kind(message: str | None) -> str | None:
+    """"vacation", "home" (the weekend program today) or None from a calendar event's title."""
+    m = (message or "").strip().lower()
+    if not m:
+        return None
+    if any(w in m for w in VACATION_WORDS):
+        return "vacation"
+    if any(w in m for w in HOME_DAY_WORDS):
+        return "home"
+    return None
+
+
+def plan_commands(now: float, v: LiteView | None, memo: dict, *, away: bool | None = None, away_since: float | None = None,
+                  event: tuple[str | None, float | None] | None = None, today: str | None = None,
+                  window_since: float | None = None, has_windows: bool = False) -> list[dict]:
+    """The commands to send now (each with src "ha"); `memo` remembers what was sent for which episode.
+
+    Presence: everyone away 20 min → away for 12 h (renewed while away); someone back → home, also over a vacation.
+    A first look after a restart only takes a "home" as the starting point, so a hand-set away is kept.
+    A gesture on the relay (the button) wins until the next real presence change: one episode, one command.
+    Calendar: an active "vacation" event → vacation until its end (once per event); a "home" event → the weekend
+    program today (once a day). Windows: any open for 2 min → frost for at most an hour (once per opening); closed
+    → back."""
+    out: list[dict] = []
+    if v is None:
+        return out
+    if away is not None and away_since is not None:
+        first = "pres" not in memo
+        if not away:
+            if first:
+                memo["pres"] = away_since
+            elif memo.get("pres") != away_since:
+                memo["pres"] = away_since
+                if v.preset in ("away", "vacation"):
+                    out.append({"preset": "home"})
+        elif now - away_since >= AWAY_AFTER_S:
+            if memo.get("pres") != away_since:
+                memo["pres"] = away_since
+                if v.preset not in ("off", "vacation", "away"):
+                    out.append({"mode": "away", "for": AWAY_FOR_S})
+            elif v.preset == "away" and v.psrc == "ha" and v.puntil is not None and v.puntil - now < AWAY_RENEW_S:
+                out.append({"mode": "away", "for": AWAY_FOR_S})
+    if event is not None:
+        kind, end = calendar_kind(event[0]), event[1]
+        if kind == "vacation" and end is not None and end > now:
+            key = f"{event[0]}|{int(end)}"
+            if memo.get("cal") != key:
+                memo["cal"] = key
+                out.append({"vacation": int(end)})
+        elif kind == "home" and today and memo.get("we") != today:
+            memo["we"] = today
+            if not v.we_today:
+                out.append({"we_today": True})
+    if has_windows:
+        if window_since is not None and now - window_since >= WINDOW_AFTER_S:
+            if memo.get("win") != window_since:
+                memo["win"] = window_since
+                out.append({"window": True, "for": WINDOW_FOR_S})
+        elif window_since is None and memo.get("win") is not None:
+            memo["win"] = None
+            if v.preset == "window":
+                out.append({"window": False})
+    for c in out:
+        c["src"] = "ha"
+    return out

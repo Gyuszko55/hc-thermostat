@@ -372,6 +372,13 @@ def _lite_settings_fields(current: dict) -> dict:
         n("sc_day", 16, 30, 0.5, "°C"), n("sc_night", 16, 30, 0.5, "°C"), n("sc_away", 16, 30, 0.5, "°C"),
         n("hum_id", -1, 299, 1), n("dew_id", -1, 199, 1), n("dew_margin", 0.5, 5, 0.5, "°C"),
         txt("buf", s.buf), txt("bufn", s.bufn),
+        # 0.82.0: presets – comfort, a BLU button on the relay; Home Assistant's presence, calendar and windows
+        n("cf_delta", 0.5, 3, 0.5, "°C"), n("cf_time", 1800, 21600, 1800, "s"), n("btn", -1, 299, 1),
+        (vol.Optional("lite_presence", description={"suggested_value": current.get("lite_presence")}),
+         _entity("person", "group", "binary_sensor", "sensor", "input_select", "input_boolean", "device_tracker", "zone")),
+        (vol.Optional("lite_calendar", description={"suggested_value": current.get("lite_calendar")}), _entity("calendar")),
+        (vol.Optional("lite_windows", description={"suggested_value": current.get("lite_windows")}),
+         _entity("binary_sensor", multiple=True)),
         (vol.Required("lite_shadow", default=s.shadow), BooleanSelector()),
     ])
 

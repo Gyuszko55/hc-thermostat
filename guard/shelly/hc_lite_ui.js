@@ -17,6 +17,9 @@
     demand: "Igény", integral: "integrál", boost: "boost", today: "Ma", starts: "indítás", min: "perc",
     reading: "Mérés", ago: "ennyi ideje", noReading: "nincs mérés", since: "Ebben az állapotban",
     reason: "Döntés", holdUntilNext: "kézi cél a következő programváltásig", holdClear: "Kézi cél törlése",
+    presets: "Előbeállítás", pComfort: "Komfort", pSleep: "Alvás", pHome: "Program", pVac: "Szabadság eddig", pVacSet: "Szabadság", pVacClear: "Szabadság törlése",
+    pr: { off: "ki", window: "ablak nyitva", vacation: "szabadság", away: "távol", comfort: "komfort", sleep: "alvás", manual: "kézi cél", schedule: "program" },
+    srcs: { ha: "Home Assistant", web: "ez az oldal", button: "gomb" }, until: "eddig", by: "kérte", weToday: "ma hétvégi program",
     log: "Utolsó kapcsolások", on: "be", offW: "ki", save: "Mentés", saved: "Elmentve", nothing: "Nincs változás",
     login: "Token", loginHint: "A relé tokene (HC-ben is ez van). A böngésző megjegyzi ezen a gépen.",
     loginBtn: "Belépés", logout: "Kilépés", badTok: "Rossz token", needTok: "A változtatáshoz add meg a tokent (Első lépések).",
@@ -47,6 +50,9 @@
     demand: "Demand", integral: "integral", boost: "boost", today: "Today", starts: "starts", min: "min",
     reading: "Reading", ago: "age", noReading: "no reading", since: "In this state for",
     reason: "Decision", holdUntilNext: "manual target until the next program change", holdClear: "Clear the manual target",
+    presets: "Preset", pComfort: "Comfort", pSleep: "Sleep", pHome: "Program", pVac: "Vacation until", pVacSet: "Vacation", pVacClear: "Clear the vacation",
+    pr: { off: "off", window: "window open", vacation: "vacation", away: "away", comfort: "comfort", sleep: "sleep", manual: "manual target", schedule: "program" },
+    srcs: { ha: "Home Assistant", web: "this page", button: "the button" }, until: "until", by: "by", weToday: "weekend program today",
     log: "Last switches", on: "on", offW: "off", save: "Save", saved: "Saved", nothing: "Nothing changed",
     login: "Token", loginHint: "The relay's token (the same as in HC). This browser keeps it on this computer.",
     loginBtn: "Log in", logout: "Log out", badTok: "Wrong token", needTok: "To change anything, give the token (First steps).",
@@ -156,11 +162,18 @@
     if (s < 5400) return Math.round(s / 60) + " " + T.mins;
     return (s / 3600).toFixed(1).replace(".", HU ? "," : ".") + " " + T.hours;
   }
+  function when(u) {
+    const d = new Date(u * 1000);
+    return d.toLocaleString(HU ? "hu-HU" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
   function periodText(p) {
     if (!p) return "–";
     const man = p.indexOf("(manual)") >= 0, base = p.replace(" (manual)", "");
-    const w = { day: T.day, night: T.night, preheat: T.preheat, away: T.away.toLowerCase(), off: T.off.toLowerCase(), "no time": T.notime }[base] || base;
-    return man ? w + " · " + T.manual : w;
+    const tag = (p.match(/\((comfort|sleep|manual)\)$/) || [])[1];
+    const b2 = p.replace(/ \((comfort|sleep|manual)\)$/, "");
+    const w = { day: T.day, night: T.night, preheat: T.preheat, away: T.away.toLowerCase(), off: T.off.toLowerCase(), "no time": T.notime,
+      window: T.pr.window, vacation: T.pr.vacation, "vacation preheat": T.pr.vacation + " · " + T.preheat }[b2] || b2;
+    return tag ? w + " · " + (tag === "manual" ? T.manual : T.pr[tag]) : (man ? w + " · " + T.manual : w);
   }
   function reasonText(r) {
     if (!r) return "–";
@@ -256,6 +269,13 @@
         <button class="btn" data-adj="-0.5">−</button><button class="btn" data-adj="0.5">+</button>
         ${S.hold ? `<button class="btn" data-clear="1">${T.holdClear}</button>` : ""}</div>
       ${S.hold ? `<div class="mut" style="margin-top:6px">${T.holdUntilNext}: ${num(S.hold.sp, 1)} °C</div>` : ""}
+      ${S.preset ? `<div class="mut" style="margin-top:10px">${T.presets}: <strong>${esc(T.pr[S.preset] || S.preset)}</strong>${S.psrc ? " · " + T.by + ": " + esc(T.srcs[S.psrc] || S.psrc) : ""}${S.puntil ? " · " + T.until + " " + when(S.puntil) : ""}${S.we_today ? " · " + T.weToday : ""}</div>
+      <div class="btns"><button class="btn ${S.preset === "comfort" ? "pri" : ""}" data-preset="comfort">${T.pComfort}</button>
+        <button class="btn ${S.preset === "sleep" ? "pri" : ""}" data-preset="sleep">${T.pSleep}</button>
+        <button class="btn ${S.preset === "schedule" ? "pri" : ""}" data-preset="home">${T.pHome}</button></div>
+      <div class="btns"><label class="mut" for="vacu">${T.pVac}</label> <input id="vacu" type="datetime-local">
+        <button class="btn ${S.preset === "vacation" ? "pri" : ""}" data-vac="1">${T.pVacSet}</button>
+        ${S.vac ? `<button class="btn" data-vacclear="1">${T.pVacClear}</button>` : ""}</div>` : ""}
     </div>
     <div class="card">
       <div class="row"><span>${T.reading}</span><span>${S.temp == null ? T.noReading : age}</span></div>
@@ -366,7 +386,9 @@
   function render() {
     const app = $("#app");
     const keep = tab === "settings" && $("#cf") ? readFormSafe() : null;
+    const vac = ($("#vacu") || {}).value; // 0.82.0: a date being typed survives the refresh
     app.innerHTML = head() + (tab === "status" ? vStatus() : tab === "settings" ? vSettings() : vSetup());
+    if (vac && $("#vacu")) $("#vacu").value = vac;
     if (keep) Object.keys(keep).forEach((k) => { const el = $("#cf").elements[k]; if (el) { if (el.type === "checkbox") el.checked = keep[k]; else el.value = keep[k]; el.classList.add("chg"); } });
   }
   function readFormSafe() { try { return readForm(); } catch (e) { return null; } }
@@ -392,6 +414,13 @@
       S = await post({ set: { buf, bufn, dew_id: dew } }); say(T.saved);
     });
     if (d.mode) return act(async () => { S = await post({ mode: d.mode }); say(T.saved); });
+    if (d.preset) return act(async () => { S = await post({ preset: d.preset }); say(T.saved); });
+    if (d.vacclear) return act(async () => { S = await post({ vacation: 0 }); say(T.saved); });
+    if (d.vac) return act(async () => {
+      const v = ($("#vacu") || {}).value, t = v ? Math.floor(new Date(v).getTime() / 1000) : 0;
+      if (!t) throw new Error(T.pVac);
+      S = await post({ vacation: t }); say(T.saved);
+    });
     if (d.adj) return act(async () => { S = await post({ target: Math.round((S.sp + parseFloat(d.adj)) * 2) / 2, hold: "next" }); say(T.saved); });
     if (d.clear) return act(async () => { S = await post({ clear_hold: true }); say(T.saved); });
     if (d.logout) { tok = ""; try { localStorage.removeItem(TOKKEY); } catch (e) { /* */ } render(); return; }
@@ -456,7 +485,7 @@
         SYS = Object.assign(sys, { tz: cfg.location && cfg.location.tz });
       } catch (e) { /* the device page asks for its password; the status still shows */ }
     } catch (e) { S = null; }
-    if (!(tab === "settings" && document.activeElement && document.activeElement.form)) render();
+    if (!(tab === "settings" && document.activeElement && document.activeElement.form) && !(document.activeElement && document.activeElement.id === "vacu")) render();
   }
   refresh();
   timer = setInterval(refresh, 15000);

@@ -1,0 +1,20 @@
+# 0.82.0: HC Lite presets (the relay keeps them, each with an end)
+lite_comfort:
+  target:
+    entity:
+      integration: hc_thermostat
+      domain: climate
+lite_vacation:
+  target:
+    entity:
+      integration: hc_thermostat
+      domain: climate
+  fields:
+    until:
+      example: "2026-12-06 16:00:00"
+      selector:
+        datetime:
+    clear:
+      default: false
+      selector:
+        boolean:

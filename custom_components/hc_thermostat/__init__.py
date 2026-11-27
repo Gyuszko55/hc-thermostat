@@ -31,6 +31,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """The setup wizard panel ("HC setup" in the sidebar), available at any time."""
     note_ha_start(hass)  # 0.45.0: the restart protection counts from here
     await async_setup_wizard(hass)
+    from .lite import async_register_actions
+    async_register_actions(hass)  # 0.82.0: HC Lite comfort / vacation
     return True
 
 

@@ -8,6 +8,9 @@ LITE_PLATFORMS = ["binary_sensor", "climate", "sensor"]  # 0.79.2: HC Lite – t
 CONF_LITE_URL = "lite_url"  # the script's endpoint, http://<ip>/script/<id>/lite
 CONF_LITE_TOKEN = "lite_token"
 CONF_LITE_PASSWORD = "lite_password"  # the Shelly's own password (digest auth), optional
+CONF_LITE_PRESENCE = "lite_presence"  # 0.82.0: presence → away for 12 h / home
+CONF_LITE_CALENDAR = "lite_calendar"  # 0.82.0: "vacation" / "home" events
+CONF_LITE_WINDOWS = "lite_windows"  # 0.82.0: windows → frost while open
 HP_COORD_PLATFORMS = ["binary_sensor", "button", "number", "sensor", "switch"]  # 0.55.0: the offset is a number; 0.77.0 button
 
 CONF_HEAT_SOURCE = "heat_source"

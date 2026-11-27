@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 test("the compact script passes every HC Lite test", () => {
-  const files = ["hc_lite.test.mjs", "hc_lite_cool.test.mjs"].map((f) => fileURLToPath(new URL(f, import.meta.url)));
+  const files = ["hc_lite.test.mjs", "hc_lite_cool.test.mjs", "hc_lite_presets.test.mjs"].map((f) => fileURLToPath(new URL(f, import.meta.url)));
   const r = spawnSync(process.execPath, ["--test", ...files], { env: { ...process.env, HC_LITE_MIN: "1" }, encoding: "utf8" });
   assert.equal(r.status, 0, r.stdout.slice(-3000));
 });

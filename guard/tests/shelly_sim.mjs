@@ -19,6 +19,7 @@ export class ShellySim {
     this.endpoints = {};
     this.stopped = false;
     this.printed = [];
+    this.events = [];           // 0.82.0: Shelly.addEventHandler callbacks
     this.probes = {};           // wired add-on probes by id: temperature:<id>.tC
     this.hums = {};             // add-on DHT22 humidity by id: humidity:<id>.rh
     this.bt = {};               // other BTHome objects by id (e.g. a humidity)
@@ -28,6 +29,7 @@ export class ShellySim {
       getDeviceInfo() { return { id: "shelly1minig4-sim", auth_en: self.auth }; },
       call(method, params, cb) { const r = self.rpc(method, params); if (cb) cb(r, 0, ""); },
       addStatusHandler() {},
+      addEventHandler(fn) { self.events.push(fn); },
     };
     const ctx = {
       Shelly,
@@ -102,4 +104,7 @@ export class ShellySim {
   }
 
   state() { return this.http("GET").body; }
+
+  // 0.82.0: a component event, e.g. a BLU button: emit("bthomesensor:204", "single_push")
+  emit(component, event) { for (const fn of this.events) fn({ component, info: { component, event, ts: this.unix } }); }
 }
