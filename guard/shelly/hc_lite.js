@@ -69,7 +69,8 @@ let C = {
 let HVAC = "heat";          // heat | cool (cool only with src "hp")
 let TOKEN = "";
 let REV = 0;                // +1 on every settings change, so a second writer (HC, the web page) sees a change
-let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@main/guard/shelly/hc_lite_ui.js";
+let SV = "0.82.2";          // the script's version; its web set-up comes from the same release (0.82.2: not @main)
+let UI_SRC = "https://cdn.jsdelivr.net/gh/Gyuszko55/hc-thermostat@v" + SV + "/guard/shelly/hc_lite_ui.js";
 let MODE = "auto";          // auto | away | off
 let HOLD = null;            // {sp: 21.5, until: unixtime | -1 (next program change), at: "day"|"night", p: preset, s: who}
 let MX = { mu: 0, ms: "", vac: 0, vs: "", we: -1 }; // 0.82.0: away until, vacation until, weekend program today
@@ -82,7 +83,8 @@ let st = {
   cyc_start: -1, day: -1, starts: 0, on_s: 0, last_t: -1, log: [],
   i: 0, i_t: -1, i_saved: -100000,
   push_t: null, push_at: -1, pre: false, boost: false,
-  push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: [], btn: null
+  push_h: null, hum: null, dp: null, pipe: null, dew: false, dw: false, bufv: [], btn: null,
+  bt_ts: null, bt_at: -1, of: 0, of_at: -2, i_saved_v: null
 };
 
 function up() {
@@ -212,9 +214,15 @@ function readTemp() {
   let v = C.sensor === "temperature" ? s.tC : s.value;
   if (typeof v !== "number" || v < -30 || v > 60) return null;
   if (C.sensor === "temperature") { st.temp = v; st.temp_age = 0; return v; } // a wired add-on probe: read live
-  let sys = Shelly.getComponentStatus("sys");
-  if (typeof s.last_updated_ts !== "number" || !sys || typeof sys.unixtime !== "number" || sys.unixtime <= 0) return null;
-  let age = sys.unixtime - s.last_updated_ts;
+  // 0.82.2: the age by the uptime since the reading last changed, so a relay without a clock (no internet after a
+  // power cut) still uses a fresh BLU reading; with a clock the first one seen keeps its real age
+  if (typeof s.last_updated_ts !== "number") return null;
+  if (s.last_updated_ts !== st.bt_ts) {
+    let sys = Shelly.getComponentStatus("sys");
+    let back = sys && typeof sys.unixtime === "number" && sys.unixtime > 0 && st.bt_ts === null ? sys.unixtime - s.last_updated_ts : 0;
+    st.bt_ts = s.last_updated_ts; st.bt_at = up() - (back > 0 ? back : 0);
+  }
+  let age = up() - st.bt_at;
   if (age < 0 || age > C.sensor_max_age) return null;
   st.temp = v; st.temp_age = age;
   return v;
@@ -223,7 +231,10 @@ function readTemp() {
 // ---------------------------------------------------------------- the relay with its limits
 function readRelay() {
   let s = Shelly.getComponentStatus("switch", C.relay);
-  if (s && typeof s.output === "boolean" && !C.shadow) st.relay = s.output;
+  if (s && typeof s.output === "boolean" && !C.shadow) {
+    if (s.output !== st.relay) st.changed = up(); // 0.82.2: switched by hand / elsewhere: min on / off from now
+    st.relay = s.output;
+  }
   return C.shadow ? st.would : st.relay;
 }
 
@@ -264,11 +275,12 @@ function tick() {
   let sp = target(L, v);
   if (sp === null) { st.sp = null; st.demand = null; st.boost = false; want(false, t, "off"); return; }
   // a higher heating (lower cooling) target: a new cycle now, not at its end
-  if (st.sp !== null && (k ? st.sp - sp : sp - st.sp) >= 0.3 && !cur) st.cyc_start = -1;
+  if (st.sp !== null && (k ? st.sp - sp : sp - st.sp) >= 0.3 && !cur) { st.cyc_start = -1; st.of_at = -2; }
   st.sp = sp;
   if (C.max_on > 0 && cur && t - st.changed >= C.max_on) { want(false, t, "max on"); return; }
   if (v === null) {
     st.demand = null;
+    if (MODE === "off" || WIN >= 0) { want(false, t, "no reading"); return; } // 0.82.2: off / a window: never the duty
     if (C.ns === "duty" && !k) {
       let held = t - st.changed;
       if (cur && held >= C.don) want(false, t, "no reading: duty off");
@@ -282,7 +294,7 @@ function tick() {
   let e = k ? v - sp : sp - v; // > 0: it needs heating (cooling)
   if (C.ctl === "tpi" || C.ctl === "pid") {
     if (k || C.boost <= 0 || e <= C.boost_end) {
-      if (st.boost) st.cyc_start = t; // the boost ends: a new cycle from here
+      if (st.boost) { st.cyc_start = t; st.of_at = -2; } // the boost ends: a new cycle from here
       st.boost = false;
     } else if (e >= C.boost) st.boost = true;
     let d = C.bias + C.kp * e;
@@ -294,10 +306,14 @@ function tick() {
     if (C.ctl === "pid") d = d + integrate(e, d, t);
     d = d < 0 ? 0 : (d > 1 ? 1 : d);
     st.demand = Math.round(d * 100) / 100;
-    if (st.cyc_start < 0 || t - st.cyc_start >= C.cycle) st.cyc_start = t;
+    if (st.cyc_start < 0 || t - st.cyc_start >= C.cycle) { st.cyc_start = t; st.of_at = -2; }
     let pos = t - st.cyc_start;
-    let onFor = d * C.cycle;
-    if (onFor > 0 && onFor < C.min_on) onFor = d >= 0.5 * C.min_on / C.cycle ? C.min_on : 0; // too short: skip or min
+    if (st.of_at !== st.cyc_start) { // 0.82.2: the on time is fixed at the cycle's start (a noisy reading: one start)
+      st.of_at = st.cyc_start;
+      st.of = d * C.cycle;
+      if (st.of > 0 && st.of < C.min_on) st.of = d >= 0.5 * C.min_on / C.cycle ? C.min_on : 0; // too short: skip or min
+    }
+    let onFor = st.of;
     if (pos < onFor) want(true, t, "demand " + Math.round(d * 100) + " %");
     else want(false, t, "demand " + Math.round(d * 100) + " %");
   } else {
@@ -321,7 +337,11 @@ function integrate(e, d, t) {
       if (st.i < -1) st.i = -1;
     }
   }
-  if (t - st.i_saved >= 900) { st.i_saved = t; save("hc_lite_i", String(Math.round(st.i * 10000) / 10000)); }
+  if (t - st.i_saved >= 900) {
+    st.i_saved = t;
+    let iv = Math.round(st.i * 10000) / 10000;
+    if (iv !== st.i_saved_v) { st.i_saved_v = iv; save("hc_lite_i", String(iv)); } // 0.82.2: only when it moved
+  }
   return C.kp * st.i;
 }
 
@@ -400,7 +420,7 @@ function takeCfg(n) {
 function setHvac(h) {
   if (h === HVAC || (h === "cool" && C.src !== "hp")) return false;
   HVAC = h; save("hc_lite_hvac", h);
-  st.i = 0; st.i_t = -1; st.boost = false; st.dew = false; st.cyc_start = -1; st.pre = false;
+  st.i = 0; st.i_t = -1; st.boost = false; st.dew = false; st.cyc_start = -1; st.of_at = -2; st.pre = false;
   return true;
 }
 
@@ -419,7 +439,7 @@ function status() {
     relay: C.shadow ? st.would : st.relay, shadow: C.shadow, real_relay: C.shadow ? readRelayRaw() : st.relay,
     demand: st.demand, integral: C.ctl === "pid" ? Math.round(C.kp * st.i * 1000) / 1000 : null, reason: st.reason, boost: st.boost, hold: HOLD, since_s: up() - st.changed,
     starts_today: st.starts, on_min_today: Math.round(st.on_s / 60), log: st.log, cfg: cfgOut(),
-    token: TOKEN ? true : false, rev: REV, sv: "0.82.0",
+    token: TOKEN ? true : false, rev: REV, sv: SV,
     preset: preset(), psrc: psrc(), puntil: puntil(), vac: MX.vac > 0 ? MX.vac : null,
     win_s: WIN >= 0 ? WIN - up() : null, we_today: st.period !== null && MX.we >= 0 && MX.we === st.day, btn_ev: st.btn,
     hvac: HVAC, hum: st.hum, dew: st.dp, pipe: st.pipe, dew_stop: HVAC === "cool" && st.dew, dew_warn: HVAC === "cool" && st.dw,
@@ -531,6 +551,7 @@ function okTok(t) {
 function handle(body) {
   let r;
   try { r = JSON.parse(body); } catch (e) { return { code: 400, body: { error: "bad json" } }; }
+  if (!r || typeof r !== "object") return { code: 400, body: { error: "bad json" } }; // 0.82.2: null / a number
   if (typeof r.init_tok === "string") { // the first token, from the web set-up; never over an existing one
     if (TOKEN) return { code: 403, body: { error: "a token is already set" } };
     if (r.init_tok.length < 8 || r.init_tok.length > 64 || !okTok(r.init_tok)) return { code: 400, body: { error: "token: 8-64 letters, digits, - or _" } };
@@ -609,7 +630,7 @@ function pushTemp(q) {
   if (!TOKEN || query(q, "tok") !== TOKEN) return { code: 403, body: { error: "bad token" } };
   let raw = query(q, "t");
   if (raw === null) raw = query(q, "temp");
-  let v = raw === null ? NaN : Number(raw);
+  let v = raw === null || raw === "" ? NaN : Number(raw); // 0.82.2: an empty "t=" is no reading (Number("") is 0)
   if (!(v >= -30 && v <= 60)) return { code: 400, body: { error: "temperature" } };
   st.push_t = v; st.push_at = up();
   let h = query(q, "hum");
@@ -664,7 +685,7 @@ Shelly.call("KVS.GetMany", { match: "hc_lite_*" }, function (res) {
     let rv = Number(get("hc_lite_rev"));
     if (rv === rv && rv > 0) REV = rv;
     let us = get("hc_lite_ui");
-    if (us) UI_SRC = us;
+    if (us && us.indexOf("hc-thermostat@main/") < 0) UI_SRC = us; // 0.82.2: the old unpinned default gives way
     let m = get("hc_lite_mode");
     if (m === "auto" || m === "away" || m === "off") MODE = m;
     let x = get("hc_lite_mx");

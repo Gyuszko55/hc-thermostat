@@ -16,7 +16,7 @@
     heats: "fűt", would: "fűtene", rests: "pihen", shadow: "árnyék", live: "élesben", realRelay: "valódi relé",
     demand: "Igény", integral: "integrál", boost: "boost", today: "Ma", starts: "indítás", min: "perc",
     reading: "Mérés", ago: "ennyi ideje", noReading: "nincs mérés", since: "Ebben az állapotban",
-    reason: "Döntés", holdUntilNext: "kézi cél a következő programváltásig", holdClear: "Kézi cél törlése",
+    reason: "Döntés", holdUntilNext: "kézi cél a következő programváltásig", holdUntil: "kézi cél eddig", holdClear: "Kézi cél törlése",
     presets: "Előbeállítás", pComfort: "Komfort", pSleep: "Alvás", pHome: "Program", pVac: "Szabadság eddig", pVacSet: "Szabadság", pVacClear: "Szabadság törlése",
     pr: { off: "ki", window: "ablak nyitva", vacation: "szabadság", away: "távol", comfort: "komfort", sleep: "alvás", manual: "kézi cél", schedule: "program" },
     srcs: { ha: "Home Assistant", web: "ez az oldal", button: "gomb" }, until: "eddig", by: "kérte", weToday: "ma hétvégi program",
@@ -49,7 +49,7 @@
     heats: "heating", would: "would heat", rests: "resting", shadow: "shadow", live: "live", realRelay: "real relay",
     demand: "Demand", integral: "integral", boost: "boost", today: "Today", starts: "starts", min: "min",
     reading: "Reading", ago: "age", noReading: "no reading", since: "In this state for",
-    reason: "Decision", holdUntilNext: "manual target until the next program change", holdClear: "Clear the manual target",
+    reason: "Decision", holdUntilNext: "manual target until the next program change", holdUntil: "manual target until", holdClear: "Clear the manual target",
     presets: "Preset", pComfort: "Comfort", pSleep: "Sleep", pHome: "Program", pVac: "Vacation until", pVacSet: "Vacation", pVacClear: "Clear the vacation",
     pr: { off: "off", window: "window open", vacation: "vacation", away: "away", comfort: "comfort", sleep: "sleep", manual: "manual target", schedule: "program" },
     srcs: { ha: "Home Assistant", web: "this page", button: "the button" }, until: "until", by: "by", weToday: "weekend program today",
@@ -245,6 +245,7 @@
   function vStatus() {
     if (!S) return `<div class="card">${T.offline}</div>`;
     const age = typeof S.temp_age === "number" ? dur(S.temp_age) : "";
+    const manual = !!S.hold && (S.preset ? S.preset === "manual" : true); // 0.82.0: comfort / sleep show in the preset line
     const log = (S.log || []).slice().reverse().map((e) => {
       const ago = SYS && typeof SYS.uptime === "number" ? dur(SYS.uptime - e[0]) : "";
       return `<tr><td>${ago}</td><td>${e[1] ? T.on : T.offW}</td><td>${num(e[2], 1)} °C</td><td>${num(e[3], 1)} °C</td></tr>`;
@@ -267,8 +268,8 @@
       <div class="btns">${["auto", "away", "off"].map((m) =>
         `<button class="btn ${S.mode === m ? "pri" : ""}" data-mode="${m}">${T[m]}</button>`).join("")}
         <button class="btn" data-adj="-0.5">−</button><button class="btn" data-adj="0.5">+</button>
-        ${S.hold ? `<button class="btn" data-clear="1">${T.holdClear}</button>` : ""}</div>
-      ${S.hold ? `<div class="mut" style="margin-top:6px">${T.holdUntilNext}: ${num(S.hold.sp, 1)} °C</div>` : ""}
+        ${manual ? `<button class="btn" data-clear="1">${T.holdClear}</button>` : ""}</div>
+      ${manual ? `<div class="mut" style="margin-top:6px">${S.hold.until > 0 ? T.holdUntil + " " + when(S.hold.until) : T.holdUntilNext}: ${num(S.hold.sp, 1)} °C</div>` : ""}
       ${S.preset ? `<div class="mut" style="margin-top:10px">${T.presets}: <strong>${esc(T.pr[S.preset] || S.preset)}</strong>${S.psrc ? " · " + T.by + ": " + esc(T.srcs[S.psrc] || S.psrc) : ""}${S.puntil ? " · " + T.until + " " + when(S.puntil) : ""}${S.we_today ? " · " + T.weToday : ""}</div>
       <div class="btns"><button class="btn ${S.preset === "comfort" ? "pri" : ""}" data-preset="comfort">${T.pComfort}</button>
         <button class="btn ${S.preset === "sleep" ? "pri" : ""}" data-preset="sleep">${T.pSleep}</button>

@@ -327,8 +327,8 @@ def _lite_conn_fields(current: dict) -> dict:
     ])
 
 
-async def _lite_check(hass, user_input: dict) -> dict:
-    """The device answers, and takes the token (a write without changes)."""
+async def _lite_check(hass, user_input: dict, found: dict | None = None) -> dict:
+    """The device answers, and takes the token (a write without changes). 0.82.2: `found` gets its settings (cfg)."""
     from .lite import LiteClient, LiteError
     url = str(user_input.get("lite_url") or "").strip()
     if not url.startswith(("http://", "https://")) or not url.rstrip("/").endswith("/lite"):
@@ -339,6 +339,8 @@ async def _lite_check(hass, user_input: dict) -> dict:
         if not isinstance(st, dict) or "mode" not in st:
             return {"lite_url": "lite_url"}
         await client.send()
+        if found is not None and isinstance(st.get("cfg"), dict):
+            found["cfg"] = st["cfg"]
     except LiteError as exc:
         text = str(exc)
         if "401" in text:
@@ -1100,9 +1102,11 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_lite(self, user_input=None):
         """0.79.2: HC Lite – the script's address (printed by upload_shelly.py --lite), its token, the device password."""
-        errors = await _lite_check(self.hass, user_input) if user_input is not None else {}
+        found: dict = {}
+        errors = await _lite_check(self.hass, user_input, found) if user_input is not None else {}
         if user_input is not None and not errors:
             self._data.update(user_input)
+            self._lite_cfg = found.get("cfg")  # 0.82.2: the form starts from what the relay already holds
             return await self.async_step_lite_settings()
         return self.async_show_form(step_id="lite", data_schema=vol.Schema(_lite_conn_fields(user_input or {})),
                                     errors=errors)
@@ -1111,7 +1115,11 @@ class HcConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self.async_create_entry(title=self._data[CONF_NAME], data={**self._data, **user_input,
                                                                              CONF_MODE: MODE_SHADOW})
-        return self.async_show_form(step_id="lite_settings", data_schema=vol.Schema(_lite_settings_fields({})))
+        # 0.82.2: a relay set up on its own web page (maybe live, not in shadow) keeps its settings when added to HA
+        from .core.lite import options_from_device
+        cfg = getattr(self, "_lite_cfg", None)
+        return self.async_show_form(step_id="lite_settings",
+                                    data_schema=vol.Schema(_lite_settings_fields(options_from_device(cfg) if cfg else {})))
 
     async def async_step_hp_coord(self, user_input=None):
         """Heat pump coordination (0.55.0, shadow only): needs a buffer instance."""

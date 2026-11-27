@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.82.2 – 2026-11-27
+
+From an outside review of HC Lite 0.82.0:
+
+- **One request could stop the relay's script:** a body of `null` (valid JSON, not an object) threw – the script
+  then stopped, the dead-man let the relay go and nothing heated until a restart. Such a body is now refused (400).
+- **No reading: off and an open window never run the safe duty.** With the thermometer lost (a flat BLU battery in
+  summer) the 10 / 40 minute duty used to run the boiler even with the thermostat off. Away and vacation keep it (frost
+  in winter).
+- **No clock, still a reading:** the age of a BLU reading is counted by the relay's uptime since the reading last
+  changed, so after a power cut without internet (no time sync) a fresh BLU reading is used, not the blind duty.
+- **Adding a relay to Home Assistant keeps its settings:** the form starts from what the relay holds (set up on its
+  own page, maybe live), so the first sync no longer puts it back to shadow or the defaults.
+- A relay switched by hand: min on / min off count from that switch. TPI / PI: the on time is fixed at the start of
+  each cycle (a noisy reading no longer gives several starts in one cycle). An empty `t=` on the push endpoint is no
+  reading (it read as 0 °C). The PI integral goes to KVS only when it moved. Home Assistant keeps the presets' memo
+  over a restart (a window open then still gets its "closed").
+- **The web set-up comes from the script's own release** (`@v<version>`), no longer from `main`; an old stored
+  `@main` address gives way, a chosen one stays.
+
+## 0.82.1 – 2026-11-27
+
+- **The relay's page:** during comfort or sleep it no longer also shows "manual target until the next program change"
+  and its clear button – the preset line tells what rules and until when. A real manual target with an end now shows
+  "manual target until …".
+
 ## 0.82.0 – 2026-11-27
 
 HC Lite presets – with and without Home Assistant (the relay keeps every one of them, each with an end):

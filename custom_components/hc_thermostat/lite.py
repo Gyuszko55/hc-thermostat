@@ -103,9 +103,11 @@ class LiteCoordinator(DataUpdateCoordinator[dict]):
         data = await self._store.async_load() or {}
         rev = data.get("lite_rev")
         self.known_rev = rev if isinstance(rev, int) else None
+        memo = data.get("memo")  # 0.82.2: a window open over a restart still gets its "closed"
+        self.memo = dict(memo) if isinstance(memo, dict) else {}
 
     async def async_save(self) -> None:
-        await self._store.async_save({"lite_rev": self.known_rev})
+        await self._store.async_save({"lite_rev": self.known_rev, "memo": self.memo})
 
     async def _remember(self, rev: Any) -> None:
         if isinstance(rev, int) and not isinstance(rev, bool) and rev != self.known_rev:
@@ -161,7 +163,10 @@ class LiteCoordinator(DataUpdateCoordinator[dict]):
 
     async def _automate(self, st: dict) -> dict:
         from homeassistant.util import dt as dt_util
+        before = dict(self.memo)
         cmds = plan_commands(dt_util.utcnow().timestamp(), view(st), self.memo, **self._inputs())
+        if self.memo != before:
+            await self.async_save()
         for c in cmds:
             try:
                 st = await self.client.send(**c)

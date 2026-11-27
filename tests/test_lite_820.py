@@ -159,5 +159,5 @@ def test_the_instance_wires_it_up():
 def test_the_script_listens_to_its_button_and_keeps_presets():
     assert "Shelly.addEventHandler(button)" in SCRIPT
     for k in ('"single_push"', '"double_push"', '"long_push"', 'save("hc_lite_mx"', "r.vacation", "r.window", "r.we_today",
-              'sv: "0.82.0"'):
+              'sv: SV'):
         assert k in SCRIPT, k
