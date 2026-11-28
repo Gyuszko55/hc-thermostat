@@ -93,7 +93,8 @@ def answer(hass, query: str | None, language: str) -> str:
         rooms = [x for x in cands if x["kind"] == "instance" and x["role"] in ("standalone", "zone")]
         pick = next((x for x in rooms if x["live"]), rooms[0] if rooms else next(x for x in cands if x["kind"] == "instance"))
     if pick["kind"] == "room" and pick["trv"]:
-        s = summarize_room(pick["state"], lang)
+        from .plain import starting
+        s = summarize_room(pick["state"], lang, starting(hass))
         title = pick["name"]
     elif pick["kind"] == "room":
         s = pick["c"].plain_summary(lang)

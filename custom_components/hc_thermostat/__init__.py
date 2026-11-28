@@ -138,6 +138,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """The instance is deleted: its store goes. TRV heads and the managed thermostat keep the last target HC wrote
     (nothing is written back – README "Removing an instance"). 0.45.0: the last instance takes the panels with it."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
+    await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.history").async_remove()  # 0.88.0: the settings history
     if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
         async_remove_panels(hass)
 

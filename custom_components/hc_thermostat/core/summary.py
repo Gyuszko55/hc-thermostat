@@ -302,8 +302,12 @@ ROOM_WHY = {
 }
 
 
-def summarize_room(room: dict, language: str = "en") -> dict:
-    """A TRV room's plain summary from its state (coordinator.room_states)."""
+STARTING_S = 300  # 0.87.1: so long after Home Assistant started a missing room reading is "not yet", not a fault
+
+
+def summarize_room(room: dict, language: str = "en", starting: bool = False) -> dict:
+    """A TRV room's plain summary from its state (coordinator.room_states). `starting`: Home Assistant started
+    less than STARTING_S ago – a room without a reading yet waits for its thermometers instead of a fault."""
     lang = "hu" if str(language).startswith("hu") else "en"
     hu = lang == "hu"
     reason, temp, target = room.get("reason"), room.get("temperature"), room.get("target")
@@ -312,7 +316,7 @@ def summarize_room(room: dict, language: str = "en") -> dict:
     elif room.get("window") or reason == "window":
         state = PAUSED
     elif temp is None:
-        state = FAULT
+        state = WAITING if starting else FAULT
     else:
         state = HEATING if room.get("heating") else IDLE
     lines = []
@@ -321,6 +325,9 @@ def summarize_room(room: dict, language: str = "en") -> dict:
         lines.append("Becsukás után folytatja." if hu else "It goes on once it is closed.")
     elif state == OFF:
         lines.append("A helyiség ki van kapcsolva (fagyvédelem)." if hu else "The room is switched off (frost protection).")
+    elif state == WAITING:
+        lines.append("Újraindulás után még nincs mérés a helyiség hőmérőjétől – pár percen belül megjön." if hu
+                     else "After a restart the room's thermometer has not reported yet – it comes within minutes.")
     elif state == FAULT:
         lines.append("A helyiség hőmérője nem küld adatot." if hu else "The room's thermometer sends no reading.")
         lines.append("Nézd meg a hőmérő elemét és kapcsolatát." if hu else "Check the thermometer's battery and connection.")

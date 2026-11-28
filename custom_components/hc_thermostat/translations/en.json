@@ -720,8 +720,11 @@
           "check": "Why heating / why not? – check",
           "sensors": "Thermometers and windows (indoor, outdoor, windows, presence)",
           "rooms": "Rooms (areas, thermometers, valve heads, presence, windows)",
+          "goal": "What should the heating aim for? (fewer switching, steadier, thriftier)",
+          "profile": "Recommended settings for this system",
           "settings": "Expert settings (regulation, protections, floor, energy, local guard…)",
           "change_control": "Another device drives the heating (change the control)",
+          "restore": "Restore an earlier setting",
           "go_live": "Go live – HC starts switching",
           "go_shadow": "Back to shadow mode – HC only calculates"
         }
@@ -1889,7 +1892,7 @@
       },
       "check": {
         "title": "Why heating / why not? – {name}",
-        "description": "{summary}\n\n**Go-live check**\n{checklist}\n\nThis only informs, it changes nothing. **Submit** goes back to the menu."
+        "description": "{summary}\n\n**Go-live check**\n{checklist}\n\n**Advice from the last days' numbers**\n{advice}\n\nThis only informs, it changes nothing. **Submit** goes back to the menu."
       },
       "sensors": {
         "title": "Thermometers and windows – {name}",
@@ -1906,6 +1909,39 @@
           "window_entities": "While one is open, the heating pauses.",
           "presence_entities": "A person, a presence sensor or a household state: when nobody is home, the away target applies."
         }
+      },
+      "confirm_changes": {
+        "title": "What changes: {name}",
+        "description": "Saving changes these settings:\n\n{changes}\n\nIf this is right, press **Submit**. If not, close the window – then nothing changes. The current setting stays in the history; the menu's \"Restore\" item brings it back any time."
+      },
+      "restore": {
+        "title": "Restore: {name}",
+        "description": "Which earlier setting to go back to? Each is how the settings were right before a save (the last 10 saves). The next step still shows what changes.",
+        "data": {
+          "version": "Earlier setting"
+        }
+      },
+      "restore_confirm": {
+        "title": "Restore: {name}",
+        "description": "Restoring changes these:\n\n{changes}\n\nThe mode (live or shadow) does not change. The current setting goes into the history too, so a restore can be undone as well. **Submit** = restore; closing the window = nothing changes."
+      },
+      "profile": {
+        "title": "Recommended settings: {name}",
+        "description": "What HC recommends for this heat source and heating system, where the current setting differs:\n\n{list}\n\nTick what to adopt (nothing is ticked by default). After **Submit** it still shows what changes; nothing is saved by itself. A safety value is only recommended in the stricter direction.",
+        "data": {
+          "adopt": "Recommendations to adopt"
+        }
+      },
+      "goal": {
+        "title": "What should the heating aim for? – {name}",
+        "description": "Pick a goal. The next step shows which settings would change and what to expect – nothing changes until then. No goal touches the targets.",
+        "data": {
+          "goal": "Goal"
+        }
+      },
+      "goal_preview": {
+        "title": "Preview: {goal}",
+        "description": "{preview}\n\n**Submit** = save (undone from the menu's \"Restore\" item); closing the window = nothing changes."
       }
     },
     "error": {

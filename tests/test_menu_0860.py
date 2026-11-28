@@ -42,7 +42,7 @@ def test_the_menu_by_task_with_a_status_line(monkeypatch):
                 "title": "Csak 3 órája fut árnyék módban (javasolt: 24 óra)", "fix": "Nézd át az árnyék döntéseket"}]}
     monkeypatch.setattr(rd, "async_check", ready)
     kind, kw = asyncio.run(_flow({"mode": "shadow"}, runtime=_Coord()).async_step_init())
-    assert kind == "menu" and kw["menu_options"] == ["targets", "presets", "check", "sensors", "rooms", "settings",
+    assert kind == "menu" and kw["menu_options"] == ["targets", "presets", "check", "sensors", "rooms", "goal", "profile", "settings",
                                                      "change_control", "go_live"]
     assert kw["description_placeholders"]["status"] == (
         "**Most:** Nem fűt – A ház elérte a célt (bent 22,6 °C, cél 22,5 °C).\n\n"

@@ -90,6 +90,8 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_system)
     from .readiness import ws_readiness  # 0.83.0: the go-live checklist
     websocket_api.async_register_command(hass, ws_readiness)
+    from .tuning_ha import ws_advice  # 0.89.0: advice from the last days' numbers
+    websocket_api.async_register_command(hass, ws_advice)
 
 
 INFO_URL = "hc-info"

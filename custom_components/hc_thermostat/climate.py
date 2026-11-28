@@ -100,7 +100,8 @@ def _room_summary(st: dict, trv: bool, hass) -> dict:
         return {}
     try:
         from .core.summary import as_text, summarize_room
-        s = summarize_room(st, str(getattr(hass.config, "language", "") or "en"))
+        from .plain import starting
+        s = summarize_room(st, str(getattr(hass.config, "language", "") or "en"), starting(hass))
     except Exception:
         return {}
     return {"summary": as_text(s), "summary_state": s["state"], "summary_headline": s["headline"],

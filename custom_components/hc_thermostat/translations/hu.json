@@ -720,8 +720,11 @@
           "check": "Miért fűt / miért nem? – ellenőrzés",
           "sensors": "Hőmérők és ablakok (benti, kinti hőmérő, ablakok, jelenlét)",
           "rooms": "Helyiségek (területek, hőmérők, szelepfejek, jelenlét, ablakok)",
+          "goal": "Mire törekedjen a fűtés? (kevesebb kapcsolás, egyenletesebb, takarékosabb)",
+          "profile": "Ajánlott beállítások ehhez a rendszerhez",
           "settings": "Szakértői beállítások (szabályozás, védelmek, padló, energia, helyi védő…)",
           "change_control": "Más eszköz vezérli a fűtést (vezérlés cseréje)",
+          "restore": "Visszaállítás egy korábbi beállításra",
           "go_live": "Élesítés – a HC kapcsolni kezd",
           "go_shadow": "Vissza árnyék módba – a HC csak számol"
         }
@@ -1889,7 +1892,7 @@
       },
       "check": {
         "title": "Miért fűt / miért nem? – {name}",
-        "description": "{summary}\n\n**Élesítés előtti ellenőrzés**\n{checklist}\n\nCsak tájékoztat, semmit nem változtat. A **Mehet** gombbal vissza a menübe."
+        "description": "{summary}\n\n**Élesítés előtti ellenőrzés**\n{checklist}\n\n**Tanácsok az elmúlt napok adataiból**\n{advice}\n\nCsak tájékoztat, semmit nem változtat. A **Mehet** gombbal vissza a menübe."
       },
       "sensors": {
         "title": "Hőmérők és ablakok – {name}",
@@ -1906,6 +1909,39 @@
           "window_entities": "Nyitásukkor a fűtés szünetel.",
           "presence_entities": "Személy, jelenlét-érzékelő vagy háztartás-állapot: ha senki sincs otthon, a távolléti cél jár."
         }
+      },
+      "confirm_changes": {
+        "title": "Mi változik: {name}",
+        "description": "Ezek a beállítások változnak a mentéssel:\n\n{changes}\n\nHa ez így jó, nyomd meg a **Küldés** gombot. Ha nem ezt akartad, zárd be az ablakot – akkor semmi nem változik. A mostani beállítás megmarad az előzményekben, a menü „Visszaállítás” pontjából bármikor visszahozható."
+      },
+      "restore": {
+        "title": "Visszaállítás: {name}",
+        "description": "Melyik korábbi beállításra térjen vissza? Mindegyik a beállítások állapota közvetlenül egy mentés előtt (az utolsó 10 mentés). A következő lépésben még megmutatja, mi változik.",
+        "data": {
+          "version": "Korábbi beállítás"
+        }
+      },
+      "restore_confirm": {
+        "title": "Visszaállítás: {name}",
+        "description": "A visszaállítás ezeket változtatja meg:\n\n{changes}\n\nAz üzemmód (éles vagy árnyék) nem változik. A mostani beállítás is bekerül az előzményekbe, így a visszaállítás is visszavonható. **Küldés** = visszaállítás; az ablak bezárása = semmi nem változik."
+      },
+      "profile": {
+        "title": "Ajánlott beállítások: {name}",
+        "description": "A HC ezt ajánlja ennek a hőforrásnak és fűtési rendszernek, ahol a mostani beállítás eltér:\n\n{list}\n\nJelöld be, amit átvennél (alapból egyik sincs bejelölve). A **Küldés** után még megmutatja, mi változik; semmit nem ment magától. Biztonsági értéket csak szigorúbb irányba ajánl.",
+        "data": {
+          "adopt": "Átveendő javaslatok"
+        }
+      },
+      "goal": {
+        "title": "Mire törekedjen a fűtés? – {name}",
+        "description": "Válassz egy célt. A következő lépés megmutatja, mely beállítások hogyan változnának, és mi várható – addig semmi nem változik. A célhőfokokhoz egyik cél sem nyúl.",
+        "data": {
+          "goal": "Cél"
+        }
+      },
+      "goal_preview": {
+        "title": "Előnézet: {goal}",
+        "description": "{preview}\n\n**Küldés** = mentés (a menü „Visszaállítás” pontjából visszavonható); az ablak bezárása = semmi nem változik."
       }
     },
     "error": {

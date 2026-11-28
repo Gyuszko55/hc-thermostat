@@ -803,7 +803,26 @@ it may go live:
   *House*, *Measurements*) appears only with **Advanced mode** switched on in your user profile; saving without it
   keeps those values as they are.
 - **Another device drives the heating** – another control without a new instance (back to shadow mode).
+- **What should the heating aim for?** (0.89.0) – a goal instead of parameters: *fewer switching*, *steadier
+  temperature*, *thriftier*, or *back to what is recommended*. A preview first shows which settings change and what to
+  expect from the last 7 days (starts a day, distance from the target – a rough estimate); the targets are never touched.
+- **Recommended settings for this system** (0.89.0) – where a setting differs from what HC recommends for the heat
+  source and the heating system, with the reason; nothing is ticked by default, a safety value is only ever
+  recommended in the stricter direction.
+- **Restore an earlier setting** (0.88.0) – appears after the first change; see below.
 - **Go live / Back to shadow** – the only place where the mode changes, with a confirmation.
+
+**What changes, and going back (0.88.0).** Every save first shows what it changes, old → new ("Comfort target:
+21 → 21.5", "Outdoor thermometer: none → Garden thermometer"); *Submit* saves, closing the window changes nothing.
+The settings as they were before each save are kept (the last 10 per instance); **Restore an earlier setting** picks
+one, shows what would change and restores it after a confirmation. The mode (live or shadow) is never restored, and a
+restore is kept in the history too, so it can be undone. Guard tokens and passwords are never shown, only that they
+changed. Changes made outside the settings menu (e.g. the week schedule in the info panel) are not in the history,
+but the comparison before a restore shows them.
+
+**Advice from the last days (0.89.0).** The check page and the HC info panel give advice from the recorder's last 7
+days – many short runs, often below the target, often overheating, an indoor thermometer that went unavailable – each
+with the numbers it comes from and where to change it. HC never tunes itself from it.
 
 Every field has a short explanation under it in the form; the critical ones also say when to change them, the
 recommended range and the risk (0.85.0).

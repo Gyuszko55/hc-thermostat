@@ -98,3 +98,16 @@ def test_the_handler_is_an_llm_tool_and_speaks():
     assert out.speech.startswith("Kazán HC: Nem fűt.") and out.response_type == ha_intent.IntentResponseType.QUERY_ANSWER
     obj.slots = {"hc_nev": {"value": "kazánban"}}  # the custom sentences' list
     assert asyncio.run(h.async_handle(obj)).speech.startswith("Kazán HC: Nem fűt.")
+
+
+def test_0871_starting_follows_the_ha_start(monkeypatch):
+    from datetime import timedelta, timezone
+    coord = importlib.import_module("hc_thermostat.coordinator")
+    now = datetime.now(timezone.utc)
+    hass = SimpleNamespace(data={coord.HA_STARTED: now - timedelta(seconds=60)})
+    assert plain.starting(hass)
+    hass.data[coord.HA_STARTED] = now - timedelta(hours=1)
+    assert not plain.starting(hass) and not plain.starting(SimpleNamespace(data={}))
+    room = {"reason": "follow", "temperature": None, "target": 21.0, "heating": False, "enabled": True}
+    hass = SimpleNamespace(data={coord.HA_STARTED: now}, config=SimpleNamespace(language="hu"))
+    assert climate._room_summary(room, True, hass)["summary_headline"] == "Vár"

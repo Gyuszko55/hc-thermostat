@@ -42,6 +42,9 @@ from .core.circuit import DEFAULTS as CIRCUIT_DEFAULTS, KINDS as CIRCUIT_KINDS, 
 from .core.hp_coord import HpConfig
 from .core.heat_meter import HeatMeterConfig  # 0.75.0
 from .core.room_model import OWN, rooms_options
+from .core import settings_diff as sd  # 0.88.0
+from .core import tuning as tn  # 0.89.0
+from . import history as hist  # 0.88.0
 from . import room_form as rf
 from .core import measures as ms
 from .core import fuel as fl
@@ -1261,6 +1264,9 @@ class HcOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input=None):
         """0.45.0: a menu first – all settings, or only going live (back to shadow) with one confirmation."""
         current = {**self.config_entry.data, **self.config_entry.options}
+        if not hasattr(self, "_labels"):  # 0.88.0: for the "what changes" page of every save
+            self._labels = await hist.async_labels(self.hass, _lang_of(self))
+            self._history = await hist.async_load(self.hass, self.config_entry.entry_id)
         if current.get(CONF_ROLE) == "central":
             return await self.async_step_central(user_input)
         if current.get(CONF_ROLE) == "buffer":
@@ -1278,9 +1284,182 @@ class HcOptionsFlow(OptionsFlow):
         menu = ["targets", "presets", "check", "sensors"]
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
             menu.append("rooms")  # 0.46.0: straight to the rooms, saved on their own
+        menu += ["goal", "profile"]  # 0.89.0 / 0.89.0: goals instead of parameters, the system's recommendation
         menu += ["settings", "change_control"]  # 0.49.0: another control without a new instance
+        if self._history:
+            menu.append("restore")  # 0.88.0: back to an earlier setting
         return self.async_show_menu(step_id="init", menu_options=[*menu, "go_shadow" if live else "go_live"],
                                     description_placeholders={"status": await self._status_line()})
+
+    @staticmethod
+    def _defaults() -> dict:
+        from .core.central import CentralConfig
+        return sd.defaults_of(HcConfig, BufferConfig, CircuitConfig, HpConfig, WoodConfig, HeatMeterConfig, CentralConfig)
+
+    # --- 0.88.0: every save shows what it changes first; the settings before it go to the history ---------------
+    def async_create_entry(self, *, data, **kwargs):
+        if getattr(self, "_committing", False):
+            return super().async_create_entry(data=data, **kwargs)
+        before = {**self.config_entry.data, **self.config_entry.options}
+        changed = sd.changes(before, {**self.config_entry.data, **data}, defaults=self._defaults())
+        if not changed:  # saved as it was, or only the mode (going live has its own confirmation)
+            return super().async_create_entry(data=data, **kwargs)
+        self._pending = (data, changed)
+        return self.async_show_form(step_id="confirm_changes", data_schema=vol.Schema({}),
+                                    description_placeholders=self._changes_placeholders(before, {**self.config_entry.data, **data}))
+
+    def _changes_placeholders(self, before: dict, after: dict) -> dict:
+        lang = _lang_of(self)
+        rows = sd.lines(before, after, lang, getattr(self, "_labels", None) or {},
+                        hist.entity_names(self.hass, before, after), self._defaults())
+        return {"name": self.config_entry.title, "changes": sd.as_markdown(rows, lang)}
+
+    async def _commit(self, data: dict, changed: list[str]):
+        await hist.async_push(self.hass, self.config_entry.entry_id, dict(self.config_entry.options), changed)
+        self._committing = True
+        return self.async_create_entry(data=data)
+
+    async def async_step_confirm_changes(self, user_input=None):
+        data, changed = self._pending
+        return await self._commit(data, changed)
+
+    def _history_label(self, item: dict, lang: str) -> str:
+        try:
+            at = dt_util.as_local(dt_util.parse_datetime(item["at"])).strftime("%m-%d %H:%M")
+        except Exception:
+            at = "?"
+        labels = getattr(self, "_labels", None) or {}
+        what = [labels.get(k) or k for k in item.get("changed") or []]
+        more = f" +{len(what) - 3}" if len(what) > 3 else ""
+        if lang == "hu":
+            return f"{at} előtti állapot (akkor változott: {', '.join(what[:3])}{more})"
+        return f"As before {at} (changed then: {', '.join(what[:3])}{more})"
+
+    async def async_step_restore(self, user_input=None):
+        """0.88.0: pick an earlier setting – each is how the settings were right before a save."""
+        items = getattr(self, "_history", None) or await hist.async_load(self.hass, self.config_entry.entry_id)
+        if not items:
+            return await self.async_step_init()
+        if user_input is not None:
+            self._restore_item = items[min(int(user_input.get("version", 0)), len(items) - 1)]
+            return await self.async_step_restore_confirm()
+        lang = _lang_of(self)
+        choices = [{"value": str(i), "label": self._history_label(it, lang)} for i, it in enumerate(items)]
+        return self.async_show_form(step_id="restore", data_schema=vol.Schema({
+            vol.Required("version", default="0"): SelectSelector(SelectSelectorConfig(
+                options=choices, mode=SelectSelectorMode.LIST))}),
+            description_placeholders={"name": self.config_entry.title})
+
+    def _restored(self) -> dict:
+        data = {k: v for k, v in self._restore_item["options"].items() if k != CONF_MODE}
+        if CONF_MODE in self.config_entry.options:  # the mode (live / shadow) is never restored
+            data[CONF_MODE] = self.config_entry.options[CONF_MODE]
+        return data
+
+    async def async_step_restore_confirm(self, user_input=None):
+        data = self._restored()
+        before = {**self.config_entry.data, **self.config_entry.options}
+        after = {**self.config_entry.data, **data}
+        if user_input is not None:
+            return await self._commit(data, sd.changes(before, after, defaults=self._defaults()))
+        return self.async_show_form(step_id="restore_confirm", data_schema=vol.Schema({}),
+                                    description_placeholders=self._changes_placeholders(before, after))
+
+    # --- 0.89.0: the system's recommendation; 0.89.0: goals instead of parameters ---------------------------------
+    def _val(self, key: str, value, lang: str) -> str:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and key.endswith("_s"):
+            m = float(value) / 60
+            unit = "perc" if lang == "hu" else "min"
+            return f"{sd.fmt(m, lang)} {unit}"
+        return sd.fmt(value, lang)
+
+    def _row(self, key: str, old, new, lang: str) -> str:
+        label = (getattr(self, "_labels", None) or {}).get(key) or key
+        return f"{label}: {self._val(key, old, lang)} → {self._val(key, new, lang)}"
+
+    async def async_step_profile(self, user_input=None):
+        """0.89.0: what HC recommends for this heat source and system, where the settings differ; nothing is ticked
+        – what is ticked goes through the "what changes" page."""
+        lang = _lang_of(self)
+        current = {**self.config_entry.data, **self.config_entry.options}
+        recs = tn.profile(current)
+        if user_input is not None:
+            chosen = set(user_input.get("adopt") or [])
+            changes = {r.key: r.recommended for r in recs if r.key in chosen}
+            if not changes:
+                return await self.async_step_init()
+            return self.async_create_entry(data={**self.config_entry.options, **changes})
+        words = tn.REASONS["hu" if lang == "hu" else "en"]
+        if not recs:
+            return self.async_show_form(step_id="profile", data_schema=vol.Schema({}), description_placeholders={
+                "name": self.config_entry.title,
+                "list": "Minden beállítás a rendszerhez ajánlott szerint van." if lang == "hu"
+                else "Every setting is as recommended for the system."})
+        options = [{"value": r.key, "label": f"{self._row(r.key, r.current, r.recommended, lang)} – {words[r.reason]}"}
+                   for r in recs]
+        listed = "\n".join(f"- {o['label']}" for o in options)
+        return self.async_show_form(step_id="profile", data_schema=vol.Schema({
+            vol.Optional("adopt", default=[]): SelectSelector(SelectSelectorConfig(
+                options=options, multiple=True, mode=SelectSelectorMode.LIST))}),
+            description_placeholders={"name": self.config_entry.title, "list": listed})
+
+    async def async_step_goal(self, user_input=None):
+        """0.89.0: what the heating should aim for – a preview follows, nothing is saved here."""
+        lang = _lang_of(self)
+        if user_input is not None:
+            self._goal = user_input["goal"]
+            return await self.async_step_goal_preview()
+        words = tn.GOAL_WORDS["hu" if lang == "hu" else "en"]
+        return self.async_show_form(step_id="goal", data_schema=vol.Schema({
+            vol.Required("goal", default="fewer_switching"): SelectSelector(SelectSelectorConfig(
+                options=[{"value": g, "label": words[g]} for g in tn.GOALS], mode=SelectSelectorMode.LIST))}),
+            description_placeholders={"name": self.config_entry.title})
+
+    async def async_step_goal_preview(self, user_input=None):
+        """0.89.0: which settings the goal changes and what to expect from the last days; Submit saves it (restorable)."""
+        lang = _lang_of(self)
+        hu = lang == "hu"
+        current = {**self.config_entry.data, **self.config_entry.options}
+        goal = getattr(self, "_goal", "recommended")
+        changes = tn.goal_changes(goal, current)
+        if user_input is not None:
+            if not changes:
+                return await self.async_step_init()
+            data = {**self.config_entry.options, **changes}
+            return await self._commit(data, sd.changes(current, {**self.config_entry.data, **data},
+                                                       defaults=self._defaults()))
+        eff = tn.effective(current)
+        rows = [f"- {self._row(k, eff.get(k), v, lang)}" for k, v in changes.items()]
+        expect = ""
+        if changes and current.get(CONF_MODE) == MODE_ACTIVE:  # shadow: the numbers are not HC's doing
+            try:
+                from .tuning_ha import async_stats
+                stats = await async_stats(self.hass, self.config_entry, current)
+            except Exception:
+                _LOGGER.debug("No numbers for the preview", exc_info=True)
+                stats = None
+            e = tn.expect(goal, changes, current, stats)
+            parts = []
+            if "starts" in e:
+                parts.append((f"napi indítás kb. {e['starts'][0]} → {e['starts'][1]}" if hu
+                              else f"starts a day about {e['starts'][0]} → {e['starts'][1]}"))
+            if "dev" in e:
+                parts.append((f"átlagos eltérés a céltól kb. {sd.fmt(e['dev'][0], lang)} → {sd.fmt(e['dev'][1], lang)} °C" if hu
+                              else f"average distance from the target about {e['dev'][0]} → {e['dev'][1]} °C"))
+            if "overheated" in e:
+                parts.append((f"most naponta kb. {sd.fmt(e['overheated'], lang)} óra túlfűtés" if hu
+                              else f"now about {e['overheated']} hours of overheating a day"))
+            if parts:
+                expect = ("**Várható (az elmúlt napok adataiból, durva becslés):** " if hu
+                          else "**To expect (from the last days, a rough estimate):** ") + "; ".join(parts) + "."
+        if not changes:
+            body = ("Ennél a beállításnál ez a cél nem változtat semmit (már így van, vagy ehhez a szabályozáshoz nincs)."
+                    if hu else "This goal changes nothing here (it is already so, or it does not apply to this control).")
+        else:
+            body = "\n".join(rows) + (("\n\n" + expect) if expect else "")
+        words = tn.GOAL_WORDS["hu" if hu else "en"]
+        return self.async_show_form(step_id="goal_preview", data_schema=vol.Schema({}), description_placeholders={
+            "name": self.config_entry.title, "goal": words.get(goal, goal), "preview": body})
 
     async def _status_line(self) -> str:
         """0.86.0: one line over the menu – what it does now and whether it may go live."""
@@ -1320,9 +1499,15 @@ class HcOptionsFlow(OptionsFlow):
             checklist = checklist_text(ready) if ready.get("items") else ""
         except Exception:  # a report page never fails by its own fault
             _LOGGER.exception("The check page failed")
+        advice = ""
+        try:  # 0.89.0: advice from the last days' numbers
+            from .tuning_ha import async_advice
+            advice = (await async_advice(self.hass, self.config_entry, lang)).get("text") or ""
+        except Exception:
+            _LOGGER.debug("No advice", exc_info=True)
         return self.async_show_form(step_id="check", data_schema=vol.Schema({}),
                                     description_placeholders={"name": self.config_entry.title, "summary": summary,
-                                                              "checklist": checklist})
+                                                              "checklist": checklist, "advice": advice})
 
     async def async_step_sensors(self, user_input=None):
         """0.86.0: the thermometers, windows and presence only (a new thermometer, a re-paired sensor); the output

@@ -186,13 +186,15 @@ def _plain(c, lang: str) -> dict | None:
         return None
 
 
-def _room_plain(st: dict, trv: bool) -> dict:
+def _room_plain(st: dict, trv: bool, hass=None) -> dict:
     """0.84.0: a TRV room's plain summary in both languages (a watched room follows the house's)."""
     if not trv or not st or st.get("reason") == "unheated":
         return {}
     from .core.summary import summarize_room
     try:
-        return {"summary_hu": summarize_room(st, "hu"), "summary_en": summarize_room(st, "en")}
+        from .plain import starting
+        start = starting(hass) if hass is not None else False
+        return {"summary_hu": summarize_room(st, "hu", start), "summary_en": summarize_room(st, "en", start)}
     except Exception:
         return {}
 
@@ -229,7 +231,7 @@ def _room_list(hass, entry) -> list[dict]:
     out = []
     for s in specs:
         st = (getattr(c, "room_states", {}) or {}).get(s.key) or {}
-        out.append(jsonable({**st, **_room_plain(st, bool(s.trvs)), "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
+        out.append(jsonable({**st, **_room_plain(st, bool(s.trvs), hass), "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
                              "trvs": list(s.trvs), "sensors": list(s.sensors), "presence_sources": list(s.presence),
                              "windows": list(s.windows), "radiators": list(s.radiators), "humidity": list(s.humidity),
                              "measures": ((getattr(c, "measures", None) or {}).get("rooms") or {}).get(s.key),

@@ -591,6 +591,11 @@ class HcInfoPanel extends HTMLElement {
         this._rdId = d.entry_id; this._rdAt = Date.now();
         this._rd = await this._hass.callWS({ type: "hc_thermostat/readiness", entry_id: d.entry_id, language: this._hu ? "hu" : "en" }).catch(() => null);
       }
+      // 0.89.0: advice from the last days' numbers – asked at most every 30 minutes (the server caches it as well)
+      if (d.role !== "lite" && (this._adId !== d.entry_id || !this._adAt || Date.now() - this._adAt > 1800e3)) {
+        this._adId = d.entry_id; this._adAt = Date.now();
+        this._ad = await this._hass.callWS({ type: "hc_thermostat/advice", entry_id: d.entry_id, language: this._hu ? "hu" : "en" }).catch(() => null);
+      }
       this._d = d; this._hd = hd; this._members = members;
       this._err = null;
     } catch (e) { this._err = String(e?.message || e); }
@@ -744,6 +749,13 @@ class HcInfoPanel extends HTMLElement {
   }
 
   // 0.83.0: the go-live checklist, the blockers first; nothing here switches or goes live
+  _advice() {
+    const lines = String(this._ad?.text || "").split("\n").filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^- /, ""))}</li>`).join("");
+    const note = this._hu ? "Csak javaslat – a HC magától semmit nem állít át. Átvenni: Beállítás → „Mire törekedjen a fűtés?” vagy „Ajánlott beállítások”."
+                          : "Advice only – HC changes nothing by itself. To adopt: Configure → \"What should the heating aim for?\" or \"Recommended settings\".";
+    return `<ul>${lines}</ul><div class="muted">${esc(note)}</div>`;
+  }
+
   _ready() {
     const r = this._rd || {}, L = r.levels || {};
     const mark = { block: "⛔", warn: "⚠️", info: "💡", ok: "✅" };
@@ -1422,6 +1434,7 @@ class HcInfoPanel extends HTMLElement {
         this._hd ? this._section("house_src", t.houseSrc, this._houseSources(), "mdi:home-lightning-bolt-outline") : "",
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
         this._rd && this._rdId === d.entry_id && this._rd.ready != null ? this._section("ready", `${this._hu ? "Élesíthető?" : "Ready to go live?"} – ${this._rd.head}`, this._ready(), this._rd.ready ? (this._rd.warns ? "mdi:check-circle-outline" : "mdi:check-circle") : "mdi:alert-octagon-outline") : "",
+        this._ad && this._adId === d.entry_id && (this._ad.items || []).length ? this._section("advice", this._hu ? "Tanácsok az elmúlt napok adataiból" : "Advice from the last days", this._advice(), "mdi:lightbulb-on-outline") : "",
         d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
         d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en", cop: this._copCurve() }) + this._copToggle()

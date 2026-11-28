@@ -115,3 +115,11 @@ def test_minimum_times_return_limit_and_no_power():
     assert on["headline"] == "Heating" and on["lines"][0].startswith("It is near the target, but waits out")
     assert summarize(_d(output=False, limited_by="no_power"), {}, "hu")["lines"][0] == "Nincs vezérelt áram, most nem fűthet."
     assert "visszatérő" in summarize(_d(output=False, limited_by="return_limit"), {}, "hu")["lines"][0]
+
+
+def test_0871_a_room_without_a_reading_right_after_start_waits():
+    from core.summary import summarize_room
+    room = {"reason": "follow", "temperature": None, "target": 21.0, "heating": False, "enabled": True}
+    s = summarize_room(room, "hu", starting=True)
+    assert s["state"] == "waiting" and s["headline"] == "Vár" and s["lines"][0].startswith("Újraindulás után még nincs mérés")
+    assert summarize_room(room, "hu")["state"] == "fault"  # later it is a fault

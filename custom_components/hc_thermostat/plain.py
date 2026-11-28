@@ -57,3 +57,16 @@ def _summary_attrs(c) -> dict:
     # 0.87.0: also as headline + lines (the dial card shows the headline and the first line, the rest on a tap)
     return {"summary": as_text(s), "summary_state": s["state"], "summary_headline": s["headline"],
             "summary_lines": list(s["lines"]), "summary_note": s.get("note")}
+
+
+def starting(hass) -> bool:
+    """0.87.1: Home Assistant started less than core/summary.STARTING_S ago (the room thermometers may not have
+    reported yet)."""
+    try:
+        from homeassistant.util import dt as dt_util
+        from .coordinator import ha_started
+        from .core.summary import STARTING_S
+        t = ha_started(hass)
+        return t is not None and (dt_util.utcnow() - t).total_seconds() < STARTING_S
+    except Exception:
+        return False

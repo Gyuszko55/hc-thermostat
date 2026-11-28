@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.89.0 – 2026-11-28
+
+**Recommendations for laymen – nothing is ever written by itself** (`core/tuning.py`).
+
+- **Recommended settings for this system** (a new menu item): where the settings differ from what HC recommends for
+  the heat source and the heating system (cycle, shortest run and pause, a heat pump's run times, a floor's slow
+  answer), each with its reason ("10 min → 15 min – shorter than recommended, more boiler starts"). Nothing is ticked;
+  what is ticked goes through the "what changes" page and can be restored. A safety value (frost protection, the
+  floor limit, an electric heater without a reading, the guard's longest run) is only ever recommended stricter.
+- **What should the heating aim for?** – fewer switching (longer cycles and runs), steadier temperature (shorter
+  ones, never under the risk limits), thriftier (the hold before a lowering, coasting after a burn), or back to what
+  is recommended. A preview shows the changes and a rough estimate from the last 7 days (starts a day scale with
+  1 / cycle, the distance from the target with √cycle); Submit saves it, restorable. No goal touches the targets.
+- **Advice from the last days** on the check page and in the HC info panel (`hc_thermostat/advice`): many short
+  runs, often below the target, often overheating, the indoor thermometer unavailable for over half an hour – with
+  the numbers and where to change it. At least 2 days of history are needed; no self-tuning.
+- The "what changes" page shows seconds as minutes.
+- Found live: a cycle, run or pause *longer* than recommended is a choice (fewer switching), so the recommendation
+  lists only the shorter side (the "as recommended" goal still brings both back); in shadow mode the advice and the
+  goals' estimate leave the runs and the warmth alone (HC switches nothing) – only a thermometer going unavailable is
+  told; Hungarian decimals with a comma.
+
+## 0.88.0 – 2026-11-28
+
+**What changes, and back to an earlier setting.**
+
+- **Every save in the settings shows what it changes first**, old → new, with the fields' own labels and the
+  entities' names ("Comfort target: 21 → 21.5"); *Submit* saves it, closing the window changes nothing. A save that
+  changes nothing, and going live or back to shadow (which has its own confirmation), save straight away.
+- **Restore an earlier setting**: a new menu item once there is something to go back to. The settings before each
+  save are kept per instance (the last 10, in their own store, removed with the instance); picking one shows what
+  would change, and restoring is confirmed the same way. The mode (live / shadow) is never restored; a restore is in
+  the history too, so it can be undone. Guard tokens and passwords are never shown.
+- A setting missing from the saved options counts as its default, so a form saving a default for the first time
+  does not show up as a change.
+
+## 0.87.1 – 2026-11-28
+
+- A TRV room's summary in the first five minutes after Home Assistant started: when its thermometers have not
+  reported yet it says "Waiting – after a restart the room's thermometer has not reported yet" instead of a fault
+  (the HC info panel, the room climate's attributes, the HC Dial Card, Assist). Later a missing reading is a fault
+  as before.
+
 ## 0.87.0 – 2026-11-28
 
 **"Why heating / why not?" everywhere, and by voice.**
