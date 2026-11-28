@@ -90,6 +90,7 @@ const T = {
     start_active_trv: "Élesen indul: a HC azonnal állítja a szelepfejeket (csak ha semmi más nem vezérli ugyanazokat a fejeket)",
     start_active_on_trv: "Élesen indul – azonnal állítja a fejeket.", name_taken: "Már van ilyen nevű példány.",
     summary_edit: "A meglévő példány beállításai frissülnek; az üzemmódja (éles/árnyék) nem változik. A példány újratöltődik.",
+    ready_hint: "Árnyék módban fut. Élesítés előtt a HC info panel „Élesíthető?” blokkja mutatja, mi hiányzik még – a próbafutással együtt.",
     done_new: "Elkészült az új példány.", done_edit: "A példány beállításai frissültek.", open_integration: "Megnyitás a beállításokban",
     load_error: "A varázsló nem tudott adatot kérni a HC Thermostattól.", missing: "Hiányzik:", trv_need: "Csak szelepfejek: legalább egy helyiségnek adj szelepfejet.", pick_need: "Válaszd ki, mit állítunk be.", source_need: "Válassz hőforrást.",
     system_need: "Válassz rendszert és vezérlést.", name_need: "Adj nevet a példánynak.",
@@ -180,6 +181,7 @@ const T = {
     start_active_trv: "Start live: HC sets the TRV heads at once (only when nothing else controls the same heads)",
     start_active_on_trv: "Starts live – sets the heads at once.", name_taken: "An instance with this name exists already.",
     summary_edit: "The instance's settings are updated; its mode (live/shadow) stays. The instance reloads.",
+    ready_hint: "It runs in shadow mode. Before going live, the HC info panel's \"Ready to go live?\" block shows what is still missing – with the shadow run.",
     done_new: "The new instance is ready.", done_edit: "The instance's settings are updated.", open_integration: "Open in settings",
     load_error: "The wizard could not get data from HC Thermostat.", missing: "Missing:", trv_need: "TRV heads only: give at least one room a TRV head.", pick_need: "Choose what to set up.", source_need: "Choose a heat source.",
     system_need: "Choose a system and a control.", name_need: "Give the instance a name.",
@@ -637,6 +639,7 @@ class HcWizardPanel extends HTMLElement {
       .btn[disabled] { opacity:.45; cursor:default; }
       .btn:focus-visible { outline:2px solid var(--primary-color); outline-offset:2px; }
       .err { color: var(--error-color, #db4437); }
+      .ready { text-align:left; margin:12px auto; max-width:70ch; } .ready ul { margin:6px 0; padding-left:20px; } .ready li { margin:3px 0; }
       .need { color: var(--error-color, #db4437); margin:8px 0 0; text-align:right; min-height:1.2em; font-size:14px; }
       .sum div { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--divider-color); flex-wrap:wrap; }
       .sum > div > span:first-child { min-width:200px; color: var(--secondary-text-color); }
@@ -739,9 +742,18 @@ class HcWizardPanel extends HTMLElement {
   _renderDone() {
     const t = this._t;
     return `<div class="card"><ha-icon icon="mdi:check-circle" style="--mdc-icon-size:40px;color:var(--success-color,#43a047)"></ha-icon>
-      <h1>${this._done.created ? t.done_new : t.done_edit}</h1>
+      <h1>${this._done.created ? t.done_new : t.done_edit}</h1>${this._readiness()}
       <div class="nav"><a class="btn ghost" href="/config/integrations/integration/hc_thermostat">${t.open_integration}</a>
       <button class="btn" id="again">${t.again}</button></div></div>`;
+  }
+  // 0.83.0: the go-live checklist from the settings alone – what a new instance still lacks
+  _readiness() {
+    const r = this._done?.readiness, t = this._t;
+    if (!r || !this._done.created) return "";
+    const list = (r.items || []).filter((i) => i.level !== "ok");
+    const mark = { block: "⛔", warn: "⚠️", info: "💡" };
+    return `<div class="ready"><b>${esc(r.head)}</b>${list.length ? `<ul>${list.map((i) => `<li>${mark[i.level] || ""} ${esc(i.title)}${i.fix ? ` <span class="hint">– ${esc(i.fix)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+      ${this._s.start_active ? "" : `<p class="hint">${esc(t.ready_hint)}</p>`}</div>`;
   }
   _keyLabel(k) {
     const hu = this._t === T.hu, src = this._s.heat_source;

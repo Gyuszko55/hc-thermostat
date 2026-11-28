@@ -39,9 +39,15 @@ both work: readings in °F are converted, and what HC writes to a thermostat is 
    manual setup: a name, the heat source and the system, the devices (pre-filled where possible, the rest folds
    out), then the targets and the timing.
 3. **Watch it in shadow mode:** a new instance calculates and logs what it would do, switches nothing. The
-   **HC info** panel and the decision sensor show why.
+   **HC info** panel and the decision sensor show why – on top, in a few plain lines ("Not heating: the house has
+   reached its target. The target is 21 °C: it is night (22:00–05:30). At 05:30 it goes up to 22.5 °C."), the
+   technical details below.
 4. **Go live:** Settings → Devices & services → HC Thermostat → **Configure** → **Go live**, tick the confirmation.
    (The wizard's summary can also start a new instance live.) Back to shadow the same way.
+   A **go-live checklist** comes first – in this step and in the HC info panel's *Ready to go live?* block: a missing
+   or unavailable thermometer or output, another HC instance on the same output, no decision yet, a tripped
+   life-safety stop or a local guard that does not answer refuse going live; a short shadow run, an automation that
+   switches the same output or contradicting targets are shown as warnings.
 
 **Presence** (`presence_entities`): home is any of `home`, `on`, `otthon` (a `person` / `device_tracker` at home, a
 binary sensor on); vacation is `vacation`, `szabadság`, `szabadsag`; anything else (a zone name, `not_home`, `off`)
@@ -785,17 +791,22 @@ state of `nan` or `inf` counts as no reading. When an entity in HC's settings is
 
 ## Settings
 
-**Configure** on an instance opens a menu:
+**Configure** on an instance opens a menu by task (0.86.0), with a status line on top – what it does now and whether
+it may go live:
 
-- **Targets and times** – the targets and the night (weekday and weekend); the most common change.
-- **Settings** – everything else in fold-out sections. Fine-tuning (*Regulation*, *Energy*, *Adjoining space*,
+- **How warm, and when?** – the targets and the night (weekday and weekend); the most common change.
+- **Presets** – which presets are offered, Comfort and Eco, and how long a preset chosen by hand lasts.
+- **Why heating / why not? – check** – read only: the plain summary and the go-live checklist.
+- **Thermometers and windows** – the indoor and outdoor thermometer, windows, presence (e.g. after a new thermometer).
+- **Rooms** – the rooms of one boiler, their thermometers, TRV heads, presence and windows.
+- **Expert settings** – everything else in fold-out sections. Fine-tuning (*Regulation*, *Energy*, *Adjoining space*,
   *House*, *Measurements*) appears only with **Advanced mode** switched on in your user profile; saving without it
   keeps those values as they are.
-- **Rooms** – the rooms of one boiler, their thermometers, TRV heads, presence and windows.
-- **Change control** – another control without a new instance.
+- **Another device drives the heating** – another control without a new instance (back to shadow mode).
 - **Go live / Back to shadow** – the only place where the mode changes, with a confirmation.
 
-Every field has a short explanation under it in the form.
+Every field has a short explanation under it in the form; the critical ones also say when to change them, the
+recommended range and the risk (0.85.0).
 
 ## Tests
 

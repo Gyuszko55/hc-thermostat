@@ -122,6 +122,8 @@ def _instance(hass, entry) -> dict:
         "decision": jsonable(d),
         "text_hu": explain(d, "hu", c.room_wording) if d else None,
         "text_en": explain(d, "en", c.room_wording) if d else None,
+        # 0.84.0: "why heating / why not" in plain words, above the technical details
+        "summary_hu": _plain(c, "hu"), "summary_en": _plain(c, "en"),
         "inputs": jsonable(getattr(c, "last_inputs", None)),
         "config": jsonable(c.cfg),
         "presets": {"modes": preset_modes, "current": sup.preset or "auto", "boosting": sup.boosting,
@@ -175,6 +177,24 @@ def _instance(hass, entry) -> dict:
     }
 
 
+def _plain(c, lang: str) -> dict | None:
+    try:
+        return jsonable(c.plain_summary(lang)) if hasattr(c, "plain_summary") else None
+    except Exception:  # a report line never breaks the panel
+        return None
+
+
+def _room_plain(st: dict, trv: bool) -> dict:
+    """0.84.0: a TRV room's plain summary in both languages (a watched room follows the house's)."""
+    if not trv or not st or st.get("reason") == "unheated":
+        return {}
+    from .core.summary import summarize_room
+    try:
+        return {"summary_hu": summarize_room(st, "hu"), "summary_en": summarize_room(st, "en")}
+    except Exception:
+        return {}
+
+
 def _circuits_of(hass, entity_id: str | None) -> list[dict]:
     """0.59.0: the mixing circuits that list this zone (a bathroom can be in a radiator and a floor circuit): their
     given-out flow targets are what the zone's water gets – not the zone's own flow request."""
@@ -207,7 +227,7 @@ def _room_list(hass, entry) -> list[dict]:
     out = []
     for s in specs:
         st = (getattr(c, "room_states", {}) or {}).get(s.key) or {}
-        out.append(jsonable({**st, "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
+        out.append(jsonable({**st, **_room_plain(st, bool(s.trvs)), "key": s.key, "name": room_title(hass, s), "area": s.area, "leading": s.key == leading, "trv": bool(s.trvs),
                              "trvs": list(s.trvs), "sensors": list(s.sensors), "presence_sources": list(s.presence),
                              "windows": list(s.windows), "radiators": list(s.radiators), "humidity": list(s.humidity),
                              "measures": ((getattr(c, "measures", None) or {}).get("rooms") or {}).get(s.key),

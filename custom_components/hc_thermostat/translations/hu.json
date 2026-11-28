@@ -19,7 +19,7 @@
           "confirm": "Tudom, hogy ez a rendszer nem ajánlott, és vállalom"
         },
         "data_description": {
-          "control": "TPI + PWM: a relét impulzusokkal kapcsolja (minden ciklus egy részében bekapcsolva) a hiba és a hőigény szerint – a legtöbb relés kazánhoz. PID + PWM: ugyanilyen impulzusok integráló taggal, nem marad tartósan a cél alatt. Külső termosztát: a HC csak egy meglévő termosztát célját állítja (szelepfej, Better Thermostat, wifis fűtő). Klíma – virtuális i-Feel: a HC úgy tolja a klíma célját, hogy a helyiség hőmérője (nem a beltéri egység saját szenzora) érje el a célt. On-off: a cél alatt be, fölötte ki, hosszú futásokkal (hőszivattyú). Fűtési görbe: előremenő hőfok a kinti hőmérséklet szerint."
+          "control": "TPI + PWM: a relét impulzusokkal kapcsolja (minden ciklus egy részében bekapcsolva) a hiba és a hőigény szerint – a legtöbb relés kazánhoz. PID + PWM: ugyanilyen impulzusok integráló taggal, nem marad tartósan a cél alatt. Külső termosztát: a HC csak egy meglévő termosztát célját állítja (szelepfej, Better Thermostat, wifis fűtő). Klíma – virtuális i-Feel: a HC úgy tolja a klíma célját, hogy a helyiség hőmérője (nem a beltéri egység saját szenzora) érje el a célt. On-off: a cél alatt be, fölötte ki, hosszú futásokkal (hőszivattyú). Fűtési görbe: előremenő hőfok a kinti hőmérséklet szerint.\n\n**Mikor változtass:** Ha más eszköz kerül a fűtésre (pl. fali termosztát, klíma), vagy a mostani nem tartja a célt. **Ajánlott:** relés kazánnál TPI vagy PID; padlónál TPI hosszú ciklussal; moduláló kazánnál görbe. ⚠ A váltás új tanulással jár: pár napig árnyék módban érdemes figyelni."
         }
       },
       "entities": {
@@ -88,7 +88,7 @@
               "extra_factor": "A másik forrás egységnyi mért mennyiségéből jövő hő: hőszivattyúnál, klímánál a COP (3 = 1 kWh áramból 3 kWh hő).",
               "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
               "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
-              "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.",
+              "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.\n\n**Mikor változtass:** Csak ha a burkolat gyártója más határt ír elő; 0 = a HC a burkolat és a szenzor helye szerint dönt. **Ajánlott:** csempénél 29 °C, fánál és laminált alatt 27 °C; villanypadlónál 27 °C. ⚠ Túl meleg padló a burkolatot és a lábat is terheli.",
               "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
               "hp_defrost_entity": "Ha be van kapcsolva (vagy a neve leolvasztás), a hibafigyelés szünetel, és nem számít vezérlés nélküli működésnek.",
               "hp_dhw_entity": "Váltószelep vagy üzemmód-szenzor: amíg melegvizet készít, a ház fűtése szünetel, ez nem hiba.",
@@ -99,7 +99,11 @@
               "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
               "heat_fuel": "Automatikus: a mérő mértékegységéből (m³ gáz, kWh, MJ, GJ), mérő nélkül a hőtermelőből. Egyéni: a lenti szám marad. Hőszivattyúnál az Egyéni a jó.",
               "heat_efficiency": "Égős hőtermelőnél számít (gáz, olaj, pellet); villanynál és hőmennyiségmérőnél nem.",
-              "gas_heating_value": "kWh/m³, csak földgáznál számít (Automatikus mérő m³-ben, vagy Földgáz). A 9,61 a magyar számlák 34,6 MJ/m³-e; más országban vagy szolgáltatónál a számlán szereplő érték (MJ/m³ ÷ 3,6)."
+              "gas_heating_value": "kWh/m³, csak földgáznál számít (Automatikus mérő m³-ben, vagy Földgáz). A 9,61 a magyar számlák 34,6 MJ/m³-e; más országban vagy szolgáltatónál a számlán szereplő érték (MJ/m³ ÷ 3,6).",
+              "onoff_hysteresis": "**Mikor változtass:** Ha túl sokszor kapcsol, vagy túl nagy a hőmérséklet-ingadozás. **Ajánlott:** 0,2–0,5 °C. ⚠ Kisebb értéknél sűrűbb kapcsolás, nagyobbnál hűvösebb mélypontok.",
+              "hp_min_on_s": "**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+              "hp_min_off_s": "**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
+              "floor_hysteresis": "**Mikor változtass:** Ha a padlóhatárnál túl sűrűn kapcsol. **Ajánlott:** 0,5–1,5 °C (alap 1). ⚠ Kisebb értéknél sűrűbb kapcsolás a határon."
             }
           }
         }
@@ -210,8 +214,13 @@
           "valve_delay_s": "Hasznos fűtés késése (szelepnyitás + szivattyú)"
         },
         "data_description": {
-          "valve_delay_s": "Ha a zónaszelep lassan nyit (termoelektromos szelep, ~5 perc), vagy a szivattyút a saját vezérlése később indítja: ennyi idő után kezd fűteni. A HC ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, és a túl kicsi igényeket összevonja a következő ciklusokkal. 0 = nincs késés.",
-          "min_on_s": "A legrövidebb hasznos bekapcsolás; ennél kisebb igény késés megadásakor a következő ciklusra gyűlik."
+          "valve_delay_s": "Ha a zónaszelep lassan nyit (termoelektromos szelep, ~5 perc), vagy a szivattyút a saját vezérlése később indítja: ennyi idő után kezd fűteni. A HC ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, és a túl kicsi igényeket összevonja a következő ciklusokkal. 0 = nincs késés.\n\n**Mikor változtass:** Ha termoelektromos szelepek vagy későn induló szivattyú van. **Ajánlott:** 0 = nincs; termoelektromos szelepnél kb. 300 s. ⚠ Nullán hagyva lassú szelepeknél a rövid ciklusok nagy része nyitással telik.",
+          "min_on_s": "A legrövidebb hasznos bekapcsolás; ennél kisebb igény késés megadásakor a következő ciklusra gyűlik.\n\n**Mikor változtass:** Ha a kazán gyártója hosszabb égést kér, vagy lassú szelepek vannak. **Ajánlott:** gázkazánnál 180–300 s, padlónál 600–900 s, pelletnél 2700 s. ⚠ A rövid égés alig ad hőt, sok indítással.",
+          "target_home": "**Mikor változtass:** Ha napközben otthon hűvös vagy túl meleg van. **Ajánlott:** 20–22 °C; fokonként kb. 6 % fűtési energia. ⚠ A túl magas cél sokat fogyaszt és száraz levegőt ad.",
+          "target_night": "**Mikor változtass:** Ha éjjel hideg van, vagy reggel lassú a felfűtés. **Ajánlott:** az otthoni célnál 1–3 °C-kal kevesebb. ⚠ Nagyobb csökkentésnél a reggeli felfűtés hosszabb és erősebb.",
+          "target_away": "**Mikor változtass:** Ha hazaérve túl hideg van, vagy többet akarsz spórolni. **Ajánlott:** 15–18 °C. ⚠ Túl alacsony célnál a hazaérkezés utáni felfűtés sokáig tart.",
+          "cycle_s": "**Mikor változtass:** Ha túl sűrűn vagy túl ritkán indul a fűtés. **Ajánlott:** radiátornál 600–1200 s, padlónál 1800–3600 s, pelletnél 3600 s, villanyfűtőnél 600 s. ⚠ Rövid ciklusnál padlón a szelep alig nyit ki, máris zár; túl hosszúnál nagyobb a hőmérséklet-ingadozás.",
+          "min_off_s": "**Mikor változtass:** Szinte soha; ha a kazán gyártója hosszabb szünetet kér. **Ajánlott:** gázkazánnál 180–300 s, hőszivattyúnál 300–600 s, villanyfűtésnél 60–180 s. ⚠ Túl rövid érték: sűrű indítás, a kazán és a relé gyorsabban kopik."
         }
       },
       "circuit": {
@@ -391,8 +400,8 @@
           "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
           "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
           "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
-          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
-          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
           "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
           "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
           "hp_idle_hours": "Ennyi igénymentes óra után.",
@@ -469,8 +478,8 @@
               "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)"
             },
             "data_description": {
-              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
-              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
               "hp_idle_hours": "Ennyi igénymentes óra után.",
@@ -704,19 +713,22 @@
     "step": {
       "init": {
         "title": "HC Thermostat",
-        "description": "Mit szeretnél módosítani?",
+        "description": "{status}Mit szeretnél módosítani?",
         "menu_options": {
-          "settings": "Beállítások (szabályozás, eszközök, minden más)",
+          "targets": "Milyen meleg legyen, és mikor? (otthon, éjszaka, távol, szabadság)",
+          "presets": "Előbeállítások (Komfort, Eco, Távol… és meddig tartanak)",
+          "check": "Miért fűt / miért nem? – ellenőrzés",
+          "sensors": "Hőmérők és ablakok (benti, kinti hőmérő, ablakok, jelenlét)",
           "rooms": "Helyiségek (területek, hőmérők, szelepfejek, jelenlét, ablakok)",
+          "settings": "Szakértői beállítások (szabályozás, védelmek, padló, energia, helyi védő…)",
+          "change_control": "Más eszköz vezérli a fűtést (vezérlés cseréje)",
           "go_live": "Élesítés – a HC kapcsolni kezd",
-          "go_shadow": "Vissza árnyék módba – a HC csak számol",
-          "change_control": "Vezérlés módosítása (pl. külső termosztátra)",
-          "targets": "Célok és időzítés (otthon, éjszaka, távol, szabadság)"
+          "go_shadow": "Vissza árnyék módba – a HC csak számol"
         }
       },
       "go_live": {
         "title": "Élesítés: {name}",
-        "description": "Árnyék módban a HC számol és naplózza, mit tenne, de semmit nem kapcsol. Élesen ő kapcsolja a kazán reléjét (vagy állítja a termosztátot / klímát, a szelepfejeket).\n\nCsak akkor élesítsd, ha az árnyék döntések egy ideje rendben vannak, és semmi más (fali termosztát, automatizálás) nem vezérli ugyanazt a kimenetet. Minden más beállítás marad.",
+        "description": "Árnyék módban a HC számol és naplózza, mit tenne, de semmit nem kapcsol. Élesen ő kapcsolja a kazán reléjét (vagy állítja a termosztátot / klímát, a szelepfejeket).\n\nCsak akkor élesítsd, ha az árnyék döntések egy ideje rendben vannak, és semmi más (fali termosztát, automatizálás) nem vezérli ugyanazt a kimenetet. Minden más beállítás marad.\n\n**Élesítés előtti ellenőrzés**\n{checklist}",
         "data": {
           "confirm": "Megerősítem: a HC mostantól kapcsolhatja a fűtést"
         }
@@ -726,7 +738,7 @@
         "description": "A HC tovább számol és naplóz, de mostantól semmit nem kapcsol. A kimenet úgy marad, ahogy most van – szükség esetén kapcsold kézzel."
       },
       "settings": {
-        "title": "Beállítások",
+        "title": "Szakértői beállítások",
         "description": "Éles módba csak akkor kapcsold, ha ugyanazt a kimenetet más már nem vezérli. A célok fent vannak, a többi témánként lenyitható.{advanced}",
         "data": {
           "target_home": "Otthoni hőfok",
@@ -743,11 +755,11 @@
           "night_end_weekend": "Hétvégi éjszaka vége (nem kötelező)"
         },
         "data_description": {
-          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
-          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.",
-          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.",
+          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.\n\n**Mikor változtass:** Ha napközben otthon hűvös vagy túl meleg van. **Ajánlott:** 20–22 °C; fokonként kb. 6 % fűtési energia. ⚠ A túl magas cél sokat fogyaszt és száraz levegőt ad.",
+          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.\n\n**Mikor változtass:** Ha éjjel hideg van, vagy reggel lassú a felfűtés. **Ajánlott:** az otthoni célnál 1–3 °C-kal kevesebb. ⚠ Nagyobb csökkentésnél a reggeli felfűtés hosszabb és erősebb.",
+          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.\n\n**Mikor változtass:** Ha hazaérve túl hideg van, vagy többet akarsz spórolni. **Ajánlott:** 15–18 °C. ⚠ Túl alacsony célnál a hazaérkezés utáni felfűtés sokáig tart.",
           "target_vacation": "Szabadság presetben – rövid távollétnél a Távolléti hőfok marad.",
-          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.",
+          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.\n\n**Mikor változtass:** Szinte soha; csak ha nagyon hideg helyiség (garázs, műhely) a fűtött tér. **Ajánlott:** 6–8 °C. ⚠ 5 °C alatt a hidegebb falak mögött a cső már fagyhat.",
           "night_start": "Ettől kezdve az alvási hőfok érvényes.",
           "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít.",
           "mode": "Árnyék: csak számol, összevethető a mostani vezérléssel. Éles: a HC kapcsolja az eszközt.",
@@ -814,29 +826,29 @@
               "tpi_coef_ext": "TPI külső együttható"
             },
             "data_description": {
-              "control": "TPI: arányos impulzusok a hiba és a kinti hőmérséklet szerint. PID: arányos + integráló (+ deriváló) tag – a tartós eltérést is eltünteti. Mindkettő PWM-mel kapcsolja a relét: minden ciklus egy részében bekapcsolva.",
-              "cycle_s": "PWM-ciklus: egy be- és kikapcsolt szakasz. Az igény a ciklus bekapcsolt része (900 s 50 %-a = 7,5 perc égés).",
-              "min_on_s": "Legrövidebb égés: ennél rövidebb impulzus elmarad vagy hosszabb lesz (kíméli a kazánt és a relét).",
-              "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.",
+              "control": "TPI: arányos impulzusok a hiba és a kinti hőmérséklet szerint. PID: arányos + integráló (+ deriváló) tag – a tartós eltérést is eltünteti. Mindkettő PWM-mel kapcsolja a relét: minden ciklus egy részében bekapcsolva.\n\n**Mikor változtass:** Ha más eszköz kerül a fűtésre (pl. fali termosztát, klíma), vagy a mostani nem tartja a célt. **Ajánlott:** relés kazánnál TPI vagy PID; padlónál TPI hosszú ciklussal; moduláló kazánnál görbe. ⚠ A váltás új tanulással jár: pár napig árnyék módban érdemes figyelni.",
+              "cycle_s": "PWM-ciklus: egy be- és kikapcsolt szakasz. Az igény a ciklus bekapcsolt része (900 s 50 %-a = 7,5 perc égés).\n\n**Mikor változtass:** Ha túl sűrűn vagy túl ritkán indul a fűtés. **Ajánlott:** radiátornál 600–1200 s, padlónál 1800–3600 s, pelletnél 3600 s, villanyfűtőnél 600 s. ⚠ Rövid ciklusnál padlón a szelep alig nyit ki, máris zár; túl hosszúnál nagyobb a hőmérséklet-ingadozás.",
+              "min_on_s": "Legrövidebb égés: ennél rövidebb impulzus elmarad vagy hosszabb lesz (kíméli a kazánt és a relét).\n\n**Mikor változtass:** Ha a kazán gyártója hosszabb égést kér, vagy lassú szelepek vannak. **Ajánlott:** gázkazánnál 180–300 s, padlónál 600–900 s, pelletnél 2700 s. ⚠ A rövid égés alig ad hőt, sok indítással.",
+              "valve_delay_s": "Lassú termoelektromos szelep (~5 perc) vagy később induló szivattyú: ennyivel megtoldja a nyitást, a minimális bekapcsolási idő a hasznos részre vonatkozik, a kis igények összegyűlnek. 0 = nincs.\n\n**Mikor változtass:** Ha termoelektromos szelepek vagy későn induló szivattyú van. **Ajánlott:** 0 = nincs; termoelektromos szelepnél kb. 300 s. ⚠ Nullán hagyva lassú szelepeknél a rövid ciklusok nagy része nyitással telik.",
               "coast_window_s": "Égés után ennyi ideig nem indít újra, amíg a helyiség a cél alatt kicsivel még emelkedik (a radiátor utánfűt). Javasolt: 2700 s. Alapból ki (egy háznál mérve).",
               "pwm_midcycle_start": "Ha az igény a ciklus közepén nő a minimális égés fölé, rögtön új ciklust indít (nem vár a következőig). Alapból ki (egy háznál mérve).",
               "pwm_carry": "A minimális égésnél kisebb igények összegyűlnek egy rendes égéssé (szelep-késésnél mindig így van). Alapból ki: szimulációban a felfűtés utáni túllövést növelte.",
               "pre_change_s": "Az ütemezett célcsökkenés (éjszaka kezdete, előbeállítás vagy kézi cél lejárta) előtt ennyi ideig nem indít új égést, ha a helyiség már most legalább olyan meleg, mint a váltás utáni cél – a hője a váltás után érkezne. A futó égést nem vágja el. Alapból: 1800 s. Padlófűtésnél alapból 7200 s, mert a padló az utolsó órák hőjét már a váltás után adja le. Ha a ház időállandója ismert, a helyiség ez alatt legfeljebb az alábbi megengedett mértékig hűlhet.",
-              "pid_kp": "Mennyire erősen válaszol a HC a pillanatnyi eltérésre (0,4 = 40 % igény °C-onként a cél alatt).",
-              "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).",
+              "pid_kp": "Mennyire erősen válaszol a HC a pillanatnyi eltérésre (0,4 = 40 % igény °C-onként a cél alatt).\n\n**Mikor változtass:** Ha a hiányra túl lassan vagy túl hevesen reagál. **Ajánlott:** 0,3–0,6 (alap 0,4). ⚠ Túl nagy értéknél be-ki leng a cél körül.",
+              "pid_ki_per_hour": "Milyen gyorsan növeli a tartós eltérés az igényt (°C-onként és óránként).\n\n**Mikor változtass:** Ha tartósan pár tizeddel a cél alatt marad. **Ajánlott:** 0,1–0,5 óránként. ⚠ Túl nagy értéknél lassú, órás lengések.",
               "pid_d_filter_s": "A helyiséghőmérők 0,1 °C-os lépésekben, csak változáskor jelentenek: a deriváló tag szűretlenül tüskés. 0 = nincs szűrés; csak akkor számít, ha a deriváló tag nem 0.",
               "keep_alive_script": "Ha meg van adva, a bekapcsolt relé életjelénél (keep-alive) a HC ezt a szkriptet futtatja a relé újrakapcsolása helyett – például egy Shelly „bekapcsolás 15 perces visszakapcsolási időzítővel” parancsát. Így hosszú égésnél nem szakad meg a fűtés, de ha a Home Assistant leáll, a relé legfeljebb ennyi idő múlva magától kikapcsol.",
-              "min_off_s": "Kikapcsolás után legalább ennyi ideig ki marad (kazán- és relévédelem).",
+              "min_off_s": "Kikapcsolás után legalább ennyi ideig ki marad (kazán- és relévédelem).\n\n**Mikor változtass:** Szinte soha; ha a kazán gyártója hosszabb szünetet kér. **Ajánlott:** gázkazánnál 180–300 s, hőszivattyúnál 300–600 s, villanyfűtésnél 60–180 s. ⚠ Túl rövid érték: sűrű indítás, a kazán és a relé gyorsabban kopik.",
               "pid_kd": "Fékezi a gyors változást. 0 = nincs; csak ha a hőfok túllő.",
-              "curve_slope": "Ennyi °C-kal melegebb víz jut minden fok különbségre a cél és a kint között.",
-              "curve_shift": "Az egész görbét feljebb (+) vagy lejjebb (−) tolja – ha mindig hideg vagy meleg, ezt állítsd először.",
-              "flow_min": "Ennél hidegebb előremenőt nem kér.",
-              "flow_max": "Ennél melegebb előremenőt nem kér (padlónál a burkolat védelme miatt alacsony).",
+              "curve_slope": "Ennyi °C-kal melegebb víz jut minden fok különbségre a cél és a kint között.\n\n**Mikor változtass:** Ha hidegben hűvös (növeld) vagy enyhe időben túl meleg (csökkentsd) a lakás. **Ajánlott:** radiátornál 1,2–1,6, padlónál 0,3–0,7. ⚠ Kis lépésekben (0,1) változtass, és várj egy napot.",
+              "curve_shift": "Az egész görbét feljebb (+) vagy lejjebb (−) tolja – ha mindig hideg vagy meleg, ezt állítsd először.\n\n**Mikor változtass:** Ha minden időben egyformán hűvös vagy meleg van. **Ajánlott:** −3…+3 °C. ⚠ Nagy eltolás helyett inkább a meredekséget vagy a célt állítsd.",
+              "flow_min": "Ennél hidegebb előremenőt nem kér.\n\n**Mikor változtass:** Ha enyhe időben hideg marad a radiátor vagy a padló. **Ajánlott:** radiátornál 25–30 °C, padlónál 22–25 °C. ⚠ Kazánnál túl alacsony előremenőn kondenzálhat a nem kondenzációs kazán.",
+              "flow_max": "Ennél melegebb előremenőt nem kér (padlónál a burkolat védelme miatt alacsony).\n\n**Mikor változtass:** Ha a legnagyobb hidegben sem melegszik fel a lakás. **Ajánlott:** radiátornál 65–75 °C, hőszivattyúnál 50–55 °C, padlónál legfeljebb 45 °C. ⚠ Padlón 45 °C fölött az esztrich és a burkolat sérülhet.",
               "room_kp": "Ha a helyiség a cél alatt van, fokonként ennyivel melegebb vizet kér.",
               "room_ki_per_hour": "Lassan eltünteti a megmaradó eltérést; túl nagy érték lengést okoz.",
-              "hp_min_on_s": "Kompresszorvédelem.",
-              "hp_min_off_s": "Kompresszorvédelem.",
-              "onoff_hysteresis": "On-off vezérlésnél a cél alatt ennyivel kapcsol be, a célnál ki.",
+              "hp_min_on_s": "Kompresszorvédelem.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+              "hp_min_off_s": "Kompresszorvédelem.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
+              "onoff_hysteresis": "On-off vezérlésnél a cél alatt ennyivel kapcsol be, a célnál ki.\n\n**Mikor változtass:** Ha túl sokszor kapcsol, vagy túl nagy a hőmérséklet-ingadozás. **Ajánlott:** 0,2–0,5 °C. ⚠ Kisebb értéknél sűrűbb kapcsolás, nagyobbnál hűvösebb mélypontok.",
               "ac_ki_per_hour": "A klíma célját lassan korrigálja, ha a helyiség tartósan eltér tőle.",
               "ac_min_change_s": "A klíma célját legfeljebb ilyen gyakran módosítja (sípolás, kopás).",
               "assist_climate": "A ház fő HC-termosztátja: a klíma ennek a hiányát segíti, ha olcsóbb hőt ad és az ajtó nyitva.",
@@ -863,7 +875,7 @@
               "catchup_low_release": "Radiátoros körön ennyire a cél alatt áll le a felzárkózás.",
               "catchup_low_floor_release": "Padlós körön ennyire a cél alatt áll le (a túlfűtés ellen óvatosabb).",
               "catchup_low_confirm_s": "A besorolás (alacsony hőfokú vagy nem) csak ennyi ideig tartó új állapot után vált, így a határ körüli ingadozás nem kapcsolgat.",
-              "tpi_coef_int": "1 °C elmaradásra ennyi igény (0,6 = 60%). Nagyobb érték: kisebb elmaradásnál is hosszabb fűtés. Bekapcsolt tanulásnál ez a kiinduló érték.",
+              "tpi_coef_int": "1 °C elmaradásra ennyi igény (0,6 = 60%). Nagyobb érték: kisebb elmaradásnál is hosszabb fűtés. Bekapcsolt tanulásnál ez a kiinduló érték.\n\n**Mikor változtass:** Ha tartósan a cél alatt vagy fölött marad (a tanulás ezt magától is állítja). **Ajánlott:** 0,4–0,8 (alap 0,6). ⚠ Nagy érték túllövést, kicsi lassú felzárkózást ad.",
               "tpi_coef_ext": "A cél és a kinti hőmérséklet különbségének minden fokára ennyi igény (0,01 = 1%/°C)."
             }
           },
@@ -889,8 +901,8 @@
               "adopt_manual": "Külső vezérlés: a kezelt termosztáton (nem a HC által) beállított cél kézi cél lesz a következő ütemezett váltásig; ha valaki kikapcsolja, a HC kikapcsolva hagyja (a fagyvédelem kivétel), amíg valaki vissza nem kapcsolja. Kikapcsolva: a HC a régi módon írja a saját célját és üzemmódját.",
               "target_source_entity": "Ha valaki ennek a célját átállítja (pl. a fali termosztát tekerőjén), ez a példány átveszi kézi célként a következő ütemezett váltásig. Amit a HC maga ír oda, azt nem veszi át.",
               "demand_entity": "Potenciálmentes fali termosztát bináris szenzoron, input_booleanen vagy kapcsolón át: be = fűt, ki = nem fűt. A fagyvédelem, az ablak, a nyári pihenő, a padlóhőfok-limit és a padlótemperálás továbbra is érvényes. Ha nem elérhető: a kiesett hőmérő tartalék üzeme.",
-              "season_off_above": "Ha a napi kinti középhőmérséklet e fölé megy, a fűtési idény szünetel. Alapérték 15 °C; jól szigetelt háznál lehet kevesebb, régi háznál több.",
-              "season_on_below": "Ha a napi kinti középhőmérséklet e alá megy, a fűtési idény újra indul. Kisebb kell legyen, mint a vége (alapérték 13 °C).",
+              "season_off_above": "Ha a napi kinti középhőmérséklet e fölé megy, a fűtési idény szünetel. Alapérték 15 °C; jól szigetelt háznál lehet kevesebb, régi háznál több.\n\n**Mikor változtass:** Ha tavasszal túl korán vagy későn áll le a fűtés. **Ajánlott:** 15–18 °C napi átlag. ⚠ Túl alacsony érték hűvös tavaszi napokon is leállítja a fűtést.",
+              "season_on_below": "Ha a napi kinti középhőmérséklet e alá megy, a fűtési idény újra indul. Kisebb kell legyen, mint a vége (alapérték 13 °C).\n\n**Mikor változtass:** Ha ősszel túl korán vagy későn indul a fűtés. **Ajánlott:** 12–14 °C napi átlag, a vége alatt legalább 2 °C-kal. ⚠ A két határ közti kis különbség ide-oda kapcsolgatja az idényt.",
               "presence_home_states": "Az input_select / sensor jelenlétforrás mely értékei jelentenek otthont (pl. „Itthon”). A beépített szavak (home, on, otthon) mellett számítanak. Ha itt és a szabadságnál sincs semmi, egy ismeretlen érték egyszer figyelmeztetést ír a naplóba.",
               "presence_vacation_states": "Mely értékek jelentenek szabadságot (pl. „Nyaralás”). A beépített vacation / szabadság mellett számítanak. Minden más érték távollét.",
               "season_enabled": "Ha a kinti napi átlag a nyári határ fölött van, nem fűt; a fagyvédelem marad.",
@@ -924,7 +936,7 @@
             },
             "data_description": {
               "safety_entities": "A bekötött biztonsági lánc segédkontaktusa és / vagy érzékelők (bekapcsolt = riasztás). Bármelyik riasztásakor minden ezt figyelő HC-példány azonnal leáll – a fagyvédelem is –, és csak az „Életvédelmi leállítás nyugtázása” gombbal indul újra, ha minden bemenet nyugalomban van. A valódi leállítást (gázszelep, kontaktor, vízszelep) a lánc végzi, nem a HA.",
-              "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan. Padlófűtésnél alapból 8 óra, és a céltól 1 °C-on belüli értéket nem ítéli meg: a lassú esztrich mellett a hőmérő órákig ugyanazt mutatja, miközben a szabályozás rendben működik.",
+              "frozen_after_h": "Ha a helyiséghőmérő ennyi órája hajszálra ugyanazt mutatja, és közben a fűtés legalább az alábbi percig ment, a mérést beragadtnak veszi, és tartalék üzemre vált. 0 = ki. A mért házban a hőmérő fűtés közben legfeljebb 1,4 óráig maradt változatlan. Padlófűtésnél alapból 8 óra, és a céltól 1 °C-on belüli értéket nem ítéli meg: a lassú esztrich mellett a hőmérő órákig ugyanazt mutatja, miközben a szabályozás rendben működik.\n\n**Mikor változtass:** Ha egy hőmérő ritkán küld adatot, és tévesen beragadtnak látszik. **Ajánlott:** radiátornál 3 óra, padlónál 8 óra; 0 = ki. ⚠ Kikapcsolva egy beragadt hőmérő mellett a HC vakon fűthet vagy nem fűthet.",
               "frozen_burn_min": "A változatlan idő alatt legalább ennyi percig kellett fűtenie, hogy beragadtnak vegye: valódi helyiség ennyi fűtéstől legalább egy lépést melegszik.",
               "valve_feedback_entity": "A központi kazán ebből látja, hogy a szelep tényleg nyitva van-e (be/ki, nyitva/zárva vagy legalább 20 %). Ha üres vagy nem elérhető, a szelepmotor nyitási idejével számol.",
               "zone_own_mixer": "Kikapcsolva a központi moduláló kazán előremenője nem megy e zóna legmagasabb előremenője (flow_max, padlónál alapból 45 °C) fölé, amíg a köre vizet kaphat – a radiátoros zónák ilyenkor gyengébben fűtenek. Csak akkor kapcsold be, ha a padlókörnek tényleg van keverőszelepe vagy hőfokkorlátozója.",
@@ -932,12 +944,12 @@
               "plaus_indoor_min": "Ez alatt a helyiség hőmérőjének értéke hibásnak (elveszettnek) számít. Legfeljebb a fagyvédelmi cél mínusz 2 °C lehet, hogy egy valóban hideg helyiségben a fagyvédelem elinduljon. Alapérték 3 °C; fűtetlen hétvégi háznál lehet kevesebb.",
               "window_entities": "Nyitott ablaknál/ajtónál a fűtés szünetel (fagyvédelem marad).",
               "window_drop_entities": "Ablakszenzor nélkül: a hirtelen hőesésből ismeri fel a szellőztetést.",
-              "window_drop_rate": "Ennél gyorsabb hűlés szellőztetésnek számít.",
+              "window_drop_rate": "Ennél gyorsabb hűlés szellőztetésnek számít.\n\n**Mikor változtass:** Ha tévesen ablaknyitást jelez (növeld), vagy nem veszi észre a szellőztetést (csökkentsd). **Ajánlott:** 1,5 °C/óra (alap). ⚠ Túl kicsi érték fűtés közben is szünetet tarthat.",
               "exercise_weekday": "Nyáron is hetente megmozgatja a szelepeket, hogy ne ragadjanak be.",
               "exercise_time": "A mozgatás kezdete.",
               "exercise_s": "Ennyi ideig nyitja ki.",
               "return_temp_entity": "A visszatérő-korláthoz kell.",
-              "return_max": "Kondenzációs kazánnál a túl meleg visszatérő rontja a hatásfokot.",
+              "return_max": "Kondenzációs kazánnál a túl meleg visszatérő rontja a hatásfokot.\n\n**Mikor változtass:** Ha a távhőszolgáltató visszatérő-határt ír elő. **Ajánlott:** 0 = nincs; a szolgáltató értéke (gyakran 40–50 °C). ⚠ Túl alacsony határnál a szelep alig nyit, hideg marad a lakás.",
               "return_hysteresis": "Ennyivel a korlát alatt nyit újra."
             }
           },
@@ -967,20 +979,20 @@
             },
             "data_description": {
               "floor_entity": "A padlóba épített hőmérő. Elektromos padlófűtésnél kötelező: e nélkül, vagy ha nem ad friss értéket, nem fűt.",
-              "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.",
+              "floor_max": "E fölött nem fűt, bármit mond a szabályozó. 0 = a burkolat és a szenzor helye szerint: a burkolat alatt csempénél 29 °C, fánál, laminált, vinyl és szőnyeg alatt 27 °C; az esztrichben a csövek között 29 / 33 / 31 (vinyl) °C; cső fölött 36 °C. Elektromos padlónál mindig a burkolat alatti érték. Burkolat nélkül elektromos padlónál 27 °C, vizes padlónál 29 °C.\n\n**Mikor változtass:** Csak ha a burkolat gyártója más határt ír elő; 0 = a HC a burkolat és a szenzor helye szerint dönt. **Ajánlott:** csempénél 29 °C, fánál és laminált alatt 27 °C; villanypadlónál 27 °C. ⚠ Túl meleg padló a burkolatot és a lábat is terheli.",
               "floor_covering": "Ebből jön (a szenzor helyével) a padlóhőfok-limit és a temperálás eltérése: csempénél 2 °C, más burkolatnál 3 °C.",
               "floor_probe": "Az esztrichben mélyebben ülő szenzor melegebbet mér, mint a padló felszíne, ezért ott magasabb a limit. A mélyebb helyek (esztrich 31–33 °C, cső fölött 36 °C) határai becslések: nem garantálják, hogy a felszín 27 °C alatt marad. Fa, parketta és laminált burkolatnál a burkolat alatti (felszíni) szenzor ajánlott.",
               "floor_temper": "Kényelem: meleg padló. Amíg a helyiség elég meleg, a padlót a helyiség célja + az eltérés hőfokán tartja (a padlószenzor szerint); leáll, ha a helyiség ennyivel a célja fölé ér. A padlóhőfok-limit mindig előbbre való. Padlószenzor kell hozzá.",
               "floor_temper_room_margin": "Alapérték 0,5 °C. Nagyobb érték melegebb padlót ad, de a helyiség jobban a célja fölé ingadozhat, és többet fogyaszt.",
               "floor_fallback": "A vak igény helyett (elektromos padlónál a fűtés nélküli állapot helyett) a padlót a helyiség célja + a temperálás eltérése hőfokán tartja, amíg a helyiséghőmérő nem jelez. Padlóhőfok nélkül a régi módon működik.",
               "floor_cooling": "Nyáron (a fűtési szezon szünetel) a padlón hűt, de a víz és a padló mindig a harmatpont + ráhagyás fölött marad, különben lecsapódik a pára. Páratartalom nélkül nem hűt; ki/be vezérlésnél padlószenzor is kell.",
-              "floor_hysteresis": "A padló-limit elérése után ennyivel hűlnie kell, mielőtt újra fűt.",
+              "floor_hysteresis": "A padló-limit elérése után ennyivel hűlnie kell, mielőtt újra fűt.\n\n**Mikor változtass:** Ha a padlóhatárnál túl sűrűn kapcsol. **Ajánlott:** 0,5–1,5 °C (alap 1). ⚠ Kisebb értéknél sűrűbb kapcsolás a határon.",
               "floor_temper_offset": "Ennyivel melegebb padlót tart, mint a helyiség célja (kényelmi temperálás).",
               "floor_temper_night": "Éjszakára más padlócél.",
               "floor_temper_hysteresis": "A temperálás visszakapcsolási sávja.",
               "humidity_entity": "A harmatpont számításához; nélküle nem hűt.",
               "cool_mode_entity": "A hőszivattyút hűtésre váltó kapcsoló.",
-              "dew_margin": "A padló ennyivel a harmatpont fölött marad, hogy ne párásodjon.",
+              "dew_margin": "A padló ennyivel a harmatpont fölött marad, hogy ne párásodjon.\n\n**Mikor változtass:** Szinte soha; párás helyiségben inkább növeld. **Ajánlott:** 2–3 °C. ⚠ Kisebb ráhagyásnál a padlón és a csöveken lecsapódhat a pára.",
               "floor_min_cool": "Hűtéskor a padló ennél hidegebb nem lehet.",
               "cool_flow_entity": "Ha a hőszivattyúnak külön hűtési alapjele van.",
               "cool_flow": "A hűtővíz célja.",
@@ -1180,14 +1192,14 @@
               "guard_url": "A relé mellett futó védő (Shelly Gen3/Gen4 script, guard/shelly/hc_guard.js) végpontja, pl. http://IP-CÍM/script/1/hc. Ha meg van adva, a HC a relét a védőn át kapcsolja, és bérletet küld; bérlet nélkül a védő 5 perc után a lenti értékekkel maga szabályoz. Üresen: a relét a HC közvetlenül kapcsolja, mint eddig.",
               "guard_token": "Kötelező: ugyanaz, mint a védő KVS hc_guard_token értéke (a guard/upload_shelly.py készít egyet, ha nem adsz meg). Nélküle a védő nem fogad bérletet.",
               "guard_push_url": "Erre a címre küld a védő egy üzenetet (például ntfy-téma), amikor átveszi a vezérlést – a HA-tól függetlenül.",
-              "guard_sp": "A védő helyi hőmérője szerint ezt tartja, amíg a HC nem vezérel.",
+              "guard_sp": "A védő helyi hőmérője szerint ezt tartja, amíg a HC nem vezérel.\n\n**Mikor változtass:** Ha a HC kiesése alatt a tartalék program túl hideget vagy meleget tartana. **Ajánlott:** a nappali célnál 1–2 °C-kal kevesebb (alap 20,5 °C). ⚠ Túl alacsony érték egy hosszabb kiesésnél kihűti a lakást.",
               "guard_hyst": "Teljes sáv: a cél − fél sáv alatt bekapcsol, a cél + fél sáv felett kikapcsol.",
               "guard_no_sensor": "Ha a védő hőmérője sem ad mérést: kikapcsol, vagy fix ütemben fűt.",
               "guard_duty_on_s": "Fix ütem bekapcsolt része.",
               "guard_duty_off_s": "Fix ütem kikapcsolt része.",
-              "guard_max_on_s": "A védő legfeljebb ennyi ideig tartja egyfolytában bekapcsolva a relét – a HC vezérlése alatt és a saját tartalékprogramjában is –, utána kivárja a minimális szünetet. 0 = nincs korlát (villanyfűtésnél alapból 2 óra).",
+              "guard_max_on_s": "A védő legfeljebb ennyi ideig tartja egyfolytában bekapcsolva a relét – a HC vezérlése alatt és a saját tartalékprogramjában is –, utána kivárja a minimális szünetet. 0 = nincs korlát (villanyfűtésnél alapból 2 óra).\n\n**Mikor változtass:** Villanyfűtésnél, amelynek nincs saját határoló termosztátja. **Ajánlott:** 0 = nincs; villanyfűtőnél 7200 s. ⚠ Villanyfűtésnél határ nélkül egy hibás mérés órákig fűthet.",
               "guard_every_s": "Ilyen gyakran újítja meg a HC a bérletet (és minden változáskor azonnal).",
-              "guard_ttl_s": "Ennyi ideig érvényes egy bérlet; legalább a megújítás kétszerese legyen.",
+              "guard_ttl_s": "Ennyi ideig érvényes egy bérlet; legalább a megújítás kétszerese legyen.\n\n**Mikor változtass:** Szinte soha. **Ajánlott:** a megújítás legalább kétszerese (alap 300 s, megújítás 60 s). ⚠ Rövid bérletnél egy kimaradt megújítás már átadja a vezérlést a helyi védőnek.",
               "guard_password": "A védő eszköz saját jelszava (Shelly → Beállítások → Hitelesítés, admin felhasználó). Ha az eszközön be van állítva, a védő végpontja és a teljes Shelly RPC csak vele érhető el – a hálózaton más nem kapcsolhatja a relét és nem írhatja át a szkriptet. Erősen ajánlott."
             }
           }
@@ -1338,7 +1350,7 @@
           "confirm": "Tudom, hogy ez a rendszer nem ajánlott, és vállalom"
         },
         "data_description": {
-          "control": "TPI + PWM: a relét impulzusokkal kapcsolja (minden ciklus egy részében bekapcsolva) a hiba és a hőigény szerint – a legtöbb relés kazánhoz. PID + PWM: ugyanilyen impulzusok integráló taggal, nem marad tartósan a cél alatt. Külső termosztát: a HC csak egy meglévő termosztát célját állítja (szelepfej, Better Thermostat, wifis fűtő). Klíma – virtuális i-Feel: a HC úgy tolja a klíma célját, hogy a helyiség hőmérője (nem a beltéri egység saját szenzora) érje el a célt. On-off: a cél alatt be, fölötte ki, hosszú futásokkal (hőszivattyú). Fűtési görbe: előremenő hőfok a kinti hőmérséklet szerint."
+          "control": "TPI + PWM: a relét impulzusokkal kapcsolja (minden ciklus egy részében bekapcsolva) a hiba és a hőigény szerint – a legtöbb relés kazánhoz. PID + PWM: ugyanilyen impulzusok integráló taggal, nem marad tartósan a cél alatt. Külső termosztát: a HC csak egy meglévő termosztát célját állítja (szelepfej, Better Thermostat, wifis fűtő). Klíma – virtuális i-Feel: a HC úgy tolja a klíma célját, hogy a helyiség hőmérője (nem a beltéri egység saját szenzora) érje el a célt. On-off: a cél alatt be, fölötte ki, hosszú futásokkal (hőszivattyú). Fűtési görbe: előremenő hőfok a kinti hőmérséklet szerint.\n\n**Mikor változtass:** Ha más eszköz kerül a fűtésre (pl. fali termosztát, klíma), vagy a mostani nem tartja a célt. **Ajánlott:** relés kazánnál TPI vagy PID; padlónál TPI hosszú ciklussal; moduláló kazánnál görbe. ⚠ A váltás új tanulással jár: pár napig árnyék módban érdemes figyelni."
         }
       },
       "change_entities": {
@@ -1566,8 +1578,8 @@
           "hp_stop_layer": "Csak akkor áll le, amikor ez a réteg is eléri az igény + leállítási tartalékot. Ha nincs hőmérője, a felette lévő számít.",
           "hp_stop_margin": "A leállító réteg ennyivel legyen az igény fölött.",
           "hp_coil_dt": "A csőkígyós töltés a hőszivattyú céljánál ennyivel hidegebb vizet ad – a leállítás nem várhat ennél többet.",
-          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
-          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+          "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+          "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
           "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
           "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
           "hp_idle_hours": "Ennyi igénymentes óra után.",
@@ -1644,8 +1656,8 @@
               "hp_standby_w": "Készenlét ennyi watt felett (a kompresszor áll)"
             },
             "data_description": {
-              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.",
-              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.",
+              "hp_min_on_s": "Kompresszor-védelem: bekapcsolás után legalább ennyi ideig ON marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más futásidőt ír elő. **Ajánlott:** 1200 s (20 perc) vagy több. ⚠ A kompresszor rövid futásai koptatnak és rontják a COP-t.",
+              "hp_min_off_s": "Kompresszor-védelem: kikapcsolás után legalább ennyi ideig OFF marad.\n\n**Mikor változtass:** Ha a hőszivattyú gyártója más szünetet ír elő. **Ajánlott:** 600 s (10 perc) vagy több. ⚠ A kompresszornak pihennie kell két indítás között.",
               "hp_standby": "Igény nélkül is ON marad a legalacsonyabb céllal (pl. ha a gép csak ON állapotban véd).",
               "hp_idle_off": "Készenlétben: ha sokáig nincs igény, OFF-ra kapcsol.",
               "hp_idle_hours": "Ennyi igénymentes óra után.",
@@ -1765,7 +1777,7 @@
         }
       },
       "targets": {
-        "title": "Célok és időzítés – {name}",
+        "title": "Milyen meleg legyen, és mikor? – {name}",
         "description": "Csak a célhőfokok és az éjszaka ideje; mentéskor azonnal érvénybe lépnek, a többi beállítás nem változik.",
         "data": {
           "target_home": "Otthoni hőfok",
@@ -1779,11 +1791,11 @@
           "night_end_weekend": "Hétvégi éjszaka vége (nem kötelező)"
         },
         "data_description": {
-          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.",
-          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.",
-          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.",
+          "target_home": "Otthon, ébren ennyit tart. A számentitással és a termosztát-kártyán is állítható.\n\n**Mikor változtass:** Ha napközben otthon hűvös vagy túl meleg van. **Ajánlott:** 20–22 °C; fokonként kb. 6 % fűtési energia. ⚠ A túl magas cél sokat fogyaszt és száraz levegőt ad.",
+          "target_night": "Az éjszaka kezdete és vége között (lent), és az Alvás presetben.\n\n**Mikor változtass:** Ha éjjel hideg van, vagy reggel lassú a felfűtés. **Ajánlott:** az otthoni célnál 1–3 °C-kal kevesebb. ⚠ Nagyobb csökkentésnél a reggeli felfűtés hosszabb és erősebb.",
+          "target_away": "Ha senki nincs otthon (a jelenlét-entitások szerint) vagy Távol presetben.\n\n**Mikor változtass:** Ha hazaérve túl hideg van, vagy többet akarsz spórolni. **Ajánlott:** 15–18 °C. ⚠ Túl alacsony célnál a hazaérkezés utáni felfűtés sokáig tart.",
           "target_vacation": "Szabadság presetben – rövid távollétnél a Távolléti hőfok marad.",
-          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.",
+          "frost_temp": "Ez alá kikapcsolt állapotban és ablaknyitáskor sem hűlhet.\n\n**Mikor változtass:** Szinte soha; csak ha nagyon hideg helyiség (garázs, műhely) a fűtött tér. **Ajánlott:** 6–8 °C. ⚠ 5 °C alatt a hidegebb falak mögött a cső már fagyhat.",
           "night_start": "Ettől kezdve az alvási hőfok érvényes.",
           "night_end": "Eddig tart az alvási hőfok; az okos indítás ehhez időzít.",
           "night_start_weekend": "A péntek és szombat esti éjszakára (amely szombat és vasárnap reggel ér véget). Üresen olyan, mint hétköznap. A kezdet és a vég együtt kell.",
@@ -1874,6 +1886,26 @@
           "lite_calendar": "A címében „szabadság” / „nyaralás” / „távol” szót tartalmazó esemény → szabadság a végéig, időben visszafűtve; „otthon” / „home office” → aznap a hétvégi program.",
           "lite_windows": "Bármelyik 2 perce nyitva → fagyvédelem, amíg nyitva van (legfeljebb egy óráig); csukáskor azonnal vissza."
         }
+      },
+      "check": {
+        "title": "Miért fűt / miért nem? – {name}",
+        "description": "{summary}\n\n**Élesítés előtti ellenőrzés**\n{checklist}\n\nCsak tájékoztat, semmit nem változtat. A **Mehet** gombbal vissza a menübe."
+      },
+      "sensors": {
+        "title": "Hőmérők és ablakok – {name}",
+        "description": "Csak a hőmérők, az ablakok és a jelenlét; mentéskor azonnal érvénybe lépnek, a többi beállítás nem változik. Amit a HC kapcsol (relé, termosztát), azt a **Más eszköz vezérli a fűtést** menüpont cseréli.{rooms}",
+        "data": {
+          "indoor_entity": "Benti hőmérő",
+          "outdoor_entity": "Kinti hőmérő",
+          "window_entities": "Ablakok és ajtók",
+          "presence_entities": "Jelenlét"
+        },
+        "data_description": {
+          "indoor_entity": "Ehhez szabályoz. Új hőmérő vagy újrapárosítás után itt válaszd ki újra.",
+          "outdoor_entity": "Időjárás-entitás is lehet. Fűtési görbénél kötelező; egyébként a hőigény becsléséhez és a nyári pihenőhöz kell.",
+          "window_entities": "Nyitásukkor a fűtés szünetel.",
+          "presence_entities": "Személy, jelenlét-érzékelő vagy háztartás-állapot: ha senki sincs otthon, a távolléti cél jár."
+        }
       }
     },
     "error": {
@@ -1903,7 +1935,9 @@
       "lite_url": "Add meg a szkript címét: http://IP/script/ID/lite",
       "lite_token": "Az eszköz nem fogadta el a tokent",
       "lite_password": "Az eszköz nem fogadta el a jelszót",
-      "lite_unreachable": "Az eszköz nem válaszol ezen a címen"
+      "lite_unreachable": "Az eszköz nem válaszol ezen a címen",
+      "not_ready": "Még nem élesíthető: van legalább egy akadály. A HC info panel „Élesíthető?” blokkja sorolja fel, mit kell előbb rendbe tenni (az árnyék mód közben tovább számol).",
+      "outdoor_required": "Fűtési görbénél kinti hőmérő kell."
     }
   },
   "selector": {

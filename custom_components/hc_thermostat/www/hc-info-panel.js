@@ -586,6 +586,11 @@ class HcInfoPanel extends HTMLElement {
         this._hphId = d.entry_id; this._hphAt = Date.now();
         this._hph = await this._hass.callWS({ type: "hc_thermostat/hp_history", entry_id: d.entry_id, hours: 24 }).catch(() => null);
       }
+      // 0.83.0: the go-live checklist – asked at most once a minute (the local guard itself at most every 5 min)
+      if (d.role !== "lite" && (this._rdId !== d.entry_id || !this._rdAt || Date.now() - this._rdAt > 60e3)) {
+        this._rdId = d.entry_id; this._rdAt = Date.now();
+        this._rd = await this._hass.callWS({ type: "hc_thermostat/readiness", entry_id: d.entry_id, language: this._hu ? "hu" : "en" }).catch(() => null);
+      }
       this._d = d; this._hd = hd; this._members = members;
       this._err = null;
     } catch (e) { this._err = String(e?.message || e); }
@@ -722,6 +727,33 @@ class HcInfoPanel extends HTMLElement {
   _section(id, title, body, icon) {
     const open = this._open[id];
     return `<details class="sec" data-sec="${id}" ${open ? "open" : ""}><summary><ha-icon icon="${icon}"></ha-icon>${esc(title)}</summary><div class="body">${body}</div></details>`;
+  }
+
+  // 0.84.0: "why heating / why not" – a few plain lines above the technical decision (a TRV room: its own)
+  _plain(rd) {
+    const L = this._hu ? "hu" : "en";
+    const s = (rd && rd[`summary_${L}`]) || (!rd ? this._d?.[`summary_${L}`] : null);
+    if (!s) return "";
+    const icon = { heating: "mdi:fire", idle: "mdi:fire-off", paused: "mdi:pause-circle-outline", waiting: "mdi:timer-sand",
+                   fault: "mdi:alert-circle-outline", off: "mdi:power", cooling: "mdi:snowflake" }[s.state] || "mdi:information-outline";
+    const title = this._hu ? "Miért fűt / miért nem?" : "Why heating / why not?";
+    return `<div class="plain ${esc(s.state)}"><div class="plain-t">${esc(title)}</div>
+      <div class="plain-h"><ha-icon icon="${icon}"></ha-icon>${esc(s.headline)}</div>
+      ${s.note ? `<div class="plain-n">${esc(s.note)}</div>` : ""}
+      <ul>${(s.lines || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  }
+
+  // 0.83.0: the go-live checklist, the blockers first; nothing here switches or goes live
+  _ready() {
+    const r = this._rd || {}, L = r.levels || {};
+    const mark = { block: "⛔", warn: "⚠️", info: "💡", ok: "✅" };
+    const rows = (r.items || []).map((i) => `<tr class="rd ${esc(i.level)}"><td class="k">${mark[i.level] || ""} ${esc(L[i.level] || i.level)}</td>
+      <td class="v"><b>${esc(i.title)}</b>${i.fix ? `<div class="eid">${esc(i.fix)}</div>` : ""}</td></tr>`).join("");
+    const note = this._d?.mode === "active"
+      ? (this._hu ? "Élesen fut – a lista csak tájékoztat, semmit nem kapcsol vissza." : "Live – the list only informs, it switches nothing back.")
+      : (this._hu ? "Élesítés: Beállítások → Eszközök és szolgáltatások → HC Thermostat → Beállítás → Élesítés. Akadály esetén az élesítés nem megy át."
+                  : "Going live: Settings → Devices & services → HC Thermostat → Configure → Go live. A blocker stops it.");
+    return `<table>${rows}</table><div class="muted">${esc(note)}</div>`;
   }
 
   _devices(out) {
@@ -1385,9 +1417,11 @@ class HcInfoPanel extends HTMLElement {
         : this._rows(dec);
       const rd = this._roomData();
       const side = [
+        this._plain(rd),
         rd ? this._section("room", `${t.room}: ${rd.name}`, this._roomRows(rd) + this._wkButton(rd), "mdi:door-open") : "",
         this._hd ? this._section("house_src", t.houseSrc, this._houseSources(), "mdi:home-lightning-bolt-outline") : "",
         this._section("decision", t.decision, decision, "mdi:head-cog-outline"),
+        this._rd && this._rdId === d.entry_id && this._rd.ready != null ? this._section("ready", `${this._hu ? "Élesíthető?" : "Ready to go live?"} – ${this._rd.head}`, this._ready(), this._rd.ready ? (this._rd.warns ? "mdi:check-circle-outline" : "mdi:check-circle") : "mdi:alert-octagon-outline") : "",
         d.role === "circuit" && OV ? this._section("curve", this._hu ? "Fűtési görbe" : "Heating curve", OV.curveSvg(d.config || {}, { ...(d.decision || {}), plc: (() => { const e = (d.entities?.circuit_output_entity || [])[0]; return e ? Number(e.state) : null; })() }, { lang: this._hu ? "hu" : "en" })
           + `<div class="muted">${esc(this._hu ? "Kék: a görbe a helyiség céljánál; narancs szaggatott: helyiséghiánnyal korrigálva; szürke: a korlátok; kör: számított, zöld négyzet: kiadott cél, lila háromszög: a PLC célja most." : "Blue: the curve at the room target; orange dashed: corrected by the room deficit; grey: the limits; dot: worked out, green square: given out, purple triangle: the PLC's target now.")}</div>`, "mdi:chart-bell-curve-cumulative") : "",
         d.role === "hp_coord" && OV && OV.hpChartSvg ? this._section("hp_chart", this._hu ? "Hőszivattyú célja – 24 óra" : "Heat pump target – 24 h", OV.hpChartSvg(this._hph, { lang: this._hu ? "hu" : "en", cop: this._copCurve() }) + this._copToggle()
@@ -1791,6 +1825,14 @@ svg .nyit { fill:#43a047; } svg .zar { fill:#9e9e9e; }
 details.sec { background:var(--card-background-color); border-radius:12px; margin-bottom:8px; }
 details.sec summary { cursor:pointer; padding:10px 12px; font-weight:500; display:flex; gap:8px; align-items:center; }
 details.sec .body { padding:0 12px 10px; font-size:13px; }
+.plain { background:var(--card-background-color); border-radius:12px; margin-bottom:8px; padding:10px 12px; border-left:4px solid var(--secondary-text-color); }
+.plain.heating { border-left-color:#e65100; } .plain.cooling { border-left-color:#0288d1; } .plain.fault { border-left-color:var(--error-color,#db4437); }
+.plain.paused, .plain.waiting { border-left-color:var(--warning-color,#ffa600); } .plain.idle { border-left-color:#2e7d32; }
+.plain-t { font-size:12px; color:var(--secondary-text-color); text-transform:uppercase; letter-spacing:.04em; }
+.plain-h { font-size:20px; font-weight:600; display:flex; gap:8px; align-items:center; margin:2px 0 4px; }
+.plain-n { font-size:12px; color:var(--secondary-text-color); font-style:italic; }
+.plain ul { margin:4px 0 0; padding-left:18px; font-size:13px; } .plain li { margin:2px 0; }
+tr.rd.block td.k { color:var(--error-color,#db4437); } tr.rd.warn td.k { color:var(--warning-color,#ffa600); }
 table { width:100%; border-collapse:collapse; }
 td { padding:3px 4px; vertical-align:top; border-bottom:1px solid var(--divider-color); }
 td.k { color:var(--secondary-text-color); width:42%; word-break:break-word; }

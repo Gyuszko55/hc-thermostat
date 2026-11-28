@@ -70,6 +70,15 @@ SOURCE_WORDS = {
 }
 _SAVE_EVERY = timedelta(minutes=10)
 _LOG_SIZE = 200
+
+
+def _since(value) -> datetime | None:
+    """0.83.0: a stored time (ISO text) back as an aware datetime; None when it is missing or broken."""
+    try:
+        t = datetime.fromisoformat(str(value)) if value else None
+    except ValueError:
+        return None
+    return dt_util.as_utc(t) if t is not None and t.tzinfo is not None else None
 _AGREEMENT_SIZE = 2880  # 24 hours
 HA_STARTED = f"{DOMAIN}_ha_started"
 FAILSAFE_AFTER = 3  # 0.45.0: failed decisions in a row before the heat output is switched off
@@ -198,6 +207,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         self.sensor_problems: dict[str, str] = {}  # entity → lost | stale | out_of_range | jump (after a while)
         self.degraded_since: datetime | None = None  # 0.51.1: since when sensor_problems is not empty
         self.step_errors = 0  # 0.45.0: failed decisions in a row (failsafe)
+        self.mode_since: datetime | None = dt_util.utcnow()  # 0.83.0: since when in this mode (the go-live checklist)
         # one room (a heater, an AC unit, a zone): the texts say "the room" instead of "the house"
         self.room_wording = data.get(CONF_HEAT_SOURCE) in ROOM_SOURCES or data.get(CONF_ROLE) == "zone"
         self.rooms = RoomMonitor(float(data.get(CONF_ROOM_TOL, 0.5)))
@@ -233,6 +243,9 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         if data.get("mode") != self.mode:
             # Going live (or back to shadow): the cycle phase of the old mode would delay the first start.
             self.supervisor.new_cycle()
+        else:  # 0.83.0: the same mode as before – since when (older records: the first decision in the log)
+            self.mode_since = _since(data.get("mode_since")) or _since((data.get("log") or [{}])[0].get("time")) \
+                or self.mode_since
         if data.get("heat_basis") != self._heat_basis():
             self.supervisor.heat_need.samples.clear()  # Learned under other settings: not comparable.
         self.enabled = data.get("enabled", True)
@@ -296,6 +309,7 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
         await self._store.async_save({
             "supervisor": self.supervisor.state(),
             "mode": self.mode,
+            "mode_since": self.mode_since.isoformat() if self.mode_since else None,  # 0.83.0
             "enabled": self.enabled,
             "log": list(self.log),
             "outdoor": self._outdoor.state(),
@@ -799,6 +813,21 @@ class HcCoordinator(DataUpdateCoordinator[Decision]):
     def allowance(self, key: str) -> tuple[float | None, str | None]:
         state = self.hass.states.get(self.conf.get(key)) if self.conf.get(key) else None
         return (self._cumulative(self.conf.get(key)), state.attributes.get("unit_of_measurement") if state else None)
+
+    def plain_summary(self, language: str | None = None) -> dict | None:
+        """0.84.0: "why heating / why not" in a few plain lines (core/summary.py); None before the first decision."""
+        d = self.data
+        if d is None:
+            return None
+        from .core.summary import summarize
+        try:
+            ctx = self.supervisor.summary_context(d.now)
+        except Exception:  # the summary is a report – it must never stop anything
+            _LOGGER.debug("No summary context", exc_info=True)
+            ctx = {}
+        return summarize(d, ctx, language or self.hass.config.language, self.room_wording,
+                         live=self.mode == MODE_ACTIVE, actual=self.actual, presets=tuple(self.cfg.presets_enabled),
+                         season_on_below=self.cfg.season_on_below if self.cfg.season_enabled else None)
 
     def _record(self, decision: Decision) -> None:
         if decision.external is None and self.actual is not None:

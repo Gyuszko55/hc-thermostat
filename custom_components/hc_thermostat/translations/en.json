@@ -19,7 +19,7 @@
           "confirm": "I know this system is not recommended and accept it"
         },
         "data_description": {
-          "control": "TPI + PWM: switches the relay in pulses (on for a share of every cycle) by the error and the heat need – fits most relay boilers. PID + PWM: the same pulses with an integral, it does not stay below the target. External thermostat: HC only sets the target of an existing thermostat (a TRV, Better Thermostat, a Wi-Fi heater). AC – virtual i-Feel: HC moves the air conditioner's setpoint so that the room thermometer (not the unit's own sensor) reaches the target. On/off: plain on below / off above the target with long runs (heat pumps). Heating curve: flow temperature by the outdoor temperature."
+          "control": "TPI + PWM: switches the relay in pulses (on for a share of every cycle) by the error and the heat need – fits most relay boilers. PID + PWM: the same pulses with an integral, it does not stay below the target. External thermostat: HC only sets the target of an existing thermostat (a TRV, Better Thermostat, a Wi-Fi heater). AC – virtual i-Feel: HC moves the air conditioner's setpoint so that the room thermometer (not the unit's own sensor) reaches the target. On/off: plain on below / off above the target with long runs (heat pumps). Heating curve: flow temperature by the outdoor temperature.\n\n**When to change it:** When another device drives the heating (a wall thermostat, an AC) or the current one misses the target. **Recommended:** TPI or PID for a relay boiler; TPI with a long cycle for a floor; the curve for a modulating boiler. ⚠ A change starts the learning again: watch it in shadow mode for a few days."
         }
       },
       "entities": {
@@ -88,7 +88,7 @@
               "extra_factor": "Heat per metered unit of the other source: for a heat pump or AC its COP (3 = 1 kWh of power gives 3 kWh of heat).",
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
               "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
-              "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.",
+              "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.\n\n**When to change it:** Only when the covering's maker gives another limit; 0 = HC decides by the covering and the probe. **Recommended:** 29 °C under tiles, 27 °C under wood and laminate; 27 °C for an electric floor. ⚠ A too warm floor strains the covering and the feet.",
               "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
               "hp_defrost_entity": "While on (or named defrost), fault detection waits and the run does not count as running without command.",
               "hp_dhw_entity": "A 3-way valve or a mode sensor: while it makes hot water the house waits, this is no fault.",
@@ -99,7 +99,11 @@
               "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
               "heat_fuel": "Automatic: from the meter's unit (m³ gas, kWh, MJ, GJ), without a meter from the heat source. Custom: the number below is kept. For a heat pump, Custom is right.",
               "heat_efficiency": "Counts for a burner (gas, oil, pellet); not for electric heat or a heat meter.",
-              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6)."
+              "gas_heating_value": "kWh/m³, used for natural gas only (Automatic with a meter in m³, or Natural gas). 9.61 is the Hungarian bills' 34.6 MJ/m³; elsewhere use the value on your bill (MJ/m³ ÷ 3.6).",
+              "onoff_hysteresis": "**When to change it:** When it switches too often, or the temperature swings too much. **Recommended:** 0.2–0.5 °C. ⚠ Smaller: more switching; larger: cooler lows.",
+              "hp_min_on_s": "**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+              "hp_min_off_s": "**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
+              "floor_hysteresis": "**When to change it:** When it switches too often at the floor limit. **Recommended:** 0.5–1.5 °C (default 1). ⚠ Smaller: more switching at the limit."
             }
           }
         }
@@ -210,8 +214,13 @@
           "valve_delay_s": "Useful heat delay (valve opening + pump)"
         },
         "data_description": {
-          "valve_delay_s": "When the zone valve opens slowly (thermoelectric, ~5 minutes) or the pump is started late by its own control: heat starts this long after switching on. HC lengthens the run by it, the minimum on time counts the useful part, and demands too small for a run are carried into the next cycles. 0 = no delay.",
-          "min_on_s": "The shortest useful run; with a delay set, a smaller demand is carried into the next cycle."
+          "valve_delay_s": "When the zone valve opens slowly (thermoelectric, ~5 minutes) or the pump is started late by its own control: heat starts this long after switching on. HC lengthens the run by it, the minimum on time counts the useful part, and demands too small for a run are carried into the next cycles. 0 = no delay.\n\n**When to change it:** With thermoelectric valves or a pump that starts late. **Recommended:** 0 = none; about 300 s for thermoelectric valves. ⚠ Left at zero with slow valves, much of each short run goes on opening.",
+          "min_on_s": "The shortest useful run; with a delay set, a smaller demand is carried into the next cycle.\n\n**When to change it:** When the boiler's maker asks for longer burns, or with slow valves. **Recommended:** 180–300 s for a gas boiler, 600–900 s for a floor, 2700 s for pellets. ⚠ Short burns give little heat, with many starts.",
+          "target_home": "**When to change it:** When it is too cool or too warm at home in the day. **Recommended:** 20–22 °C; each degree costs about 6 % heating energy. ⚠ A high target uses a lot and dries the air.",
+          "target_night": "**When to change it:** When it is cold at night or the morning rise is slow. **Recommended:** 1–3 °C below the home target. ⚠ A deeper setback makes the morning rise longer and harder.",
+          "target_away": "**When to change it:** When it is too cold on coming home, or to save more. **Recommended:** 15–18 °C. ⚠ A too low target makes the heat-up after coming home long.",
+          "cycle_s": "**When to change it:** When the heating starts too often or too seldom. **Recommended:** 600–1200 s for radiators, 1800–3600 s for a floor, 3600 s for pellets, 600 s for an electric heater. ⚠ On a floor a short cycle closes the valve before it is open; a too long one swings the temperature more.",
+          "min_off_s": "**When to change it:** Almost never; when the boiler's maker asks for a longer pause. **Recommended:** 180–300 s for a gas boiler, 300–600 s for a heat pump, 60–180 s for electric heat. ⚠ Too short: frequent starts wear the boiler and the relay faster."
         }
       },
       "circuit": {
@@ -391,8 +400,8 @@
           "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
           "hp_stop_margin": "How far above the need the stop layer must be.",
           "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
-          "hp_min_on_s": "Compressor protection: stays ON at least this long.",
-          "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+          "hp_min_on_s": "Compressor protection: stays ON at least this long.\n\n**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+          "hp_min_off_s": "Compressor protection: stays OFF at least this long.\n\n**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
           "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
           "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
           "hp_idle_hours": "After this many hours with no demand.",
@@ -469,8 +478,8 @@
               "hp_standby_w": "Standby above this many watts (the compressor stands)"
             },
             "data_description": {
-              "hp_min_on_s": "Compressor protection: stays ON at least this long.",
-              "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+              "hp_min_on_s": "Compressor protection: stays ON at least this long.\n\n**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+              "hp_min_off_s": "Compressor protection: stays OFF at least this long.\n\n**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
               "hp_idle_hours": "After this many hours with no demand.",
@@ -704,19 +713,22 @@
     "step": {
       "init": {
         "title": "HC Thermostat",
-        "description": "What do you want to change?",
+        "description": "{status}What do you want to change?",
         "menu_options": {
-          "settings": "Settings (regulation, devices, everything else)",
-          "rooms": "Rooms (areas, thermometers, TRV heads, presence, windows)",
+          "targets": "How warm, and when? (home, night, away, vacation)",
+          "presets": "Presets (Comfort, Eco, Away… and how long they last)",
+          "check": "Why heating / why not? – check",
+          "sensors": "Thermometers and windows (indoor, outdoor, windows, presence)",
+          "rooms": "Rooms (areas, thermometers, valve heads, presence, windows)",
+          "settings": "Expert settings (regulation, protections, floor, energy, local guard…)",
+          "change_control": "Another device drives the heating (change the control)",
           "go_live": "Go live – HC starts switching",
-          "go_shadow": "Back to shadow mode – HC only calculates",
-          "change_control": "Change the control (e.g. to an external thermostat)",
-          "targets": "Targets and times (home, night, away, vacation)"
+          "go_shadow": "Back to shadow mode – HC only calculates"
         }
       },
       "go_live": {
         "title": "Go live: {name}",
-        "description": "In shadow mode HC calculates and logs what it would do, but switches nothing. Live, it switches the boiler relay (or sets the thermostat / AC unit, the TRV heads) itself.\n\nGo live only when the shadow decisions looked right for a while and nothing else (a wall thermostat, an automation) controls the same output. Every other setting stays as it is.",
+        "description": "In shadow mode HC calculates and logs what it would do, but switches nothing. Live, it switches the boiler relay (or sets the thermostat / AC unit, the TRV heads) itself.\n\nGo live only when the shadow decisions looked right for a while and nothing else (a wall thermostat, an automation) controls the same output. Every other setting stays as it is.\n\n**Go-live check**\n{checklist}",
         "data": {
           "confirm": "I confirm: HC may switch the heating now"
         }
@@ -726,7 +738,7 @@
         "description": "HC keeps calculating and logging, but switches nothing from now on. The output stays as it is now – switch it by hand if needed."
       },
       "settings": {
-        "title": "Settings",
+        "title": "Expert settings",
         "description": "Switch to active only if nothing else controls the same output. The targets are on top, the rest folds out by topic.{advanced}",
         "data": {
           "target_home": "Home temperature",
@@ -743,11 +755,11 @@
           "night_end_weekend": "Weekend night ends (optional)"
         },
         "data_description": {
-          "target_home": "At home and awake. Also settable from the thermostat card.",
-          "target_night": "Between the night's start and end (below), and in the Sleep preset.",
-          "target_away": "When nobody is home (by the presence entities) or in the Away preset.",
+          "target_home": "At home and awake. Also settable from the thermostat card.\n\n**When to change it:** When it is too cool or too warm at home in the day. **Recommended:** 20–22 °C; each degree costs about 6 % heating energy. ⚠ A high target uses a lot and dries the air.",
+          "target_night": "Between the night's start and end (below), and in the Sleep preset.\n\n**When to change it:** When it is cold at night or the morning rise is slow. **Recommended:** 1–3 °C below the home target. ⚠ A deeper setback makes the morning rise longer and harder.",
+          "target_away": "When nobody is home (by the presence entities) or in the Away preset.\n\n**When to change it:** When it is too cold on coming home, or to save more. **Recommended:** 15–18 °C. ⚠ A too low target makes the heat-up after coming home long.",
           "target_vacation": "In the Vacation preset – a short absence keeps the Away target.",
-          "frost_temp": "It never cools below this, not even while off or with a window open.",
+          "frost_temp": "It never cools below this, not even while off or with a window open.\n\n**When to change it:** Almost never; only for a very cold space (garage, workshop). **Recommended:** 6–8 °C. ⚠ Below 5 °C a pipe behind a colder wall may already freeze.",
           "night_start": "The sleep target applies from this time.",
           "night_end": "The sleep target lasts until this; optimal start times itself to it.",
           "mode": "Shadow: works out only, to compare with the current control. Active: HC switches the device.",
@@ -814,29 +826,29 @@
               "tpi_coef_ext": "TPI external coefficient"
             },
             "data_description": {
-              "control": "TPI: proportional pulses by the error and the outdoor temperature. PID: proportional + integral (+ derivative) – removes a lasting offset. Both drive the relay by PWM: on for a share of every cycle.",
-              "cycle_s": "PWM cycle: one on + off period. The demand is the share of it the relay is on (50 % of 900 s = 7.5 minutes on).",
-              "min_on_s": "Shortest burn: a shorter pulse is skipped or stretched (spares the boiler and the relay).",
-              "valve_delay_s": "A slow thermoelectric valve (~5 min) or a pump started late: the run is lengthened by it, the minimum on time counts the useful part, small demands add up. 0 = none.",
+              "control": "TPI: proportional pulses by the error and the outdoor temperature. PID: proportional + integral (+ derivative) – removes a lasting offset. Both drive the relay by PWM: on for a share of every cycle.\n\n**When to change it:** When another device drives the heating (a wall thermostat, an AC) or the current one misses the target. **Recommended:** TPI or PID for a relay boiler; TPI with a long cycle for a floor; the curve for a modulating boiler. ⚠ A change starts the learning again: watch it in shadow mode for a few days.",
+              "cycle_s": "PWM cycle: one on + off period. The demand is the share of it the relay is on (50 % of 900 s = 7.5 minutes on).\n\n**When to change it:** When the heating starts too often or too seldom. **Recommended:** 600–1200 s for radiators, 1800–3600 s for a floor, 3600 s for pellets, 600 s for an electric heater. ⚠ On a floor a short cycle closes the valve before it is open; a too long one swings the temperature more.",
+              "min_on_s": "Shortest burn: a shorter pulse is skipped or stretched (spares the boiler and the relay).\n\n**When to change it:** When the boiler's maker asks for longer burns, or with slow valves. **Recommended:** 180–300 s for a gas boiler, 600–900 s for a floor, 2700 s for pellets. ⚠ Short burns give little heat, with many starts.",
+              "valve_delay_s": "A slow thermoelectric valve (~5 min) or a pump started late: the run is lengthened by it, the minimum on time counts the useful part, small demands add up. 0 = none.\n\n**When to change it:** With thermoelectric valves or a pump that starts late. **Recommended:** 0 = none; about 300 s for thermoelectric valves. ⚠ Left at zero with slow valves, much of each short run goes on opening.",
               "coast_window_s": "For this long after a burn no new start while the room, just under the target, still rises (the radiators give their heat). Suggested: 2700 s. Off by default (measured on one house).",
               "pwm_midcycle_start": "When the demand grows past the minimum run in the middle of a cycle, a new cycle starts at once (no wait for the next). Off by default (measured on one house).",
               "pwm_carry": "Demands below the minimum run add up to a real run (always so with a valve delay). Off by default: in the simulation it raised the overshoot after a boost.",
               "pre_change_s": "This long before a scheduled lowering of the target (night start, a preset or manual target running out) no new burn starts while the room is already at or above the coming target – its heat would arrive after the change. A running burn is not cut. Default: 1800 s. On a floor the default is 7200 s, because the floor gives the last hours' heat after the change. With the house's time constant known, the room may sag at most the allowed amount below in this time.",
-              "pid_kp": "How strongly HC answers the error now (0.4 = 40 % demand per °C below the target).",
-              "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).",
+              "pid_kp": "How strongly HC answers the error now (0.4 = 40 % demand per °C below the target).\n\n**When to change it:** When it answers a shortfall too slowly or too hard. **Recommended:** 0.3–0.6 (default 0.4). ⚠ Too high: it swings around the target.",
+              "pid_ki_per_hour": "How fast a lasting error adds demand (per °C and hour).\n\n**When to change it:** When it stays a few tenths below the target for long. **Recommended:** 0.1–0.5 per hour. ⚠ Too high: slow swings over hours.",
               "pid_d_filter_s": "Room sensors report in 0.1 °C steps, only on a change: an unfiltered derivative is spiky. 0 = no filter; only matters when the derivative gain is not 0.",
               "keep_alive_script": "When set, at every keep-alive of the relay that should stay on HC runs this script instead of switching the relay on again – for example a Shelly \"turn on with a 15-minute flip-back timer\". A long burn is then never cut, while a dead Home Assistant leaves the relay on for that long at most.",
-              "min_off_s": "Stays off at least this long after switching off (protects boiler and relay).",
+              "min_off_s": "Stays off at least this long after switching off (protects boiler and relay).\n\n**When to change it:** Almost never; when the boiler's maker asks for a longer pause. **Recommended:** 180–300 s for a gas boiler, 300–600 s for a heat pump, 60–180 s for electric heat. ⚠ Too short: frequent starts wear the boiler and the relay faster.",
               "pid_kd": "Damps fast changes. 0 = none; only if the temperature overshoots.",
-              "curve_slope": "°C of water per degree between the target and outdoors.",
-              "curve_shift": "Moves the whole curve up (+) or down (−) – if always too cold or warm, set this first.",
-              "flow_min": "It never asks for colder flow.",
-              "flow_max": "It never asks for warmer flow (low for floor heating, for the surface).",
+              "curve_slope": "°C of water per degree between the target and outdoors.\n\n**When to change it:** When it is cool in cold weather (raise it) or too warm in mild weather (lower it). **Recommended:** 1.2–1.6 for radiators, 0.3–0.7 for a floor. ⚠ Change in small steps (0.1) and wait a day.",
+              "curve_shift": "Moves the whole curve up (+) or down (−) – if always too cold or warm, set this first.\n\n**When to change it:** When it is equally cool or warm in every weather. **Recommended:** −3…+3 °C. ⚠ Rather than a large shift, set the slope or the target.",
+              "flow_min": "It never asks for colder flow.\n\n**When to change it:** When the radiators or the floor stay cold in mild weather. **Recommended:** 25–30 °C for radiators, 22–25 °C for a floor. ⚠ A non-condensing boiler may condense on a too low flow.",
+              "flow_max": "It never asks for warmer flow (low for floor heating, for the surface).\n\n**When to change it:** When the home does not warm up even in the coldest weather. **Recommended:** 65–75 °C for radiators, 50–55 °C for a heat pump, at most 45 °C for a floor. ⚠ On a floor above 45 °C the screed and the covering may be damaged.",
               "room_kp": "Warmer water per degree the room is under its target.",
               "room_ki_per_hour": "Slowly removes a lasting offset; too large makes it swing.",
-              "hp_min_on_s": "Compressor protection.",
-              "hp_min_off_s": "Compressor protection.",
-              "onoff_hysteresis": "On-off control: switches on this far under the target, off at the target.",
+              "hp_min_on_s": "Compressor protection.\n\n**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+              "hp_min_off_s": "Compressor protection.\n\n**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
+              "onoff_hysteresis": "On-off control: switches on this far under the target, off at the target.\n\n**When to change it:** When it switches too often, or the temperature swings too much. **Recommended:** 0.2–0.5 °C. ⚠ Smaller: more switching; larger: cooler lows.",
               "ac_ki_per_hour": "Slowly corrects the AC's target when the room stays off it.",
               "ac_min_change_s": "Changes the AC's target at most this often (beeps, wear).",
               "assist_climate": "The house's main HC thermostat: the AC helps it when cheaper and the door is open.",
@@ -863,7 +875,7 @@
               "catchup_low_release": "On a radiator circuit the catch-up ends this far below the target.",
               "catchup_low_floor_release": "On a floor circuit it ends this far below the target (more careful about overshoot).",
               "catchup_low_confirm_s": "The classification (low-temperature or not) changes only after the new state lasts this long, so noise around the limit does not switch it back and forth.",
-              "tpi_coef_int": "Demand per 1 °C shortfall (0.6 = 60 %). Higher: longer heating at a smaller shortfall. With learning on, the starting value.",
+              "tpi_coef_int": "Demand per 1 °C shortfall (0.6 = 60 %). Higher: longer heating at a smaller shortfall. With learning on, the starting value.\n\n**When to change it:** When it stays below or above the target for long (the learning adjusts it too). **Recommended:** 0.4–0.8 (default 0.6). ⚠ A high value overshoots, a low one catches up slowly.",
               "tpi_coef_ext": "Demand per degree between the target and the outdoor temperature (0.01 = 1 %/°C)."
             }
           },
@@ -889,8 +901,8 @@
               "adopt_manual": "External control: a target set on the managed thermostat itself (not by HC) becomes the manual target until the next scheduled change; if someone switches it off, HC leaves it off (frost protection excepted) until someone switches it on again. Off: HC writes its own target and mode as before.",
               "target_source_entity": "When someone changes its target (e.g. on the wall thermostat's knob), this instance takes it over as a manual target until the next scheduled change. What HC writes there itself is not taken over.",
               "demand_entity": "A dry-contact wall thermostat read through a binary sensor, input boolean or switch: on = heat, off = no heat. Frost, window, summer rest, the floor limit and floor tempering still apply. Unavailable: the lost-sensor fallback.",
-              "season_off_above": "When the daily outdoor mean goes above this, the heating season pauses. Default 15 °C; lower for a well insulated house, higher for an old one.",
-              "season_on_below": "When the daily outdoor mean goes below this, the heating season starts again. Must be lower than the end (default 13 °C).",
+              "season_off_above": "When the daily outdoor mean goes above this, the heating season pauses. Default 15 °C; lower for a well insulated house, higher for an old one.\n\n**When to change it:** When the heating stops too early or late in spring. **Recommended:** 15–18 °C daily average. ⚠ A too low value stops the heating on cool spring days too.",
+              "season_on_below": "When the daily outdoor mean goes below this, the heating season starts again. Must be lower than the end (default 13 °C).\n\n**When to change it:** When the heating starts too early or late in autumn. **Recommended:** 12–14 °C daily average, at least 2 °C below the end. ⚠ A small gap between the two limits flips the season back and forth.",
               "presence_home_states": "Which values of an input_select / sensor presence source mean home (e.g. \"At home\"). They count besides the built-in words (home, on, otthon). With nothing here and under vacation, an unknown value writes one warning to the log.",
               "presence_vacation_states": "Which values mean vacation (e.g. \"Holiday\"). They count besides the built-in vacation / szabadság. Every other value is away.",
               "season_enabled": "No heating while the daily outdoor mean is above the summer limit; frost protection stays.",
@@ -924,7 +936,7 @@
             },
             "data_description": {
               "safety_entities": "The wired safety chain's auxiliary contact and / or detectors (on = alarm). On any alarm every HC instance watching them stops at once – frost protection included – and restarts only with the “Acknowledge the life-safety stop” button once every input is clear. The real stop (gas valve, contactor, water valve) is the chain's, not Home Assistant's.",
-              "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating. On a floor the default is 8 hours, and a value within 1 °C of the target is not judged: next to a slow screed the thermometer shows one value for hours while the regulation works.",
+              "frozen_after_h": "When the room thermometer has shown exactly the same value for this many hours while the heat ran at least the minutes below, the reading counts as frozen and the fallback runs. 0 = off. In the measured house the thermometer stayed unchanged for at most 1.4 h while heating. On a floor the default is 8 hours, and a value within 1 °C of the target is not judged: next to a slow screed the thermometer shows one value for hours while the regulation works.\n\n**When to change it:** When a thermometer reports seldom and looks stuck by mistake. **Recommended:** 3 h for radiators, 8 h for a floor; 0 = off. ⚠ Switched off, a stuck thermometer may make HC heat blind or not at all.",
               "frozen_burn_min": "The heat must have run at least this long in the unchanged time: a real room warms by at least one step from that much heat.",
               "valve_feedback_entity": "The central boiler uses it to see whether the valve is really open (on/off, open/closed or at least 20 %). Empty or unavailable: it counts with the actuator opening time.",
               "zone_own_mixer": "Off: the flow of a central modulating boiler never goes above the highest flow of this zone (flow_max, 45 °C for a floor by default) while its circuit can get water – radiator zones heat more weakly then. Switch it on only when the floor circuit really has a mixing valve or a temperature limiter.",
@@ -932,12 +944,12 @@
               "plaus_indoor_min": "Below this the room thermometer's reading counts as wrong (lost). At most the frost target minus 2 °C, so that the frost protection starts in a really cold room. Default 3 °C; lower for an unheated holiday home.",
               "window_entities": "Heating pauses while one is open (frost protection stays).",
               "window_drop_entities": "Without a window sensor: airing is told from a sudden temperature drop.",
-              "window_drop_rate": "Cooling faster than this counts as airing.",
+              "window_drop_rate": "Cooling faster than this counts as airing.\n\n**When to change it:** When it reports an open window by mistake (raise it) or misses airing (lower it). **Recommended:** 1.5 °C/h (default). ⚠ A too small value may pause even while heating.",
               "exercise_weekday": "Moves the valves weekly in summer too, so they do not stick.",
               "exercise_time": "When the exercise starts.",
               "exercise_s": "How long it opens them.",
               "return_temp_entity": "Needed for the return limit.",
-              "return_max": "With a condensing boiler a hot return lowers the efficiency.",
+              "return_max": "With a condensing boiler a hot return lowers the efficiency.\n\n**When to change it:** When the district heating supplier sets a return limit. **Recommended:** 0 = none; the supplier's value (often 40–50 °C). ⚠ A too low limit barely opens the valve and the home stays cold.",
               "return_hysteresis": "Opens again this far under the limit."
             }
           },
@@ -967,20 +979,20 @@
             },
             "data_description": {
               "floor_entity": "The thermometer in the floor. Required for electric floor heating: without it, or without a fresh reading, it does not heat.",
-              "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.",
+              "floor_max": "No heat above it, whatever the regulator says. 0 = by the covering and the sensor position: under the covering 29 °C for tiles, 27 °C for wood, laminate, vinyl, carpet; in the screed between the pipes 29 / 33 / 31 (vinyl) °C; above a supply pipe 36 °C. An electric floor always uses the under-covering value. Without a covering: 27 °C for an electric floor, 29 °C for a water floor.\n\n**When to change it:** Only when the covering's maker gives another limit; 0 = HC decides by the covering and the probe. **Recommended:** 29 °C under tiles, 27 °C under wood and laminate; 27 °C for an electric floor. ⚠ A too warm floor strains the covering and the feet.",
               "floor_covering": "Gives the floor limit (with the sensor position) and the tempering offset: tiles 2 °C, other coverings 3 °C.",
               "floor_probe": "A sensor deeper in the screed reads warmer than the surface, so its limit is higher. The deeper positions' limits (screed 31–33 °C, above a pipe 36 °C) are estimates: they do not guarantee a surface below 27 °C. Under wood, parquet and laminate a sensor right under the covering (surface) is recommended.",
               "floor_temper": "Comfort: a warm floor. While the room is warm enough the floor is held at the room target + the offset (by the floor sensor); it stops when the room gets this much above its target. The floor limit always wins. Needs a floor sensor.",
               "floor_temper_room_margin": "Default 0.5 °C. A larger value gives a warmer floor, but the room swings further above its target and uses more energy.",
               "floor_fallback": "Instead of the blind demand (or, for an electric floor, no heat) the floor is held at the room target + the tempering offset while the room thermometer is silent. Without a floor reading it works as before.",
               "floor_cooling": "In summer (heating season off) the floor cools, but the water and the floor always stay above the dew point + margin, or moisture condenses. No cooling without humidity; on/off control also needs a floor sensor.",
-              "floor_hysteresis": "After the floor limit it must cool this much before heating again.",
+              "floor_hysteresis": "After the floor limit it must cool this much before heating again.\n\n**When to change it:** When it switches too often at the floor limit. **Recommended:** 0.5–1.5 °C (default 1). ⚠ Smaller: more switching at the limit.",
               "floor_temper_offset": "Keeps the floor this much warmer than the room target (comfort).",
               "floor_temper_night": "A different floor target at night.",
               "floor_temper_hysteresis": "The tempering's switch-back band.",
               "humidity_entity": "For the dew point; it does not cool without it.",
               "cool_mode_entity": "The switch putting the heat pump into cooling.",
-              "dew_margin": "The floor stays this far above the dew point, so no condensation.",
+              "dew_margin": "The floor stays this far above the dew point, so no condensation.\n\n**When to change it:** Almost never; rather raise it in a humid room. **Recommended:** 2–3 °C. ⚠ With a smaller margin water may condense on the floor and the pipes.",
               "floor_min_cool": "The floor never gets colder while cooling.",
               "cool_flow_entity": "When the heat pump has its own cooling setpoint.",
               "cool_flow": "The cooling water's target.",
@@ -1180,14 +1192,14 @@
               "guard_url": "The endpoint of the guard next to the relay (Shelly Gen3/Gen4 script, guard/shelly/hc_guard.js), e.g. http://IP-ADDRESS/script/1/hc. When given, HC switches the relay through the guard and sends a lease; without a lease the guard regulates on its own with the values below after 5 minutes. Empty: HC switches the relay directly, as before.",
               "guard_token": "Required: the same value as the guard's KVS hc_guard_token (guard/upload_shelly.py makes one when you give none). Without it the guard takes no lease.",
               "guard_push_url": "The guard posts a message here (an ntfy topic, for example) when it takes over – independently of Home Assistant.",
-              "guard_sp": "The guard keeps this by its own thermometer while HC does not control.",
+              "guard_sp": "The guard keeps this by its own thermometer while HC does not control.\n\n**When to change it:** When the fallback program would hold too cold or too warm while HC is down. **Recommended:** 1–2 °C below the day target (default 20.5 °C). ⚠ A too low value cools the home in a longer outage.",
               "guard_hyst": "Whole band: on below the target − half band, off above the target + half band.",
               "guard_no_sensor": "When the guard's thermometer gives no reading either: off, or a fixed duty cycle.",
               "guard_duty_on_s": "The on part of the fixed duty cycle.",
               "guard_duty_off_s": "The off part of the fixed duty cycle.",
-              "guard_max_on_s": "The guard keeps the relay on at most this long in one go – while HC controls and in its own fallback alike – then keeps the minimum pause. 0 = no limit (electric heaters: 2 hours by default).",
+              "guard_max_on_s": "The guard keeps the relay on at most this long in one go – while HC controls and in its own fallback alike – then keeps the minimum pause. 0 = no limit (electric heaters: 2 hours by default).\n\n**When to change it:** For electric heat with no limit thermostat of its own. **Recommended:** 0 = none; 7200 s for an electric heater. ⚠ Without a limit, a wrong reading may heat electric heat for hours.",
               "guard_every_s": "HC renews the lease this often (and at once on every change).",
-              "guard_ttl_s": "A lease is valid this long; at least twice the renewal.",
+              "guard_ttl_s": "A lease is valid this long; at least twice the renewal.\n\n**When to change it:** Almost never. **Recommended:** at least twice the renewal (default 300 s, renewal 60 s). ⚠ With a short lease one missed renewal already hands control to the local guard.",
               "guard_password": "The guard device's own password (Shelly → Settings → Authentication, user admin). With it set on the device, the guard's endpoint and the whole Shelly RPC need it – nobody else on the network can switch the relay or change the script. Strongly recommended."
             }
           }
@@ -1338,7 +1350,7 @@
           "confirm": "I know this system is not recommended and accept it"
         },
         "data_description": {
-          "control": "TPI + PWM: switches the relay in pulses (on for a share of every cycle) by the error and the heat need – fits most relay boilers. PID + PWM: the same pulses with an integral, it does not stay below the target. External thermostat: HC only sets the target of an existing thermostat (a TRV, Better Thermostat, a Wi-Fi heater). AC – virtual i-Feel: HC moves the air conditioner's setpoint so that the room thermometer (not the unit's own sensor) reaches the target. On/off: plain on below / off above the target with long runs (heat pumps). Heating curve: flow temperature by the outdoor temperature."
+          "control": "TPI + PWM: switches the relay in pulses (on for a share of every cycle) by the error and the heat need – fits most relay boilers. PID + PWM: the same pulses with an integral, it does not stay below the target. External thermostat: HC only sets the target of an existing thermostat (a TRV, Better Thermostat, a Wi-Fi heater). AC – virtual i-Feel: HC moves the air conditioner's setpoint so that the room thermometer (not the unit's own sensor) reaches the target. On/off: plain on below / off above the target with long runs (heat pumps). Heating curve: flow temperature by the outdoor temperature.\n\n**When to change it:** When another device drives the heating (a wall thermostat, an AC) or the current one misses the target. **Recommended:** TPI or PID for a relay boiler; TPI with a long cycle for a floor; the curve for a modulating boiler. ⚠ A change starts the learning again: watch it in shadow mode for a few days."
         }
       },
       "change_entities": {
@@ -1566,8 +1578,8 @@
           "hp_stop_layer": "It stops only when this layer reaches need + stop margin too. Without a thermometer there, the one above counts.",
           "hp_stop_margin": "How far above the need the stop layer must be.",
           "hp_coil_dt": "Through the coil the tank gets this much colder water than the target – the stop never waits for more.",
-          "hp_min_on_s": "Compressor protection: stays ON at least this long.",
-          "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+          "hp_min_on_s": "Compressor protection: stays ON at least this long.\n\n**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+          "hp_min_off_s": "Compressor protection: stays OFF at least this long.\n\n**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
           "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
           "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
           "hp_idle_hours": "After this many hours with no demand.",
@@ -1644,8 +1656,8 @@
               "hp_standby_w": "Standby above this many watts (the compressor stands)"
             },
             "data_description": {
-              "hp_min_on_s": "Compressor protection: stays ON at least this long.",
-              "hp_min_off_s": "Compressor protection: stays OFF at least this long.",
+              "hp_min_on_s": "Compressor protection: stays ON at least this long.\n\n**When to change it:** When the heat pump's maker gives another run time. **Recommended:** 1200 s (20 min) or more. ⚠ Short compressor runs wear it and lower the COP.",
+              "hp_min_off_s": "Compressor protection: stays OFF at least this long.\n\n**When to change it:** When the heat pump's maker gives another pause. **Recommended:** 600 s (10 min) or more. ⚠ The compressor needs rest between starts.",
               "hp_standby": "Stays ON with the lowest target when nothing is needed (e.g. a unit that protects itself only while ON).",
               "hp_idle_off": "In standby: switches OFF after a long time with no demand.",
               "hp_idle_hours": "After this many hours with no demand.",
@@ -1765,7 +1777,7 @@
         }
       },
       "targets": {
-        "title": "Targets and times – {name}",
+        "title": "How warm, and when? – {name}",
         "description": "Only the targets and the night's times; they apply when saved, every other setting stays.",
         "data": {
           "target_home": "Home temperature",
@@ -1779,11 +1791,11 @@
           "night_end_weekend": "Weekend night ends (optional)"
         },
         "data_description": {
-          "target_home": "At home and awake. Also settable from the thermostat card.",
-          "target_night": "Between the night's start and end (below), and in the Sleep preset.",
-          "target_away": "When nobody is home (by the presence entities) or in the Away preset.",
+          "target_home": "At home and awake. Also settable from the thermostat card.\n\n**When to change it:** When it is too cool or too warm at home in the day. **Recommended:** 20–22 °C; each degree costs about 6 % heating energy. ⚠ A high target uses a lot and dries the air.",
+          "target_night": "Between the night's start and end (below), and in the Sleep preset.\n\n**When to change it:** When it is cold at night or the morning rise is slow. **Recommended:** 1–3 °C below the home target. ⚠ A deeper setback makes the morning rise longer and harder.",
+          "target_away": "When nobody is home (by the presence entities) or in the Away preset.\n\n**When to change it:** When it is too cold on coming home, or to save more. **Recommended:** 15–18 °C. ⚠ A too low target makes the heat-up after coming home long.",
           "target_vacation": "In the Vacation preset – a short absence keeps the Away target.",
-          "frost_temp": "It never cools below this, not even while off or with a window open.",
+          "frost_temp": "It never cools below this, not even while off or with a window open.\n\n**When to change it:** Almost never; only for a very cold space (garage, workshop). **Recommended:** 6–8 °C. ⚠ Below 5 °C a pipe behind a colder wall may already freeze.",
           "night_start": "The sleep target applies from this time.",
           "night_end": "The sleep target lasts until this; optimal start times itself to it.",
           "night_start_weekend": "For Friday and Saturday evening's night (ending on Saturday and Sunday morning). Empty: as on weekdays. Give both the start and the end.",
@@ -1874,6 +1886,26 @@
           "lite_calendar": "An event whose title has 'szabadság' / 'nyaralás' / 'távol' / 'vacation' → vacation until its end, preheated back on time; 'otthon' / 'home office' → the weekend program that day.",
           "lite_windows": "Any open for 2 minutes → frost protection while open (at most an hour); closed → back at once."
         }
+      },
+      "check": {
+        "title": "Why heating / why not? – {name}",
+        "description": "{summary}\n\n**Go-live check**\n{checklist}\n\nThis only informs, it changes nothing. **Submit** goes back to the menu."
+      },
+      "sensors": {
+        "title": "Thermometers and windows – {name}",
+        "description": "Only the thermometers, the windows and presence; saved at once, every other setting stays. What HC switches (relay, thermostat) is changed under **Another device drives the heating**.{rooms}",
+        "data": {
+          "indoor_entity": "Indoor thermometer",
+          "outdoor_entity": "Outdoor thermometer",
+          "window_entities": "Windows and doors",
+          "presence_entities": "Presence"
+        },
+        "data_description": {
+          "indoor_entity": "It regulates by this one. After a new thermometer or a re-pairing, pick it again here.",
+          "outdoor_entity": "A weather entity also works. Required for a heating curve; otherwise used for the heat need and the summer rest.",
+          "window_entities": "While one is open, the heating pauses.",
+          "presence_entities": "A person, a presence sensor or a household state: when nobody is home, the away target applies."
+        }
       }
     },
     "error": {
@@ -1903,7 +1935,9 @@
       "lite_url": "Give the script's address: http://IP/script/ID/lite",
       "lite_token": "The device refused the token",
       "lite_password": "The device refused the password",
-      "lite_unreachable": "The device does not answer at that address"
+      "lite_unreachable": "The device does not answer at that address",
+      "not_ready": "Not ready to go live yet: at least one blocker is open. The HC info panel's \"Ready to go live?\" block lists what to fix first (shadow mode keeps calculating meanwhile).",
+      "outdoor_required": "A heating curve needs an outdoor thermometer."
     }
   },
   "selector": {

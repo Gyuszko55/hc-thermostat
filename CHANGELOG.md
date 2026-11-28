@@ -1,5 +1,93 @@
 # Changelog
 
+## 0.86.0 – 2026-11-28
+
+**The settings menu by task** – the everyday things first, the expert settings last.
+
+- **The new menu** (room thermostat instances): *How warm, and when?* · *Presets* (now on their own, saved at once)
+  · *Why heating / why not? – check* (new, read only: the plain summary and the go-live checklist; Submit goes back
+  to the menu) · *Thermometers and windows* (new: the indoor and outdoor thermometer, windows, presence – e.g. after a
+  new thermometer or a re-pairing; with rooms the indoor thermometer stays under *Rooms*) · *Rooms* · *Expert
+  settings* (the full form as before) · *Another device drives the heating* (the control change, as before) ·
+  *Go live* / *Back to shadow mode*.
+- **A status line over the menu:** what it does now (the summary's first line) and whether it may go live
+  ("Ready to go live, with 1 warning" / "running live").
+- **Nothing else changes:** every step's fields, checks and saving stay; *Thermometers and windows* never touches the
+  output (changing what HC switches still goes through the control change, which puts the instance in shadow mode).
+  The central boiler, tank, mixing circuit, heat pump coordination and HC Lite keep their own forms. The go-live
+  checklist's hints name the new menu items.
+
+## 0.85.0 – 2026-11-28
+
+**Help for the critical settings – "When to change it?"**
+
+- **About 30 critical fields** (targets and frost protection, the control, cycle, minimum run and pause, valve delay,
+  on/off hysteresis, TPI and PID terms, the heating curve and its flow limits, the heat pump's run and pause, the floor
+  limit, its hysteresis and the dew point margin, the return limit, the stuck thermometer, the temperature drop, the
+  season limits, the local guard's fallback target, lease and longest run) keep their own sentence and get three more
+  parts in both languages, wherever the field appears: **when to change it**, the **recommended** range (for the main
+  systems, from HC's own defaults) and the **risk** of a wrong value. One source for all: `tools/field_help.py`
+  (idempotent; tested that every listed field has the three parts in every form).
+- **Risky values in the go-live checklist (warnings, never blockers):** a minimum pause or run under half the value
+  recommended for the heat source and system, a cycle too short for the system (on a water floor under 1200 s), a
+  heat pump's run or pause under half its default, a floor limit above 29 °C (an electric floor above 27 °C), frost
+  protection under 5 °C, a heating curve's highest flow above 45 °C on a floor, a local guard lease shorter than twice
+  its renewal. Each says the value, the recommended one and where to fix it.
+
+## 0.84.0 – 2026-11-28
+
+**"Why heating / why not?"** – the decision in a few plain lines, above the technical details.
+
+- **What it says.** A state word (Heating · Not heating · Paused · Waiting · Fault · Off · Cooling), why in everyday
+  words (no percentages), where the target comes from (the night with its times, nobody home, vacation, a preset
+  and until when, a manual target and until when, the weekly program, the morning heat-up), when it changes next
+  ("At 05:30 the target goes up to 22.5 °C"), and – only where it is certain – what you can do (close the window,
+  check the thermometer's battery, choose Auto to drop a manual target, Comfort or Boost if you want it warmer now).
+  In shadow mode it starts with "Shadow mode: this is what it would do"; when HC asks for no heat and the heating
+  still runs, it says so (hot water, or something else switching the output).
+- **Only what is known.** Every line comes from the decision and the supervisor (new read-only
+  `Supervisor.summary_context()`); a line that cannot be told is left out. Every decision reason has its state and
+  sentence in both languages (tested).
+- **Where.** The HC info panel shows it on top, above *Decision*; a TRV room's page shows the room's own (its
+  temperature and target with where that comes from, the heads open or waiting for the boiler, asking for heat, an
+  open window, a silent thermometer). The decision sensor has it as `summary` (one paragraph in Home Assistant's
+  language) and `summary_state` – for cards, notifications and voice; neither is recorded.
+- The minimum pause / run time, the return limit and no off-peak power are said as they are ("it asks for heat, but
+  the shortest pause is not over yet") – the first live run showed "a pause between heating runs" for a room 3 °C
+  under its target that only waited out its minimum pause after the restart.
+- For the room thermostat (standalone and zone instances); the central boiler, tank, mixing circuit and heat pump
+  coordination follow later.
+- The go-live checklist: no night setback (the same start and end) is shown as info, not a warning – it is a valid
+  choice.
+
+## 0.83.0 – 2026-11-28
+
+**A go-live checklist** – before HC switches anything, it says what the instance still lacks.
+
+- **Three levels.** A *blocker* refuses going live until it is solved; a *warning* lets it go live but is shown; *OK*
+  and *suggestion* are for the record. One line sums it up: "Ready to go live", "Ready to go live, with 2 warnings"
+  or "Not ready to go live: 1 blocker"; every item says where to fix it.
+- **What it checks.** The core input (the room thermometer, the tank's top sensor, the outdoor sensor of a heating
+  curve) and every output exist and are available (blockers); the other inputs and the valve heads (warnings); a
+  thermometer the instance itself reads as lost / stale / implausible (warning – a room thermostat's own sensor watch,
+  so a Bluetooth sensor that sends only on change is not called stale); another HC instance on the same output
+  (blocker); an automation or script whose *actions* name the output (warning – a trigger or a condition on it is no
+  conflict); at least one decision through (blocker), a day in shadow mode (warning), failing decisions now or faults in
+  the last day (warning); the life-safety stop tripped (blocker); a local guard that is set but does not answer
+  (blocker – asked with a bodiless status request, no lease, at most every 5 minutes), no guard on a relay
+  (suggestion); targets at or below frost protection or above the home target (warnings), no night setback (the
+  same start and end – shown only, it is a valid choice); per role: zones and a heat source switch (central boiler), the top sensor (tank), the flow target output
+  (mixing circuit), the outputs and a loaded tank (heat pump coordination).
+- **Where.** In the *Go live* step above the confirmation (a blocker refuses it), in the central boiler / tank /
+  mixing circuit / heat pump coordination forms when their mode goes from shadow to live or trial, in the HC info
+  panel's new *Ready to go live?* block (also for a live instance – it only informs) and at the end of the setup
+  wizard (from the settings alone; the wizard's "start live" is refused with a blocker open). New websocket command
+  `hc_thermostat/readiness` (admin only).
+- Going back to shadow mode is never stopped, nothing goes live or changes on its own, and a checklist that fails by
+  its own fault never stops a form. HC Lite goes live on its own device and is not judged here yet.
+- The instance remembers since when it is in its mode (`mode_since`; for an older record, its first logged
+  decision).
+
 ## 0.82.7 – 2026-11-27
 
 - HC Lite: the relay page's loader no longer puts its own font and margin over the web set-up (0.82.6 set them on the

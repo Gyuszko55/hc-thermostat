@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -49,6 +50,8 @@ from .rooms_ha import (
     area_id_of, areas_of_other_instances, excluded_climates, heads_of_other_instances, room_specs_for, rooms_candidates,
     suggest_entities,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 # 0.46.0: what the rooms menu item saves – the settings path keeps these as they are
 ROOM_OPTION_KEYS = ("rooms", "leading_room", "room_sensors", "room_trvs", "trv_sensors", "trv_offsets",
@@ -231,6 +234,21 @@ def _write_errors(role: str, user_input: dict) -> dict:
     if not user_input.get(CONF_CONFIRM):
         return {CONF_CONFIRM: "confirm_active"}
     return {}
+
+
+async def _not_ready(hass, entry, current: dict, user_input: dict | None) -> dict:
+    """0.83.0: going live from shadow mode (or into a supervised trial) while the go-live checklist has a blocker
+    is refused; the HC info panel's "Ready to go live?" block lists them. Going back to shadow is never stopped."""
+    new = (user_input or {}).get(CONF_MODE, MODE_SHADOW)
+    if new == MODE_SHADOW or current.get(CONF_MODE, MODE_SHADOW) != MODE_SHADOW:
+        return {}
+    from .readiness import async_check
+    try:
+        ready = await async_check(hass, entry, conf={k: v for k, v in (user_input or {}).items() if k != CONF_CONFIRM})
+    except Exception:  # the checklist must never stop a form by its own fault
+        _LOGGER.exception("The go-live checklist failed")
+        return {}
+    return {} if ready.get("ready") is not False else {"base": "not_ready"}
 
 
 def _with_trial(user_input: dict, current: dict) -> dict:
@@ -513,6 +531,8 @@ def _hpc_errors(user_input: dict) -> dict:
 WEEKEND_KEYS = ("night_start_weekend", "night_end_weekend")
 # 0.67.0: shown only in the user's Advanced mode (profile → Advanced mode); everyday use needs the others
 ADVANCED_SECTIONS = ("regulation", "energy", "adjoining", "house", "measures")
+_ROOMS_NOTE = {"hu": "\n\nA benti hőmérő a helyiségeknél van (a vezető helyiség hőmérői): a **Helyiségek** menüpontban állítható.",
+               "en": "\n\nThe indoor thermometer comes from the rooms (the leading room's thermometers): set it under **Rooms**."}
 ADVANCED_NOTE = {"hu": "\n\nA finomhangolás (szabályozás, energia, csatlakozó tér, ház-modell, mérések) a felhasználói profil **Haladó mód** kapcsolójával jelenik meg; mentéskor ezek értékei változatlanok maradnak.",
                  "en": "\n\nFine-tuning (regulation, energy, adjoining space, house model, measurements) appears with **Advanced mode** in your user profile; saving keeps their values."}
 
@@ -1252,11 +1272,90 @@ class HcOptionsFlow(OptionsFlow):
         if current.get(CONF_ROLE) == "lite":  # 0.79.2
             return await self.async_step_lite(user_input)
         live = current.get(CONF_MODE, MODE_SHADOW) == MODE_ACTIVE
-        menu = ["targets", "settings"]  # 0.66.0: the targets and the night first – the most common change
+        self._settings = None  # 0.86.0: the presets reached from the menu save on their own
+        # 0.86.0: by task, the everyday ones first – how warm and when, the presets, why (not) heating, the
+        # thermometers and windows, the rooms; the expert settings and another control last
+        menu = ["targets", "presets", "check", "sensors"]
         if _rooms_ok(current, current.get(CONF_CONTROL, "tpi")):
             menu.append("rooms")  # 0.46.0: straight to the rooms, saved on their own
-        menu.append("change_control")  # 0.49.0: another control without a new instance
-        return self.async_show_menu(step_id="init", menu_options=[*menu, "go_shadow" if live else "go_live"])
+        menu += ["settings", "change_control"]  # 0.49.0: another control without a new instance
+        return self.async_show_menu(step_id="init", menu_options=[*menu, "go_shadow" if live else "go_live"],
+                                    description_placeholders={"status": await self._status_line()})
+
+    async def _status_line(self) -> str:
+        """0.86.0: one line over the menu – what it does now and whether it may go live."""
+        lang = _lang_of(self)
+        hu = lang == "hu"
+        parts = []
+        try:
+            c = getattr(self.config_entry, "runtime_data", None)
+            s = c.plain_summary(lang) if c is not None and hasattr(c, "plain_summary") else None
+            if s:
+                parts.append(f"**{'Most' if hu else 'Now'}:** {s['headline']} – {s['lines'][0]}")
+            if (self.config_entry.options.get(CONF_MODE) or self.config_entry.data.get(CONF_MODE)) == MODE_ACTIVE:
+                parts.append(f"**{'Élesítés' if hu else 'Going live'}:** {'élesen fut' if hu else 'running live'}.")
+            else:
+                from .readiness import async_check
+                ready = await async_check(self.hass, self.config_entry, lang)
+                if ready.get("head"):
+                    parts.append(f"**{'Élesítés' if hu else 'Going live'}:** {ready['head']}.")
+        except Exception:  # a status line never stops the menu
+            _LOGGER.debug("No status line", exc_info=True)
+        return ("\n\n".join(parts) + "\n\n") if parts else ""
+
+    async def async_step_check(self, user_input=None):
+        """0.86.0: why heating / why not and the go-live checklist on one read-only page; OK goes back to the menu."""
+        if user_input is not None:
+            return await self.async_step_init()
+        from .core.readiness import as_text as checklist_text
+        from .core.summary import as_markdown
+        from .readiness import async_check
+        lang = _lang_of(self)
+        summary, checklist = "", ""
+        try:
+            c = getattr(self.config_entry, "runtime_data", None)
+            s = c.plain_summary(lang) if c is not None and hasattr(c, "plain_summary") else None
+            summary = as_markdown(s) if s else ("Még nincs döntés." if lang == "hu" else "No decision yet.")
+            ready = await async_check(self.hass, self.config_entry, lang)
+            checklist = checklist_text(ready) if ready.get("items") else ""
+        except Exception:  # a report page never fails by its own fault
+            _LOGGER.exception("The check page failed")
+        return self.async_show_form(step_id="check", data_schema=vol.Schema({}),
+                                    description_placeholders={"name": self.config_entry.title, "summary": summary,
+                                                              "checklist": checklist})
+
+    async def async_step_sensors(self, user_input=None):
+        """0.86.0: the thermometers, windows and presence only (a new thermometer, a re-paired sensor); the output
+        stays – changing what HC switches goes through "another control", which puts the instance in shadow mode."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        control = current.get(CONF_CONTROL, "tpi")
+        relay = control in _RELAY
+        rooms = bool(current.get("rooms"))  # the room setup (leading room) gives the indoor thermometer
+        keys = ([] if rooms else [CONF_INDOOR]) + [CONF_OUTDOOR, CONF_WINDOWS, CONF_PRESENCE]
+        errors = {}
+        if user_input is not None:
+            needs_indoor = not rooms and control not in ("external", "ac", "trv")
+            if needs_indoor and not user_input.get(CONF_INDOOR) and not (relay and current.get(CONF_DEMAND)):
+                errors[CONF_INDOOR] = "indoor_required"
+            elif control == "curve" and not user_input.get(CONF_OUTDOOR):
+                errors[CONF_OUTDOOR] = "outdoor_required"
+            else:
+                data = dict(self.config_entry.options)
+                for key in keys:  # an emptied picker clears the value (None also overrides the entry's data)
+                    value = user_input.get(key)
+                    data[key] = value if value not in (None, "", []) else None
+                return self.async_create_entry(data=data)
+        indoor_required = not rooms and control not in ("external", "ac", "trv") and not (relay and current.get(CONF_DEMAND))
+        fields: dict = {}
+        if not rooms:
+            fields[_key(indoor_required, CONF_INDOOR, current.get(CONF_INDOOR))] = _ent(CONF_INDOOR, "sensor")
+        fields[_key(control == "curve", CONF_OUTDOOR, current.get(CONF_OUTDOOR))] = _ent(CONF_OUTDOOR, "sensor", "weather")
+        fields[_key(False, CONF_WINDOWS, current.get(CONF_WINDOWS))] = _ent(CONF_WINDOWS, "binary_sensor", multiple=True)
+        fields[_key(False, CONF_PRESENCE, current.get(CONF_PRESENCE))] = _ent(
+            CONF_PRESENCE, "person", "binary_sensor", "sensor", "input_select", multiple=True)
+        return self.async_show_form(step_id="sensors", data_schema=vol.Schema(fields), errors=errors,
+                                    description_placeholders={"name": self.config_entry.title,
+                                                              "rooms": _ROOMS_NOTE[_lang_of(self)] if rooms else ""})
 
     async def async_step_targets(self, user_input=None):
         """0.66.0: only the targets and the night's times, saved at once; every other setting stays."""
@@ -1286,16 +1385,27 @@ class HcOptionsFlow(OptionsFlow):
         }), errors=errors, description_placeholders={"name": self.config_entry.title})
 
     async def async_step_go_live(self, user_input=None):
-        """Only the mode: shadow → active, with the usual confirmation; every other setting stays."""
+        """Only the mode: shadow → active, with the usual confirmation; every other setting stays. 0.83.0: the
+        go-live checklist above the confirmation – a blocker refuses it, a warning is shown."""
+        from .core.readiness import as_text
+        from .readiness import async_check
         errors = {}
+        try:
+            ready = await async_check(self.hass, self.config_entry)
+        except Exception:  # the checklist must never stop the step by its own fault
+            _LOGGER.exception("The go-live checklist failed")
+            ready = None
         if user_input is not None:
-            if not user_input.get(CONF_CONFIRM):
+            if ready is not None and ready.get("ready") is False:
+                errors["base"] = "not_ready"
+            elif not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
             else:
                 return self.async_create_entry(data={**self.config_entry.options, CONF_MODE: MODE_ACTIVE})
         return self.async_show_form(step_id="go_live", errors=errors, data_schema=vol.Schema({
             vol.Required(CONF_CONFIRM, default=False): BooleanSelector()}),
-            description_placeholders={"name": self.config_entry.title})
+            description_placeholders={"name": self.config_entry.title,
+                                      "checklist": as_text(ready) if ready and ready.get("items") else ""})
 
     async def async_step_go_shadow(self, user_input=None):
         """Back to shadow mode: it calculates on, but switches nothing."""
@@ -1603,6 +1713,8 @@ class HcOptionsFlow(OptionsFlow):
                 errors[CONF_CONFIRM] = "confirm_active"
             elif user_input["buffer_off"] <= user_input["buffer_on"]:
                 errors["buffer_off"] = "buffer_order"
+            elif errors := await _not_ready(self.hass, self.config_entry, current, user_input):  # 0.83.0
+                pass
             else:
                 return self.async_create_entry(data={k: v for k, v in user_input.items() if k != CONF_CONFIRM})
         fields = {
@@ -1619,6 +1731,8 @@ class HcOptionsFlow(OptionsFlow):
         """Mixing circuit (0.54.0): shadow only – no mode to choose yet."""
         current = {**self.config_entry.data, **self.config_entry.options}
         errors = _write_errors("circuit", user_input) if user_input is not None else {}
+        if user_input is not None and not errors:  # 0.83.0: the go-live checklist
+            errors = await _not_ready(self.hass, self.config_entry, current, user_input)
         if user_input is not None and not errors:
             self._circuit = _with_trial(user_input, current)
             return await self.async_step_circuit_settings()
@@ -1632,6 +1746,8 @@ class HcOptionsFlow(OptionsFlow):
         """Heat pump coordination (0.55.0): shadow only – no mode to choose yet."""
         current = {**self.config_entry.data, **self.config_entry.options}
         errors = _write_errors("hp_coord", user_input) if user_input is not None else {}
+        if user_input is not None and not errors:  # 0.83.0: the go-live checklist
+            errors = await _not_ready(self.hass, self.config_entry, current, user_input)
         if user_input is not None and not errors:
             self._hp = _with_trial(user_input, current)
             return await self.async_step_hp_coord_settings()
@@ -1690,6 +1806,8 @@ class HcOptionsFlow(OptionsFlow):
         if user_input is not None:
             if user_input[CONF_MODE] == MODE_ACTIVE and not user_input.get(CONF_CONFIRM):
                 errors[CONF_CONFIRM] = "confirm_active"
+            elif errors := await _not_ready(self.hass, self.config_entry, current, user_input):  # 0.83.0
+                pass
             else:
                 return self.async_create_entry(data={k: v for k, v in user_input.items() if k != CONF_CONFIRM})
         fields = {
@@ -1850,7 +1968,10 @@ class HcOptionsFlow(OptionsFlow):
         return self.async_create_entry(data=data)
 
     async def async_step_presets(self, user_input=None):
-        """Which presets are offered, their targets, and when a preset chosen by hand ends."""
+        """Which presets are offered, their targets, and when a preset chosen by hand ends. 0.86.0: reached from the
+        menu (not after the settings) it saves on its own, every other setting stays."""
+        if user_input is not None and getattr(self, "_settings", None) is None:
+            return self.async_create_entry(data={**self.config_entry.options, **user_input})
         if user_input is not None:
             self._settings = {**self._settings, **user_input}
             # 0.46.0: the rooms have their own menu item – what they saved stays as it is

@@ -319,17 +319,17 @@ def _options_flow(options, data=None):
 def test_options_start_with_a_menu_and_go_live_only_switches_the_mode():
     flow = _options_flow({"mode": "shadow", "target_home": 21.5})
     kind, kw = asyncio.run(flow.async_step_init())
-    assert kind == "menu" and kw["menu_options"] == ["targets", "settings", "rooms", "change_control", "go_live"]  # 0.46.0 / 0.49.0; 0.66.0: targets
+    assert kind == "menu" and kw["menu_options"] == ["targets", "presets", "check", "sensors", "rooms", "settings", "change_control", "go_live"]  # 0.86.0: by task
     kind, kw = asyncio.run(flow.async_step_go_live({"confirm": False}))
     assert kind == "form" and kw["errors"] == {"confirm": "confirm_active"}
     kind, kw = asyncio.run(flow.async_step_go_live({"confirm": True}))
     assert kind == "create" and kw["data"] == {"mode": "active", "target_home": 21.5}
     flow = _options_flow({"mode": "active", "target_home": 21.5})
-    assert asyncio.run(flow.async_step_init())[1]["menu_options"] == ["targets", "settings", "rooms", "change_control", "go_shadow"]
+    assert asyncio.run(flow.async_step_init())[1]["menu_options"] == ["targets", "presets", "check", "sensors", "rooms", "settings", "change_control", "go_shadow"]
     assert asyncio.run(flow.async_step_go_shadow({}))[1]["data"] == {"mode": "shadow", "target_home": 21.5}
     for lang in ("hu", "en"):
         st = _tr(lang)["options"]["step"]
-        assert set(st["init"]["menu_options"]) == {"targets", "settings", "rooms", "change_control", "go_live", "go_shadow"} and "settings" in st
+        assert set(st["init"]["menu_options"]) == {"targets", "presets", "check", "sensors", "rooms", "settings", "change_control", "go_live", "go_shadow"} and "settings" in st
 
 
 def test_the_wizard_may_start_a_new_instance_live():

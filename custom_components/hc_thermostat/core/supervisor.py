@@ -615,6 +615,30 @@ class Supervisor:
             return week.level_at(self.week, now)
         return "sleep" if self._is_night(now) else "home"
 
+    def summary_context(self, now: datetime) -> dict:
+        """0.84.0: where the target comes from and when it changes next – for the plain "why (not) heating" summary
+        (core/summary.py). Read only: nothing here changes the supervisor's state."""
+        presence = self._last_presence or Presence.HOME
+        if self.preset is not None:
+            next_at = self.preset_until
+        elif presence != Presence.HOME:
+            next_at = None
+        else:
+            next_at = self._next_boundary(now)
+        next_target = None
+        if next_at is not None and self.preset is None:
+            try:
+                next_target = self._schedule_target(Inputs(now=next_at + timedelta(seconds=1)))
+            except Exception:  # a summary line must never break a decision step
+                next_target = None
+        level = week.level_at(self.week, now) if self.week else None
+        return {"preset": self.preset, "active": self.active_preset(now), "presence": presence.value,
+                "preset_until": self.preset_until, "preset_until_home": bool(self.preset_until_home),
+                "manual": self.manual_target, "next_at": next_at, "next_target": next_target,
+                "night": (self.cfg.night_start, self.cfg.night_end), "week_level": level,
+                "early": dict(self._early) if self._early else None, "season_on": self.season_on,
+                "drop": self.drop_open}
+
     def _schedule_target(self, inputs: Inputs) -> float:
         cfg = self.cfg
         preset = self.preset

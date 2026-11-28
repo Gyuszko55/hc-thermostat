@@ -39,10 +39,14 @@ működik: a °F-os mérést átszámolja, és amit egy termosztátra ír, a ren
    helyiségek; rendszergazdáknak) –, vagy a kézi beállítást: név, hőforrás és rendszer, eszközök (ahol lehet, előre
    kitöltve, a többi lenyitható), végül a célok és az időzítés.
 3. **Figyeld árnyék módban:** az új példány számol és naplózza, mit tenne, de nem kapcsol. A **HC info** panel és a
-   döntés-szenzor megmondja, miért.
+   döntés-szenzor megmondja, miért – felül néhány egyszerű sorban („Nem fűt: a ház elérte a célt. A cél 21 °C,
+   mert éjszaka van (22:00–05:30). 05:30-kor 22,5 °C-ra nő.”), alatta a műszaki részletek.
 4. **Élesítés:** Beállítások → Eszközök és szolgáltatások → HC Thermostat → **Konfigurálás** → **Élesítés**, a
    megerősítés bejelölésével. (A varázsló összefoglalóján az új példány élesen is indítható.) Vissza árnyékba
-   ugyanígy.
+   ugyanígy. Előtte egy **élesítés előtti ellenőrzőlista** fut – ebben a lépésben és a HC info panel *Élesíthető?*
+   blokkjában: hiányzó vagy elérhetetlen hőmérő vagy kimenet, ugyanazon a kimeneten egy másik HC-példány, még egy
+   döntés sem, kioldott életvédelmi leállítás vagy nem válaszoló helyi védő esetén nem lehet élesíteni; a rövid
+   árnyék futás, az ugyanazt a kimenetet kapcsoló automatizálás és az egymásnak ellentmondó célok figyelmeztetések.
 
 **Jelenlét** (`presence_entities`): otthon, ha bármelyik `home`, `on`, `otthon` (otthon lévő `person` /
 `device_tracker`, bekapcsolt bináris szenzor); szabadság: `vacation`, `szabadság`, `szabadsag`; minden más (zóna neve,
@@ -811,17 +815,22 @@ követi az új azonosítóra (és újratölt), nem veszíti el.
 
 ## Beállítások
 
-A példány **Konfigurálás** gombja egy menüt nyit:
+A példány **Konfigurálás** gombja feladatok szerinti menüt nyit (0.86.0), felül egy állapotsorral – mit csinál most,
+és élesíthető-e:
 
-- **Célok és időzítés** – a célok és az éjszaka (hétköznap és hétvége); a leggyakoribb módosítás.
-- **Beállítások** – minden más, lenyitható szekciókban. A finomhangolás (*Szabályozás*, *Energia*, *Csatlakozó tér*,
-  *Ház*, *Mérések*) csak a felhasználói profilban bekapcsolt **Haladó mód** mellett látszik; nélküle a mentés ezeket
-  változatlanul hagyja.
+- **Milyen meleg legyen, és mikor?** – a célok és az éjszaka (hétköznap és hétvége); a leggyakoribb módosítás.
+- **Előbeállítások** – mely előbeállítások választhatók, a Komfort és az Eco, és meddig tart a kézzel választott.
+- **Miért fűt / miért nem? – ellenőrzés** – csak olvasható: az egyszerű összefoglaló és az élesítés előtti lista.
+- **Hőmérők és ablakok** – benti és kinti hőmérő, ablakok, jelenlét (pl. új hőmérő után).
 - **Helyiségek** – egy kazán helyiségei, hőmérőik, szelepfejeik, jelenlét és ablakok.
-- **Vezérlés módosítása** – más vezérlés új példány nélkül.
+- **Szakértői beállítások** – minden más, lenyitható szekciókban. A finomhangolás (*Szabályozás*, *Energia*,
+  *Csatlakozó tér*, *Ház*, *Mérések*) csak a felhasználói profilban bekapcsolt **Haladó mód** mellett látszik;
+  nélküle a mentés ezeket változatlanul hagyja.
+- **Más eszköz vezérli a fűtést** – más vezérlés új példány nélkül (árnyék módba vissza).
 - **Élesítés / Vissza árnyék módba** – csak itt változik az üzemmód, megerősítéssel.
 
-Minden mező alatt rövid magyarázat van az űrlapon.
+Minden mező alatt rövid magyarázat van az űrlapon; a kritikusaknál az is, mikor kell változtatni, mi az ajánlott
+tartomány és mi a kockázat (0.85.0).
 
 ## Tesztek
 

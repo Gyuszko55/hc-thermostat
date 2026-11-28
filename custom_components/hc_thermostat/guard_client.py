@@ -18,6 +18,7 @@ from .core.guard import GuardLink, GuardSettings
 
 _LOGGER = logging.getLogger(__name__)
 TIMEOUT_S = 5.0
+PROBE_EVERY_S = 300  # 0.83.0: the go-live checklist asks the guard at most this often
 SHELLY_USER = "admin"  # Gen2+ devices: the only user
 
 
@@ -50,6 +51,7 @@ class GuardSender:
         self._auth = None  # the digest middleware, made at the first send (it keeps the device's nonce)
         self._primed = False  # 0.78.3: the middleware holds a challenge from a bodiless request
         self._warned = False  # 0.78.4: a missed renewal logged once per streak
+        self._probe: tuple[datetime, str] | None = None  # 0.83.0: the checklist's last status request
 
     def _middlewares(self) -> tuple:
         if not self._password:
@@ -107,6 +109,25 @@ class GuardSender:
             _LOGGER.info("Guard lease renewed again (%s)", self.url)
         self._warned = False
         self.link.sent(now, on, status, safety)
+
+    async def probe(self, now: datetime) -> str:
+        """0.83.0: the go-live checklist – does the guard answer? A bodiless GET of its status (no lease, nothing
+        switched), remembered for five minutes so an open panel does not hammer the device. "ok" or the error."""
+        if self._probe is not None and (now - self._probe[0]).total_seconds() < PROBE_EVERY_S:
+            return self._probe[1]
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+        try:
+            session = async_get_clientsession(self._hass)
+            mw = self._middlewares()
+            extra = {"middlewares": mw} if mw else {}
+            async with asyncio.timeout(TIMEOUT_S):
+                async with session.get(self.url, **extra) as resp:
+                    await resp.read()
+                    result = "ok" if resp.status == 200 else f"HTTP {resp.status}"
+        except Exception as err:  # no answer: the checklist says so, nothing else changes
+            result = type(err).__name__
+        self._probe = (now, result)
+        return result
 
     def _tolerated(self, now: datetime, safety: bool) -> bool:
         """0.78.4: a missed renewal (no answer, 429, 5xx) while the guard's lease still holds is no relay fault – HC tries again at the next

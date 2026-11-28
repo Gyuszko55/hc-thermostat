@@ -68,11 +68,21 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     async_add_entities(entities + groups)
 
 
+def _summary_attrs(c) -> dict:
+    """0.84.0: the plain summary as one paragraph and its state word key (heating / idle / paused / …)."""
+    try:
+        from .core.summary import as_text
+        s = c.plain_summary()
+    except Exception:  # never let a report line take the decision sensor down
+        return {}
+    return {"summary": as_text(s), "summary_state": s["state"]} if s else {}
+
+
 class HcDecision(HcEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = [r.value for r in Reason]
     # 0.45.0: the last 20 decisions are in the state (cards read them there) – not again in the history every 30 s
-    _unrecorded_attributes = frozenset({"log"})
+    _unrecorded_attributes = frozenset({"log", "summary", "summary_state"})  # 0.84.0: the summary changes often
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "decision")
@@ -86,6 +96,7 @@ class HcDecision(HcEntity, SensorEntity):
         c, d = self.coordinator, self.coordinator.data
         return {
             "explanation": explain(d, c.hass.config.language, c.room_wording),
+            **_summary_attrs(c),  # 0.84.0: "why heating / why not" in plain words
             "mode": c.mode,
             "target": d.target,
             "indoor": d.indoor,

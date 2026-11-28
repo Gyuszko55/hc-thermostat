@@ -13,6 +13,8 @@ Websocket commands (admin only):
 
 from __future__ import annotations
 
+import logging
+
 from datetime import timedelta
 from pathlib import Path
 import statistics
@@ -63,6 +65,9 @@ SETTING_KEYS = ("cycle_s", "min_on_s", "min_off_s", "keep_alive_s", "power_idle_
                 "floor_fallback", "floor_covering", "floor_probe", "valve_delay_s")
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 async def async_setup_wizard(hass: HomeAssistant) -> None:
     """Serve the panel and register it in the sidebar (admins only); safe to call once per HA start."""
     if hass.data.get(f"{DOMAIN}_wizard"):
@@ -83,6 +88,8 @@ async def async_setup_wizard(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_rooms)
     from .system_setup import ws_system  # 0.61.0: the buffer system setup path
     websocket_api.async_register_command(hass, ws_system)
+    from .readiness import ws_readiness  # 0.83.0: the go-live checklist
+    websocket_api.async_register_command(hass, ws_readiness)
 
 
 INFO_URL = "hc-info"
@@ -596,8 +603,18 @@ async def ws_apply(hass: HomeAssistant, connection, msg) -> None:
     mode = MODE_ACTIVE if msg.get("start_active") else MODE_SHADOW
     data = {"name": name, CONF_ROLE: "standalone", CONF_HEAT_SOURCE: source, CONF_SYSTEM: system,
             CONF_CONTROL: control, **ents, **sets, **(trv or {}), CONF_MODE: mode}
+    from .readiness import static_check  # 0.83.0: the go-live checklist, from the settings alone
+    try:
+        ready = static_check(hass, data)
+    except Exception:  # the checklist must never stop the wizard by its own fault
+        _LOGGER.exception("The go-live checklist failed")
+        ready = None
+    if mode == MODE_ACTIVE and ready is not None and not ready["ready"]:
+        blockers = "; ".join(i["title"] for i in ready["items"] if i["level"] == "block")
+        connection.send_error(msg["id"], "not_ready", blockers)
+        return
     if control == "curve":
         data = {**default_curve(system, source), **data}
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "wizard"}, data=data)
     entry_id = getattr(result.get("result"), "entry_id", None)
-    connection.send_result(msg["id"], {"entry_id": entry_id, "created": True})
+    connection.send_result(msg["id"], {"entry_id": entry_id, "created": True, "readiness": ready})
