@@ -80,7 +80,9 @@ def _instance(hass, entry) -> dict:
     role = conf.get("role", "standalone")
     base = {"entry_id": entry.entry_id, "title": entry.title, "role": role, "mode": c.mode,
             "heat_source": conf.get("heat_source"), "system": conf.get("system"), "control": conf.get("control"),
-            "entities": _entities(hass, conf), "conf": jsonable(conf)}
+            "entities": _entities(hass, conf), "conf": jsonable(conf),
+            # 0.87.0: "why heating / why not" for every role (the room thermostat sets its own below)
+            "summary_hu": _plain(c, "hu"), "summary_en": _plain(c, "en")}
     if role == "circuit":  # 0.54.0, shadow only
         return {**base, "mode": c.write.mode, "write": jsonable(c.write.info(c.data.now)) if c.data else {},
                 "outputs": {"target": jsonable(c.out.info())}, "decision": jsonable(c.data), "zones": jsonable(c.zones),

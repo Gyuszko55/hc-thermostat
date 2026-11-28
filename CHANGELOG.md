@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.87.0 – 2026-11-28
+
+**"Why heating / why not?" everywhere, and by voice.**
+
+- **The central boiler, the buffer tank, the mixing circuit and the heat pump coordination** get the plain summary
+  too (`core/summary_roles.py`): the tank charging until its bottom reaches the stop temperature, charged, warm enough,
+  waiting for demand, no fresh top reading; the circuit's flow given out, capped by the tank ("the curve would ask
+  for 36 °C, the tank gives only 34 °C now"), which zones ask; the heat pump charging for a low reserve, resting while
+  wood charges, summer mode, standby; the central boiler heating for which zones, waiting for the valves, a valve that
+  does not open. On top of the HC info panel and in the decision sensors' attributes, in shadow mode with its note.
+- **On the climates too:** the HC thermostat and every TRV room's climate carry `summary`, `summary_state`,
+  `summary_headline`, `summary_lines` and `summary_note` (the decision sensors as well) – for cards, notifications and
+  the HC Dial Card. None of them is recorded.
+- **Assist:** the intent `HcWhyHeating` (optional `name`: an instance, a room or an area, matched loosely – Hungarian
+  endings too). An LLM agent with the Assist API gets it as a tool by itself; for the built-in agent, example
+  sentences are in the README (en / hu). The answer is spoken: the state, why, and where the target comes from.
+
 ## 0.86.0 – 2026-11-28
 
 **The settings menu by task** – the everyday things first, the expert settings last.

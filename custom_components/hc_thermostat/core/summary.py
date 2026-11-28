@@ -35,7 +35,7 @@ STATE_WORDS = {
 # why, in everyday words; {where}: "a ház" / "a helyiség" (the house / the room), {Where} capitalised
 WHY = {
     "hu": {
-        "regulating_on": "Fűt, mert {where} a cél alatt van (bent {indoor} °C, cél {target} °C).",
+        "regulating_on": "{Where} a cél alatt van (bent {indoor} °C, cél {target} °C).",
         "regulating_off": "Most szünet a fűtési szakaszok között: a hőt adagolva adja, hogy ne lője túl (bent {indoor} °C, cél {target} °C).",
         Reason.AT_TARGET: "{Where} elérte a célt (bent {indoor} °C, cél {target} °C).",
         Reason.BOOST: "Gyors felfűtés a {target} °C-os célig, legkésőbb {until}-ig.",
@@ -73,7 +73,7 @@ WHY = {
         "no_power": "Nincs vezérelt áram, most nem fűthet.",
     },
     "en": {
-        "regulating_on": "Heating, because {where} is below its target ({indoor} °C inside, target {target} °C).",
+        "regulating_on": "{Where} is below its target ({indoor} °C inside, target {target} °C).",
         "regulating_off": "A pause between heating runs: it doses the heat so it does not overshoot ({indoor} °C inside, target {target} °C).",
         Reason.AT_TARGET: "{Where} has reached its target ({indoor} °C inside, target {target} °C).",
         Reason.BOOST: "A quick heat-up to {target} °C, until {until} at the latest.",

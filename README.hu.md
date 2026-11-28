@@ -832,6 +832,31 @@ A példány **Konfigurálás** gombja feladatok szerinti menüt nyit (0.86.0), f
 Minden mező alatt rövid magyarázat van az űrlapon; a kritikusaknál az is, mikor kell változtatni, mi az ajánlott
 tartomány és mi a kockázat (0.85.0).
 
+### „Miért (nem) fűt?” az Assisttól (0.87.0)
+
+A HC regisztrálja a `HcWhyHeating` szándékot. Egy nyelvi modell alapú beszélgető ügynök (pl. Google Gemini vagy
+OpenAI az *Assist* API-val) magától eszközként kapja meg, és a HC saját összefoglalójából válaszol – „Miért nem fűt a
+fürdőben?”. A beépített ügynökhöz (és a gyors, helyi válaszhoz) tegyél mondatokat a konfigurációs mappa
+`custom_sentences/hu/hc_miert.yaml` fájljába:
+
+```yaml
+language: hu
+intents:
+  HcWhyHeating:
+    data:
+      - sentences:
+          - "miért [nem] (fűt|megy) a fűtés"
+          - "mit csinál a fűtés"
+          - "miért [nem] fűt [a|az] {hc_nev}"
+          - "miért nincs meleg [a|az] {hc_nev}"
+lists:
+  hc_nev:
+    wildcard: true
+```
+
+A `hc_nev` (nyelvi modellnél: `name`) lehet HC-példány, helyiség vagy terület, laza egyezéssel („fürdőben” → Fürdőszoba; `name` nevű lista a HA saját entitásnév-listáját írná felül); nélküle a ház fő
+példánya válaszol. A válasz felolvasható: állapot, miért, és honnan jön a cél.
+
 ## Tesztek
 
 ```sh

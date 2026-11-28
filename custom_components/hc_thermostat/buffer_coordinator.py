@@ -81,6 +81,11 @@ class BufferCoordinator(DataUpdateCoordinator[BufferDecision]):
         self._trend = StockTrend()
         self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
+    def plain_summary(self, language: str | None = None) -> dict | None:
+        """0.87.0: "why heating / why not" in a few plain lines (core/summary_roles.py)."""
+        from .plain import role_plain
+        return role_plain(self, "buffer", language)
+
     @property
     def is_shadow(self) -> bool:
         return self.mode == MODE_SHADOW

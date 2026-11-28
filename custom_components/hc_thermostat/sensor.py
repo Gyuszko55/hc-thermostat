@@ -14,6 +14,7 @@ from .core.model import Reason
 from .entity import HcEntity
 from .room_groups import RoomTemperatureGroup, groups_of, remove_old_groups
 from .measure_entities import measure_sensors
+from .plain import SUMMARY_KEYS, _summary_attrs  # 0.84.0 / 0.87.0
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -68,21 +69,11 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     async_add_entities(entities + groups)
 
 
-def _summary_attrs(c) -> dict:
-    """0.84.0: the plain summary as one paragraph and its state word key (heating / idle / paused / …)."""
-    try:
-        from .core.summary import as_text
-        s = c.plain_summary()
-    except Exception:  # never let a report line take the decision sensor down
-        return {}
-    return {"summary": as_text(s), "summary_state": s["state"]} if s else {}
-
-
 class HcDecision(HcEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = [r.value for r in Reason]
     # 0.45.0: the last 20 decisions are in the state (cards read them there) – not again in the history every 30 s
-    _unrecorded_attributes = frozenset({"log", "summary", "summary_state"})  # 0.84.0: the summary changes often
+    _unrecorded_attributes = frozenset({"log", *SUMMARY_KEYS})  # 0.84.0: the summary changes often
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "decision")
@@ -410,6 +401,8 @@ class HcBufferDecision(HcEntity, SensorEntity):
     _attr_options = ["charging", "full", "ready", "waiting_demand", "min_off", "frost", "no_sensor", "max_charge", "failsafe", "safety_stop"]
     _attr_icon = "mdi:storage-tank"
 
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0: the plain summary changes often
+
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "buffer_decision")
 
@@ -421,7 +414,7 @@ class HcBufferDecision(HcEntity, SensorEntity):
     def extra_state_attributes(self) -> dict:
         d = self.coordinator.data
         return {"mode": self.coordinator.mode, "source": d.output, "top": d.top, "bottom": d.bottom,
-                "asking": list(d.asking), **d.details}
+                "asking": list(d.asking), **d.details, **_summary_attrs(self.coordinator)}  # 0.87.0
 
 
 def _layers(c) -> dict:
@@ -519,6 +512,8 @@ class HcCircuitTarget(HcEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:thermometer-water"
 
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0: the plain summary changes often
+
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "circuit_target")
 
@@ -543,7 +538,7 @@ class HcCircuitTarget(HcEntity, SensorEntity):
                 # 0.64.0: the tank cap – demanded (to the heat pump), given to the mixer, the tank's limit, shortfall
                 "demand_target": d.demand_target, "tank_cap": d.cap, "cap_state": d.cap_state,
                 "shortfall": d.shortfall, "tank_cap_on": cfg.circuit_tank_cap, "margin": cfg.circuit_margin,
-                **({"buffer": c.usable} if c.usable else {})}
+                **({"buffer": c.usable} if c.usable else {}), **_summary_attrs(self.coordinator)}  # 0.87.0
 
 
 class HcCircuitRaw(HcEntity, SensorEntity):
@@ -569,6 +564,8 @@ class HcHpDecision(HcEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_icon = "mdi:heat-pump-outline"
 
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0: the plain summary changes often
+
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "hp_decision")
         from .core.hp_coord import REASONS
@@ -584,7 +581,7 @@ class HcHpDecision(HcEntity, SensorEntity):
         c = self.coordinator
         return {"mode": c.write.status(d.now), **c.write.info(d.now), "outputs": c.outputs(),
                 "enable_request": d.enable, "heat_demand": d.heat_demand, "need": d.need,
-                "wood": d.wood, "cold_on": d.cold_on, **d.details}
+                "wood": d.wood, "cold_on": d.cold_on, **d.details, **_summary_attrs(self.coordinator)}  # 0.87.0
 
 
 class HcHpTarget(HcEntity, SensorEntity):
@@ -770,6 +767,8 @@ class HcCentralDecision(HcEntity, SensorEntity):
     _attr_options = ["no_demand", "waiting_valves", "heating", "min_on", "min_off", "valves_closed", "failsafe", "safety_stop"]
     _attr_icon = "mdi:water-boiler"
 
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0: the plain summary changes often
+
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "central_decision")
 
@@ -787,7 +786,7 @@ class HcCentralDecision(HcEntity, SensorEntity):
                 "flow_setpoint": d.flow_setpoint, "flow_by": d.details.get("flow_by"),
                 "flow_capped_by": d.details.get("flow_capped_by"),
                 "flow_requests": d.details.get("flow_requests", {}),
-                **self._exercise()}
+                **self._exercise(), **_summary_attrs(self.coordinator)}  # 0.87.0
 
     def _exercise(self) -> dict:
         """Weekly pump exercise (0.39.0): running now and until when, the next one, when the pump last ran."""

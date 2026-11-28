@@ -112,6 +112,11 @@ class CircuitCoordinator(DataUpdateCoordinator[CircuitDecision]):
         self._last_save = dt_util.now()
         self.failsafe = StepFailsafe(hass, entry)  # 0.78.2: security review H2
 
+    def plain_summary(self, language: str | None = None) -> dict | None:
+        """0.87.0: "why heating / why not" in a few plain lines (core/summary_roles.py)."""
+        from .plain import role_plain
+        return role_plain(self, "circuit", language)
+
     @property
     def is_shadow(self) -> bool:
         return not self.write.writing(dt_util.now())

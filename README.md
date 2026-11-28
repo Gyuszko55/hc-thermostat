@@ -808,6 +808,31 @@ it may go live:
 Every field has a short explanation under it in the form; the critical ones also say when to change them, the
 recommended range and the risk (0.85.0).
 
+### Asking Assist "why is it (not) heating?" (0.87.0)
+
+HC registers the intent `HcWhyHeating`. An LLM conversation agent (e.g. Google Gemini or OpenAI with the *Assist*
+API) gets it as a tool by itself and answers from HC's own summary – "Why is the bathroom not heating?". For the
+built-in agent (and for quick local answers), add sentences to `custom_sentences/en/hc_why.yaml` in your
+configuration folder:
+
+```yaml
+language: en
+intents:
+  HcWhyHeating:
+    data:
+      - sentences:
+          - "why is [the] heating [not] (on|running|working)"
+          - "what is the heating doing"
+          - "why is [the] {hc_name} [not] (heating|warm)"
+          - "why is it [not] heating in [the] {hc_name}"
+lists:
+  hc_name:
+    wildcard: true
+```
+
+`hc_name` (for an LLM agent: `name`) may be an HC instance, a room or an area, matched loosely (a list called `name` would override Home Assistant's own entity names); without it the house's leading instance answers.
+The answer is spoken: the state, why, and where the target comes from.
+
 ## Tests
 
 ```sh

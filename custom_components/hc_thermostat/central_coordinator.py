@@ -119,6 +119,11 @@ class CentralCoordinator(DataUpdateCoordinator[CentralDecision]):
         await self._store.async_save({"pump_exercise": self.central.exercise.state()})
         self._saved_run = self.central.exercise.last_run
 
+    def plain_summary(self, language: str | None = None) -> dict | None:
+        """0.87.0: "why heating / why not" in a few plain lines (core/summary_roles.py)."""
+        from .plain import role_plain
+        return role_plain(self, "central", language)
+
     def _pump_on(self) -> bool:
         pump = self.conf.get(CONF_PUMP)
         state = self.hass.states.get(pump) if pump else None

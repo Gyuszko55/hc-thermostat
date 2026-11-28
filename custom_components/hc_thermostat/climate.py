@@ -10,6 +10,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from .plain import SUMMARY_KEYS, _summary_attrs  # 0.87.0
 from .const import CONF_ROLE, CONF_VALVE_FEEDBACK, DOMAIN, PRESETS
 from .core.room_model import ROOM_PRESETS, slugify
 from .core.curve import flow_request, zone_flow_limit
@@ -93,8 +94,22 @@ def _remove_old_rooms(hass, entry, keep: set[str]) -> None:
             dev_reg.async_remove_device(d.id)
 
 
+def _room_summary(st: dict, trv: bool, hass) -> dict:
+    """0.87.0: a TRV room's plain summary as attributes (as the decision sensor's); a watched room has none."""
+    if not trv or not st or st.get("reason") == "unheated":
+        return {}
+    try:
+        from .core.summary import as_text, summarize_room
+        s = summarize_room(st, str(getattr(hass.config, "language", "") or "en"))
+    except Exception:
+        return {}
+    return {"summary": as_text(s), "summary_state": s["state"], "summary_headline": s["headline"],
+            "summary_lines": list(s["lines"]), "summary_note": None}
+
+
 class HcClimate(HcEntity, ClimateEntity):
     _attr_name = None
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0
     if NATIVE_TEMPS:
         _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     else:
@@ -181,6 +196,7 @@ class HcClimate(HcEntity, ClimateEntity):
             **controller_attributes(self.coordinator.cfg, sup, data.demand, dt_util.now()),
             **self._floor_attributes(),
             **self._managed_attributes(),
+            **_summary_attrs(self.coordinator),  # 0.87.0: "why heating / why not" (the dial card shows it)
         }
 
     def _room_climates(self) -> list[str]:
@@ -279,6 +295,7 @@ class HcRoomClimate(CoordinatorEntity, ClimateEntity):
     _attr_has_entity_name = True
     _attr_name = None
     _attr_translation_key = "room"
+    _unrecorded_attributes = frozenset(SUMMARY_KEYS)  # 0.87.0
     if NATIVE_TEMPS:
         _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     else:
@@ -385,6 +402,7 @@ class HcRoomClimate(CoordinatorEntity, ClimateEntity):
             "calibration": {h: v.get("calibration") for h, v in (st.get("heads") or {}).items()} or None,
             "control_type": c.cfg.control,
             "demand": 0,
+            **_room_summary(st, bool(self._trv), c.hass),  # 0.87.0: a TRV room's own plain summary
         }
         if host is None:
             out.pop("host_entity")

@@ -37,7 +37,7 @@ def test_a_night_regulating_pause_tells_why_where_the_target_comes_from_and_what
         "Ha most melegebb kell: Komfort vagy Gyors felfűtés.",
     ]
     on = summarize(_d(output=True), NIGHT, "en", room=True)
-    assert on["headline"] == "Heating" and on["lines"][0].startswith("Heating, because the room is below its target")
+    assert on["headline"] == "Heating" and on["lines"][0].startswith("The room is below its target")
     assert len(on["lines"]) == 3  # no "warmer now" offer while it heats
 
 
